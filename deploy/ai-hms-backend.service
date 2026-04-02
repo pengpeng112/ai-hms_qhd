@@ -1,0 +1,40 @@
+[Unit]
+Description=AI-HMS Backend Service (透析中心管理系统后端)
+Documentation=https://github.com/elliotxin/ai-hms-backend
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai-hms
+Group=ai-hms
+
+# 环境变量从 /opt/ai-hms/.env 加载
+EnvironmentFile=/opt/ai-hms/.env
+
+WorkingDirectory=/opt/ai-hms
+
+# 二进制文件路径
+ExecStart=/opt/ai-hms/ai-hms-backend
+
+# 自动重启策略
+Restart=always
+RestartSec=5
+
+# 进程优先级和资源限制
+Nice=0
+LimitNOFILE=65536
+
+# 标准输出写入 systemd journal，可通过 journalctl -u ai-hms-backend 查看
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=ai-hms-backend
+
+# 安全加固选项（openEuler 22.03 兼容）
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/ai-hms/logs
+
+[Install]
+WantedBy=multi-user.target

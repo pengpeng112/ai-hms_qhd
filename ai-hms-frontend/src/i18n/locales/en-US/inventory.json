@@ -1,0 +1,61 @@
+{
+  "title": "Supplies & Medications",
+  "stockIn": "Stock In",
+  "batchPrint": "Batch Print Labels",
+
+  "tab.stock": "Real-time Stock",
+  "tab.log": "Stock Logs",
+  "tab.labels": "Label Printing",
+
+  "search.stock": "Search supplies, specs...",
+  "search.log": "Search supplies or operators...",
+  "search.labels": "Search label tasks...",
+
+  "stockAlert": "Low Stock",
+  "stockLow": "Stock Warning",
+  "stockNormal": "Normal",
+  "alertCount": "Low Stock: ",
+  "normalCount": "Normal Stock: ",
+  "items": "items",
+
+  "table.itemName": "Item Name",
+  "table.spec": "Specification",
+  "table.category": "Category",
+  "table.currentStock": "Current Stock",
+  "table.status": "Status",
+  "table.location": "Location",
+  "table.action": "Action",
+  "table.time": "Time",
+  "table.type": "Type",
+  "table.quantity": "Quantity",
+  "table.operator": "Operator",
+  "table.note": "Note",
+  "table.detail": "Detail",
+
+  "log.in": "Stock In",
+  "log.out": "Stock Out",
+
+  "label.completed": "Completed",
+  "label.printing": "Printing",
+  "label.pending": "Pending",
+  "label.spec": "Spec: ",
+  "label.quantity": "Qty: ",
+  "label.sheets": "sheets",
+  "label.createdAt": "Created: ",
+  "label.download": "Download",
+  "label.print": "Print",
+
+  "empty.stock": "No matching supplies found",
+  "empty.log": "No stock logs yet",
+  "empty.labels": "No label tasks yet",
+
+  "footer.showing": "Showing {{count}} of {{total}}",
+
+  "alert.selectItems": "Please select items to print labels",
+  "alert.batchPrint": "Demo: Batch print labels for {{count}} items",
+  "alert.stockIn": "Demo: Open stock-in form",
+  "alert.viewDetail": "Demo: View details of {{name}}",
+  "alert.viewLogDetail": "Demo: View log {{id}} details",
+  "alert.downloadLabel": "Demo: Download label {{id}}",
+  "alert.reprintLabel": "Demo: Reprint label {{id}}"
+}

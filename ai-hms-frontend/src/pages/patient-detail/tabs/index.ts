@@ -1,0 +1,11 @@
+// Patient Detail Tabs - 患者详情页 Tab 组件统一导出
+
+export { default as OverviewTab } from './OverviewTab'
+export { default as BasicInfoTab } from './BasicInfoTab'
+export { default as TreatmentPlanTab } from './TreatmentPlanTab'
+export { default as MedicalRecordTab } from './MedicalRecordTab'
+export { default as SchemeOrderTab } from './SchemeOrderTab'
+export { default as LabsExamsTab } from './LabsExamsTab'
+export { default as VascularTab } from './VascularTab'
+export { default as HistoryTab } from './HistoryTab'
+export { default as MonthlySummaryTab } from './MonthlySummaryTab'

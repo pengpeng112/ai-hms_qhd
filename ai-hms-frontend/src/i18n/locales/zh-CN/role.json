@@ -1,0 +1,30 @@
+{
+  "doctorChief": "主任医师",
+  "doctorSupervisor": "主治医师",
+  "doctorDuty": "值班医师",
+  "nurseHead": "护士长",
+  "nurseScheduler": "主班护士",
+  "nurseManager": "护理组长",
+  "nurseResponsible": "责任护士",
+  "engineer": "工程师",
+  "admin": "系统管理员",
+
+  "label.current": "当前登录身份",
+
+  "desc.doctor": "临床诊疗与处方管理",
+  "desc.nurse": "护理任务与患者监护",
+  "desc.engineer": "设备运行与维护中心",
+
+  "group.doctor": "医生组",
+  "group.nurse": "护士组",
+  "group.tech": "技术保障组",
+
+  "subLabel.doctorChief": "科室主任",
+  "subLabel.doctorSupervisor": "主管医生",
+  "subLabel.doctorDuty": "值班医生",
+  "subLabel.nurseHead": "护士长",
+  "subLabel.nurseScheduler": "主班护士 (排班)",
+  "subLabel.nurseManager": "总管护士 (库管)",
+  "subLabel.nurseResponsible": "责任护士",
+  "subLabel.engineer": "设备工程师"
+}

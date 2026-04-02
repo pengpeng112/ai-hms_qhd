@@ -1,0 +1,73 @@
+{
+  "title": "设备管理",
+  "subtitle": "管理和监控透析设备状态",
+
+  "status.normal": "正常运行",
+  "status.warning": "需要关注",
+  "status.error": "故障",
+  "status.offline": "离线",
+  "status.online": "在线",
+  "status.running": "运行中",
+  "status.idle": "空闲",
+  "status.alarm": "报警",
+  "status.maintenance": "维护中",
+  "status.currentState": "设备当前运行状态",
+
+  "alarm.critical": "危急报警",
+  "alarm.warning": "一般报警",
+  "alarm.info": "提示信息",
+
+  "type.dialysisMachine": "透析机",
+  "type.waterTreatment": "水处理设备",
+  "type.monitor": "监护仪",
+
+  "info.deviceId": "设备编号",
+  "info.name": "设备名称",
+  "info.brand": "品牌",
+  "info.model": "型号",
+  "info.serialNumber": "序列号",
+  "info.dialysisMethod": "透析方式",
+  "info.location": "位置",
+  "info.unknown": "未知",
+
+  "card.dutyMonitor": "设备监控",
+  "card.deviceStatus": "设备状态",
+  "card.maintenanceLogs": "维护记录",
+  "card.deviceBinding": "设备绑定",
+  "card.viewDetail": "点击查看详情",
+
+  "section.basicInfo": "基本信息",
+  "section.disinfection": "消毒记录",
+  "section.maintenance": "维护建议",
+
+  "disinfect.routine": "常规消毒",
+  "disinfect.noRemark": "无备注",
+  "disinfect.noRecord": "暂无消毒记录",
+
+  "maintenance.reminder": "定期维护提醒",
+  "maintenance.suggestion": "建议每月进行一次全面检查，包括滤网清洁、管路检查、校准等。",
+
+  "stat.totalDevices": "设备总数",
+  "stat.normalCount": "正常运行",
+  "stat.warningCount": "需要关注",
+  "stat.errorCount": "故障设备",
+  "stat.todayDialysis": "今日透析",
+  "stat.shiftCount": "班次数量",
+
+  "filter.allStatus": "全部状态",
+  "filter.allBrands": "全部品牌",
+  "filter.searchPlaceholder": "搜索设备名称、品牌、型号...",
+
+  "action.refresh": "刷新",
+  "action.close": "关闭",
+  "action.createOrder": "创建维护工单",
+
+  "empty.noDevice": "暂无符合条件的设备",
+  "empty.adjustFilter": "请尝试调整筛选条件",
+
+  "method.HD": "血液透析",
+  "method.HDF": "血液透析滤过",
+  "method.HP": "血液灌流",
+  "method.CRRT": "连续肾脏替代治疗",
+  "method.PD": "腹膜透析"
+}

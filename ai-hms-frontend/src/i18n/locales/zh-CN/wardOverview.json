@@ -1,0 +1,32 @@
+{
+  "title": "科室运行全景",
+  "lastUpdate": "实时更新：{{time}}",
+  "refresh": "刷新",
+  "onSiteCount": "在科人数: {{count}}人",
+  "alarmDevices": "报警设备: {{count}}台",
+  "loadError": "加载病区数据失败",
+
+  "stats.scheduledPatients": "今日排班患者",
+  "stats.workCompletion": "护士工作量(已完成)",
+  "stats.deviceUtilization": "设备运转率",
+  "stats.avgDialysisHours": "平均透析时长",
+
+  "chart.treatmentProgress": "治疗进度统计",
+  "chart.equipmentMatrix": "设备与床位运行矩阵",
+
+  "process.waiting": "待评估",
+  "process.dialysis": "透析中",
+  "process.disinfect": "待消毒",
+  "process.completed": "已完成",
+  "process.count": "{{count}}人",
+
+  "bedStatus.active": "运行中",
+  "bedStatus.empty": "空闲",
+  "bedStatus.alarm": "报警",
+  "bedStatus.maintenance": "维护中",
+
+  "summary.active": "运行中",
+  "summary.empty": "空闲",
+  "summary.alarm": "报警",
+  "summary.maintenance": "维护"
+}

@@ -1,0 +1,22 @@
+{
+  "dashboard": "工作台",
+  "wardOverview": "病区概览",
+  "patients": "患者管理",
+  "monitoring": "实时监控",
+  "dialysisProcessing": "透析执行",
+  "schedule": "排班管理",
+  "inventory": "耗材管理",
+  "deviceBinding": "设备管理",
+  "statistics": "统计报表",
+  "masterData": "主数据管理",
+  "treatmentConfig": "诊疗配置",
+  "dictConfig": "字典配置",
+  "settings": "系统设置",
+
+  "brand.full": "AI-HMS 智能透析",
+  "brand.short": "AI",
+
+  "header.currentDept": "当前科室",
+  "header.search": "搜索",
+  "header.tasks": "任务列表"
+}

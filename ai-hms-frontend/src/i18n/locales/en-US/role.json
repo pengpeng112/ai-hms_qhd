@@ -1,0 +1,30 @@
+{
+  "doctorChief": "Chief Physician",
+  "doctorSupervisor": "Attending Physician",
+  "doctorDuty": "Duty Physician",
+  "nurseHead": "Head Nurse",
+  "nurseScheduler": "Scheduler Nurse",
+  "nurseManager": "Nurse Manager",
+  "nurseResponsible": "Primary Nurse",
+  "engineer": "Engineer",
+  "admin": "Administrator",
+
+  "label.current": "Current Role",
+
+  "desc.doctor": "Clinical Diagnosis & Prescription",
+  "desc.nurse": "Nursing Tasks & Patient Care",
+  "desc.engineer": "Equipment Operation & Maintenance",
+
+  "group.doctor": "Doctor Group",
+  "group.nurse": "Nurse Group",
+  "group.tech": "Technical Support",
+
+  "subLabel.doctorChief": "Department Director",
+  "subLabel.doctorSupervisor": "Attending Doctor",
+  "subLabel.doctorDuty": "Duty Doctor",
+  "subLabel.nurseHead": "Head Nurse",
+  "subLabel.nurseScheduler": "Scheduler (Shifts)",
+  "subLabel.nurseManager": "Manager (Inventory)",
+  "subLabel.nurseResponsible": "Primary Nurse",
+  "subLabel.engineer": "Equipment Engineer"
+}

@@ -1,0 +1,116 @@
+{
+  "title": "Schedule Management",
+
+  "tab.patient": "Patient Schedule",
+  "tab.staff": "Staff Schedule",
+  "title.patientSchedule": "Patient Treatment Schedule",
+  "title.staffSchedule": "Nursing Staff Schedule",
+  "subtitle": "SCHEDULING CENTER",
+
+  "nav.backToToday": "Today",
+  "nav.year": "{{year}}",
+  "nav.month": "{{month}}",
+
+  "action.positionDef": "Position Setup",
+  "action.quickSchedule": "Quick Schedule",
+  "action.exportSchedule": "Export Schedule",
+  "action.cancel": "Cancel",
+  "action.confirm": "Confirm",
+  "action.confirmAdd": "Add Position",
+  "action.cancelAction": "Cancel",
+  "action.applySchedule": "Apply Schedule",
+  "action.confirmSchedule": "Confirm Schedule",
+
+  "filter.wardLabel": "Filter Ward:",
+  "filter.wardA": "Ward A({{count}})",
+  "filter.wardB": "Ward B({{count}})",
+  "filter.wardC": "Ward C({{count}})",
+  "filter.quickView": "Quick View:",
+  "filter.selectAll": "All",
+  "filter.headNurse": "Head Nurse",
+  "filter.responsibleNurse": "Primary Nurse",
+  "filter.mainNurse": "Charge Nurse",
+  "filter.positionLegend": "Position Legend:",
+
+  "shift.morning": "Morning",
+  "shift.afternoon": "Afternoon",
+  "shift.evening": "Evening",
+
+  "legend.manager": "Manager",
+  "legend.supervisor": "Supervisor",
+  "legend.responsible": "Primary",
+
+  "table.bed": "Bed",
+  "table.staff": "Nursing Staff",
+
+  "day.sun": "Sun",
+  "day.mon": "Mon",
+  "day.tue": "Tue",
+  "day.wed": "Wed",
+  "day.thu": "Thu",
+  "day.fri": "Fri",
+  "day.sat": "Sat",
+  "day.today": "(Today)",
+  "date.format": "{{month}}/{{day}}",
+
+  "modal.positionSettings": "Position Schedule Settings",
+  "modal.addEditPosition": "Add/Edit Position",
+  "modal.positionName": "Position Name (e.g., Primary-A1)",
+  "modal.positionNamePlaceholder": "Enter position name...",
+  "modal.positionTime": "Shift Time (e.g., 08:00-12:00)",
+  "modal.positionTimePlaceholder": "08:00-12:00",
+  "modal.category": "Category",
+  "modal.categoryResponsible": "Primary Shift",
+  "modal.categorySupervisor": "Supervisor Shift",
+  "modal.categoryManager": "Manager Shift",
+  "modal.currentPositions": "Current Positions",
+
+  "quick.title": "Quick Schedule Assistant",
+  "quick.subtitle": "Copy historical schedules to improve efficiency",
+  "quick.targetNurse": "Target Nurse (Staff to schedule)",
+  "quick.selectSource": "Select Schedule Source (Last Week)",
+  "quick.copySelf": "Copy Own Last Week",
+  "quick.copyOther": "Copy Other's Last Week",
+  "quick.selectCopyPerson": "Select staff to copy from",
+
+  "staffModal.assignPosition": "Assign Position Shift",
+  "staffModal.nurse": "Nurse:",
+  "staffModal.date": "Date:",
+  "staffModal.selectPreset": "Select Preset Position",
+  "staffModal.dayOff": "Day Off",
+
+  "patientModal.title": "Schedule Dialysis Shift",
+  "patientModal.bed": "Bed:",
+  "patientModal.date": "Date:",
+  "patientModal.selectPatient": "Select Patient",
+  "patientModal.searchPlaceholder": "Search by name...",
+  "patientModal.treatmentMode": "Treatment Mode",
+
+  "template.managerShift": "Manager Shift",
+  "template.supervisorShift": "Supervisor Shift",
+  "template.responsible": "Primary",
+
+  "alert.patientNoQuickSchedule": "Quick scheduling is not available for patient schedules.",
+  "alert.quickScheduleSuccess": "Successfully applied quick schedule for {{name}}!",
+  "alert.noScheduleFound": "No schedule records found for last week.",
+
+  "ward.A": "Ward A",
+  "ward.B": "Ward B",
+  "ward.C": "Ward C",
+
+  "staff.onDuty": "On Duty",
+  "staff.available": "Available",
+
+  "time.start": "Start Time",
+  "time.end": "End Time",
+  "time.notSet": "Time not set",
+
+  "type.regular": "Regular",
+  "type.overtime": "Overtime",
+  "type.standby": "Standby",
+
+  "empty.noShift": "No shift data",
+
+  "card.staffSchedule": "Staff Schedule",
+  "card.scheduleAdjust": "Schedule Adjustment"
+}

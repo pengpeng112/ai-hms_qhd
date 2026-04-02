@@ -1,0 +1,61 @@
+{
+  "title": "耗材与药品管理",
+  "stockIn": "入库登记",
+  "batchPrint": "批量打印标签",
+
+  "tab.stock": "实时库存",
+  "tab.log": "出入库流水",
+  "tab.labels": "标签打印",
+
+  "search.stock": "搜索耗材名称、规格...",
+  "search.log": "搜索耗材或操作人...",
+  "search.labels": "搜索标签任务...",
+
+  "stockAlert": "库存紧张",
+  "stockLow": "库存偏低",
+  "stockNormal": "正常",
+  "alertCount": "库存紧张：",
+  "normalCount": "正常库存：",
+  "items": "项",
+
+  "table.itemName": "耗材名称",
+  "table.spec": "规格",
+  "table.category": "类别",
+  "table.currentStock": "当前库存",
+  "table.status": "状态",
+  "table.location": "位置",
+  "table.action": "操作",
+  "table.time": "时间",
+  "table.type": "类型",
+  "table.quantity": "数量",
+  "table.operator": "操作人",
+  "table.note": "备注",
+  "table.detail": "详情",
+
+  "log.in": "入库",
+  "log.out": "出库",
+
+  "label.completed": "已完成",
+  "label.printing": "打印中",
+  "label.pending": "待打印",
+  "label.spec": "规格：",
+  "label.quantity": "数量：",
+  "label.sheets": "张",
+  "label.createdAt": "创建时间：",
+  "label.download": "下载",
+  "label.print": "打印",
+
+  "empty.stock": "未找到符合条件的耗材",
+  "empty.log": "暂无出入库记录",
+  "empty.labels": "暂无标签打印任务",
+
+  "footer.showing": "显示 {{count}} 条 / 共 {{total}} 条",
+
+  "alert.selectItems": "请先选择要打印标签的耗材",
+  "alert.batchPrint": "功能演示：批量打印 {{count}} 个耗材的标签",
+  "alert.stockIn": "功能演示：打开入库登记表单",
+  "alert.viewDetail": "功能演示：查看 {{name}} 详情",
+  "alert.viewLogDetail": "功能演示：查看流水记录 {{id}} 详情",
+  "alert.downloadLabel": "功能演示：下载标签 {{id}}",
+  "alert.reprintLabel": "功能演示：重新打印标签 {{id}}"
+}

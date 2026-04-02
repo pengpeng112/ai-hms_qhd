@@ -1,0 +1,116 @@
+{
+  "title": "排班管理",
+
+  "tab.patient": "患者排班",
+  "tab.staff": "护理排班",
+  "title.patientSchedule": "患者治疗排班",
+  "title.staffSchedule": "护理岗位排班",
+  "subtitle": "SCHEDULING CENTER",
+
+  "nav.backToToday": "回到今天",
+  "nav.year": "{{year}}年",
+  "nav.month": "{{month}}月",
+
+  "action.positionDef": "岗位定义",
+  "action.quickSchedule": "快速排班",
+  "action.exportSchedule": "导出排班表",
+  "action.cancel": "取消",
+  "action.confirm": "确认",
+  "action.confirmAdd": "确认添加",
+  "action.cancelAction": "取消操作",
+  "action.applySchedule": "一键应用排班",
+  "action.confirmSchedule": "确认排班",
+
+  "filter.wardLabel": "筛选病区:",
+  "filter.wardA": "A区({{count}})",
+  "filter.wardB": "B区({{count}})",
+  "filter.wardC": "C区({{count}})",
+  "filter.quickView": "快速视图:",
+  "filter.selectAll": "全选",
+  "filter.headNurse": "护士长",
+  "filter.responsibleNurse": "责任护士",
+  "filter.mainNurse": "主班护士",
+  "filter.positionLegend": "岗位图例:",
+
+  "shift.morning": "上午",
+  "shift.afternoon": "下午",
+  "shift.evening": "夜间",
+
+  "legend.manager": "总管",
+  "legend.supervisor": "主管",
+  "legend.responsible": "责任",
+
+  "table.bed": "床位",
+  "table.staff": "护士人员",
+
+  "day.sun": "周日",
+  "day.mon": "周一",
+  "day.tue": "周二",
+  "day.wed": "周三",
+  "day.thu": "周四",
+  "day.fri": "周五",
+  "day.sat": "周六",
+  "day.today": "(今日)",
+  "date.format": "{{month}}月{{day}}日",
+
+  "modal.positionSettings": "岗位排班设置",
+  "modal.addEditPosition": "新增/编辑岗位",
+  "modal.positionName": "岗位名称 (如: 责任-A1)",
+  "modal.positionNamePlaceholder": "输入岗位名称...",
+  "modal.positionTime": "岗位班次时间 (如: 08:00-12:00)",
+  "modal.positionTimePlaceholder": "08:00-12:00",
+  "modal.category": "所属类别",
+  "modal.categoryResponsible": "责任班",
+  "modal.categorySupervisor": "主管班",
+  "modal.categoryManager": "总管班",
+  "modal.currentPositions": "当前岗位列表",
+
+  "quick.title": "快速排班助手",
+  "quick.subtitle": "复制历史排班记录，提升排班效率",
+  "quick.targetNurse": "目标护士 (执行排班的人员)",
+  "quick.selectSource": "选择排班数据源 (上周)",
+  "quick.copySelf": "复制本人上周",
+  "quick.copyOther": "复制他人上周",
+  "quick.selectCopyPerson": "请选择被复制的人员",
+
+  "staffModal.assignPosition": "分配岗位班次",
+  "staffModal.nurse": "护士:",
+  "staffModal.date": "日期:",
+  "staffModal.selectPreset": "选择预设岗位",
+  "staffModal.dayOff": "休假 / 离岗",
+
+  "patientModal.title": "安排透析班次",
+  "patientModal.bed": "床位:",
+  "patientModal.date": "日期:",
+  "patientModal.selectPatient": "选择患者",
+  "patientModal.searchPlaceholder": "输入姓名搜索...",
+  "patientModal.treatmentMode": "治疗模式",
+
+  "template.managerShift": "总管班",
+  "template.supervisorShift": "主管班",
+  "template.responsible": "责任",
+
+  "alert.patientNoQuickSchedule": "患者排班暂不支持快速排班。",
+  "alert.quickScheduleSuccess": "已成功为 {{name}} 快速复制排班记录！",
+  "alert.noScheduleFound": "上周未找到该人员的可复制排班记录。",
+
+  "ward.A": "A区",
+  "ward.B": "B区",
+  "ward.C": "C区",
+
+  "staff.onDuty": "当班人员",
+  "staff.available": "可用人员",
+
+  "time.start": "开始时间",
+  "time.end": "结束时间",
+  "time.notSet": "时间未设置",
+
+  "type.regular": "常规",
+  "type.overtime": "加班",
+  "type.standby": "待命",
+
+  "empty.noShift": "暂无班次数据",
+
+  "card.staffSchedule": "员工排班",
+  "card.scheduleAdjust": "排班调整"
+}

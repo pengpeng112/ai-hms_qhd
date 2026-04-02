@@ -1,0 +1,38 @@
+# ===============================
+# AI-HMS Root .gitignore
+# ===============================
+
+# Environment files (secrets)
+.env
+.env.local
+.env.*.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# macOS resource forks
+__MACOSX/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# AI / Agent workspace (internal tooling)
+.sisyphus/
+.qodo/
+.serena/
+.gitnexus/
+AGENTS.md
+CLAUDE.md
+.claude/
+
+# Temp / scratch files
+*.tmp
+*.temp
+-
+状态说明：

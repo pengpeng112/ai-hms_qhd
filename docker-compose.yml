@@ -1,0 +1,50 @@
+# AI-HMS Docker Compose 部署配置
+# 目标服务器：10.10.8.84 (openEuler 22.03 LTS-SP2)
+# 数据库：10.10.8.83 (PostgreSQL) — 独立服务器，不包含在此 Compose 中
+#
+# 使用方式：
+#   cp .env.production.template .env
+#   # 编辑 .env 填入真实值
+#   docker compose up -d
+
+version: "3.9"
+
+services:
+  backend:
+    build:
+      context: ./ai-hms-backend
+      dockerfile: Dockerfile
+    container_name: ai-hms-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    environment:
+      - GIN_MODE=release
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ai-hms-net
+
+  frontend:
+    build:
+      context: ./ai-hms-frontend
+      dockerfile: Dockerfile
+    container_name: ai-hms-frontend
+    restart: always
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ai-hms-net
+
+networks:
+  ai-hms-net:
+    driver: bridge

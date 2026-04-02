@@ -1,0 +1,41 @@
+{
+  "mode.HD": "Hemodialysis",
+  "mode.HDF": "Hemodiafiltration",
+  "mode.HF": "Hemofiltration",
+  "mode.PD": "Peritoneal Dialysis",
+  "mode.CRRT": "CRRT",
+
+  "param.bloodFlow": "Blood Flow",
+  "param.dialysateFlow": "Dialysate Flow",
+  "param.ufVolume": "UF Volume",
+  "param.ufRate": "UF Rate",
+  "param.tmp": "TMP",
+  "param.duration": "Duration",
+
+  "access.fistula": "AV Fistula",
+  "access.catheter": "Catheter",
+  "access.graft": "AV Graft",
+
+  "vital.bp": "Blood Pressure",
+  "vital.bpSystolic": "Systolic BP",
+  "vital.bpDiastolic": "Diastolic BP",
+  "vital.heartRate": "Heart Rate",
+  "vital.temperature": "Temperature",
+  "vital.weight": "Weight",
+  "vital.weightPre": "Pre-dialysis Weight",
+  "vital.weightPost": "Post-dialysis Weight",
+
+  "alert.critical": "Critical",
+  "alert.warning": "Warning",
+  "alert.normal": "Normal",
+
+  "status.preparing": "Preparing",
+  "status.inProgress": "In Progress",
+  "status.finishing": "Finishing",
+  "status.completed": "Completed",
+
+  "treatment.todayDialysis": "Today's Dialysis",
+  "treatment.totalPatients": "Patients in Dept",
+  "treatment.equipmentCount": "Equipment Count",
+  "treatment.shiftCount": "Shift Count"
+}

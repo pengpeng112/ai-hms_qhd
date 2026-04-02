@@ -1,0 +1,24 @@
+{
+  "label.name": "Name",
+  "label.email": "Email",
+  "label.phone": "Phone",
+  "label.password": "Password",
+  "label.confirmPassword": "Confirm Password",
+  "label.employeeId": "Employee ID",
+  "label.department": "Department",
+  "label.signature": "Bio / Signature",
+
+  "placeholder.name": "Enter name",
+  "placeholder.email": "Enter email",
+  "placeholder.phone": "Enter phone number",
+  "placeholder.search": "Enter search keyword",
+
+  "error.required": "This field is required",
+  "error.email": "Please enter a valid email",
+  "error.phone": "Please enter a valid phone number",
+  "error.minLength": "Minimum {{min}} characters required",
+  "error.maxLength": "Maximum {{max}} characters allowed",
+
+  "hint.avatar": "Supports JPG, PNG format, max 5MB",
+  "hint.password": "Regular password changes are recommended for security"
+}

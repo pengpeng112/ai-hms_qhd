@@ -1,0 +1,21 @@
+{
+  "dashboard": "Dashboard",
+  "wardOverview": "Ward Overview",
+  "patients": "Patients",
+  "monitoring": "Monitoring",
+  "dialysisProcessing": "Dialysis Processing",
+  "schedule": "Schedule",
+  "inventory": "Inventory",
+  "deviceBinding": "Device Management",
+  "statistics": "Statistics",
+  "masterData": "Master Data",
+  "treatmentConfig": "Treatment Config",
+  "settings": "Settings",
+
+  "brand.full": "AI-HMS Smart Dialysis",
+  "brand.short": "AI",
+
+  "header.currentDept": "Current Department",
+  "header.search": "Search",
+  "header.tasks": "Task List"
+}

@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+/* AI-HMS Theme - Tailwind v4 CSS Variables */
+@theme {
+  /* Primary colors */
+  --color-primary-50: #e6f4ff;
+  --color-primary-100: #bae0ff;
+  --color-primary-200: #91caff;
+  --color-primary-300: #69b1ff;
+  --color-primary-400: #4096ff;
+  --color-primary-500: #1677ff;
+  --color-primary-600: #0958d9;
+  --color-primary-700: #003eb3;
+  --color-primary-800: #002c8c;
+  --color-primary-900: #001d66;
+
+  /* Sidebar colors */
+  --color-sidebar: #001529;
+  --color-sidebar-light: #002140;
+}
+
+/* ========== Theme System ========== */
+
+/* Light Theme (Default) */
+:root,
+.theme-light {
+  --theme-bg: #f5f5f5;
+  --theme-bg-card: #ffffff;
+  --theme-bg-sidebar: #001529;
+  --theme-text: #333333;
+  --theme-text-secondary: #666666;
+  --theme-text-muted: #999999;
+  --theme-border: #e5e7eb;
+  --theme-border-light: #f3f4f6;
+}
+
+/* Dark Theme */
+.theme-dark {
+  --theme-bg: #0f172a;
+  --theme-bg-card: #1e293b;
+  --theme-bg-sidebar: #020617;
+  --theme-text: #f1f5f9;
+  --theme-text-secondary: #cbd5e1;
+  --theme-text-muted: #94a3b8;
+  --theme-border: #334155;
+  --theme-border-light: #1e293b;
+}
+
+/* High Contrast Theme */
+.theme-high-contrast {
+  --theme-bg: #ffffff;
+  --theme-bg-card: #f0f9ff;
+  --theme-bg-sidebar: #1e3a5f;
+  --theme-text: #000000;
+  --theme-text-secondary: #1e40af;
+  --theme-text-muted: #3b82f6;
+  --theme-border: #1e40af;
+  --theme-border-light: #bfdbfe;
+}
+
+/* Apply theme variables */
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: var(--theme-text);
+  background-color: var(--theme-bg);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Dark theme specific overrides */
+.theme-dark .bg-white {
+  background-color: var(--theme-bg-card) !important;
+}
+
+.theme-dark .bg-gray-50,
+.theme-dark .bg-gray-100 {
+  background-color: #0f172a !important;
+}
+
+.theme-dark .text-gray-800,
+.theme-dark .text-gray-900 {
+  color: var(--theme-text) !important;
+}
+
+.theme-dark .text-gray-600,
+.theme-dark .text-gray-700 {
+  color: var(--theme-text-secondary) !important;
+}
+
+.theme-dark .text-gray-400,
+.theme-dark .text-gray-500 {
+  color: var(--theme-text-muted) !important;
+}
+
+.theme-dark .border-gray-100,
+.theme-dark .border-gray-200,
+.theme-dark .border-gray-300 {
+  border-color: var(--theme-border) !important;
+}
+
+.theme-dark input,
+.theme-dark textarea,
+.theme-dark select {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+.theme-dark input:disabled,
+.theme-dark textarea:disabled {
+  background-color: #0f172a !important;
+  color: #94a3b8 !important;
+}
+
+/* High contrast specific overrides */
+.theme-high-contrast .text-gray-600,
+.theme-high-contrast .text-gray-500 {
+  color: #1e40af !important;
+}
+
+.theme-high-contrast .border-gray-200,
+.theme-high-contrast .border-gray-100 {
+  border-color: #3b82f6 !important;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+}
+
+/* Custom animations */
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out forwards;
+}
+
+/* Hide scrollbar utility */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Outcome modal select dropdown layer */
+.outcome-select-popup {
+  z-index: 1200 !important;
+}

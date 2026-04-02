@@ -1,0 +1,37 @@
+{
+  "title": "工作台",
+
+  "card.deptOverview": "科室概览",
+  "card.activePatients": "在治患者",
+  "card.myDutyPatients": "我的当班患者",
+  "card.prescriptionAdjust": "处方调整",
+  "card.qualityStats": "质量统计",
+  "card.nurseWorkload": "护理工作量",
+  "card.dutyMonitor": "值班监控",
+  "card.deviceStatusEng": "设备状态",
+  "card.staffSchedule": "员工排班",
+  "card.scheduleAdjust": "排班调整",
+  "card.maintenanceLogs": "维护记录",
+  "card.consumablesPrep": "耗材管理",
+  "card.deviceBinding": "设备绑定",
+
+  "stat.patientsInDept": "在科患者",
+  "stat.todayDialysis": "今日透析",
+  "stat.totalDevices": "设备总数",
+  "stat.shiftCount": "班次数量",
+
+  "action.customizeLayout": "自定义布局",
+  "action.finishLayout": "完成布局",
+  "action.addCard": "添加卡片",
+
+  "widgetLibrary.title": "组件库",
+  "widgetLibrary.hint": "点击卡片添加到工作台",
+  "widgetLibrary.allAdded": "所有组件已添加",
+  "widgetLibrary.defaultSize": "默认尺寸",
+
+  "loading": "内容加载中",
+
+  "alert.bpLow": "血压偏低",
+  "alert.adjustUF": "建议调整超滤",
+  "alert.orderRequest": "医嘱申请"
+}

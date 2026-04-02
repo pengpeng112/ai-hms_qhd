@@ -1,0 +1,38 @@
+{
+  "title": "系统预设与字典维护",
+  "addItem": "新增条目",
+
+  "tab.drug": "药品目录",
+  "tab.material": "耗材目录",
+  "tab.education": "宣教内容库",
+  "tab.fees": "收费项目",
+
+  "search.placeholder": "搜索{{catalog}}...",
+  "totalCount": "共 {{count}} 条",
+
+  "table.name": "项目名称",
+  "table.spec": "规格/详情",
+  "table.unit": "单位",
+  "table.price": "单价 (元)",
+  "table.action": "管理",
+
+  "empty": "暂无数据",
+
+  "modal.addTitle": "新增条目",
+  "modal.editTitle": "编辑条目",
+
+  "form.name": "项目名称",
+  "form.spec": "规格/详情",
+  "form.unit": "单位",
+  "form.price": "单价 (元)",
+  "form.namePlaceholder": "请输入项目名称",
+  "form.specPlaceholder": "请输入规格或详情",
+  "form.unitPlaceholder": "支/袋/次",
+  "form.pricePlaceholder": "0.00",
+
+  "confirm.delete": "确认删除该条目吗？此操作无法撤销。",
+  "validation.required": "请填写必填项：项目名称和单位",
+
+  "action.cancel": "取消",
+  "action.save": "保存"
+}

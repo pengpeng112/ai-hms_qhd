@@ -1,0 +1,73 @@
+{
+  "title": "Device Management",
+  "subtitle": "Manage and monitor dialysis equipment",
+
+  "status.normal": "Normal",
+  "status.warning": "Attention",
+  "status.error": "Error",
+  "status.offline": "Offline",
+  "status.online": "Online",
+  "status.running": "Running",
+  "status.idle": "Idle",
+  "status.alarm": "Alarm",
+  "status.maintenance": "Maintenance",
+  "status.currentState": "Current device status",
+
+  "alarm.critical": "Critical Alarm",
+  "alarm.warning": "Warning",
+  "alarm.info": "Info",
+
+  "type.dialysisMachine": "Dialysis Machine",
+  "type.waterTreatment": "Water Treatment",
+  "type.monitor": "Monitor",
+
+  "info.deviceId": "Device ID",
+  "info.name": "Device Name",
+  "info.brand": "Brand",
+  "info.model": "Model",
+  "info.serialNumber": "Serial No.",
+  "info.dialysisMethod": "Method",
+  "info.location": "Location",
+  "info.unknown": "Unknown",
+
+  "card.dutyMonitor": "Duty Monitor",
+  "card.deviceStatus": "Device Status",
+  "card.maintenanceLogs": "Maintenance Logs",
+  "card.deviceBinding": "Device Binding",
+  "card.viewDetail": "Click to view details",
+
+  "section.basicInfo": "Basic Info",
+  "section.disinfection": "Disinfection",
+  "section.maintenance": "Maintenance",
+
+  "disinfect.routine": "Routine",
+  "disinfect.noRemark": "No remarks",
+  "disinfect.noRecord": "No disinfection records",
+
+  "maintenance.reminder": "Maintenance Reminder",
+  "maintenance.suggestion": "Monthly inspection recommended: filter cleaning, tubing check, calibration, etc.",
+
+  "stat.totalDevices": "Total",
+  "stat.normalCount": "Normal",
+  "stat.warningCount": "Attention",
+  "stat.errorCount": "Error",
+  "stat.todayDialysis": "Today's Dialysis",
+  "stat.shiftCount": "Shift Count",
+
+  "filter.allStatus": "All Status",
+  "filter.allBrands": "All Brands",
+  "filter.searchPlaceholder": "Search name, brand, model...",
+
+  "action.refresh": "Refresh",
+  "action.close": "Close",
+  "action.createOrder": "Create Work Order",
+
+  "empty.noDevice": "No devices found",
+  "empty.adjustFilter": "Try adjusting filters",
+
+  "method.HD": "Hemodialysis",
+  "method.HDF": "Hemodiafiltration",
+  "method.HP": "Hemoperfusion",
+  "method.CRRT": "CRRT",
+  "method.PD": "Peritoneal Dialysis"
+}

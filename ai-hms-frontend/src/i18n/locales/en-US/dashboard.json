@@ -1,0 +1,37 @@
+{
+  "title": "Dashboard",
+
+  "card.deptOverview": "Department Overview",
+  "card.activePatients": "Active Patients",
+  "card.myDutyPatients": "My Duty Patients",
+  "card.prescriptionAdjust": "Prescription Adjustment",
+  "card.qualityStats": "Quality Statistics",
+  "card.nurseWorkload": "Nursing Workload",
+  "card.dutyMonitor": "Duty Monitor",
+  "card.deviceStatusEng": "Device Status",
+  "card.staffSchedule": "Staff Schedule",
+  "card.scheduleAdjust": "Schedule Adjustment",
+  "card.maintenanceLogs": "Maintenance Logs",
+  "card.consumablesPrep": "Consumables",
+  "card.deviceBinding": "Device Binding",
+
+  "stat.patientsInDept": "Patients in Dept",
+  "stat.todayDialysis": "Today's Dialysis",
+  "stat.totalDevices": "Total Devices",
+  "stat.shiftCount": "Shifts",
+
+  "action.customizeLayout": "Customize Layout",
+  "action.finishLayout": "Finish Layout",
+  "action.addCard": "Add Card",
+
+  "widgetLibrary.title": "Widget Library",
+  "widgetLibrary.hint": "Click to add to dashboard",
+  "widgetLibrary.allAdded": "All widgets added",
+  "widgetLibrary.defaultSize": "Default size",
+
+  "loading": "Loading content",
+
+  "alert.bpLow": "Low Blood Pressure",
+  "alert.adjustUF": "Recommend adjusting ultrafiltration",
+  "alert.orderRequest": "Order Request"
+}

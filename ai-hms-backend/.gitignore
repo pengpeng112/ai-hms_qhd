@@ -1,0 +1,41 @@
+# Binaries
+/server
+bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Log files
+*.log
+/tmp/
+
+# Environment files
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Database
+*.db
+*.sqlite
+
+# Serena
+*.serena
+
+# GitNexus generated files
+.gitnexus/
+AGENTS.md
+CLAUDE.md
+.claude/skills/gitnexus/

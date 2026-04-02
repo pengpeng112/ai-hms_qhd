@@ -1,0 +1,24 @@
+{
+  "label.name": "姓名",
+  "label.email": "电子邮箱",
+  "label.phone": "联系电话",
+  "label.password": "密码",
+  "label.confirmPassword": "确认密码",
+  "label.employeeId": "工号",
+  "label.department": "科室",
+  "label.signature": "科室简介 / 签名",
+
+  "placeholder.name": "请输入姓名",
+  "placeholder.email": "请输入电子邮箱",
+  "placeholder.phone": "请输入联系电话",
+  "placeholder.search": "请输入搜索关键词",
+
+  "error.required": "此字段为必填项",
+  "error.email": "请输入有效的电子邮箱",
+  "error.phone": "请输入有效的电话号码",
+  "error.minLength": "最少需要 {{min}} 个字符",
+  "error.maxLength": "最多允许 {{max}} 个字符",
+
+  "hint.avatar": "支持 JPG, PNG 格式，最大 5MB",
+  "hint.password": "建议定期更换密码以保障账户安全"
+}

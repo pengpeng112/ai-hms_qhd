@@ -1,0 +1,41 @@
+{
+  "mode.HD": "血液透析",
+  "mode.HDF": "血液透析滤过",
+  "mode.HF": "血液滤过",
+  "mode.PD": "腹膜透析",
+  "mode.CRRT": "连续肾脏替代治疗",
+
+  "param.bloodFlow": "血流量",
+  "param.dialysateFlow": "透析液流量",
+  "param.ufVolume": "超滤量",
+  "param.ufRate": "超滤速率",
+  "param.tmp": "跨膜压",
+  "param.duration": "透析时长",
+
+  "access.fistula": "内瘘",
+  "access.catheter": "导管",
+  "access.graft": "人工血管",
+
+  "vital.bp": "血压",
+  "vital.bpSystolic": "收缩压",
+  "vital.bpDiastolic": "舒张压",
+  "vital.heartRate": "心率",
+  "vital.temperature": "体温",
+  "vital.weight": "体重",
+  "vital.weightPre": "透前体重",
+  "vital.weightPost": "透后体重",
+
+  "alert.critical": "危急值",
+  "alert.warning": "警告",
+  "alert.normal": "正常",
+
+  "status.preparing": "准备中",
+  "status.inProgress": "进行中",
+  "status.finishing": "结束中",
+  "status.completed": "已完成",
+
+  "treatment.todayDialysis": "今日透析",
+  "treatment.totalPatients": "在科患者",
+  "treatment.equipmentCount": "设备总数",
+  "treatment.shiftCount": "班次数量"
+}

@@ -1,0 +1,132 @@
+name: Deploy Frontend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - feature/backend-api-integration
+    paths:
+      - '**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  SERVER_HOST: 47.239.21.188
+  SERVER_USER: root
+  REMOTE_DIR: /var/www/ai-hms
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'package-lock.json'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+
+      - name: Lint code
+        run: |
+          npm run lint || true
+
+      - name: Build for production
+        env:
+          VITE_API_BASE_URL: http://47.239.21.188:8080
+        run: |
+          npm run build
+
+      - name: Check build output
+        run: |
+          if [ ! -d "dist" ]; then
+            echo "Build failed: dist directory not found"
+            exit 1
+          fi
+          echo "Build successful, dist size:"
+          du -sh dist
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Backup current deployment
+        run: |
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'ENDSSH'
+          set -e
+          if [ -d "/var/www/ai-hms/current" ]; then
+            BACKUP_DIR="/var/www/ai-hms/backups/ai-hms-frontend-$(date +%Y%m%d-%H%M%S)"
+            sudo mkdir -p /var/www/ai-hms/backups
+            sudo cp -r /var/www/ai-hms/current "$BACKUP_DIR"
+            echo "已备份到: $BACKUP_DIR"
+          fi
+          ENDSSH
+
+      - name: Upload to server
+        id: upload
+        run: |
+          TIMESTAMP=$(date +%s)
+          TEMP_DIR="${{ env.REMOTE_DIR }}/temp-frontend-$TIMESTAMP"
+          echo "TIMESTAMP=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+          # 创建临时目录
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} "sudo mkdir -p $TEMP_DIR && sudo chown ${{ env.SERVER_USER }}:${{ env.SERVER_USER }} $TEMP_DIR"
+
+          # 上传文件
+          rsync -avz --delete \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            --exclude='.gitkeep' \
+            dist/ \
+            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:$TEMP_DIR/
+
+      - name: Update deployment
+        run: |
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << ENDSSH
+          set -e
+          REMOTE_DIR="${{ env.REMOTE_DIR }}"
+          TIMESTAMP="${{ steps.upload.outputs.TIMESTAMP }}"
+
+          # 移动临时目录到当前版本
+          sudo rm -rf \$REMOTE_DIR/current
+          sudo mv \$REMOTE_DIR/temp-frontend-\$TIMESTAMP \$REMOTE_DIR/current
+          sudo chown -R www-data:www-data \$REMOTE_DIR/current
+
+          # 测试 Nginx 配置
+          sudo nginx -t
+
+          # 重启 Nginx
+          sudo systemctl reload nginx
+
+          echo "前端部署完成！"
+          ENDSSH
+
+      - name: Health check
+        run: |
+          sleep 5
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.SERVER_HOST }} || echo "000")
+          if [ "$RESPONSE" = "200" ]; then
+            echo "健康检查通过: HTTP $RESPONSE"
+          else
+            echo "健康检查失败: HTTP $RESPONSE"
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "=========================================="
+          echo "前端部署成功"
+          echo "=========================================="
+          echo "访问地址: http://${{ env.SERVER_HOST }}"
+          echo "部署时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "提交: ${{ github.sha }}"

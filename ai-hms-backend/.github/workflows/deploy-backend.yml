@@ -1,0 +1,224 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - '**'
+      - '.github/workflows/**'
+  workflow_dispatch:
+
+env:
+  SERVER_HOST: 47.239.21.188
+  SERVER_USER: root
+  REMOTE_DIR: /opt/ai-hms-backend
+  BINARY_NAME: ai-hms-server
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Download dependencies
+        run: |
+          go mod download
+
+      - name: Run tests
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+        continue-on-error: true
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          files: ./coverage.out
+          flags: backend
+          fail_ci_if_error: false
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Build for Linux
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
+            -ldflags="-s -w -X main.Version=${{ github.sha }} -X main.BuildTime=$(date -u '+%Y-%m-%d_%H:%M:%S')" \
+            -o ${{ env.BINARY_NAME }} \
+            ./cmd/server
+
+      - name: Check binary
+        run: |
+          if [ ! -f "${{ env.BINARY_NAME }}" ]; then
+            echo "构建失败: 二进制文件不存在"
+            exit 1
+          fi
+          echo "构建成功，二进制大小:"
+          ls -lh ${{ env.BINARY_NAME }}
+          file ${{ env.BINARY_NAME }}
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ env.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Create remote directories and backup
+        run: |
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'ENDSSH'
+          set -e
+          REMOTE_DIR="${{ env.REMOTE_DIR }}"
+          BINARY_NAME="${{ env.BINARY_NAME }}"
+
+          # 创建部署目录
+          sudo mkdir -p $REMOTE_DIR/{bin,config,logs,backups}
+          sudo chown -R ${{ env.SERVER_USER }}:${{ env.SERVER_USER }} $REMOTE_DIR
+
+          # 备份旧二进制
+          if [ -f "$REMOTE_DIR/bin/$BINARY_NAME" ]; then
+            BACKUP_FILE="$REMOTE_DIR/backups/$BINARY_NAME-$(date +%Y%m%d-%H%M%S)"
+            sudo cp $REMOTE_DIR/bin/$BINARY_NAME $BACKUP_FILE
+            echo "已备份到: $BACKUP_FILE"
+          fi
+          ENDSSH
+
+      - name: Stop service and kill port
+        run: |
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << 'ENDSSH'
+          # 停止 systemd 服务
+          sudo systemctl stop ai-hms-backend || true
+
+          # 强制杀掉所有占用 8080 端口的进程（防止僵尸进程）
+          PORT_PID=$(lsof -t -i :8080 2>/dev/null || true)
+          if [ -n "$PORT_PID" ]; then
+            echo "发现占用 8080 端口的进程: $PORT_PID，正在杀掉..."
+            kill -9 $PORT_PID || true
+            sleep 1
+          fi
+
+          # 再次确认端口已释放
+          if lsof -i :8080 > /dev/null 2>&1; then
+            echo "警告: 端口 8080 仍被占用"
+            lsof -i :8080
+          else
+            echo "端口 8080 已释放"
+          fi
+          ENDSSH
+
+      - name: Upload binary
+        run: |
+          # 上传二进制文件
+          scp ${{ env.BINARY_NAME }} \
+            ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.REMOTE_DIR }}/bin/
+
+      - name: Upload config (if exists)
+        run: |
+          if [ -f ".env" ]; then
+            scp .env \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.REMOTE_DIR }}/config/.env.example
+          fi
+
+          if [ -f "config/config.yaml" ]; then
+            scp config/config.yaml \
+              ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }}:${{ env.REMOTE_DIR }}/config/
+          fi
+
+      - name: Update deployment and restart service
+        run: |
+          ssh ${{ env.SERVER_USER }}@${{ env.SERVER_HOST }} << ENDSSH
+          set -e
+          BINARY_NAME="${{ env.BINARY_NAME }}"
+          REMOTE_DIR="${{ env.REMOTE_DIR }}"
+          SERVICE_NAME="ai-hms-backend"
+
+          # 设置执行权限
+          sudo chmod +x $REMOTE_DIR/bin/$BINARY_NAME
+
+          # 创建 .env 软链接（如果不存在）
+          if [ ! -f "$REMOTE_DIR/.env" ]; then
+              if [ -f "$REMOTE_DIR/config/.env" ]; then
+                  sudo ln -sf $REMOTE_DIR/config/.env $REMOTE_DIR/.env
+                  echo "已创建 .env 软链接"
+              fi
+          fi
+
+          # 创建/更新 systemd 服务文件
+          sudo tee /etc/systemd/system/\$SERVICE_NAME.service > /dev/null << 'EOF'
+          [Unit]
+          Description=AI-HMS Backend Service
+          After=network.target postgresql.service
+
+          [Service]
+          Type=simple
+          User=root
+          WorkingDirectory=$REMOTE_DIR
+          ExecStart=$REMOTE_DIR/bin/$BINARY_NAME
+          Restart=always
+          RestartSec=5
+          StandardOutput=append:$REMOTE_DIR/logs/app.log
+          StandardError=append:$REMOTE_DIR/logs/error.log
+          Environment="SERVER_PORT=8080"
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          # 重新加载 systemd
+          sudo systemctl daemon-reload
+
+          # 启动/重启服务
+          sudo systemctl restart \$SERVICE_NAME
+
+          # 检查服务状态
+          sleep 3
+          if systemctl is-active --quiet \$SERVICE_NAME; then
+              echo "服务启动成功！"
+          else
+              echo "服务启动失败！"
+              sudo journalctl -u \$SERVICE_NAME -n 50 --no-pager
+              exit 1
+          fi
+          ENDSSH
+
+      - name: Health check
+        run: |
+          sleep 5
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" http://${{ env.SERVER_HOST }}:8080/api/v1/health || echo "000")
+          if [ "$RESPONSE" = "200" ] || [ "$RESPONSE" = "404" ]; then
+            echo "健康检查通过: HTTP $RESPONSE"
+          else
+            echo "健康检查失败: HTTP $RESPONSE"
+            exit 1
+          fi
+
+      - name: Deployment summary
+        run: |
+          echo "=========================================="
+          echo "后端部署成功"
+          echo "=========================================="
+          echo "API 地址: http://${{ env.SERVER_HOST }}:8080"
+          echo "API 文档: http://${{ env.SERVER_HOST }}:8080/swagger/index.html"
+          echo "部署时间: $(date '+%Y-%m-%d %H:%M:%S')"
+          echo "提交: ${{ github.sha }}"

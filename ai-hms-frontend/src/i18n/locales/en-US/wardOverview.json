@@ -1,0 +1,32 @@
+{
+  "title": "Ward Overview",
+  "lastUpdate": "Last update: {{time}}",
+  "refresh": "Refresh",
+  "onSiteCount": "On-site: {{count}}",
+  "alarmDevices": "Alarms: {{count}}",
+  "loadError": "Failed to load ward data",
+
+  "stats.scheduledPatients": "Scheduled Patients",
+  "stats.workCompletion": "Work Completion",
+  "stats.deviceUtilization": "Device Utilization",
+  "stats.avgDialysisHours": "Avg. Dialysis Duration",
+
+  "chart.treatmentProgress": "Treatment Progress",
+  "chart.equipmentMatrix": "Equipment & Bed Matrix",
+
+  "process.waiting": "Waiting",
+  "process.dialysis": "In Dialysis",
+  "process.disinfect": "Disinfecting",
+  "process.completed": "Completed",
+  "process.count": "{{count}}",
+
+  "bedStatus.active": "Active",
+  "bedStatus.empty": "Empty",
+  "bedStatus.alarm": "Alarm",
+  "bedStatus.maintenance": "Maintenance",
+
+  "summary.active": "Active",
+  "summary.empty": "Empty",
+  "summary.alarm": "Alarm",
+  "summary.maintenance": "Maintenance"
+}
