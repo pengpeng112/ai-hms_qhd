@@ -1,23 +1,35 @@
+# ============================================================
 # AI-HMS Docker Compose 部署配置
-# 目标服务器：10.10.8.84 (openEuler 22.03 LTS-SP2)
-# 数据库：10.10.8.83 (PostgreSQL) — 独立服务器，不包含在此 Compose 中
+# ============================================================
+# 架构:
+#   前端 (nginx:3000) → 反向代理 /api/ → 后端 (go:8080) → PostgreSQL (10.10.8.83)
+#   前端和后端各一个容器，通过 bridge 网络 ai-hms-net 互通
 #
-# 使用方式：
-#   cp .env.production.template .env
-#   # 编辑 .env 填入真实值
-#   docker compose up -d
-
-version: "3.9"
+# 数据库:
+#   10.10.8.83 PostgreSQL — 独立服务器，不包含在此 Compose 中
+#
+# 使用方式:
+#   ---- 服务器部署（从 tar 加载镜像）----
+#   docker load -i ai-hms-images.tar
+#   bash docker_deploy.sh
+#
+#   ---- 开发机本地构建（可选）----
+#   取消注释 build 段，注释 image 段
+#   docker compose up -d --build
+# ============================================================
 
 services:
+  # ── 后端 Go API 服务 ──────────────────────────────────────────
   backend:
-    build:
-      context: ./ai-hms-backend
-      dockerfile: Dockerfile
+    image: ai-hms-backend:latest
+    # 本地构建时取消注释下面两行，注释上面 image 行:
+    # build:
+    #   context: ./ai-hms-backend
+    #   dockerfile: Dockerfile
     container_name: ai-hms-backend
     restart: always
     ports:
-      - "8080:8080"
+      - "${BACKEND_PORT:-8080}:8080"
     env_file:
       - .env
     environment:
@@ -28,20 +40,35 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
     networks:
       - ai-hms-net
 
+  # ── 前端 Nginx + SPA ─────────────────────────────────────────
   frontend:
-    build:
-      context: ./ai-hms-frontend
-      dockerfile: Dockerfile
+    image: ai-hms-frontend:latest
+    # 本地构建时取消注释下面两行，注释上面 image 行:
+    # build:
+    #   context: ./ai-hms-frontend
+    #   dockerfile: Dockerfile
+    #   args:
+    #     VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://10.10.8.84:8080}
     container_name: ai-hms-frontend
     restart: always
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-3000}:80"
     depends_on:
       backend:
         condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "3"
     networks:
       - ai-hms-net
 
