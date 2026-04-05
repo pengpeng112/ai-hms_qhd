@@ -151,9 +151,9 @@ func (s *PatientBasicService) UpdateBasicInfo(patientID string, req *PatientBasi
 	basicInfo.ContactPhone = req.ContactInfo.ContactPhone
 
 	// 保存扩展信息
-	if basicInfo.ID == "" {
-		// 新建
-		err = s.db.Create(&basicInfo).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 新建：使用显式列插入，避免 GORM 在 *time.Time 字段上的反射写入 panic
+		err = insertPatientBasicInfo(s.db, basicInfo)
 	} else {
 		// 更新
 		err = s.db.Save(&basicInfo).Error

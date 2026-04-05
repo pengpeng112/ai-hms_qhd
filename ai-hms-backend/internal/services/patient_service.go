@@ -308,7 +308,7 @@ func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID string, req Crea
 		ContactName:           stringPtr(req.ContactName),
 		ContactPhone:          stringPtr(req.ContactPhone),
 	}
-	if err := tx.Create(&basicInfo).Error; err != nil {
+	if err := insertPatientBasicInfo(tx, basicInfo); err != nil {
 		return err
 	}
 
@@ -433,6 +433,52 @@ func parseTimePointer(s *string) *time.Time {
 		return nil
 	}
 	return &t
+}
+
+// insertPatientBasicInfo 使用显式列插入，避免 GORM 在 *time.Time 字段上的反射写入 panic。
+func insertPatientBasicInfo(tx *gorm.DB, basicInfo models.PatientBasicInfo) error {
+	now := time.Now()
+	idType := basicInfo.IDType
+	if strings.TrimSpace(idType) == "" {
+		idType = models.IDTypeIDCard
+	}
+
+	return tx.Table("patient_basic_infos").Create(map[string]interface{}{
+		"id":                      basicInfo.ID,
+		"patient_id":              basicInfo.PatientID,
+		"pinyin":                  basicInfo.Pinyin,
+		"birthday":                basicInfo.Birthday,
+		"ethnicity":               basicInfo.Ethnicity,
+		"id_type":                 idType,
+		"id_number":               basicInfo.IDNumber,
+		"visit_category":          basicInfo.VisitCategory,
+		"admission_no":            basicInfo.AdmissionNo,
+		"visit_no":                basicInfo.VisitNo,
+		"medical_record_no":       basicInfo.MedicalRecordNo,
+		"insurance_no":            basicInfo.InsuranceNo,
+		"hdis_patient_id":         basicInfo.HdisPatientID,
+		"dialysis_no":             basicInfo.DialysisNo,
+		"nurse_name":              basicInfo.NurseName,
+		"first_dialysis_date":     basicInfo.FirstDialysisDate,
+		"first_hospital_date":     basicInfo.FirstHospitalDate,
+		"first_dialysis_hospital": basicInfo.FirstDialysisHospital,
+		"height":                  basicInfo.Height,
+		"abo_blood_type":          basicInfo.ABOBloodType,
+		"rh_blood_type":           basicInfo.RhBloodType,
+		"education_level":         basicInfo.EducationLevel,
+		"occupation":              basicInfo.Occupation,
+		"marital_status":          basicInfo.MaritalStatus,
+		"workplace":               basicInfo.Workplace,
+		"phone":                   basicInfo.Phone,
+		"wechat":                  basicInfo.Wechat,
+		"landline":                basicInfo.Landline,
+		"address":                 basicInfo.Address,
+		"district":                basicInfo.District,
+		"contact_name":            basicInfo.ContactName,
+		"contact_phone":           basicInfo.ContactPhone,
+		"created_at":              now,
+		"updated_at":              now,
+	}).Error
 }
 
 // stringPtr 将字符串转换为指针，空字符串返回 nil
