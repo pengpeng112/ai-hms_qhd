@@ -5,7 +5,7 @@ import Sidebar from './Sidebar'
 import Header from './Header'
 import { UserRole } from '@/types/original'
 import { logout } from '@/services/auth'
-import { getSelectedRoleUser } from '@/services/role'
+import { getRolePermissionCodes, getSelectedRoleUser } from '@/services/role'
 import { restApi, type RestClinicalTask } from '@/services/restClient'
 import {
     AlertCircle, Zap, FileEdit, CheckCircle2, X, ChevronRight, ClipboardList
@@ -13,18 +13,19 @@ import {
 
 const TASKBAR_STATE_KEY = 'hdis_taskbar_open'
 
-const canViewTask = (role: UserRole, type: string) => {
-    if (type === 'ALERT') return true
-    if (type === 'PRESCRIPTION') {
-        return [UserRole.DOCTOR_CHIEF, UserRole.DOCTOR_SUPERVISOR, UserRole.DOCTOR_DUTY, UserRole.NURSE_RESPONSIBLE].includes(role)
+const TASK_PERMISSION_MAP: Record<string, string[]> = {
+    ALERT: ['task.alert.view', 'monitoring', 'menu.monitoring'],
+    PRESCRIPTION: ['task.prescription.view', 'monitoring', 'menu.monitoring'],
+    ORDER: ['task.order.view', 'dialysis_processing', 'menu.dialysis_processing'],
+    ASSESSMENT: ['task.assessment.view', 'dialysis_processing', 'menu.dialysis_processing'],
+}
+
+const canViewTask = (permissions: Set<string>, type: string) => {
+    const required = TASK_PERMISSION_MAP[type]
+    if (!required || required.length === 0) {
+        return false
     }
-    if (type === 'ORDER') {
-        return [UserRole.NURSE_HEAD, UserRole.NURSE_RESPONSIBLE, UserRole.NURSE_MANAGER].includes(role)
-    }
-    if (type === 'ASSESSMENT') {
-        return [UserRole.NURSE_HEAD, UserRole.NURSE_RESPONSIBLE, UserRole.DOCTOR_DUTY].includes(role)
-    }
-    return true
+    return required.some(code => permissions.has(code))
 }
 
 const getTaskRoute = (type: string) => {
@@ -44,6 +45,7 @@ export default function MainLayout() {
         return saved !== null ? saved === 'true' : true
     })
     const [tasks, setTasks] = useState<RestClinicalTask[]>([])
+    const [permissionCodes, setPermissionCodes] = useState<string[]>([])
     const [taskLoading, setTaskLoading] = useState(false)
 
     const taskbarRef = useRef<HTMLDivElement>(null)
@@ -65,7 +67,21 @@ export default function MainLayout() {
             .finally(() => setTaskLoading(false))
     }, [])
 
-    const visibleTasks = tasks.filter(task => canViewTask(user.role, task.type))
+    useEffect(() => {
+        if (!roleUser?.role) {
+            setPermissionCodes([])
+            return
+        }
+        getRolePermissionCodes(roleUser.role)
+            .then(codes => setPermissionCodes(codes))
+            .catch(() => setPermissionCodes([]))
+    }, [roleUser?.role])
+
+    const permissionSet = useMemo(() => new Set(permissionCodes), [permissionCodes])
+    const visibleTasks = useMemo(
+        () => tasks.filter(task => canViewTask(permissionSet, task.type)),
+        [permissionSet, tasks]
+    )
 
     useEffect(() => {
         localStorage.setItem(TASKBAR_STATE_KEY, String(taskbarOpen))

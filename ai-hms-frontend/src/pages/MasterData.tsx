@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Database,
@@ -31,36 +31,29 @@ interface ModalState {
     item: CatalogItem | null
 }
 
-// Mock 数据
-const MOCK_DATA: Record<CatalogType, CatalogItem[]> = {
-    DRUG: [
-        { id: 'D001', name: '低分子肝素钙', spec: '5000iu/支', unit: '支', price: '45.00' },
-        { id: 'D002', name: '左卡尼汀注射液', spec: '1.0g:5ml', unit: '支', price: '28.50' },
-        { id: 'D003', name: '0.9% 氯化钠', spec: '500ml', unit: '袋', price: '3.20' },
-        { id: 'D004', name: '促红素注射液', spec: '3000iu/支', unit: '支', price: '68.00' },
-        { id: 'D005', name: '碳酸氢钠注射液', spec: '250ml:12.5g', unit: '瓶', price: '12.80' },
-    ],
-    MATERIAL: [
-        { id: 'M001', name: '透析器 F6HPS', spec: '1.3m²', unit: '个', price: '180.00' },
-        { id: 'M002', name: '血液管路', spec: '一次性', unit: '套', price: '35.00' },
-        { id: 'M003', name: '动静脉针', spec: '15G×1.5寸', unit: '支', price: '12.00' },
-        { id: 'M004', name: '透析液A', spec: '6000ml/袋', unit: '袋', price: '45.00' },
-        { id: 'M005', name: '透析液B', spec: '1000ml/瓶', unit: '瓶', price: '18.00' },
-    ],
-    EDUCATION: [
-        { id: 'E001', name: '饮食管理指南', spec: '慢性肾脏病患者营养管理', unit: '篇', price: '0.00' },
-        { id: 'E002', name: '透析并发症预防', spec: '低血压/肌肉痉挛/感染预防', unit: '篇', price: '0.00' },
-        { id: 'E003', name: '血管通路护理', spec: '内瘘/导管日常维护', unit: '篇', price: '0.00' },
-        { id: 'E004', name: '水分控制指导', spec: '透析间期体重管理', unit: '篇', price: '0.00' },
-        { id: 'E005', name: '用药依从性教育', spec: '降磷剂/降压药服用', unit: '篇', price: '0.00' },
-    ],
-    FEES: [
-        { id: 'F001', name: '血液透析', spec: '4小时标准透析', unit: '次', price: '420.00' },
-        { id: 'F002', name: '血液灌流', spec: '串联血液灌流治疗', unit: '次', price: '680.00' },
-        { id: 'F003', name: '血管通路穿刺', spec: '动静脉内瘘穿刺', unit: '次', price: '20.00' },
-        { id: 'F004', name: '生命体征监测', spec: '治疗期间监测', unit: '次', price: '15.00' },
-        { id: 'F005', name: '抢救费', spec: '透析期间抢救费用', unit: '次', price: '150.00' },
-    ],
+import { materialCatalogApi, drugCatalogApi } from '@/services/treatmentConfigApi'
+
+// EDUCATION / FEES 暂无后端接口，保留本地数据；DRUG / MATERIAL 从 REST 加载
+const LOCAL_EDUCATION: CatalogItem[] = [
+    { id: 'E001', name: '饮食管理指南', spec: '慢性肾脏病患者营养管理', unit: '篇', price: '0.00' },
+    { id: 'E002', name: '透析并发症预防', spec: '低血压/肌肉痉挛/感染预防', unit: '篇', price: '0.00' },
+    { id: 'E003', name: '血管通路护理', spec: '内瘘/导管日常维护', unit: '篇', price: '0.00' },
+    { id: 'E004', name: '水分控制指导', spec: '透析间期体重管理', unit: '篇', price: '0.00' },
+    { id: 'E005', name: '用药依从性教育', spec: '降磷剂/降压药服用', unit: '篇', price: '0.00' },
+]
+const LOCAL_FEES: CatalogItem[] = [
+    { id: 'F001', name: '血液透析', spec: '4小时标准透析', unit: '次', price: '420.00' },
+    { id: 'F002', name: '血液灌流', spec: '串联血液灌流治疗', unit: '次', price: '680.00' },
+    { id: 'F003', name: '血管通路穿刺', spec: '动静脉内瘘穿刺', unit: '次', price: '20.00' },
+    { id: 'F004', name: '生命体征监测', spec: '治疗期间监测', unit: '次', price: '15.00' },
+    { id: 'F005', name: '抢救费', spec: '透析期间抢救费用', unit: '次', price: '150.00' },
+]
+
+const INITIAL_DATA: Record<CatalogType, CatalogItem[]> = {
+    DRUG: [],
+    MATERIAL: [],
+    EDUCATION: LOCAL_EDUCATION,
+    FEES: LOCAL_FEES,
 }
 
 interface CatalogConfigItem {
@@ -80,7 +73,22 @@ export default function MasterData() {
     const { t } = useTranslation('masterData')
     const [activeTab, setActiveTab] = useState<CatalogType>('DRUG')
     const [searchTerm, setSearchTerm] = useState('')
-    const [data, setData] = useState(MOCK_DATA)
+    const [data, setData] = useState(INITIAL_DATA)
+
+    useEffect(() => {
+        drugCatalogApi.list({ page: 1, pageSize: 200 }).then(res => {
+            const items: CatalogItem[] = res.items.map(d => ({
+                id: String(d.id), name: d.name, spec: d.spec, unit: d.baseUnit, price: '0.00',
+            }))
+            setData(prev => ({ ...prev, DRUG: items }))
+        }).catch(() => {})
+        materialCatalogApi.list({ page: 1, pageSize: 200 }).then(res => {
+            const items: CatalogItem[] = res.items.map(m => ({
+                id: String(m.id), name: m.name, spec: m.spec, unit: m.unit, price: '0.00',
+            }))
+            setData(prev => ({ ...prev, MATERIAL: items }))
+        }).catch(() => {})
+    }, [])
     const [modalState, setModalState] = useState<ModalState>({
         visible: false,
         mode: 'add',

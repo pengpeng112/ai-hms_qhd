@@ -2,6 +2,7 @@
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { restApi, convertRestPatientList } from '@/services';
+import type { RestTreatment } from '@/services/restClient';
 import type { Patient } from '@/types/original';
 import { useDictNameMaps, getNameFromMap } from '@/hooks/useDictName';
 import { DICT_TYPES } from '@/services/dictApi';
@@ -403,6 +404,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
 
   const [monitorRecords, setMonitorRecords] = useState<ExtendedMonitorRecord[]>([]);
   const [nurses, setNurses] = useState<{ id: string; name: string }[]>([]);
+  const [currentTreatment, setCurrentTreatment] = useState<RestTreatment | null>(null);
 
   const renderNurseOptions = () => {
     if (nurses.length === 0) {
@@ -442,6 +444,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
     const today = new Date().toISOString().slice(0, 10);
     restApi.getPatientTreatmentByDate(selectedPatientId, today)
       .then(res => {
+        setCurrentTreatment(res.data ?? null);
         const params = res.data?.duringParams ?? [];
         setMonitorRecords(params.map((p, idx) => ({
           id: String(p.id ?? idx),
@@ -457,7 +460,9 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
           nurse: '',
         })));
       })
-      .catch(() => { /* 娌荤枟璁板綍涓嶅瓨鍦ㄦ椂闈欓粯蹇界暐 */ });
+      .catch(() => {
+        setCurrentTreatment(null);
+      });
   }, [selectedPatientId]);
 
   const [materials] = useState([
@@ -473,6 +478,47 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
     p.status !== '灞呭' &&
     (p.name?.includes(searchTerm) || p.bedNumber?.includes(searchTerm) || p.id?.includes(searchTerm))
   );
+
+  const ensureTodayTreatment = async (status: number) => {
+    if (!selectedPatientId || !selectedPatient) return null;
+    if (currentTreatment) {
+      const updated = await restApi.updateTreatment(currentTreatment.id, {
+        status,
+        notes: currentTreatment.notes ?? '',
+      });
+      setCurrentTreatment(updated.data);
+      return updated.data;
+    }
+    const created = await restApi.createTreatment({
+      patientId: Number(selectedPatientId),
+      treatmentDate: new Date().toISOString(),
+      type: 1,
+      status,
+      notes: '// TODO: 补充治疗子表 API',
+    });
+    setCurrentTreatment(created.data);
+    return created.data;
+  };
+
+  const handleStartDialysis = async () => {
+    try {
+      await ensureTodayTreatment(1);
+      setActiveProcessStep('monitor');
+    } catch (error) {
+      console.error('start dialysis failed', error);
+    }
+  };
+
+  const handleFinishDialysis = async () => {
+    if (!currentTreatment) return;
+    try {
+      await restApi.updateTreatmentStatus(currentTreatment.id, 2);
+      setCurrentTreatment({ ...currentTreatment, status: 2 });
+      setActiveProcessStep('disinfect');
+    } catch (error) {
+      console.error('finish dialysis failed', error);
+    }
+  };
 
   const steps = [
         { id: 'pre', label: t('step.pre'), icon: Activity, badge: null },
@@ -1120,7 +1166,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                 </div>
                             </div>
                         )}
-                        <div className="fixed bottom-8 right-8"><button onClick={() => setActiveProcessStep('monitor')} className="w-12 h-12 bg-white rounded-full text-gray-600 shadow-lg hover:text-blue-600 flex items-center justify-center transition-transform hover:scale-105 border border-gray-200"><Activity size={20}/></button></div>
+                        <div className="fixed bottom-8 right-8"><button onClick={handleStartDialysis} className="w-12 h-12 bg-white rounded-full text-gray-600 shadow-lg hover:text-blue-600 flex items-center justify-center transition-transform hover:scale-105 border border-gray-200"><Activity size={20}/></button></div>
                     </div>
                 );
 
@@ -1509,7 +1555,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                 </FormField>
                             </div>
                         </div>
-                        <div className="flex justify-end gap-3"><button className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center shadow-sm">{t('common.submitNext')} <ArrowRight size={16} className="ml-2"/></button></div>
+                        <div className="flex justify-end gap-3"><button onClick={handleFinishDialysis} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm flex items-center shadow-sm">{t('common.submitNext')} <ArrowRight size={16} className="ml-2"/></button></div>
                     </div>
                 );
 

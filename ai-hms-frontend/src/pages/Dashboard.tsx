@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
 import type { Patient as OriginalPatient, DashboardCardConfig } from '@/types/original'
-import { MOCK_STATS_DATA, DASHBOARD_CARDS } from '@/constants'
+import { DASHBOARD_CARDS } from '@/constants'
 import {
     restApi,
     convertRestPatientList,
@@ -47,17 +47,20 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
     const [equipments, setEquipments] = useState<EquipmentInfo[]>([])
     const [treatments, setTreatments] = useState<Treatment[]>([])
     const [apiError, setApiError] = useState<string | null>(null)
+    const [treatmentsByHour, setTreatmentsByHour] = useState<{ name: string; value: number }[]>([])
+    const [qualityByHour, setQualityByHour] = useState<{ name: string; value: number }[]>([])
 
     // 加载数据：患者列表走 REST API，其他走 GraphQL/HDIS
     useEffect(() => {
         const loadData = async () => {
             try {
                 // 并行加载所有数据
-                const [patientResult, shiftsData, equipmentsData, treatmentsData] = await Promise.all([
+                const [patientResult, shiftsData, equipmentsData, treatmentsData, statsData] = await Promise.all([
                     restApi.getPatientList({ page: 1, pageSize: 50 }).catch(() => null),
                     getActiveShifts().catch(() => []),
                     getAllEquipments().catch(() => []),
-                    getTodayTreatments().catch(() => [])
+                    getTodayTreatments().catch(() => []),
+                    restApi.getDashboardStats().catch(() => null),
                 ])
 
                 if (patientResult?.data?.items) {
@@ -71,6 +74,10 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                 }
                 if (treatmentsData.length > 0) {
                     setTreatments(treatmentsData)
+                }
+                if (statsData) {
+                    setTreatmentsByHour(statsData.treatmentsByHour ?? [])
+                    setQualityByHour(statsData.qualityByHour ?? [])
                 }
                 setApiError(null)
             } catch (error) {
@@ -313,7 +320,7 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                 return (
                     <div className="h-full w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={MOCK_STATS_DATA}>
+                            <BarChart data={card.id === 'quality_stats' ? qualityByHour : treatmentsByHour}>
                                 <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#9ca3af' }} />
                                 <Tooltip
                                     contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}

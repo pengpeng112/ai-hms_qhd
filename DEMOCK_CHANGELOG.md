@@ -103,3 +103,28 @@
 ## [T-D3] 回归测试
 - 执行日期：2026-04-06
 - 结果：命令行环境未执行浏览器手工回归；已完成静态扫描与全量编译验证
+
+## [T-B3] DialysisProcessing 治疗记录提交
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-frontend/src/pages/DialysisProcessing.tsx`、`ai-hms-frontend/src/services/restClient.ts`
+- 变更：补齐 `createTreatment/updateTreatment/updateTreatmentStatus`；流程中“进入监测”触发创建/更新治疗记录并置为进行中；“透后提交下一步”触发状态更新为已完成
+- 备注：`notes` 字段临时写入 `// TODO: 补充治疗子表 API`，未使用任何 mock fallback
+- 编译验证：`npx tsc --noEmit` 通过
+
+## [P5-1] 阶段五：后端权限模型与接口基础
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-backend/internal/models/permission.go`、`ai-hms-backend/internal/services/permission_service.go`、`ai-hms-backend/internal/api/v1/permission_handler.go`、`ai-hms-backend/internal/database/migrate.go`、`ai-hms-backend/cmd/server/main.go`
+- 变更：新增 `permissions` / `role_permissions` 模型与迁移；新增权限列表/保存接口和角色权限查询/覆盖接口；主路由注册 `RegisterPermissionRoutes`
+- 编译验证：`go build ./...` 通过
+
+## [P5-2] 阶段五：前端菜单权限改为后端驱动
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-frontend/src/services/role.ts`、`ai-hms-frontend/src/services/restClient.ts`、`ai-hms-frontend/src/layouts/Sidebar.tsx`
+- 变更：删除 `FALLBACK_ROLE_USERS` mock 兜底；新增 `getRolePermissions/getPermissions/setRolePermissions` API；Sidebar 改为异步加载角色权限并仅展示后端返回授权菜单，无本地静态角色菜单 fallback
+- 编译验证：`npx.cmd tsc --noEmit` 通过；`go build ./...` 通过
+
+## [P5-3] 阶段五：任务栏权限过滤改为后端驱动
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-frontend/src/layouts/MainLayout.tsx`、`ai-hms-frontend/src/services/role.ts`
+- 变更：删除 `MainLayout` 中按 `UserRole` 的硬编码任务可见性逻辑；改为加载角色权限码并按权限集合过滤任务类型（无权限即不展示）
+- 编译验证：`npx.cmd tsc --noEmit` 通过；`go build ./...` 通过

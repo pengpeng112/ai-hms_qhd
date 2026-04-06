@@ -1,7 +1,6 @@
 import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MOCK_STAFF, MOCK_SCHEDULE as INITIAL_STAFF_SCHEDULE } from '../constants'
-import type { PatientScheduleItem } from '../types/original'
+import type { PatientScheduleItem, StaffMember } from '../types/original'
 import { restApi, convertRestPatientList } from '@/services'
 import type { RestShift, RestPatientShift } from '@/services'
 import type { Patient } from '@/types/original'
@@ -174,6 +173,7 @@ export default function Schedule() {
   const [shifts, setShifts] = useState<RestShift[]>([])
   const [patients, setPatients] = useState<Partial<Patient>[]>([])
   const [searchResults, setSearchResults] = useState<Partial<Patient>[]>([])
+  const [staff, setStaff] = useState<StaffMember[]>([])
 
   const [patientSchedule, setPatientSchedule] = useState<PatientScheduleItem[]>([])
   const [staffSchedule, setStaffSchedule] = useState<Array<{
@@ -184,15 +184,7 @@ export default function Schedule() {
     label?: string
     timeRange?: string
     category?: string
-  }>>(() => {
-    // 转换初始模拟数据以符合新格式
-    return INITIAL_STAFF_SCHEDULE.map(s => ({
-      ...s,
-      label: s.type === 'A' ? '总管班' : (s.type === 'P' ? '主管班' : '责任-A1'),
-      timeRange: '08:00-17:00',
-      category: s.type === 'A' ? 'MANAGER' : (s.type === 'P' ? 'SUPERVISOR' : 'RESPONSIBLE')
-    }))
-  })
+  }>>( [])
 
   const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>(DEFAULT_TEMPLATES)
   const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
@@ -200,9 +192,9 @@ export default function Schedule() {
 
   // 快速排班状态
   const [isQuickScheduleModalOpen, setIsQuickScheduleModalOpen] = useState(false)
-  const [quickTargetStaffId, setQuickTargetStaffId] = useState<string>(MOCK_STAFF[0]?.id || '')
+  const [quickTargetStaffId, setQuickTargetStaffId] = useState<string>('')
   const [quickSourceType, setQuickSourceType] = useState<'SELF' | 'OTHER'>('SELF')
-  const [quickSourceStaffId, setQuickSourceStaffId] = useState<string>(MOCK_STAFF[0]?.id || '')
+  const [quickSourceStaffId, setQuickSourceStaffId] = useState<string>('')
 
   const scheduleMap = useMemo(() => {
     const map = new Map<string, PatientScheduleItem>()
@@ -284,6 +276,25 @@ export default function Schedule() {
     restApi.getPatientList({ page: 1, pageSize: 200 })
       .then(res => setPatients(convertRestPatientList(res.data.items)))
       .catch(err => console.error('加载患者列表失败:', err))
+  }, [])
+
+  // 加载护理人员列表
+  useEffect(() => {
+    restApi.getUserList({ status: 'active' })
+      .then(users => {
+        const mapped: StaffMember[] = users.map(u => ({
+          id: u.id,
+          name: u.realName || u.username,
+          role: u.role,
+          level: u.role,
+        }))
+        setStaff(mapped)
+        if (mapped.length > 0) {
+          setQuickTargetStaffId(mapped[0].id)
+          setQuickSourceStaffId(mapped[0].id)
+        }
+      })
+      .catch(() => {})
   }, [])
 
   // 患者搜索防抖：输入 300ms 后查询后端
@@ -386,7 +397,7 @@ export default function Schedule() {
         const filtered = prev.filter(s => !(s.staffId === quickTargetStaffId && currentWeekDates.includes(s.date)))
         return [...filtered, ...newEntries]
       })
-      alert(t('schedule:alert.quickScheduleSuccess', { name: MOCK_STAFF.find(s => s.id === quickTargetStaffId)?.name }))
+      alert(t('schedule:alert.quickScheduleSuccess', { name: staff.find(s => s.id === quickTargetStaffId)?.name }))
     } else {
       alert(t('schedule:alert.noScheduleFound'))
     }
@@ -586,7 +597,7 @@ export default function Schedule() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
-              {MOCK_STAFF.map(staff => (
+              {staff.map(staff => (
                 <tr key={staff.id} className="group">
                   <td className="sticky left-0 z-40 bg-white group-hover:bg-slate-50 border-r border-slate-100 p-4 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)] transition-colors">
                     <div className="flex items-center gap-4">
@@ -714,7 +725,7 @@ export default function Schedule() {
                     value={quickTargetStaffId}
                     onChange={(e) => setQuickTargetStaffId(e.target.value)}
                   >
-                    {MOCK_STAFF.map(s => (
+                    {staff.map(s => (
                       <option key={s.id} value={s.id}>{s.name} ({s.level})</option>
                     ))}
                   </select>
@@ -759,7 +770,7 @@ export default function Schedule() {
                         value={quickSourceStaffId}
                         onChange={(e) => setQuickSourceStaffId(e.target.value)}
                       >
-                        {MOCK_STAFF.map(s => (
+                        {staff.map(s => (
                           <option key={s.id} value={s.id}>{s.name} ({s.level})</option>
                         ))}
                       </select>
@@ -790,7 +801,7 @@ export default function Schedule() {
             <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
               <div>
                 <h3 className="text-xl font-black text-slate-900">{t('schedule:staffModal.assignPosition')}</h3>
-                <p className="text-xs text-slate-400 mt-1 font-bold">{t('schedule:staffModal.nurse')} <span className="text-blue-600">{MOCK_STAFF.find(s => s.id === schedulingData.staffId)?.name}</span> · {t('schedule:staffModal.date')} {schedulingData.date}</p>
+                <p className="text-xs text-slate-400 mt-1 font-bold">{t('schedule:staffModal.nurse')} <span className="text-blue-600">{staff.find(s => s.id === schedulingData.staffId)?.name}</span> · {t('schedule:staffModal.date')} {schedulingData.date}</p>
               </div>
               <button onClick={() => setIsStaffScheduling(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"><X size={20}/></button>
             </div>

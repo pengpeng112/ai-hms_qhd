@@ -226,6 +226,19 @@ export interface RestTreatment {
   duringParams?: RestDuringParam[]
 }
 
+export interface CreateTreatmentRequest {
+  patientId: number
+  treatmentDate: string
+  type: number
+  status?: number
+  notes?: string
+}
+
+export interface UpdateTreatmentRequest {
+  status?: number
+  notes?: string
+}
+
 export interface RestClinicalTask {
   id: number
   type: string
@@ -266,6 +279,18 @@ export interface RestWorkloadStatItem {
   name: string
   treatments: number
   punctures: number
+}
+
+export interface RestPermission {
+  id: number
+  code: string
+  name: string
+  description: string
+  module: string
+  action: string
+  status: string
+  createdAt: string
+  updatedAt: string
 }
 
 // ============ /core 鎺ュ彛绫诲瀷瀹氫箟 ============
@@ -1372,6 +1397,33 @@ export const apiClient = createAxiosInstance()
     return response.data.data
   }
 
+  async getRolePermissions(role: string): Promise<ApiSuccessResponse<{ role: string; permissionCodes: string[] }>> {
+    const response = await apiClient.get<ApiSuccessResponse<{ role: string; permissionCodes: string[] }>>(`/api/v1/role-permissions/${role}`)
+    if (!response.data.success) {
+      throw new Error('获取角色权限失败')
+    }
+    return response.data
+  }
+
+  async getPermissions(): Promise<ApiSuccessResponse<{ items: RestPermission[]; total: number }>> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: RestPermission[]; total: number }>>('/api/v1/permissions')
+    if (!response.data.success) {
+      throw new Error('获取权限列表失败')
+    }
+    return response.data
+  }
+
+  async setRolePermissions(role: string, permissionCodes: string[]): Promise<ApiSuccessResponse<{ role: string; permissionCodes: string[] }>> {
+    const response = await apiClient.put<ApiSuccessResponse<{ role: string; permissionCodes: string[] }>>(
+      `/api/v1/role-permissions/${role}`,
+      { permissionCodes }
+    )
+    if (!response.data.success) {
+      throw new Error('更新角色权限失败')
+    }
+    return response.data
+  }
+
   // ============ 鐪嬫澘缁熻 ============
 
   /**
@@ -1544,6 +1596,30 @@ export const apiClient = createAxiosInstance()
     const response = await apiClient.get<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${id}`)
     if (!response.data.success) {
       throw new Error('鑾峰彇娌荤枟璁板綍璇︽儏澶辫触')
+    }
+    return response.data
+  }
+
+  async createTreatment(data: CreateTreatmentRequest): Promise<ApiSuccessResponse<RestTreatment>> {
+    const response = await apiClient.post<ApiSuccessResponse<RestTreatment>>('/api/v1/treatments', data)
+    if (!response.data.success) {
+      throw new Error('创建治疗记录失败')
+    }
+    return response.data
+  }
+
+  async updateTreatment(id: number, data: UpdateTreatmentRequest): Promise<ApiSuccessResponse<RestTreatment>> {
+    const response = await apiClient.put<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${id}`, data)
+    if (!response.data.success) {
+      throw new Error('更新治疗记录失败')
+    }
+    return response.data
+  }
+
+  async updateTreatmentStatus(id: number, status: number): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${id}/status`, { status })
+    if (!response.data.success) {
+      throw new Error('更新治疗状态失败')
     }
     return response.data
   }

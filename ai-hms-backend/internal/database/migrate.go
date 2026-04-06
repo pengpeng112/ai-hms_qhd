@@ -72,6 +72,8 @@ func AutoMigrate(cfg *config.Config) error {
 		// 字典管理相关
 		&models.DictType{},
 		&models.DictItem{},
+		&models.Permission{},
+		&models.RolePermission{},
 
 		// 设备管理相关
 		&models.ClinicalTask{},
