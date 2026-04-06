@@ -128,3 +128,9 @@
 - 修改文件：`ai-hms-frontend/src/layouts/MainLayout.tsx`、`ai-hms-frontend/src/services/role.ts`
 - 变更：删除 `MainLayout` 中按 `UserRole` 的硬编码任务可见性逻辑；改为加载角色权限码并按权限集合过滤任务类型（无权限即不展示）
 - 编译验证：`npx.cmd tsc --noEmit` 通过；`go build ./...` 通过
+
+## [P5-4] 阶段五：默认权限与角色授权初始化
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-backend/internal/services/permission_service.go`
+- 变更：新增 `InitDefaultPermissions`（菜单级+任务级权限定义与角色基线授权，幂等）；新增 `ensureDefaultsInitialized`，在权限读取接口首次调用时自动初始化，避免前端权限化后出现空菜单
+- 编译验证：`go build ./...` 通过；`npx.cmd tsc --noEmit` 通过
