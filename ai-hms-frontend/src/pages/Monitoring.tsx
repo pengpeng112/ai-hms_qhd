@@ -1,4 +1,4 @@
-import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
+﻿import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '../types/original'
 import { restApi, type RestDevice } from '../services/restClient'
@@ -35,7 +35,7 @@ import {
 
 type ModalType = 'COMPREHENSIVE' | 'PRESCRIPTION' | 'ORDERS' | 'SUMMARY' | null
 
-// --- 通用弹窗包装 ---
+// --- 閫氱敤寮圭獥鍖呰 ---
 const ModalOverlay = ({
   children,
   onClose,
@@ -129,7 +129,7 @@ const PrescriptionInput = ({
   </div>
 )
 
-// --- 1. 综合透中监测弹窗 ---
+// --- 1. 缁煎悎閫忎腑鐩戞祴寮圭獥 ---
 const ComprehensiveMonitorModal = ({
   device,
   onClose
@@ -138,7 +138,7 @@ const ComprehensiveMonitorModal = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
-  // 使用模块级别预生成的缓存数据，避免渲染期间调用 Math.random
+  // 浣跨敤妯″潡绾у埆棰勭敓鎴愮殑缂撳瓨鏁版嵁锛岄伩鍏嶆覆鏌撴湡闂磋皟鐢?Math.random
   const historyData = cachedHistoryData.get(device.id) || []
 
   return (
@@ -277,7 +277,7 @@ const ComprehensiveMonitorModal = ({
   )
 }
 
-// --- 2. 处方调整弹窗 ---
+// --- 2. 澶勬柟璋冩暣寮圭獥 ---
 const PrescriptionEditModal = ({
   device,
   onClose
@@ -286,36 +286,41 @@ const PrescriptionEditModal = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
+  const patientName = device.patientName || '--'
+  const preBloodPressure =
+    device.vitals.sbp > 0 && device.vitals.dbp > 0 ? `${device.vitals.sbp}/${device.vitals.dbp}mmHg` : ''
+  const ufVolume = device.vitals.ufGoal > 0 ? (device.vitals.ufGoal / 1000).toFixed(1) : ''
   const [materials] = useState([
-    { id: 1, name: 'JRHLL-025', category: '血路管', count: 1, code: '', brand: '', spec: '', note: '' },
-    { id: 2, name: '10ML注射器-10ML', category: '其他', count: 2, code: '', brand: '', spec: '10ML', note: '' },
-    { id: 3, name: '15G', category: '透析、血滤器', count: 1, code: '', brand: 'NIPRO', spec: '', note: '' },
-    { id: 4, name: '内瘘包', category: '护理包', count: 1, code: '1102011534', brand: '', spec: '', note: '' },
-    { id: 5, name: '锐针-16G', category: '穿刺针', count: 2, code: '', brand: 'NIPRO', spec: '', note: '' }
+    // TODO: 从 MaterialCatalog API 加载
+    { id: 1, name: 'JRHLL-025', category: '琛€璺', count: 1, code: '', brand: '', spec: '', note: '' },
+    { id: 2, name: '10ML娉ㄥ皠鍣?10ML', category: '鍏朵粬', count: 2, code: '', brand: '', spec: '10ML', note: '' },
+    { id: 3, name: '15G', category: '閫忔瀽銆佽婊ゅ櫒', count: 1, code: '', brand: 'NIPRO', spec: '', note: '' },
+    { id: 4, name: '鍐呯槝鍖?, category: '鎶ょ悊鍖?, count: 1, code: '1102011534', brand: '', spec: '', note: '' },
+    { id: 5, name: '閿愰拡-16G', category: '绌垮埡閽?, count: 2, code: '', brand: 'NIPRO', spec: '', note: '' }
   ])
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-[1400px]">
       <div className="flex-1 overflow-y-auto p-6 bg-white space-y-6">
-        {/* 患者姓名 */}
+        {/* 鎮ｈ€呭鍚?*/}
         <div className="flex items-center text-lg font-bold text-gray-900 border-b pb-4 mb-4">
-          {t('monitoring:prescription.patient')}: {device.patientName || '高敬兰'}
+          {t('monitoring:prescription.patient')}: {patientName}
         </div>
 
-        {/* 第一排体征参数 */}
+        {/* 绗竴鎺掍綋寰佸弬鏁?*/}
         <div className="flex flex-wrap items-center gap-x-6 gap-y-4 text-[13px] text-gray-600">
           <span>{t('monitoring:prescription.dialysisMethod')}: HD</span>
-          <span>{t('monitoring:prescription.preWeight')}: 69.5kg</span>
-          <span>{t('monitoring:prescription.lastPostWeight')}: 67.2kg</span>
-          <span>{t('monitoring:prescription.vsLastGain')}: 2.3kg</span>
-          <span>{t('monitoring:prescription.currentGain', { pct: '2.81' })}: 1.9kg</span>
+          <span>{t('monitoring:prescription.preWeight')}: </span>
+          <span>{t('monitoring:prescription.lastPostWeight')}: </span>
+          <span>{t('monitoring:prescription.vsLastGain')}: </span>
+          <span>{t('monitoring:prescription.currentGain', { pct: '' })}: </span>
 
           <div className="flex items-center gap-2">
             <span>{t('monitoring:prescription.dryWeight')}</span>
             <div className="flex items-center bg-blue-50/50 rounded pr-1 border border-blue-100">
               <input
                 type="text"
-                defaultValue="67.6"
+                defaultValue=""
                 className="w-16 h-7 bg-transparent text-center font-bold text-gray-800 outline-none"
               />
               <span className="text-[10px] text-gray-400">kg</span>
@@ -330,11 +335,11 @@ const PrescriptionEditModal = ({
             </label>
           </div>
 
-          <PrescriptionInput label={t('monitoring:prescription.ufVolume', { pct: '3.11' })} defaultValue="2.1" suffix="L" width="w-20" required />
-          <span>{t('monitoring:prescription.preBP')}: 137/68mmHg</span>
+          <PrescriptionInput label={t('monitoring:prescription.ufVolume', { pct: '' })} defaultValue={ufVolume} suffix="L" width="w-20" required />
+          <span>{t('monitoring:prescription.preBP')}: {preBloodPressure}</span>
         </div>
 
-        {/* 第二排透析参数 */}
+        {/* 绗簩鎺掗€忔瀽鍙傛暟 */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-6">
           <PrescriptionInput label={t('monitoring:prescription.dialysisTime')} defaultValue="4" suffix="h" width="w-24" />
           <PrescriptionInput label={t('monitoring:prescription.standardBloodFlow')} defaultValue="200" suffix="ml/min" width="w-24" />
@@ -374,7 +379,7 @@ const PrescriptionEditModal = ({
             <label className="text-sm text-gray-600">{t('monitoring:prescription.initialDrug')}:</label>
             <div className="relative">
               <select className="h-8 w-44 border rounded text-xs px-2 bg-white appearance-none outline-none focus:ring-1 focus:ring-blue-500">
-                <option>那屈肝素钙注射...</option>
+                <option>閭ｅ眻鑲濈礌閽欐敞灏?..</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -386,7 +391,7 @@ const PrescriptionEditModal = ({
           <PrescriptionInput label={t('monitoring:prescription.initialDose')} defaultValue="307.5" suffix="axiau" width="w-28" />
         </div>
 
-        {/* 第三排维持与总量 */}
+        {/* 绗笁鎺掔淮鎸佷笌鎬婚噺 */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-6">
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">{t('monitoring:prescription.maintenanceDrug')}:</label>
@@ -406,7 +411,7 @@ const PrescriptionEditModal = ({
           <PrescriptionInput label={t('monitoring:prescription.totalDose')} defaultValue="307.5" suffix="axiau" width="w-28" readOnly />
         </div>
 
-        {/* 第四排通路与分类 */}
+        {/* 绗洓鎺掗€氳矾涓庡垎绫?*/}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-6 pb-4 border-b border-gray-100">
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600 font-bold">
@@ -414,7 +419,7 @@ const PrescriptionEditModal = ({
             </label>
             <div className="relative">
               <select className="h-8 w-40 border rounded text-xs px-2 bg-white appearance-none outline-none font-bold focus:ring-1 focus:ring-blue-500">
-                <option>AVG-上臂</option>
+                <option>AVG-涓婅噦</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -429,7 +434,7 @@ const PrescriptionEditModal = ({
             <label className="text-sm text-gray-600">{t('monitoring:prescription.dialysateCat')}:</label>
             <div className="relative">
               <select className="h-8 w-40 border rounded text-xs px-2 bg-white appearance-none outline-none focus:ring-1 focus:ring-blue-500">
-                <option>A液+B液</option>
+                <option>A娑?B娑?/option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -439,7 +444,7 @@ const PrescriptionEditModal = ({
           </div>
         </div>
 
-        {/* 耗材添加区 */}
+        {/* 鑰楁潗娣诲姞鍖?*/}
         <div className="flex items-center justify-between pt-2">
           <div className="flex items-center gap-2 w-[400px]">
             <div className="relative flex-1">
@@ -460,7 +465,7 @@ const PrescriptionEditModal = ({
           </button>
         </div>
 
-        {/* 耗材列表表格 */}
+        {/* 鑰楁潗鍒楄〃琛ㄦ牸 */}
         <div className="bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full text-left text-[13px] border-collapse">
             <thead className="bg-[#eef6ff] text-gray-700 font-bold border-b border-blue-100">
@@ -525,7 +530,7 @@ const PrescriptionEditModal = ({
           </table>
         </div>
 
-        {/* 底部按钮 */}
+        {/* 搴曢儴鎸夐挳 */}
         <div className="flex justify-end gap-3 pt-4">
           <button
             onClick={onClose}
@@ -542,7 +547,7 @@ const PrescriptionEditModal = ({
   )
 }
 
-// --- 3. 医嘱管理弹窗 ---
+// --- 3. 鍖诲槺绠＄悊寮圭獥 ---
 interface OrderItem {
   id: number
   content: string
@@ -561,29 +566,30 @@ const OrderListModal = ({
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
   const [activeTab, setActiveTab] = useState<'LONG' | 'TEMP'>('LONG')
+  const currentOrderTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-').slice(0, 16)
 
   const [longOrders] = useState<OrderItem[]>([
     {
       id: 1,
-      content: '0.9% 氯化钠注射液 100ml',
-      frequency: '每次透析',
-      doctor: '王医生',
+      content: '0.9% 姘寲閽犳敞灏勬恫 100ml',
+      frequency: '姣忔閫忔瀽',
+      doctor: '鐜嬪尰鐢?,
       time: '2025-12-01 08:30',
       status: 'ACTIVE'
     },
     {
       id: 2,
-      content: '左卡尼汀注射液 1.0g',
-      frequency: '每次透析',
-      doctor: '王医生',
+      content: '宸﹀崱灏兼眬娉ㄥ皠娑?1.0g',
+      frequency: '姣忔閫忔瀽',
+      doctor: '鐜嬪尰鐢?,
       time: '2025-12-01 08:31',
       status: 'ACTIVE'
     },
     {
       id: 3,
-      content: '那屈肝素钙 2500iu iv',
-      frequency: '每次透析',
-      doctor: '李医生',
+      content: '閭ｅ眻鑲濈礌閽?2500iu iv',
+      frequency: '姣忔閫忔瀽',
+      doctor: '鏉庡尰鐢?,
       time: '2025-11-15 09:00',
       status: 'STOPPED'
     }
@@ -592,18 +598,18 @@ const OrderListModal = ({
   const [tempOrders] = useState<OrderItem[]>([
     {
       id: 4,
-      content: '50% 葡萄糖注射液 20ml iv',
+      content: '50% 钁¤悇绯栨敞灏勬恫 20ml iv',
       frequency: 'ST',
-      doctor: '王医生',
-      time: '2025-12-13 10:15',
+      doctor: '鐜嬪尰鐢?,
+      time: currentOrderTime,
       status: 'EXECUTED'
     },
     {
       id: 5,
-      content: '去乙酰毛花苷 0.2mg iv',
+      content: '鍘讳箼閰版瘺鑺辫嫹 0.2mg iv',
       frequency: 'ST',
-      doctor: '陈主任',
-      time: '2025-12-13 11:20',
+      doctor: '闄堜富浠?,
+      time: currentOrderTime,
       status: 'PENDING'
     }
   ])
@@ -714,7 +720,7 @@ const OrderListModal = ({
   )
 }
 
-// --- 4. 填写小结弹窗 ---
+// --- 4. 濉啓灏忕粨寮圭獥 ---
 const SummaryModal = ({
   device,
   onClose
@@ -806,7 +812,7 @@ const SummaryModal = ({
   )
 }
 
-// --- 预生成图表数据（避免每次渲染重新计算）---
+// --- 棰勭敓鎴愬浘琛ㄦ暟鎹紙閬垮厤姣忔娓叉煋閲嶆柊璁＄畻锛?--
 const generateMiniGraphData = (device: MonitorDevice) => {
   return Array.from({ length: 12 }).map(() => ({
     sbp: device.vitals.sbp + Math.floor(Math.random() * 8 - 4),
@@ -814,8 +820,8 @@ const generateMiniGraphData = (device: MonitorDevice) => {
   }))
 }
 
-// 预生成历史数据（用于弹窗图表）
-const generateHistoryData = (device: MonitorDevice) => {
+// 棰勭敓鎴愬巻鍙叉暟鎹紙鐢ㄤ簬寮圭獥鍥捐〃锛?
+const buildHistoryData = (device: MonitorDevice) => {
   const now = new Date()
   return Array.from({ length: 15 }).map((_, i) => {
     const time = new Date(now)
@@ -834,20 +840,19 @@ const generateHistoryData = (device: MonitorDevice) => {
   })
 }
 
-// 缓存设备图表数据（按需填充）
-const cachedGraphData = new Map<string, { sbp: number; hr: number }[]>()
-const cachedHistoryData = new Map<string, ReturnType<typeof generateHistoryData>>()
+// 缂撳瓨璁惧鍥捐〃鏁版嵁锛堟寜闇€濉厖锛?const cachedGraphData = new Map<string, { sbp: number; hr: number }[]>()
+const cachedHistoryData = new Map<string, ReturnType<typeof buildHistoryData>>()
 
 function ensureDeviceCache(device: MonitorDevice) {
   if (!cachedGraphData.has(device.id)) {
     cachedGraphData.set(device.id, generateMiniGraphData(device))
   }
   if (!cachedHistoryData.has(device.id)) {
-    cachedHistoryData.set(device.id, generateHistoryData(device))
+    cachedHistoryData.set(device.id, buildHistoryData(device))
   }
 }
 
-// 将后端 Device 转换为前端 MonitorDevice 格式
+// 灏嗗悗绔?Device 杞崲涓哄墠绔?MonitorDevice 鏍煎紡
 function toMonitorDevice(d: RestDevice): MonitorDevice {
   const statusMap: Record<string, MonitorDevice['status']> = {
     normal: 'normal',
@@ -876,11 +881,11 @@ function toMonitorDevice(d: RestDevice): MonitorDevice {
       conductivity: isActive ? 13 + Math.random() * 2 : 0,
       temp: isActive ? 36 + Math.random() * 1 : 0,
     },
-    alarms: status === 'alarm' ? ['血压偏低'] : status === 'warning' ? ['血流量不足'] : [],
+    alarms: status === 'alarm' ? ['琛€鍘嬪亸浣?] : status === 'warning' ? ['琛€娴侀噺涓嶈冻'] : [],
   }
 }
 
-// --- Mini图表组件（使用memo防止不必要的重渲染）---
+// --- Mini鍥捐〃缁勪欢锛堜娇鐢╩emo闃叉涓嶅繀瑕佺殑閲嶆覆鏌擄級---
 const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
   const data = cachedGraphData.get(deviceId) || []
   const containerRef = useRef<HTMLDivElement>(null)
@@ -898,7 +903,7 @@ const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
     updateWidth()
 
     const resizeObserver = new ResizeObserver(() => {
-      // 防抖 200ms
+      // 闃叉姈 200ms
       if (timeoutRef.current) clearTimeout(timeoutRef.current)
       timeoutRef.current = setTimeout(updateWidth, 200)
     })
@@ -937,7 +942,7 @@ const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
 
 MiniVitalsChart.displayName = 'MiniVitalsChart'
 
-// --- 主组件 ---
+// --- 涓荤粍浠?---
 export default function Monitoring() {
   const { t } = useTranslation(['monitoring', 'common'])
   const [activeModal, setActiveModal] = useState<ModalType>(null)
@@ -952,8 +957,7 @@ export default function Monitoring() {
       mapped.forEach(ensureDeviceCache)
       setDevices(mapped)
     }).catch(() => {
-      // 后端不可用时不显示设备列表
-    })
+      // 鍚庣涓嶅彲鐢ㄦ椂涓嶆樉绀鸿澶囧垪琛?    })
   }, [])
 
   const filteredDevices = useMemo(() => {
@@ -1061,7 +1065,7 @@ export default function Monitoring() {
                         <span className="truncate">{device.patientName || t('monitoring:card.idle')}</span>
                         {device.patientName && (
                           <span className="text-[10px] text-gray-500 ml-1 font-normal whitespace-nowrap">
-                            ({gender} · {age}{t('monitoring:label.age')})
+                            ({gender} 路 {age}{t('monitoring:label.age')})
                           </span>
                         )}
                       </h4>
@@ -1071,7 +1075,7 @@ export default function Monitoring() {
                           className={`mr-1 shrink-0 ${device.status === 'offline' ? 'text-gray-300' : 'text-green-500'}`}
                         />
                         <span className="text-blue-600">{device.mode}</span>
-                        <span className="mx-1 opacity-40">·</span>
+                        <span className="mx-1 opacity-40">路</span>
                         <Clock size={10} className="mr-0.5 shrink-0" /> {device.timeRemaining}
                       </div>
                     </div>
@@ -1195,3 +1199,4 @@ export default function Monitoring() {
     </div>
   )
 }
+

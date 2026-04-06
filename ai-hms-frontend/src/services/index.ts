@@ -1,58 +1,53 @@
-/**
- * 服务层统一导出
+﻿/**
+ * 鏈嶅姟灞傜粺涓€瀵煎嚭
  *
- * 按模块组织：
- * - api: 基础 GraphQL 客户端
- * - patient: 患者相关服务
- * - schedule: 排班相关服务
- * - treatment: 治疗相关服务
- * - order: 医嘱相关服务
- * - vitals: 体征监测服务
- * - examination: 检验检查服务
- * - equipment: 设备管理服务
+ * 鎸夋ā鍧楃粍缁囷細
+ * - api: 鍩虹 GraphQL 瀹㈡埛绔? * - patient: 鎮ｈ€呯浉鍏虫湇鍔? * - schedule: 鎺掔彮鐩稿叧鏈嶅姟
+ * - treatment: 娌荤枟鐩稿叧鏈嶅姟
+ * - order: 鍖诲槺鐩稿叧鏈嶅姟
+ * - vitals: 浣撳緛鐩戞祴鏈嶅姟
+ * - examination: 妫€楠屾鏌ユ湇鍔? * - equipment: 璁惧绠＄悊鏈嶅姟
  */
 
-// ============ 类型导出 ============
+// ============ 绫诲瀷瀵煎嚭 ============
 export type {
-  // 通用类型
+  // 閫氱敤绫诲瀷
   PaginatedItem,
   PaginatedResponse,
   QueryParams,
   EntityName,
-  // 患者相关
-  Hospitalization,
+  // 鎮ｈ€呯浉鍏?  Hospitalization,
   Infection,
   VascularAccess,
   CaseHistory,
-  // 排班相关
+  // 鎺掔彮鐩稿叧
   Shift,
   PatientShift,
   Bed,
   Ward,
-  // 治疗相关
+  // 娌荤枟鐩稿叧
   Treatment,
   PatientPrescription,
   PatientPlan,
-  // 医嘱相关
+  // 鍖诲槺鐩稿叧
   OrderTPL,
   OrderTemplate,
   PatientOrder,
   PatientDayOrder,
-  // 体征相关
+  // 浣撳緛鐩稿叧
   BeforeSigns,
   DuringSigns,
   AfterSigns,
-  // 检验相关
-  Examination,
+  // 妫€楠岀浉鍏?  Examination,
   ExaminationItem,
-  // 设备相关
+  // 璁惧鐩稿叧
   EquipmentInfo,
   EquipmentDisinfection,
   MachineInfo,
   MachineRunRecord,
 } from './types/api'
 
-// ============ API 基础函数 ============
+// ============ API 鍩虹鍑芥暟 ============
 export {
   graphqlQuery,
   isApiConfigured,
@@ -66,16 +61,14 @@ export {
   formatDateForApi,
 } from './api'
 
-// ============ REST API 客户端 ============
+// ============ REST API 瀹㈡埛绔?============
 export { restApi, convertRestPatientToUI, convertRestPatientList, getErrorMessage } from './restClient'
 export type { RestPatient, RestShift, RestPatientShift, RestTreatment, PaginationMeta } from './restClient'
 export type { PaginatedResponse as RestPaginatedResponse } from './restClient'
 
-// ============ 临时 Mock 辅助函数 ============
-// 等待 Dashboard 和 PatientDetail 页面对接 API 后删除
-export { getPatientList, getPatientById } from '@/utils/mockHelpers'
+// ============ 涓存椂 Mock 杈呭姪鍑芥暟 ============
 
-// ============ 排班服务 ============
+// ============ 鎺掔彮鏈嶅姟 ============
 export {
   getShiftList,
   getActiveShifts,
@@ -92,7 +85,7 @@ export {
   getTodayScheduleOverview,
 } from './schedule'
 
-// ============ 治疗服务 ============
+// ============ 娌荤枟鏈嶅姟 ============
 export {
   getTreatmentList,
   getTodayTreatments,
@@ -107,7 +100,7 @@ export {
   getTodayTreatmentStats,
 } from './treatment'
 
-// ============ 医嘱服务 ============
+// ============ 鍖诲槺鏈嶅姟 ============
 export {
   getOrderTemplates,
   getOrderTemplatesByGroup,
@@ -123,7 +116,7 @@ export {
   getPatientOrderOverview,
 } from './order'
 
-// ============ 体征服务 ============
+// ============ 浣撳緛鏈嶅姟 ============
 export {
   getPatientBeforeSigns,
   getBeforeSignsByTreatment,
@@ -138,7 +131,7 @@ export {
 } from './vitals'
 export type { TreatmentVitals, VitalTrendPoint, BPStats } from './vitals'
 
-// ============ 检验服务 ============
+// ============ 妫€楠屾湇鍔?============
 export {
   getExaminationList,
   getPatientExaminations,
@@ -153,7 +146,7 @@ export {
 } from './examination'
 export type { AbnormalItem, ExamItemTrend } from './examination'
 
-// ============ 设备服务 ============
+// ============ 璁惧鏈嶅姟 ============
 export {
   getEquipmentList,
   getAllEquipments,
@@ -166,7 +159,7 @@ export {
 } from './equipment'
 export type { EquipmentStats, EquipmentOverview, DashboardEquipmentData } from './equipment'
 
-// ============ 角色服务 ============
+// ============ 瑙掕壊鏈嶅姟 ============
 export {
   getRoleUsers,
   getRoleUsersByGroup,

@@ -74,6 +74,7 @@ func AutoMigrate(cfg *config.Config) error {
 		&models.DictItem{},
 
 		// 设备管理相关
+		&models.ClinicalTask{},
 		&models.Device{},
 
 		// 库存管理相关

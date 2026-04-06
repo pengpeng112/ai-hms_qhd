@@ -1,9 +1,10 @@
-// History Tab - 治疗历史
+﻿// History Tab - 治疗历史
 
-import { useState, useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { History, Printer, FileText, Clock, Stethoscope, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Patient } from '@/types/original'
+import { restApi } from '@/services'
 import type { TreatmentHistoryItem } from '../types'
 
 interface HistoryTabProps {
@@ -15,40 +16,46 @@ type HistoryFilterType = 'month' | 'halfyear' | 'year'
 export default function HistoryTab({ patient }: HistoryTabProps) {
   const { t } = useTranslation('patient')
 
-  // 状态管理
   const [historyFilter, setHistoryFilter] = useState<HistoryFilterType>('month')
   const [historyDateRange, setHistoryDateRange] = useState({ start: '2024-01-01', end: '2024-12-31' })
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] = useState(20)
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([])
+  const [historyList, setHistoryList] = useState<TreatmentHistoryItem[]>([])
+  const [loading, setLoading] = useState(false)
 
-  // NOTE: Placeholder treatment history — will be replaced when treatment-history API integration is completed in Phase 2+
-  const mockHistoryData = useMemo<TreatmentHistoryItem[]>(() => {
-    const modes = ['HD', 'HDF', 'CVVH']
-    const data: TreatmentHistoryItem[] = []
-    for (let i = 0; i < 25; i++) {
-      const d = new Date()
-      d.setDate(d.getDate() - i * 3)
-      data.push({
-        id: `H${i}`,
-        date: d.toISOString().split('T')[0],
-        timeRange: '08:00 - 12:30',
-        mode: modes[i % 3],
-        doctorSummary: '透析过程顺利，生命体征平稳，无不适主诉。',
-        treatmentSummary: `HD 4h / UF 2.${5 + (i % 5)}L / Qb 250ml/min / 肝素钠 3500IU`
-      })
+  useEffect(() => {
+    const patientId = Number(patient?.id)
+    if (!patient?.id || Number.isNaN(patientId)) {
+      setHistoryList([])
+      return
     }
-    return data
-  }, [])
 
-  // 筛选后的历史数据
-  const filteredHistory = mockHistoryData
+    setLoading(true)
+    restApi
+      .getTreatments({ patientId, pageSize: 25 })
+      .then((res) => {
+        setHistoryList(
+          res.data.items.map((treatment) => ({
+            id: String(treatment.id),
+            date: treatment.treatmentDate?.slice(0, 10) ?? '',
+            timeRange: '',
+            mode: treatment.treatmentType ?? '',
+            doctorSummary: treatment.notes ?? '',
+            treatmentSummary: '',
+          }))
+        )
+      })
+      .catch(() => setHistoryList([]))
+      .finally(() => setLoading(false))
+  }, [patient?.id])
+
+  const filteredHistory = historyList
   const totalPages = Math.ceil(filteredHistory.length / historyPageSize) || 1
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 flex flex-col h-full">
-      {/* 筛选器区域 */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-4">
           <h3 className="text-sm font-black uppercase tracking-wider flex items-center text-slate-800">
@@ -63,19 +70,19 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
             <input
               type="date"
               value={historyDateRange.start}
-              onChange={(e) => setHistoryDateRange(prev => ({...prev, start: e.target.value}))}
+              onChange={(e) => setHistoryDateRange(prev => ({ ...prev, start: e.target.value }))}
               className="text-xs font-bold outline-none border-none cursor-pointer"
             />
             <span className="text-slate-300">-</span>
             <input
               type="date"
               value={historyDateRange.end}
-              onChange={(e) => setHistoryDateRange(prev => ({...prev, end: e.target.value}))}
+              onChange={(e) => setHistoryDateRange(prev => ({ ...prev, end: e.target.value }))}
               className="text-xs font-bold outline-none border-none cursor-pointer"
             />
           </div>
           <div className="flex gap-1.5 bg-slate-100 p-1 rounded-2xl shadow-inner">
-            {([{id: 'month' as const, labelKey: 'history.filter.month' as const}, {id: 'halfyear' as const, labelKey: 'history.filter.halfYear' as const}, {id: 'year' as const, labelKey: 'history.filter.year' as const}]).map(btn => (
+            {([{ id: 'month' as const, labelKey: 'history.filter.month' as const }, { id: 'halfyear' as const, labelKey: 'history.filter.halfYear' as const }, { id: 'year' as const, labelKey: 'history.filter.year' as const }]).map(btn => (
               <button
                 key={btn.id}
                 onClick={() => setHistoryFilter(btn.id)}
@@ -88,17 +95,21 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
         </div>
         <div className="flex gap-3">
           <button onClick={() => window.print()} className="px-8 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-black rounded-2xl hover:bg-slate-50 shadow-sm flex items-center gap-2">
-            <Printer size={16}/> {t('action.print')}
+            <Printer size={16} /> {t('action.print')}
           </button>
           <button className="px-8 py-2.5 bg-blue-600 text-white text-xs font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center gap-2">
-            <FileText size={16}/> {t('history.treatmentRecordSheet')}
+            <FileText size={16} /> {t('history.treatmentRecordSheet')}
           </button>
         </div>
       </div>
 
-      {/* 历史记录列表 */}
       <div className="flex-1 space-y-4">
-        {paginatedHistory.length > 0 ? paginatedHistory.map((h, idx) => (
+        {loading ? (
+          <div className="py-40 text-center text-slate-300 flex flex-col items-center gap-4 bg-white rounded-[40px] border border-dashed border-slate-200">
+            <History size={64} className="opacity-10" />
+            <p className="font-bold">{t('common.loading')}</p>
+          </div>
+        ) : paginatedHistory.length > 0 ? paginatedHistory.map((h, idx) => (
           <div key={h.id} className="flex items-center gap-4 group/row">
             <div className="flex flex-col items-center gap-3 shrink-0">
               <span className="text-[11px] font-black text-slate-300 font-mono">#{String((historyPage - 1) * historyPageSize + idx + 1).padStart(2, '0')}</span>
@@ -115,19 +126,19 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
                 <div className="px-4 py-1 bg-blue-50 text-blue-600 rounded-xl font-black text-xs border border-blue-100 shadow-sm">{t('history.bedLabel', { bed: patient?.bedNumber })}</div>
                 <div className="px-4 py-1 bg-slate-900 text-white rounded-xl font-black text-[11px] uppercase tracking-wider shadow-md">{h.mode}</div>
                 <div className="flex items-center gap-2 text-sm font-black text-slate-400 font-mono">
-                  <Clock size={14} className="text-slate-300"/> {h.date} <span className="opacity-40 font-normal">|</span> {h.timeRange}
+                  <Clock size={14} className="text-slate-300" /> {h.date} <span className="opacity-40 font-normal">|</span> {h.timeRange}
                 </div>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                 <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-50 transition-colors group-hover:bg-slate-50 group-hover:border-slate-100">
                   <p className="text-[10px] text-slate-400 font-black uppercase mb-2 flex items-center gap-2 tracking-widest">
-                    <Stethoscope size={12} className="text-blue-500"/> {t('history.doctorSummary')}
+                    <Stethoscope size={12} className="text-blue-500" /> {t('history.doctorSummary')}
                   </p>
                   <p className="text-xs font-bold text-slate-800 leading-relaxed">{h.doctorSummary}</p>
                 </div>
                 <div className="p-5 bg-slate-50/50 rounded-2xl border border-slate-50 transition-colors group-hover:bg-slate-50 group-hover:border-slate-100">
                   <p className="text-[10px] text-slate-400 font-black uppercase mb-2 flex items-center gap-2 tracking-widest">
-                    <ClipboardList size={12} className="text-blue-500"/> {t('history.treatmentSummary')}
+                    <ClipboardList size={12} className="text-blue-500" /> {t('history.treatmentSummary')}
                   </p>
                   <p className="text-xs font-bold text-slate-800 leading-relaxed">{h.treatmentSummary}</p>
                 </div>
@@ -136,20 +147,19 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
           </div>
         )) : (
           <div className="py-40 text-center text-slate-300 flex flex-col items-center gap-4 bg-white rounded-[40px] border border-dashed border-slate-200">
-            <History size={64} className="opacity-10"/>
-            <p className="font-bold">{t('history.noRecords')}</p>
+            <History size={64} className="opacity-10" />
+            <p className="font-bold">暂无治疗历史记录</p>
           </div>
         )}
       </div>
 
-      {/* 分页控制 */}
       <div className="flex items-center justify-between mt-auto pt-8 border-t border-slate-100 relative">
         <button
           disabled={historyPage === 1}
           onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
           className="p-4 bg-white border border-slate-200 rounded-[24px] text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-lg disabled:opacity-30 disabled:pointer-events-none active:scale-95"
         >
-          <ChevronLeft size={24} strokeWidth={3}/>
+          <ChevronLeft size={24} strokeWidth={3} />
         </button>
         <div className="flex items-center gap-12 bg-white/50 backdrop-blur-md px-10 py-3 rounded-full border border-slate-100 shadow-sm">
           <div className="text-center group">
@@ -171,7 +181,10 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
             <p className="text-[9px] text-slate-400 font-black uppercase tracking-widest mb-0.5 group-hover:text-blue-500 transition-colors">{t('history.pagination.pageSize')}</p>
             <select
               value={historyPageSize}
-              onChange={(e) => {setHistoryPageSize(Number(e.target.value));setHistoryPage(1);}}
+              onChange={(e) => {
+                setHistoryPageSize(Number(e.target.value))
+                setHistoryPage(1)
+              }}
               className="text-sm font-black text-slate-800 bg-transparent outline-none cursor-pointer border-none p-0 focus:ring-0"
             >
               <option value={20}>20</option>
@@ -186,7 +199,7 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
           onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
           className="p-4 bg-white border border-slate-200 rounded-[24px] text-slate-400 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm hover:shadow-lg disabled:opacity-30 disabled:pointer-events-none active:scale-95"
         >
-          <ChevronRight size={24} strokeWidth={3}/>
+          <ChevronRight size={24} strokeWidth={3} />
         </button>
       </div>
     </div>

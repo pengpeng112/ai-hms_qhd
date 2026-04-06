@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+﻿import { useState, useMemo, useRef, useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Sidebar from './Sidebar'
@@ -6,54 +6,34 @@ import Header from './Header'
 import { UserRole } from '@/types/original'
 import { logout } from '@/services/auth'
 import { getSelectedRoleUser } from '@/services/role'
+import { restApi, type RestClinicalTask } from '@/services/restClient'
 import {
     AlertCircle, Zap, FileEdit, CheckCircle2, X, ChevronRight, ClipboardList
 } from 'lucide-react'
 
-interface TaskItem {
-    id: string
-    type: 'PRESCRIPTION' | 'ORDER' | 'ALERT' | 'ASSESSMENT'
-    title: string
-    patientName: string
-    bedNumber: string
-    patientId: string
-    description: string
-    severity: 'high' | 'medium' | 'low'
-    roles: UserRole[]
-    targetRoute: string
+const TASKBAR_STATE_KEY = 'hdis_taskbar_open'
+
+const canViewTask = (role: UserRole, type: string) => {
+    if (type === 'ALERT') return true
+    if (type === 'PRESCRIPTION') {
+        return [UserRole.DOCTOR_CHIEF, UserRole.DOCTOR_SUPERVISOR, UserRole.DOCTOR_DUTY, UserRole.NURSE_RESPONSIBLE].includes(role)
+    }
+    if (type === 'ORDER') {
+        return [UserRole.NURSE_HEAD, UserRole.NURSE_RESPONSIBLE, UserRole.NURSE_MANAGER].includes(role)
+    }
+    if (type === 'ASSESSMENT') {
+        return [UserRole.NURSE_HEAD, UserRole.NURSE_RESPONSIBLE, UserRole.DOCTOR_DUTY].includes(role)
+    }
+    return true
 }
 
-// Mock tasks data
-const MOCK_TASKS: TaskItem[] = [
-    {
-        id: 't1', type: 'ALERT', title: '危急值预警', patientName: '张伟', bedNumber: 'A01', patientId: 'P001',
-        description: '收缩压 85mmHg，低于阈值', severity: 'high', targetRoute: '/monitoring',
-        roles: [UserRole.DOCTOR_CHIEF, UserRole.DOCTOR_SUPERVISOR, UserRole.DOCTOR_DUTY, UserRole.NURSE_RESPONSIBLE]
-    },
-    {
-        id: 't2', type: 'PRESCRIPTION', title: '处方待调整', patientName: '李娜', bedNumber: 'A02', patientId: 'P002',
-        description: '体重增量过大，需重新评估超滤量', severity: 'medium', targetRoute: '/monitoring',
-        roles: [UserRole.DOCTOR_CHIEF, UserRole.DOCTOR_SUPERVISOR, UserRole.DOCTOR_DUTY]
-    },
-    {
-        id: 't3', type: 'ORDER', title: '新医嘱待执行', patientName: '王强', bedNumber: 'B05', patientId: 'P003',
-        description: '追加低分子肝素 1000iu iv', severity: 'medium', targetRoute: '/dialysis',
-        roles: [UserRole.NURSE_RESPONSIBLE, UserRole.NURSE_HEAD]
-    },
-    {
-        id: 't4', type: 'ASSESSMENT', title: '透后评估提醒', patientName: '孙行', bedNumber: 'C01', patientId: 'P006',
-        description: '治疗即将结束，请及时进行透后评估', severity: 'low', targetRoute: '/dialysis',
-        roles: [UserRole.NURSE_RESPONSIBLE]
-    },
-    {
-        id: 't5', type: 'PRESCRIPTION', title: '处方变动确认', patientName: '李娜', bedNumber: 'A02', patientId: 'P002',
-        description: '医生已修改超滤方案，请核对', severity: 'medium', targetRoute: '/dialysis',
-        roles: [UserRole.NURSE_RESPONSIBLE]
-    },
-]
-
-// localStorage key for taskbar state
-const TASKBAR_STATE_KEY = 'hdis_taskbar_open'
+const getTaskRoute = (type: string) => {
+    if (type === 'ALERT') return '/monitoring'
+    if (type === 'PRESCRIPTION') return '/monitoring'
+    if (type === 'ORDER') return '/dialysis'
+    if (type === 'ASSESSMENT') return '/dialysis'
+    return '/dashboard'
+}
 
 export default function MainLayout() {
     const { t } = useTranslation('common')
@@ -63,28 +43,34 @@ export default function MainLayout() {
         const saved = localStorage.getItem(TASKBAR_STATE_KEY)
         return saved !== null ? saved === 'true' : true
     })
+    const [tasks, setTasks] = useState<RestClinicalTask[]>([])
+    const [taskLoading, setTaskLoading] = useState(false)
+
     const taskbarRef = useRef<HTMLDivElement>(null)
     const toggleBtnRef = useRef<HTMLButtonElement>(null)
 
-    // 获取选中的角色用户
     const roleUser = useMemo(() => getSelectedRoleUser(), [])
 
-    // 用户数据 - 从角色选择获取
     const user = {
         name: roleUser?.name || '用户',
         role: roleUser?.role || UserRole.DOCTOR_SUPERVISOR,
         avatar: roleUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
     }
 
-    // Filter tasks visible to current role
-    const visibleTasks = MOCK_TASKS.filter(task => task.roles.includes(user.role))
+    useEffect(() => {
+        setTaskLoading(true)
+        restApi.getClinicalTasks({ status: 'pending' })
+            .then(res => setTasks(res.data.items))
+            .catch(() => setTasks([]))
+            .finally(() => setTaskLoading(false))
+    }, [])
 
-    // Persist taskbar state
+    const visibleTasks = tasks.filter(task => canViewTask(user.role, task.type))
+
     useEffect(() => {
         localStorage.setItem(TASKBAR_STATE_KEY, String(taskbarOpen))
     }, [taskbarOpen])
 
-    // Click outside to close
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (
@@ -103,9 +89,8 @@ export default function MainLayout() {
         logout()
     }
 
-    const handleTaskClick = (task: TaskItem) => {
-        // Navigate to target route
-        navigate(task.targetRoute)
+    const handleTaskClick = (task: RestClinicalTask) => {
+        navigate(getTaskRoute(task.type))
     }
 
     const getSeverityStyles = (severity: string) => {
@@ -129,12 +114,9 @@ export default function MainLayout() {
 
     return (
         <div className="flex h-screen bg-gray-50 overflow-hidden font-sans">
-            {/* Sidebar */}
             <Sidebar isOpen={sidebarOpen} />
 
-            {/* Main Content Area */}
             <div className="flex-1 flex flex-col min-w-0">
-                {/* Header */}
                 <Header
                     username={user.name}
                     userRole={user.role}
@@ -148,20 +130,16 @@ export default function MainLayout() {
                     toggleBtnRef={toggleBtnRef}
                 />
 
-                {/* Content + Taskbar as flex siblings for push/shrink effect */}
                 <div className="flex-1 flex overflow-hidden">
-                    {/* Main content - automatically shrinks when taskbar opens */}
                     <main className="flex-1 overflow-auto p-6 no-scrollbar">
                         <Outlet />
                     </main>
 
-                    {/* Real-time Task Panel - flex sibling for push effect */}
                     <aside
                         ref={taskbarRef}
                         className={`bg-white border-l border-gray-200 flex flex-col transition-all duration-300 ease-in-out shadow-xl z-20
                             ${taskbarOpen ? 'w-[340px]' : 'w-0 overflow-hidden border-none'}`}
                     >
-                        {/* Header */}
                         <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white shrink-0">
                             <div className="flex items-center">
                                 <span className="w-1.5 h-6 bg-blue-600 rounded-full mr-3"></span>
@@ -175,9 +153,12 @@ export default function MainLayout() {
                             </button>
                         </div>
 
-                        {/* Task List */}
                         <div className="flex-1 p-4 space-y-3 overflow-y-auto no-scrollbar bg-slate-50/50">
-                            {visibleTasks.length > 0 ? (
+                            {taskLoading ? (
+                                Array.from({ length: 3 }).map((_, idx) => (
+                                    <div key={idx} className="p-4 rounded-2xl border border-gray-200 bg-white animate-pulse h-24" />
+                                ))
+                            ) : visibleTasks.length > 0 ? (
                                 visibleTasks.map(task => (
                                     <div
                                         key={task.id}
@@ -190,11 +171,11 @@ export default function MainLayout() {
                                                 {task.title}
                                             </div>
                                             <span className="text-[10px] font-bold opacity-60 bg-white/30 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
-                                                {t('taskbar.bed', { bed: task.bedNumber })}
+                                                {t('taskbar.bed', { bed: task.bedNumber || '--' })}
                                             </span>
                                         </div>
-                                        <p className="text-xs font-bold mb-1">{task.patientName}</p>
-                                        <p className="text-xs opacity-80 leading-relaxed mb-3">{task.description}</p>
+                                        <p className="text-xs font-bold mb-1">{task.patientName || '--'}</p>
+                                        <p className="text-xs opacity-80 leading-relaxed mb-3">{task.description || ''}</p>
                                         <div className="flex items-center justify-end text-[10px] font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform">
                                             {t('taskbar.goHandle')} <ChevronRight size={12} className="ml-1" />
                                         </div>
@@ -203,12 +184,11 @@ export default function MainLayout() {
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50 space-y-3">
                                     <CheckCircle2 size={48} className="text-green-500" />
-                                    <p className="text-sm font-medium">{t('empty.tasks')}</p>
+                                    <p className="text-sm font-medium">暂无待处理任务</p>
                                 </div>
                             )}
                         </div>
 
-                        {/* Footer */}
                         <div className="p-4 border-t border-gray-100 bg-gray-50/80 shrink-0">
                             <button className="w-full py-2.5 text-xs font-bold text-blue-600 bg-white border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors shadow-sm whitespace-nowrap">
                                 {t('taskbar.viewHistory')}

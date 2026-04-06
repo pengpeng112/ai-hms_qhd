@@ -148,6 +148,11 @@ func main() {
 
 			// 库存管理路由
 			v1api.RegisterInventoryRoutes(protected)
+
+			// 看板统计路由
+			v1api.RegisterDashboardRoutes(protected)
+			v1api.RegisterClinicalTaskRoutes(protected)
+			v1api.RegisterStatisticsRoutes(protected)
 		}
 	}
 

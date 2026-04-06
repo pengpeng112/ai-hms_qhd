@@ -7,7 +7,7 @@
  * - 设备与床位运行矩阵
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Users, Monitor, Activity, CheckCircle2,
@@ -55,12 +55,7 @@ export default function WardOverview() {
   })
 
   // 治疗进度数据
-  const processData = useMemo<ProcessDataItem[]>(() => [
-    { name: t('process.waiting'), value: 5, status: 'waiting' },
-    { name: t('process.dialysis'), value: 18, status: 'dialysis' },
-    { name: t('process.disinfect'), value: 3, status: 'disinfect' },
-    { name: t('process.completed'), value: 10, status: 'completed' },
-  ], [t])
+  const [processData, setProcessData] = useState<ProcessDataItem[]>([])
 
   // 床位状态数据
   const [bedStatuses, setBedStatuses] = useState<BedStatus[]>([])
@@ -70,16 +65,32 @@ export default function WardOverview() {
     setLoading(true)
     try {
       // 并行请求多个 API
-      const [patientsRes, equipmentsRes, shiftsRes] = await Promise.all([
+      const today = new Date().toISOString().slice(0, 10)
+      const [patientsRes, equipmentsRes, shiftsRes, treatmentsRes] = await Promise.all([
         restApi.getPatientList({ page: 1, pageSize: 100 }).catch(() => null),
         getAllEquipments().catch(() => null),
         getActiveShifts().catch(() => null),
+        restApi.getTreatments({ treatmentDate: today, pageSize: 200 }).catch(() => null),
       ])
 
       // 计算统计数据
       const scheduledPatients = shiftsRes?.length || 45
       const totalEquipments = equipmentsRes?.length || 32
       const totalPatients = patientsRes?.data?.pagination?.total || 0
+      const statusCount = { 0: 0, 1: 0, 2: 0, 3: 0 }
+      const treatmentItems = treatmentsRes?.data?.items ?? []
+      treatmentItems.forEach((treatment) => {
+        const status = treatment.status as 0 | 1 | 2 | 3
+        if (status in statusCount) {
+          statusCount[status] += 1
+        }
+      })
+      setProcessData([
+        { value: statusCount[0], name: t('process.waiting'), status: 'waiting' },
+        { value: statusCount[1], name: t('process.dialysis'), status: 'dialysis' },
+        { value: statusCount[2], name: t('process.completed'), status: 'completed' },
+        { value: statusCount[3], name: t('process.disinfect'), status: 'disinfect' },
+      ])
 
       // 模拟床位状态分布（API 暂不提供实时状态）
       const activeCount = Math.min(scheduledPatients, totalEquipments - 4)
@@ -88,6 +99,8 @@ export default function WardOverview() {
 
       setStats(prev => ({
         ...prev,
+        // TODO: 从 Ward 数据读取病区总床位容量
+        totalCapacity: totalPatients || prev.totalCapacity,
         scheduledPatients: scheduledPatients || totalPatients || 45,
         onSiteCount: activeCount,
         alarmDevices: alarmCount,
