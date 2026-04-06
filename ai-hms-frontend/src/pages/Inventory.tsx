@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
     Package,
@@ -14,6 +14,7 @@ import {
     Download
 } from 'lucide-react'
 import { EmptyState } from '@/components'
+import { restApi } from '@/services/restClient'
 
 // 耗材类型定义
 interface InventoryItem {
@@ -34,7 +35,7 @@ interface InventoryItem {
 // 出入库记录类型
 interface StockLog {
     id: string
-    date: string
+    createdAt: string
     type: 'in' | 'out'
     itemName: string
     quantity: number
@@ -55,189 +56,36 @@ interface LabelTask {
 
 type TabType = 'STOCK' | 'LOG' | 'LABELS'
 
-// Mock 数据
-const MOCK_INVENTORY: InventoryItem[] = [
-    {
-        id: 'INV001',
-        name: 'FX60 透析器',
-        spec: '高通量',
-        category: '透析耗材',
-        stock: 124,
-        unit: '个',
-        minStock: 50,
-        maxStock: 200,
-        alert: false,
-        location: '耗材库 A-01',
-        supplier: '费森尤斯',
-        lastUpdated: '2026-01-07 10:30'
-    },
-    {
-        id: 'INV002',
-        name: '血液管路',
-        spec: '通用',
-        category: '透析耗材',
-        stock: 85,
-        unit: '套',
-        minStock: 100,
-        maxStock: 300,
-        alert: true,
-        location: '耗材库 A-02',
-        supplier: '费森尤斯',
-        lastUpdated: '2026-01-07 09:15'
-    },
-    {
-        id: 'INV003',
-        name: '16G 穿刺针',
-        spec: '锐针',
-        category: '透析耗材',
-        stock: 320,
-        unit: '支',
-        minStock: 200,
-        maxStock: 500,
-        alert: false,
-        location: '耗材库 A-03',
-        supplier: '日本尼普洛',
-        lastUpdated: '2026-01-07 08:45'
-    },
-    {
-        id: 'INV004',
-        name: '碳酸氢盐透析液',
-        spec: '5L',
-        category: '药品',
-        stock: 45,
-        unit: '袋',
-        minStock: 30,
-        maxStock: 100,
-        alert: false,
-        location: '药品库 B-01',
-        supplier: '百特',
-        lastUpdated: '2026-01-07 07:20'
-    },
-    {
-        id: 'INV005',
-        name: '肝素钠',
-        spec: '5000IU/ml',
-        category: '药品',
-        stock: 12,
-        unit: '支',
-        minStock: 20,
-        maxStock: 80,
-        alert: true,
-        location: '药品库 B-02',
-        supplier: '上海医药',
-        lastUpdated: '2026-01-06 18:30'
-    },
-    {
-        id: 'INV006',
-        name: '一次性注射器',
-        spec: '10ml',
-        category: '医疗器械',
-        stock: 580,
-        unit: '个',
-        minStock: 200,
-        maxStock: 1000,
-        alert: false,
-        location: '耗材库 A-05',
-        supplier: '江西洪达',
-        lastUpdated: '2026-01-07 11:00'
-    }
-]
-
-const MOCK_LOGS: StockLog[] = [
-    {
-        id: 'LOG001',
-        date: '2026-01-07 10:30',
-        type: 'in',
-        itemName: 'FX60 透析器',
-        quantity: 50,
-        unit: '个',
-        operator: '李护士',
-        note: '月度采购'
-    },
-    {
-        id: 'LOG002',
-        date: '2026-01-07 09:15',
-        type: 'out',
-        itemName: '血液管路',
-        quantity: 15,
-        unit: '套',
-        operator: '王护士',
-        note: '治疗使用'
-    },
-    {
-        id: 'LOG003',
-        date: '2026-01-07 08:45',
-        type: 'in',
-        itemName: '16G 穿刺针',
-        quantity: 100,
-        unit: '支',
-        operator: '张主任',
-        note: '紧急采购'
-    },
-    {
-        id: 'LOG004',
-        date: '2026-01-06 18:30',
-        type: 'out',
-        itemName: '肝素钠',
-        quantity: 8,
-        unit: '支',
-        operator: '赵护士',
-        note: '夜班使用'
-    },
-    {
-        id: 'LOG005',
-        date: '2026-01-06 16:20',
-        type: 'in',
-        itemName: '碳酸氢盐透析液',
-        quantity: 30,
-        unit: '袋',
-        operator: '李护士',
-        note: '常规补货'
-    }
-]
-
-const MOCK_LABEL_TASKS: LabelTask[] = [
-    {
-        id: 'LBL001',
-        itemName: 'FX60 透析器',
-        spec: '高通量',
-        quantity: 50,
-        status: 'completed',
-        createdAt: '2026-01-07 10:35'
-    },
-    {
-        id: 'LBL002',
-        itemName: '16G 穿刺针',
-        spec: '锐针',
-        quantity: 100,
-        status: 'printing',
-        createdAt: '2026-01-07 09:00'
-    },
-    {
-        id: 'LBL003',
-        itemName: '碳酸氢盐透析液',
-        spec: '5L',
-        quantity: 30,
-        status: 'pending',
-        createdAt: '2026-01-06 16:25'
-    }
-]
-
 export default function Inventory() {
     const { t } = useTranslation('inventory')
     const [activeTab, setActiveTab] = useState<TabType>('STOCK')
     const [searchTerm, setSearchTerm] = useState('')
     const [selectedItems, setSelectedItems] = useState<string[]>([])
+    const [inventoryItems, setInventoryItems] = useState<InventoryItem[]>([])
+    const [stockLogs, setStockLogs] = useState<StockLog[]>([])
+    const [labelTasks, setLabelTasks] = useState<LabelTask[]>([])
+
+    useEffect(() => {
+        restApi.getInventoryItems({ pageSize: 200 }).then(res => {
+            setInventoryItems(res.items as unknown as InventoryItem[])
+        }).catch(() => {})
+        restApi.getStockLogs({ pageSize: 200 }).then(res => {
+            setStockLogs(res.items as unknown as StockLog[])
+        }).catch(() => {})
+        restApi.getLabelTasks({ pageSize: 200 }).then(res => {
+            setLabelTasks(res.items as unknown as LabelTask[])
+        }).catch(() => {})
+    }, [])
 
     // 过滤库存数据
-    const filteredInventory = MOCK_INVENTORY.filter(item =>
+    const filteredInventory = inventoryItems.filter(item =>
         item.name.includes(searchTerm) ||
         item.spec.includes(searchTerm) ||
         item.category.includes(searchTerm)
     )
 
     // 过滤出入库记录
-    const filteredLogs = MOCK_LOGS.filter(log =>
+    const filteredLogs = stockLogs.filter(log =>
         log.itemName.includes(searchTerm) ||
         log.operator.includes(searchTerm)
     )
@@ -501,7 +349,7 @@ export default function Inventory() {
                                     <tbody className="divide-y divide-gray-100">
                                         {filteredLogs.map(log => (
                                             <tr key={log.id} className="hover:bg-slate-50 transition-colors">
-                                                <td className="px-6 py-4 text-gray-500 text-sm">{log.date}</td>
+                                                <td className="px-6 py-4 text-gray-500 text-sm">{log.createdAt}</td>
                                                 <td className="px-6 py-4">
                                                     <span
                                                         className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -561,7 +409,7 @@ export default function Inventory() {
                             {activeTab === 'LABELS' && (
                                 <div className="p-6">
                                     <div className="space-y-4">
-                                        {MOCK_LABEL_TASKS.map(task => (
+                                        {labelTasks.map(task => (
                                             <div
                                                 key={task.id}
                                                 className="p-4 border border-gray-200 rounded-lg hover:shadow-md transition-shadow"
@@ -612,7 +460,7 @@ export default function Inventory() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {MOCK_LABEL_TASKS.length === 0 && (
+                                        {labelTasks.length === 0 && (
                                             <EmptyState icon={Tag} message={t('empty.labels')} />
                                         )}
                                     </div>
@@ -625,7 +473,7 @@ export default function Inventory() {
                 {activeTab === 'STOCK' && filteredInventory.length > 0 && (
                     <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm">
                         <span className="text-gray-500">
-                            {t('footer.showing', { count: filteredInventory.length, total: MOCK_INVENTORY.length })}
+                            {t('footer.showing', { count: filteredInventory.length, total: inventoryItems.length })}
                         </span>
                         <div className="flex items-center space-x-6">
                             <div className="flex items-center">

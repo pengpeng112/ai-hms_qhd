@@ -80,6 +80,124 @@ export interface RestPatient {
   doctorName?: string
 }
 
+// ============ 班次 & 排班类型 ============
+
+export interface RestInventoryItem {
+  id: string
+  tenantId: number
+  name: string
+  spec: string
+  category: string
+  stock: number
+  unit: string
+  minStock: number
+  maxStock: number
+  location: string
+  supplier: string
+  isDisabled: boolean
+  creatorId: number
+  createdAt: string
+  updatedAt: string
+  alert: boolean        // computed: stock < minStock
+  lastUpdated: string   // formatted updatedAt
+}
+
+export interface RestStockLog {
+  id: string
+  tenantId: number
+  itemId: string
+  itemName: string
+  type: 'in' | 'out'
+  quantity: number
+  unit: string
+  operator: string
+  note: string
+  createdAt: string
+}
+
+export interface RestLabelTask {
+  id: string
+  tenantId: number
+  itemId: string
+  itemName: string
+  spec: string
+  quantity: number
+  status: 'pending' | 'printing' | 'completed'
+  creatorId: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RestDevice {
+  id: string
+  tenantId: number
+  name: string
+  serialNo: string
+  model: string
+  manufacturer: string
+  bedNumber: string
+  wardId: number | null
+  status: string   // normal | warning | alarm | offline | maintenance
+  notes: string
+  isDisabled: boolean
+  creatorId: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface RestShift {
+  id: number
+  tenantId: number
+  name: string        // 班次名称：早班/中班/晚班
+  startTime: string   // HH:MM
+  endTime: string     // HH:MM
+  type: string
+  isDisabled: boolean
+  sort: number
+  notes: string
+}
+
+export interface RestPatientShift {
+  id: number
+  tenantId: number
+  patientId: number
+  scheduleDate: string   // ISO 日期
+  shiftId: number
+  bedId?: number
+  wardId?: number
+  status: number
+  isDisabled: boolean
+  notes: string
+  creatorId: number
+  createTime: string
+  lastModifyTime: string
+  // Preloaded 关联
+  patient?: RestPatient
+  shift?: RestShift
+  bed?: { id: number; name: string; wardId: number; sort: number; status: string }
+  ward?: { id: number; name: string; sort: number; status: string }
+}
+
+// ============ 治疗记录类型 ============
+
+export interface RestTreatment {
+  id: number
+  tenantId: number
+  patientId: number
+  treatmentDate: string
+  shiftId?: number
+  treatmentType: string
+  status: number       // 0-待开始 1-进行中 2-已完成 3-已取消
+  startTime?: string
+  endTime?: string
+  notes?: string
+  creatorId: number
+  createTime: string
+  lastModifyTime: string
+  patient?: RestPatient
+  shift?: RestShift
+}
+
 // ============ /core 接口类型定义 ============
 
 /**
@@ -1204,6 +1322,174 @@ class RestApiService {
     if (response.status !== 204 && !response.data?.success) {
       throw new Error('删除干预记录失败')
     }
+  }
+
+  // ============ 用户管理 ============
+
+  /**
+   * 获取用户列表（用于角色选择页面）
+   */
+  async getUserList(params?: { role?: string; status?: string }): Promise<unknown[]> {
+    const response = await apiClient.get<ApiSuccessResponse<unknown[]>>('/api/v1/users', { params })
+    if (!response.data.success) {
+      throw new Error('获取用户列表失败')
+    }
+    return response.data.data
+  }
+
+  // ============ 设备管理 ============
+
+  /**
+   * 获取设备列表
+   */
+  async getDeviceList(params?: {
+    page?: number
+    pageSize?: number
+    status?: string
+    bedNumber?: string
+    keyword?: string
+  }): Promise<RestDevice[]> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: RestDevice[]; total: number }>>('/api/v1/devices', { params })
+    if (!response.data.success) {
+      throw new Error('获取设备列表失败')
+    }
+    return response.data.data.items
+  }
+
+  // ============ 库存管理 ============
+
+  /**
+   * 获取库存品目列表
+   */
+  async getInventoryItems(params?: {
+    page?: number
+    pageSize?: number
+    category?: string
+    keyword?: string
+  }): Promise<{ items: RestInventoryItem[]; total: number; page: number; pageSize: number; totalPage: number }> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: RestInventoryItem[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/items', { params })
+    if (!response.data.success) {
+      throw new Error('获取库存列表失败')
+    }
+    return response.data.data
+  }
+
+  /**
+   * 获取出入库记录
+   */
+  async getStockLogs(params?: {
+    page?: number
+    pageSize?: number
+    itemId?: string
+    type?: string
+  }): Promise<{ items: RestStockLog[]; total: number; page: number; pageSize: number; totalPage: number }> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: RestStockLog[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/logs', { params })
+    if (!response.data.success) {
+      throw new Error('获取出入库记录失败')
+    }
+    return response.data.data
+  }
+
+  /**
+   * 获取标签打印任务
+   */
+  async getLabelTasks(params?: {
+    page?: number
+    pageSize?: number
+    status?: string
+  }): Promise<{ items: RestLabelTask[]; total: number; page: number; pageSize: number; totalPage: number }> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: RestLabelTask[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/labels', { params })
+    if (!response.data.success) {
+      throw new Error('获取标签任务失败')
+    }
+    return response.data.data
+  }
+
+  // ============ 班次管理 ============
+
+  /**
+   * 获取班次列表
+   */
+  async getShifts(): Promise<ApiSuccessResponse<RestShift[]>> {
+    const response = await apiClient.get<ApiSuccessResponse<RestShift[]>>('/api/v1/shifts')
+    if (!response.data.success) {
+      throw new Error('获取班次列表失败')
+    }
+    return response.data
+  }
+
+  // ============ 患者排班管理 ============
+
+  /**
+   * 获取患者排班列表
+   */
+  async getPatientShifts(params?: {
+    page?: number
+    pageSize?: number
+    patientId?: number
+    shiftId?: number
+    startDate?: string
+    endDate?: string
+    status?: number
+  }): Promise<ApiSuccessResponse<PaginatedResponse<RestPatientShift>>> {
+    const response = await apiClient.get<ApiSuccessResponse<PaginatedResponse<RestPatientShift>>>(
+      '/api/v1/patient-shifts',
+      { params }
+    )
+    if (!response.data.success) {
+      throw new Error('获取患者排班列表失败')
+    }
+    return response.data
+  }
+
+  /**
+   * 创建患者排班
+   */
+  async createPatientShift(data: {
+    patientId: number
+    scheduleDate: string
+    shiftId: number
+    bedId?: number
+    wardId?: number
+    notes?: string
+  }): Promise<unknown> {
+    const response = await apiClient.post<unknown>('/api/v1/patient-shifts', data)
+    return response.data
+  }
+
+  // ============ 治疗记录管理 ============
+
+  /**
+   * 获取治疗记录列表
+   */
+  async getTreatments(params?: {
+    page?: number
+    pageSize?: number
+    patientId?: number
+    status?: number
+    treatmentDate?: string
+    treatmentDateStart?: string
+    treatmentDateEnd?: string
+  }): Promise<ApiSuccessResponse<PaginatedResponse<RestTreatment>>> {
+    const response = await apiClient.get<ApiSuccessResponse<PaginatedResponse<RestTreatment>>>(
+      '/api/v1/treatments',
+      { params }
+    )
+    if (!response.data.success) {
+      throw new Error('获取治疗记录列表失败')
+    }
+    return response.data
+  }
+
+  /**
+   * 获取治疗记录详情
+   */
+  async getTreatment(id: number): Promise<ApiSuccessResponse<RestTreatment>> {
+    const response = await apiClient.get<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${id}`)
+    if (!response.data.success) {
+      throw new Error('获取治疗记录详情失败')
+    }
+    return response.data
   }
 }
 

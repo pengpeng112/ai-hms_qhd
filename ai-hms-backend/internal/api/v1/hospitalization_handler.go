@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -93,7 +94,10 @@ func (h *HospitalizationHandler) Create(c *gin.Context) {
 		return
 	}
 
-	hospitalization, err := h.service.Create(req)
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+
+	hospitalization, err := h.service.Create(req, tenantId, creatorId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

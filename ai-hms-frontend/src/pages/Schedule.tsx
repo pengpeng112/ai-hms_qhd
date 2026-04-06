@@ -1,7 +1,10 @@
-import React, { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { MOCK_STAFF, MOCK_SCHEDULE as INITIAL_STAFF_SCHEDULE, MOCK_PATIENT_SCHEDULE as INITIAL_PATIENT_SCHEDULE, MOCK_PATIENTS } from '../constants'
+import { MOCK_STAFF, MOCK_SCHEDULE as INITIAL_STAFF_SCHEDULE } from '../constants'
 import type { PatientScheduleItem } from '../types/original'
+import { restApi, convertRestPatientList } from '@/services'
+import type { RestShift, RestPatientShift } from '@/services'
+import type { Patient } from '@/types/original'
 import { getSelectedRoleUser } from '@/services/role'
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight,
@@ -90,8 +93,7 @@ const PatientShiftCard = React.memo(({
   return (
     <div
       onClick={() => {
-        const patient = MOCK_PATIENTS.find(p => p.name === item.patientName)
-        onOpen(bedNumber, date, shiftType, patient?.id)
+        onOpen(bedNumber, date, shiftType, item.patientId)
       }}
       className={`inline-flex items-center justify-start gap-1.5 px-2 h-[32px] rounded-lg border shadow-sm transition-all hover:shadow-md cursor-pointer group/item ${styles.bg} ${styles.border} w-fit max-w-full overflow-hidden`}
     >
@@ -168,7 +170,12 @@ export default function Schedule() {
   const [viewStartDate, setViewStartDate] = useState(new Date())
   const [selectedZone, setSelectedZone] = useState<string>('A')
 
-  const [patientSchedule, setPatientSchedule] = useState<PatientScheduleItem[]>(INITIAL_PATIENT_SCHEDULE)
+  // REST API 数据
+  const [shifts, setShifts] = useState<RestShift[]>([])
+  const [patients, setPatients] = useState<Partial<Patient>[]>([])
+  const [searchResults, setSearchResults] = useState<Partial<Patient>[]>([])
+
+  const [patientSchedule, setPatientSchedule] = useState<PatientScheduleItem[]>([])
   const [staffSchedule, setStaffSchedule] = useState<Array<{
     staffId: string
     date: string
@@ -235,6 +242,75 @@ export default function Schedule() {
 
   const dateStrings = useMemo(() => dates.map(d => d.toISOString().split('T')[0]), [dates])
 
+  // 从后端加载班次定义
+  useEffect(() => {
+    restApi.getShifts()
+      .then(res => setShifts(res.data))
+      .catch(err => console.error('加载班次失败:', err))
+  }, [])
+
+  // 将后端班次名称映射到前端 shift 类型
+  const shiftNameToType = useCallback((shiftName: string): 'Morning' | 'Afternoon' | 'Evening' => {
+    const name = shiftName.toLowerCase()
+    if (name.includes('早') || name.includes('上午') || name.includes('morning')) return 'Morning'
+    if (name.includes('晚') || name.includes('夜') || name.includes('evening')) return 'Evening'
+    return 'Afternoon' // 默认中班
+  }, [])
+
+  // 从后端加载患者排班（按当前视图 7 天）
+  useEffect(() => {
+    if (dateStrings.length === 0) return
+    const startDate = dateStrings[0]
+    const endDate = dateStrings[dateStrings.length - 1]
+
+    restApi.getPatientShifts({ startDate, endDate, page: 1, pageSize: 500 })
+      .then(res => {
+        const items: PatientScheduleItem[] = res.data.items.map((ps: RestPatientShift) => ({
+          id: String(ps.id),
+          bedNumber: ps.bed?.name || `B${ps.bedId || 0}`,
+          date: ps.scheduleDate.split('T')[0],
+          shift: ps.shift ? shiftNameToType(ps.shift.name) : 'Morning',
+          patientName: ps.patient?.name || `患者${ps.patientId}`,
+          mode: (ps.patient as unknown as Record<string, unknown>)?.defaultMode as string || 'HD',
+          patientId: ps.patient?.id ? String(ps.patient.id) : String(ps.patientId)
+        }))
+        setPatientSchedule(items)
+      })
+      .catch(err => console.error('加载患者排班失败:', err))
+  }, [dateStrings, shiftNameToType])
+
+  // 加载患者列表（用于搜索）
+  useEffect(() => {
+    restApi.getPatientList({ page: 1, pageSize: 200 })
+      .then(res => setPatients(convertRestPatientList(res.data.items)))
+      .catch(err => console.error('加载患者列表失败:', err))
+  }, [])
+
+  // 患者搜索防抖：输入 300ms 后查询后端
+  useEffect(() => {
+    if (!searchPatientQuery.trim()) {
+      setSearchResults([])
+      return
+    }
+    const timer = setTimeout(() => {
+      // 先从已加载的患者列表中本地搜索
+      const local = patients.filter(p =>
+        p.name?.includes(searchPatientQuery) ||
+        p.id?.includes(searchPatientQuery) ||
+        p.bedNumber?.includes(searchPatientQuery)
+      )
+      if (local.length > 0) {
+        setSearchResults(local)
+      } else {
+        // 本地无结果时请求后端
+        restApi.getPatientList({ name: searchPatientQuery, page: 1, pageSize: 20 })
+          .then(res => setSearchResults(convertRestPatientList(res.data.items)))
+          .catch(() => setSearchResults([]))
+      }
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchPatientQuery, patients])
+
   const filteredBeds = useMemo(() => {
     const counts: Record<string, number> = { 'A': 16, 'B': 5, 'C': 4 }
     return Array.from({ length: counts[selectedZone] }).map((_, i) => `${selectedZone}${String(i + 1).padStart(2, '0')}`)
@@ -243,18 +319,18 @@ export default function Schedule() {
   const handleOpenScheduling = useCallback((bedNumber: string, date: string, shift: 'Morning' | 'Afternoon' | 'Evening', pid?: string) => {
     setSchedulingData({ bedNumber, date, shift })
     if (pid) {
-      const p = MOCK_PATIENTS.find(x => x.id === pid)
+      const p = patients.find(x => x.id === pid)
       if (p) {
-        setSelectedPatientId(p.id)
-        setSearchPatientQuery(p.name)
-        setSelectedTreatmentMode(p.defaultMode)
+        setSelectedPatientId(p.id!)
+        setSearchPatientQuery(p.name || '')
+        setSelectedTreatmentMode(p.defaultMode || 'HD')
       }
     } else {
       setSearchPatientQuery('')
       setSelectedPatientId(null)
     }
     setIsScheduling(true)
-  }, [])
+  }, [patients])
 
   const handleOpenStaffScheduling = (staffId: string, date: string) => {
     setSchedulingData({ staffId, date })
@@ -792,24 +868,27 @@ export default function Schedule() {
                     />
                     {showSearchDropdown && searchPatientQuery && (
                       <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-200 rounded-3xl shadow-2xl max-h-56 overflow-y-auto z-50 no-scrollbar ring-1 ring-black/5 p-2 animate-slide-up">
-                        {MOCK_PATIENTS.filter(p => p.name.includes(searchPatientQuery)).map(p => (
+                        {searchResults.map(p => (
                           <button
                             key={p.id}
                             onClick={() => {
-                              setSelectedPatientId(p.id)
-                              setSearchPatientQuery(p.name)
+                              setSelectedPatientId(p.id!)
+                              setSearchPatientQuery(p.name || '')
                               setShowSearchDropdown(false)
-                              setSelectedTreatmentMode(p.defaultMode)
+                              setSelectedTreatmentMode(p.defaultMode || 'HD')
                             }}
                             className="w-full text-left px-5 py-4 hover:bg-blue-50 flex items-center justify-between rounded-2xl transition-colors mb-1 last:mb-0"
                           >
                             <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black">{p.name[0]}</div>
+                              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black">{(p.name || '?')[0]}</div>
                               <p className="text-sm font-black text-slate-800">{p.name}</p>
                             </div>
-                            <span className="text-[10px] bg-slate-100 px-3 py-1 rounded-lg font-black text-slate-500 uppercase">{p.defaultMode}</span>
+                            <span className="text-[10px] bg-slate-100 px-3 py-1 rounded-lg font-black text-slate-500 uppercase">{p.defaultMode || 'HD'}</span>
                           </button>
                         ))}
+                        {searchResults.length === 0 && (
+                          <div className="text-center py-4 text-slate-400 text-sm">未找到匹配患者</div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -834,16 +913,40 @@ export default function Schedule() {
               <button onClick={() => setIsScheduling(false)} className="px-8 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-500 hover:bg-slate-100 transition-all shadow-sm">{t('schedule:action.cancel')}</button>
               <button
                 disabled={!selectedPatientId}
-                onClick={() => {
-                  const patient = MOCK_PATIENTS.find(p => p.id === selectedPatientId)
+                onClick={async () => {
+                  const patient = patients.find(p => p.id === selectedPatientId)
                   if (patient && schedulingData.bedNumber && schedulingData.shift) {
+                    // 找到对应的后端 shiftId
+                    const shiftTypeMap: Record<string, string[]> = {
+                      'Morning': ['早', '上午', 'morning'],
+                      'Afternoon': ['中', '下午', 'afternoon'],
+                      'Evening': ['晚', '夜', 'evening']
+                    }
+                    const keywords = shiftTypeMap[schedulingData.shift] || []
+                    const matchedShift = shifts.find(s => keywords.some(k => s.name.toLowerCase().includes(k)))
+                    const shiftId = matchedShift?.id || shifts[0]?.id
+
+                    if (shiftId) {
+                      try {
+                        await restApi.createPatientShift({
+                          patientId: Number(patient.id),
+                          scheduleDate: schedulingData.date,
+                          shiftId,
+                        })
+                      } catch (err) {
+                        console.error('创建排班失败:', err)
+                      }
+                    }
+
+                    // 同时更新本地状态（乐观更新）
                     const newSession: PatientScheduleItem = {
                       id: `S-NEW-${Date.now()}`,
                       bedNumber: schedulingData.bedNumber,
                       date: schedulingData.date,
                       shift: schedulingData.shift,
-                      patientName: patient.name,
-                      mode: selectedTreatmentMode
+                      patientName: patient.name || '',
+                      mode: selectedTreatmentMode,
+                      patientId: patient.id
                     }
                     setPatientSchedule(prev => [...prev, newSession])
                     setIsScheduling(false)

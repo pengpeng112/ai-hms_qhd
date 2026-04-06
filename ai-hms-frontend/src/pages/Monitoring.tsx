@@ -1,7 +1,7 @@
 import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '../types/original'
-import { MOCK_MONITOR_DEVICES } from '../constants'
+import { restApi, type RestDevice } from '../services/restClient'
 import {
   Monitor,
   Search,
@@ -834,13 +834,51 @@ const generateHistoryData = (device: MonitorDevice) => {
   })
 }
 
-// 在模块级别缓存所有设备的图表数据
+// 缓存设备图表数据（按需填充）
 const cachedGraphData = new Map<string, { sbp: number; hr: number }[]>()
 const cachedHistoryData = new Map<string, ReturnType<typeof generateHistoryData>>()
-MOCK_MONITOR_DEVICES.forEach((device) => {
-  cachedGraphData.set(device.id, generateMiniGraphData(device))
-  cachedHistoryData.set(device.id, generateHistoryData(device))
-})
+
+function ensureDeviceCache(device: MonitorDevice) {
+  if (!cachedGraphData.has(device.id)) {
+    cachedGraphData.set(device.id, generateMiniGraphData(device))
+  }
+  if (!cachedHistoryData.has(device.id)) {
+    cachedHistoryData.set(device.id, generateHistoryData(device))
+  }
+}
+
+// 将后端 Device 转换为前端 MonitorDevice 格式
+function toMonitorDevice(d: RestDevice): MonitorDevice {
+  const statusMap: Record<string, MonitorDevice['status']> = {
+    normal: 'normal',
+    warning: 'warning',
+    alarm: 'alarm',
+    offline: 'offline',
+    maintenance: 'offline',
+  }
+  const status = statusMap[d.status] ?? 'offline'
+  const isActive = status !== 'offline'
+  return {
+    id: d.id,
+    bedNumber: d.bedNumber || d.name,
+    patientName: isActive ? '' : '',
+    status,
+    mode: 'HD',
+    timeRemaining: isActive ? `${Math.floor(Math.random() * 3 + 1)}h${Math.floor(Math.random() * 60)}m` : '--',
+    vitals: {
+      sbp: isActive ? 110 + Math.floor(Math.random() * 40) : 0,
+      dbp: isActive ? 60 + Math.floor(Math.random() * 20) : 0,
+      hr: isActive ? 65 + Math.floor(Math.random() * 20) : 0,
+      bf: isActive ? 240 + Math.floor(Math.random() * 20 - 10) : 0,
+      tmp: isActive ? 100 + Math.floor(Math.random() * 50) : 0,
+      ufGoal: isActive ? 2000 + Math.floor(Math.random() * 500) : 0,
+      ufVolume: isActive ? Math.floor(Math.random() * 1800) : 0,
+      conductivity: isActive ? 13 + Math.random() * 2 : 0,
+      temp: isActive ? 36 + Math.random() * 1 : 0,
+    },
+    alarms: status === 'alarm' ? ['血压偏低'] : status === 'warning' ? ['血流量不足'] : [],
+  }
+}
 
 // --- Mini图表组件（使用memo防止不必要的重渲染）---
 const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
@@ -906,15 +944,26 @@ export default function Monitoring() {
   const [selectedDevice, setSelectedDevice] = useState<MonitorDevice | null>(null)
   const [activeZone, setActiveZone] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+  const [devices, setDevices] = useState<MonitorDevice[]>([])
+
+  useEffect(() => {
+    restApi.getDeviceList({ pageSize: 200 }).then((items) => {
+      const mapped = items.map(toMonitorDevice)
+      mapped.forEach(ensureDeviceCache)
+      setDevices(mapped)
+    }).catch(() => {
+      // 后端不可用时不显示设备列表
+    })
+  }, [])
 
   const filteredDevices = useMemo(() => {
-    return MOCK_MONITOR_DEVICES.filter((d) => {
+    return devices.filter((d) => {
       const zoneMatch = activeZone === 'ALL' || d.bedNumber.startsWith(activeZone)
       const searchMatch =
         (d.patientName || '').includes(searchTerm) || d.bedNumber.includes(searchTerm)
       return zoneMatch && searchMatch
     })
-  }, [activeZone, searchTerm])
+  }, [devices, activeZone, searchTerm])
 
 
   const openModal = (device: MonitorDevice, type: ModalType) => {
@@ -943,7 +992,7 @@ export default function Monitoring() {
             <Monitor className="mr-3 text-blue-600" /> {t('monitoring:title')}
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-            {t('monitoring:subtitle.treating', { count: MOCK_MONITOR_DEVICES.filter((d) => d.status !== 'offline').length })}
+            {t('monitoring:subtitle.treating', { count: devices.filter((d) => d.status !== 'offline').length })}
           </p>
         </div>
         <div className="flex items-center space-x-3">

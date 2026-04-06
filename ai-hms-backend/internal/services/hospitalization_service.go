@@ -136,13 +136,13 @@ type HospitalizationCreateRequest struct {
 }
 
 // Create 创建住院信息
-func (s *HospitalizationService) Create(req HospitalizationCreateRequest) (*models.Hospitalization, error) {
+func (s *HospitalizationService) Create(req HospitalizationCreateRequest, tenantId, creatorId int64) (*models.Hospitalization, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	hospitalization := models.Hospitalization{
-		TenantId:        1, // TODO: 从上下文获取
+		TenantId:        tenantId,
 		PatientId:       req.PatientId,
 		CaseNo:          req.CaseNo,
 		HospNo:          req.HospNo,
@@ -156,7 +156,7 @@ func (s *HospitalizationService) Create(req HospitalizationCreateRequest) (*mode
 		Status:          models.HospitalizationStatusInPatient,
 		AdmissionDate:   req.AdmissionDate,
 		Notes:           req.Notes,
-		CreatorId:       1, // TODO: 从上下文获取
+		CreatorId:       creatorId,
 	}
 
 	if err := s.db.Create(&hospitalization).Error; err != nil {
@@ -168,12 +168,12 @@ func (s *HospitalizationService) Create(req HospitalizationCreateRequest) (*mode
 
 // UpdateRequest 更新住院信息请求
 type HospitalizationUpdateRequest struct {
-	HospWard        *string    `json:"hospWard"`
-	HospBed         *string    `json:"hospBed"`
-	AttendDr        *string    `json:"attendDr"`
-	Status          *int       `json:"status"`
-	DischargeDate   *time.Time `json:"dischargeDate"`
-	Notes           *string    `json:"notes"`
+	HospWard      *string    `json:"hospWard"`
+	HospBed       *string    `json:"hospBed"`
+	AttendDr      *string    `json:"attendDr"`
+	Status        *int       `json:"status"`
+	DischargeDate *time.Time `json:"dischargeDate"`
+	Notes         *string    `json:"notes"`
 }
 
 // Update 更新住院信息

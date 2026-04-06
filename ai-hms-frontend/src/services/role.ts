@@ -1,11 +1,11 @@
 /**
  * 角色服务层
- * 
+ *
  * 提供角色相关的数据获取和操作
- * 当前使用 Mock 数据，后续可对接 API
  */
 
 import { UserRole, UserRoleLabel, RoleGroups } from '@/types/original'
+import { restApi } from './restClient'
 
 // ============ 类型定义 ============
 
@@ -28,81 +28,58 @@ export interface RoleGroup {
 const SELECTED_ROLE_KEY = 'selected_role'
 const SELECTED_USER_KEY = 'selected_role_user'
 
-// ============ Mock 数据 ============
-// 每个角色配置一个示例用户，后续从 API 获取
+// 角色 → subLabelKey 映射
+const ROLE_SUBLABEL_MAP: Record<string, string> = {
+  [UserRole.DOCTOR_CHIEF]:      'role:subLabel.doctorChief',
+  [UserRole.DOCTOR_SUPERVISOR]: 'role:subLabel.doctorSupervisor',
+  [UserRole.DOCTOR_DUTY]:       'role:subLabel.doctorDuty',
+  [UserRole.NURSE_HEAD]:        'role:subLabel.nurseHead',
+  [UserRole.NURSE_SCHEDULER]:   'role:subLabel.nurseScheduler',
+  [UserRole.NURSE_MANAGER]:     'role:subLabel.nurseManager',
+  [UserRole.NURSE_RESPONSIBLE]: 'role:subLabel.nurseResponsible',
+  [UserRole.ENGINEER]:          'role:subLabel.engineer',
+}
 
-const MOCK_ROLE_USERS: RoleUser[] = [
-  // 医生组
-  {
-    id: 'doctor-chief-1',
-    name: '陈主任',
-    role: UserRole.DOCTOR_CHIEF,
-    subLabelKey: 'role:subLabel.doctorChief',
-    avatar: undefined,
-  },
-  {
-    id: 'doctor-supervisor-1',
-    name: '王医生',
-    role: UserRole.DOCTOR_SUPERVISOR,
-    subLabelKey: 'role:subLabel.doctorSupervisor',
-    avatar: undefined,
-  },
-  {
-    id: 'doctor-duty-1',
-    name: '李医生',
-    role: UserRole.DOCTOR_DUTY,
-    subLabelKey: 'role:subLabel.doctorDuty',
-    avatar: undefined,
-  },
-  // 护士组
-  {
-    id: 'nurse-head-1',
-    name: '刘护士长',
-    role: UserRole.NURSE_HEAD,
-    subLabelKey: 'role:subLabel.nurseHead',
-    avatar: undefined,
-  },
-  {
-    id: 'nurse-scheduler-1',
-    name: '赵护士',
-    role: UserRole.NURSE_SCHEDULER,
-    subLabelKey: 'role:subLabel.nurseScheduler',
-    avatar: undefined,
-  },
-  {
-    id: 'nurse-manager-1',
-    name: '孙护士',
-    role: UserRole.NURSE_MANAGER,
-    subLabelKey: 'role:subLabel.nurseManager',
-    avatar: undefined,
-  },
-  {
-    id: 'nurse-responsible-1',
-    name: '周护士',
-    role: UserRole.NURSE_RESPONSIBLE,
-    subLabelKey: 'role:subLabel.nurseResponsible',
-    avatar: undefined,
-  },
-  // 技术组
-  {
-    id: 'engineer-1',
-    name: '吴工程师',
-    role: UserRole.ENGINEER,
-    subLabelKey: 'role:subLabel.engineer',
-    avatar: undefined,
-  },
+// Mock 兜底数据（后端无用户数据时的降级）
+const FALLBACK_ROLE_USERS: RoleUser[] = [
+  { id: 'doctor-chief-1',      name: '主任医生',   role: UserRole.DOCTOR_CHIEF,      subLabelKey: ROLE_SUBLABEL_MAP[UserRole.DOCTOR_CHIEF] },
+  { id: 'doctor-supervisor-1', name: '主治医生',   role: UserRole.DOCTOR_SUPERVISOR, subLabelKey: ROLE_SUBLABEL_MAP[UserRole.DOCTOR_SUPERVISOR] },
+  { id: 'nurse-head-1',        name: '护士长',     role: UserRole.NURSE_HEAD,        subLabelKey: ROLE_SUBLABEL_MAP[UserRole.NURSE_HEAD] },
+  { id: 'nurse-responsible-1', name: '责任护士',   role: UserRole.NURSE_RESPONSIBLE, subLabelKey: ROLE_SUBLABEL_MAP[UserRole.NURSE_RESPONSIBLE] },
+  { id: 'engineer-1',          name: '工程师',     role: UserRole.ENGINEER,          subLabelKey: ROLE_SUBLABEL_MAP[UserRole.ENGINEER] },
 ]
 
 // ============ 数据获取函数 ============
 
+// 后端用户响应类型
+interface ApiUser {
+  id: string
+  username: string
+  realName: string
+  role: string
+  status: string
+}
+
 /**
- * 获取所有可选角色用户列表
- * TODO: 后续对接 API
+ * 获取所有可选角色用户列表（REST API，降级到 Mock）
  */
 export async function getRoleUsers(): Promise<RoleUser[]> {
-  // 模拟 API 延迟
-  await new Promise(resolve => setTimeout(resolve, 100))
-  return MOCK_ROLE_USERS
+  try {
+    const res = await restApi.getUserList()
+    if (res && Array.isArray(res) && res.length > 0) {
+      return (res as ApiUser[])
+        .filter(u => Object.values(UserRole).includes(u.role as UserRole))
+        .map(u => ({
+          id: u.id,
+          name: u.realName || u.username,
+          role: u.role as UserRole,
+          subLabelKey: ROLE_SUBLABEL_MAP[u.role] || 'role:subLabel.doctorSupervisor',
+        }))
+    }
+  } catch {
+    // 静默降级：后端无数据或请求失败时使用兜底 Mock
+  }
+  return FALLBACK_ROLE_USERS
 }
 
 /**

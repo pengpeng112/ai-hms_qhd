@@ -68,7 +68,7 @@ export {
 
 // ============ REST API 客户端 ============
 export { restApi, convertRestPatientToUI, convertRestPatientList, getErrorMessage } from './restClient'
-export type { RestPatient, PaginationMeta } from './restClient'
+export type { RestPatient, RestShift, RestPatientShift, RestTreatment, PaginationMeta } from './restClient'
 export type { PaginatedResponse as RestPaginatedResponse } from './restClient'
 
 // ============ 临时 Mock 辅助函数 ============

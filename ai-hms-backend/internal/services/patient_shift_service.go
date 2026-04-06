@@ -23,24 +23,24 @@ func NewPatientShiftService() *PatientShiftService {
 
 // ListRequest 获取患者排班列表请求
 type PatientShiftListRequest struct {
-	Page         int        `form:"page"`
-	PageSize     int        `form:"pageSize"`
-	PatientId    *int64     `form:"patientId"`
-	ShiftId      *int64     `form:"shiftId"`
-	WardId       *int64     `form:"wardId"`
-	BedId        *int64     `form:"bedId"`
-	StartDate    *time.Time `form:"startDate"`
-	EndDate      *time.Time `form:"endDate"`
-	Status       *int       `form:"status"`
+	Page      int        `form:"page"`
+	PageSize  int        `form:"pageSize"`
+	PatientId *int64     `form:"patientId"`
+	ShiftId   *int64     `form:"shiftId"`
+	WardId    *int64     `form:"wardId"`
+	BedId     *int64     `form:"bedId"`
+	StartDate *time.Time `form:"startDate"`
+	EndDate   *time.Time `form:"endDate"`
+	Status    *int       `form:"status"`
 }
 
 // ListResponse 获取患者排班列表响应
 type PatientShiftListResponse struct {
 	Items     []models.PatientShift `json:"items"`
-	Total     int64                  `json:"total"`
-	Page      int                    `json:"page"`
-	PageSize  int                    `json:"pageSize"`
-	TotalPage int                    `json:"totalPage"`
+	Total     int64                 `json:"total"`
+	Page      int                   `json:"page"`
+	PageSize  int                   `json:"pageSize"`
+	TotalPage int                   `json:"totalPage"`
 }
 
 // List 获取患者排班列表
@@ -152,13 +152,13 @@ type PatientShiftCreateRequest struct {
 }
 
 // Create 创建患者排班
-func (s *PatientShiftService) Create(req PatientShiftCreateRequest) (*models.PatientShift, error) {
+func (s *PatientShiftService) Create(req PatientShiftCreateRequest, tenantId, creatorId int64) (*models.PatientShift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	patientShift := models.PatientShift{
-		TenantId:     1, // TODO: 从上下文获取
+		TenantId:     tenantId,
 		PatientId:    req.PatientId,
 		ScheduleDate: req.ScheduleDate,
 		ShiftId:      req.ShiftId,
@@ -167,7 +167,7 @@ func (s *PatientShiftService) Create(req PatientShiftCreateRequest) (*models.Pat
 		Status:       models.PatientShiftStatusPending,
 		IsDisabled:   false,
 		Notes:        req.Notes,
-		CreatorId:    1, // TODO: 从上下文获取
+		CreatorId:    creatorId,
 	}
 
 	if err := s.db.Create(&patientShift).Error; err != nil {

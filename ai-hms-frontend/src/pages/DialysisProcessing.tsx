@@ -1,7 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
-import { MOCK_PATIENTS, MOCK_SESSION_PROCESS } from '../constants';
+import { MOCK_SESSION_PROCESS } from '../constants';
+import { restApi, convertRestPatientList } from '@/services';
+import type { Patient } from '@/types/original';
 import { useDictNameMaps, getNameFromMap } from '@/hooks/useDictName';
 import { DICT_TYPES } from '@/services/dictApi';
 import {
@@ -346,14 +348,25 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
   ], []);
   const dictNameMaps = useDictNameMaps(dictTypeCodes);
 
-  // 计算默认患者ID
-  const defaultPatientId = useMemo(() => {
-    if (initialPatientId) return initialPatientId;
-    const active = MOCK_PATIENTS.find(p => p.status === '透析中');
-    return active ? active.id : (MOCK_PATIENTS[0]?.id || null);
+  // REST API 患者数据
+  const [patients, setPatients] = useState<Partial<Patient>[]>([]);
+
+  // 加载患者列表
+  useEffect(() => {
+    restApi.getPatientList({ page: 1, pageSize: 200 })
+      .then(res => {
+        const list = convertRestPatientList(res.data.items);
+        setPatients(list);
+        // 数据加载后设置默认选中
+        if (!initialPatientId && list.length > 0) {
+          const active = list.find(p => p.status === '透析中');
+          setSelectedPatientId(active?.id || list[0]?.id || null);
+        }
+      })
+      .catch(err => console.error('加载患者数据失败:', err));
   }, [initialPatientId]);
 
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(defaultPatientId);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(initialPatientId || null);
   const [activeProcessStep, setActiveProcessStep] = useState<string>('pre');
   const [searchTerm, setSearchTerm] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -375,10 +388,10 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
       { id: 5, name: 'JRHLL-025', category: '血路管', count: 1, code: '', brand: '', spec: '', note: '' },
   ]);
 
-  const selectedPatient = MOCK_PATIENTS.find(p => p.id === selectedPatientId);
-  const filteredPatients = MOCK_PATIENTS.filter(p =>
+  const selectedPatient = patients.find(p => p.id === selectedPatientId) as Patient | undefined;
+  const filteredPatients = patients.filter(p =>
     p.status !== '居家' &&
-    (p.name.includes(searchTerm) || p.bedNumber.includes(searchTerm) || p.id.includes(searchTerm))
+    (p.name?.includes(searchTerm) || p.bedNumber?.includes(searchTerm) || p.id?.includes(searchTerm))
   );
 
   const steps = [
@@ -1450,7 +1463,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                     </div>
                     <div className="flex-1 overflow-y-auto">
                         {filteredPatients.map(p => (
-                            <div key={p.id} onClick={() => setSelectedPatientId(p.id)} className={`p-3 border-b border-gray-50 cursor-pointer hover:bg-blue-50 transition-colors ${selectedPatientId === p.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'}`}>
+                            <div key={p.id} onClick={() => setSelectedPatientId(p.id ?? null)} className={`p-3 border-b border-gray-50 cursor-pointer hover:bg-blue-50 transition-colors ${selectedPatientId === p.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'}`}>
                                 <div className="flex justify-between items-start mb-1"><span className="font-bold text-gray-800 text-sm">{p.name}</span><span className="text-xs font-bold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">{p.bedNumber}{t('header.bed')}</span></div>
                                 <div className="flex justify-between items-center text-xs text-gray-500"><span>{p.gender} {p.age}{t('header.age')}</span><span>{p.status}</span></div>
                             </div>

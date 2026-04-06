@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -83,7 +84,10 @@ func (h *ShiftHandler) Create(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.service.Create(req)
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+
+	shift, err := h.service.Create(req, tenantId, creatorId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -258,7 +262,10 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 		return
 	}
 
-	patientShift, err := h.service.Create(req)
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+
+	patientShift, err := h.service.Create(req, tenantId, creatorId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { restApi, convertRestPatientList } from '@/services'
 import type { Patient } from '@/types/original'
@@ -19,6 +19,7 @@ export default function PatientList() {
   const navigate = useNavigate()
   const { user: currentUser } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
   const [loading, setLoading] = useState(false)
   const [patients, setPatients] = useState<Partial<Patient>[]>([])
@@ -29,6 +30,18 @@ export default function PatientList() {
   const [refreshKey, setRefreshKey] = useState(0)  // 用于强制刷新列表
   const pageSize = 50
 
+  // 搜索防抖：输入停止 300ms 后触发后端搜索
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+      setCurrentPage(1) // 搜索变化时重置到第一页
+    }, 300)
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current)
+    }
+  }, [searchTerm])
+
   // 加载字典名称映射
   const dictTypeCodes = useMemo(() => [
     DICT_TYPES.INSURANCE_TYPE,
@@ -37,18 +50,33 @@ export default function PatientList() {
   ], [])
   const dictNameMaps = useDictNameMaps(dictTypeCodes)
 
+  // 构建后端查询参数：将可映射的筛选条件传给后端
+  const buildQueryParams = useCallback(() => {
+    const params: { page: number; pageSize: number; name?: string; status?: string } = {
+      page: currentPage,
+      pageSize,
+    }
+    // 搜索词 → 后端 name LIKE 模糊匹配
+    if (debouncedSearch.trim()) {
+      params.name = debouncedSearch.trim()
+    }
+    // "透析中" 筛选 → 后端 status 精确匹配
+    if (activeFilter === 'active') {
+      params.status = '透析中'
+    }
+    return params
+  }, [currentPage, debouncedSearch, activeFilter])
+
   // Load patient data
   const loadPatients = useCallback(async () => {
     setLoading(true)
     setApiError(null)
     try {
-      const result = await restApi.getPatientList({ page: currentPage, pageSize })
+      const params = buildQueryParams()
+      const result = await restApi.getPatientList(params)
       const patients = convertRestPatientList(result.data.items)
       setPatients(patients)
-      // 第一页时更新总数（包括 total 为 0 的情况）
-      if (currentPage === 1) {
-        setTotal(result.data.pagination.total)
-      }
+      setTotal(result.data.pagination.total)
     } catch (error) {
       console.error('加载患者数据失败:', error)
       setApiError('加载失败，请稍后重试')
@@ -57,7 +85,7 @@ export default function PatientList() {
     } finally {
       setLoading(false)
     }
-  }, [currentPage])
+  }, [buildQueryParams])
 
   useEffect(() => {
     loadPatients()
@@ -75,39 +103,31 @@ export default function PatientList() {
     setRefreshKey(k => k + 1)  // 递增 refreshKey 触发 useEffect 重新执行
   }, [])
 
-  // Filter patients based on search and filter type
+  // 筛选切换时重置分页
+  const handleFilterChange = useCallback((filter: FilterType) => {
+    setActiveFilter(filter)
+    setCurrentPage(1)
+  }, [])
+
+  // 本地过滤：仅处理后端无法表达的筛选条件（today/mine）
+  // name 搜索和 active 状态已由后端处理
   const filteredPatients = patients.filter(p => {
-    // 确保必要字段存在
     if (!p.name || !p.id) return false
 
-    // Search logic
-    const matchesSearch =
-      p.name.includes(searchTerm) ||
-      p.id.includes(searchTerm) ||
-      (p.bedNumber && p.bedNumber.includes(searchTerm))
-
-    // Filter logic
-    let matchesFilter = true
     switch (activeFilter) {
       case 'today':
-        matchesFilter = p.status !== '居家'
-        break
-      case 'active':
-        matchesFilter = p.status === '透析中'
-        break
+        return p.status !== '居家'
       case 'mine':
         if (currentUser?.role?.includes('DOCTOR')) {
-          matchesFilter = p.doctorName === currentUser?.name
+          return p.doctorName === currentUser?.name
         } else if (currentUser?.role?.includes('NURSE')) {
-          matchesFilter = p.status !== '居家'
+          return p.status !== '居家'
         }
-        break
-      case 'all':
+        return true
+      // all / active 已由后端过滤，直接返回
       default:
-        matchesFilter = true
+        return true
     }
-
-    return matchesSearch && matchesFilter
   })
 
   const handleSelectPatient = (id: string) => {
@@ -185,26 +205,26 @@ export default function PatientList() {
         {/* Filter Tabs */}
         <div className="p-4 border-b border-gray-100 flex items-center space-x-2 overflow-x-auto">
           <button
-            onClick={() => setActiveFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'all' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             全部患者
           </button>
           <div className="h-6 w-px bg-gray-200 mx-2"></div>
           <button
-            onClick={() => setActiveFilter('today')}
+            onClick={() => handleFilterChange('today')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'today' ? 'bg-blue-50 text-blue-700' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <BedDouble size={16} className="mr-2" /> 今日治疗
           </button>
           <button
-            onClick={() => setActiveFilter('active')}
+            onClick={() => handleFilterChange('active')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'active' ? 'bg-green-50 text-green-700' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <Activity size={16} className="mr-2" /> 透析中
           </button>
           <button
-            onClick={() => setActiveFilter('mine')}
+            onClick={() => handleFilterChange('mine')}
             className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'mine' ? 'bg-purple-50 text-purple-700' : 'text-gray-500 hover:bg-gray-50'}`}
           >
             <Stethoscope size={16} className="mr-2" /> 我的患者

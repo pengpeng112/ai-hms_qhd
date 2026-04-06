@@ -23,12 +23,12 @@ func NewTreatmentService() *TreatmentService {
 
 // ListRequest 获取治疗记录列表请求
 type TreatmentListRequest struct {
-	Page           int       `form:"page"`
-	PageSize       int       `form:"pageSize"`
-	PatientId      *int64    `form:"patientId"`
-	Status         *int      `form:"status"`
-	Type           *int      `form:"type"`
-	TreatmentDate  *time.Time `form:"treatmentDate"`
+	Page               int        `form:"page"`
+	PageSize           int        `form:"pageSize"`
+	PatientId          *int64     `form:"patientId"`
+	Status             *int       `form:"status"`
+	Type               *int       `form:"type"`
+	TreatmentDate      *time.Time `form:"treatmentDate"`
 	TreatmentDateStart *time.Time `form:"treatmentDateStart"`
 	TreatmentDateEnd   *time.Time `form:"treatmentDateEnd"`
 }
@@ -170,7 +170,7 @@ type TreatmentCreateRequest struct {
 }
 
 // Create 创建治疗记录
-func (s *TreatmentService) Create(req TreatmentCreateRequest) (*models.Treatment, error) {
+func (s *TreatmentService) Create(req TreatmentCreateRequest, tenantId, creatorId int64) (*models.Treatment, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -182,24 +182,24 @@ func (s *TreatmentService) Create(req TreatmentCreateRequest) (*models.Treatment
 	}
 
 	treatment := models.Treatment{
-		TenantId:        1, // TODO: 从上下文获取
-		PatientId:       req.PatientId,
-		TreatmentDate:   req.TreatmentDate,
-		ScheduleId:      req.ScheduleId,
-		ReceptionDrId:   req.ReceptionDrId,
-		SignInTime:      req.SignInTime,
-		QueueNo:         req.QueueNo,
-		ReceptionTime:   req.ReceptionTime,
-		DayProgrammeId:  req.DayProgrammeId,
-		WardId:          req.WardId,
-		WardName:        req.WardName,
-		BedId:           req.BedId,
-		ShiftId:         req.ShiftId,
-		ShiftTiming:     req.ShiftTiming,
-		Type:            req.Type,
-		Status:          status,
-		IsDisabled:      false,
-		CreatorId:       1, // TODO: 从上下文获取
+		TenantId:       tenantId,
+		PatientId:      req.PatientId,
+		TreatmentDate:  req.TreatmentDate,
+		ScheduleId:     req.ScheduleId,
+		ReceptionDrId:  req.ReceptionDrId,
+		SignInTime:     req.SignInTime,
+		QueueNo:        req.QueueNo,
+		ReceptionTime:  req.ReceptionTime,
+		DayProgrammeId: req.DayProgrammeId,
+		WardId:         req.WardId,
+		WardName:       req.WardName,
+		BedId:          req.BedId,
+		ShiftId:        req.ShiftId,
+		ShiftTiming:    req.ShiftTiming,
+		Type:           req.Type,
+		Status:         status,
+		IsDisabled:     false,
+		CreatorId:      creatorId,
 	}
 
 	if err := s.db.Create(&treatment).Error; err != nil {
@@ -211,17 +211,17 @@ func (s *TreatmentService) Create(req TreatmentCreateRequest) (*models.Treatment
 
 // UpdateRequest 更新治疗记录请求
 type TreatmentUpdateRequest struct {
-	SignInTime     *time.Time `json:"signInTime"`
-	QueueNo        *string    `json:"queueNo"`
-	ReceptionTime  *time.Time `json:"receptionTime"`
-	ReceptionDrId  *int64     `json:"receptionDrId"`
-	WardId         *int64     `json:"wardId"`
-	WardName       *string    `json:"wardName"`
-	BedId          *int64     `json:"bedId"`
-	ShiftId        *int64     `json:"shiftId"`
-	ShiftTiming    *int       `json:"shiftTiming"`
-	Status         *int       `json:"status"`
-	IsDisabled     *bool      `json:"isDisabled"`
+	SignInTime    *time.Time `json:"signInTime"`
+	QueueNo       *string    `json:"queueNo"`
+	ReceptionTime *time.Time `json:"receptionTime"`
+	ReceptionDrId *int64     `json:"receptionDrId"`
+	WardId        *int64     `json:"wardId"`
+	WardName      *string    `json:"wardName"`
+	BedId         *int64     `json:"bedId"`
+	ShiftId       *int64     `json:"shiftId"`
+	ShiftTiming   *int       `json:"shiftTiming"`
+	Status        *int       `json:"status"`
+	IsDisabled    *bool      `json:"isDisabled"`
 }
 
 // Update 更新治疗记录

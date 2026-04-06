@@ -72,6 +72,14 @@ func AutoMigrate(cfg *config.Config) error {
 		// 字典管理相关
 		&models.DictType{},
 		&models.DictItem{},
+
+		// 设备管理相关
+		&models.Device{},
+
+		// 库存管理相关
+		&models.InventoryItem{},
+		&models.StockLog{},
+		&models.LabelTask{},
 	)
 
 	if err != nil {

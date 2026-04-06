@@ -276,6 +276,7 @@ export interface PatientScheduleItem {
   shift: 'Morning' | 'Afternoon' | 'Evening';
   patientName: string;
   mode: string;
+  patientId?: string;  // 后端关联的患者ID
 }
 
 // ============ 医嘱相关类型 ============

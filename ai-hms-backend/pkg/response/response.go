@@ -55,6 +55,15 @@ func Success(c *gin.Context, data interface{}) {
 	})
 }
 
+// SuccessCreated 创建成功响应（标准格式，HTTP 201）
+func SuccessCreated(c *gin.Context, data interface{}) {
+	c.JSON(http.StatusCreated, SuccessResponse{
+		Success:   true,
+		Data:      data,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
+}
+
 // Paginated 分页响应（标准格式）
 func Paginated(c *gin.Context, items interface{}, page, pageSize int, total int64) {
 	totalPages := int(total) / pageSize

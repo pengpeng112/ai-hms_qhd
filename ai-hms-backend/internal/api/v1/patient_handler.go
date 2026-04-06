@@ -297,8 +297,7 @@ func (h *PatientHandler) CreateTreatmentPlan(c *gin.Context) {
 		return
 	}
 
-	c.Status(http.StatusCreated)
-	response.Success(c, plan)
+	response.SuccessCreated(c, plan)
 }
 
 // UpdateTreatmentPlan 更新患者治疗方案

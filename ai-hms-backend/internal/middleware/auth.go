@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/elliotxin/ai-hms-backend/internal/utils"
@@ -116,4 +117,24 @@ func GetRoles(c *gin.Context) []string {
 		return []string{}
 	}
 	return roles.([]string)
+}
+
+// GetCreatorID 从上下文获取创建者 ID（int64）
+// JWT 中 user_id 为 string，若可解析为 int64 则返回，否则返回默认值 1
+func GetCreatorID(c *gin.Context) int64 {
+	userID := GetUserID(c)
+	if userID == "" {
+		return 1
+	}
+	id, err := strconv.ParseInt(userID, 10, 64)
+	if err != nil {
+		return 1
+	}
+	return id
+}
+
+// GetTenantID 从上下文获取租户 ID
+// 当前为单租户模式，固定返回 1；后续多租户时从 JWT 或请求头提取
+func GetTenantID(c *gin.Context) int64 {
+	return 1
 }

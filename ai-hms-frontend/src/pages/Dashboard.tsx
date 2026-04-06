@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
 import type { Patient as OriginalPatient, DashboardCardConfig } from '@/types/original'
-import { MOCK_PATIENTS, MOCK_STATS_DATA, DASHBOARD_CARDS } from '@/constants'
+import { MOCK_STATS_DATA, DASHBOARD_CARDS } from '@/constants'
 import {
-    getPatientList,
+    restApi,
+    convertRestPatientList,
     getActiveShifts,
     getAllEquipments,
     getTodayTreatments,
@@ -18,7 +19,6 @@ import {
     LayoutGrid, Library, Plus, X, CheckCircle2, Settings2, AlertTriangle, FilePlus, Clock
 } from 'lucide-react'
 import { BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
-import { convertAPIPatientList } from '@/utils'
 import { PatientListItem } from '@/components'
 
 // Extended config type for local state
@@ -42,26 +42,26 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
     const [isCustomizing, setIsCustomizing] = useState(false)
     const [showWidgetLibrary, setShowWidgetLibrary] = useState(false)
     const [cardsConfig, setCardsConfig] = useState<LocalCardConfig[]>([])
-    const [patients, setPatients] = useState<OriginalPatient[]>(MOCK_PATIENTS)
+    const [patients, setPatients] = useState<Partial<OriginalPatient>[]>([])
     const [shifts, setShifts] = useState<APIShift[]>([])
     const [equipments, setEquipments] = useState<EquipmentInfo[]>([])
     const [treatments, setTreatments] = useState<Treatment[]>([])
     const [apiError, setApiError] = useState<string | null>(null)
 
-    // Load all data from APIs or fallback to mock data
+    // 加载数据：患者列表走 REST API，其他走 GraphQL/HDIS
     useEffect(() => {
         const loadData = async () => {
             try {
                 // 并行加载所有数据
                 const [patientResult, shiftsData, equipmentsData, treatmentsData] = await Promise.all([
-                    getPatientList(1, 50).catch(() => ({ data: [] })),
+                    restApi.getPatientList({ page: 1, pageSize: 50 }).catch(() => null),
                     getActiveShifts().catch(() => []),
                     getAllEquipments().catch(() => []),
                     getTodayTreatments().catch(() => [])
                 ])
 
-                if (patientResult.data.length > 0) {
-                    setPatients(convertAPIPatientList(patientResult.data))
+                if (patientResult?.data?.items) {
+                    setPatients(convertRestPatientList(patientResult.data.items))
                 }
                 if (shiftsData.length > 0) {
                     setShifts(shiftsData)
@@ -74,9 +74,8 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                 }
                 setApiError(null)
             } catch (error) {
-                console.log('Using mock data:', error)
+                console.log('Dashboard data loading error:', error)
                 setApiError(t('common:api.notConfigured'))
-                setPatients(MOCK_PATIENTS)
             }
         }
         loadData()
@@ -333,12 +332,15 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                         {patients.slice(0, 5).map(patient => (
                             <div key={patient.id} onClick={(e) => e.stopPropagation()}>
                                 <PatientListItem
-                                    patient={patient}
+                                    patient={patient as OriginalPatient}
                                     variant="compact"
                                     onClick={(p) => handlePatientSelect(p.id)}
                                 />
                             </div>
                         ))}
+                        {patients.length === 0 && (
+                            <div className="text-center py-4 text-gray-400 text-sm">{t('common:noData.patient') || '暂无患者数据'}</div>
+                        )}
                         <button
                             onClick={(e) => { e.stopPropagation(); navigate('/patients') }}
                             className="w-full py-2 text-xs text-center text-gray-400 hover:text-blue-600 transition-colors border-t border-gray-50 mt-1"

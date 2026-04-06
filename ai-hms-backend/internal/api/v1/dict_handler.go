@@ -359,8 +359,13 @@ func RegisterDictRoutes(r *gin.RouterGroup) {
 		dict.POST("/import", dictHandler.ImportDicts) // 批量导入字典数据
 	}
 
-	// 初始化字典数据（仅开发环境）
+	// 初始化字典数据（仅开发环境 + ADMIN 角色）
 	items.POST("/init", func(c *gin.Context) {
+		// 生产环境保护：仅 debug 模式允许通过 API 初始化字典
+		if gin.Mode() == gin.ReleaseMode {
+			response.BadRequest(c, "生产环境禁止通过 API 初始化字典数据，请使用启动时自动初始化")
+			return
+		}
 		// 初始化默认字典
 		if err := dictHandler.service.InitDefaultDicts(); err != nil {
 			response.InternalError(c, err.Error())

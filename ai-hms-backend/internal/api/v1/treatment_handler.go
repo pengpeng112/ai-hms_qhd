@@ -1,10 +1,10 @@
 package v1
 
 import (
-	"net/http"
 	"strconv"
 	"time"
 
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -112,17 +112,16 @@ func (h *TreatmentHandler) Create(c *gin.Context) {
 		return
 	}
 
-	treatment, err := h.service.Create(req)
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+
+	treatment, err := h.service.Create(req, tenantId, creatorId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
 
-	c.JSON(http.StatusCreated, gin.H{
-		"code":    0,
-		"message": "success",
-		"data":    treatment,
-	})
+	response.SuccessCreated(c, treatment)
 }
 
 // Update 更新治疗记录

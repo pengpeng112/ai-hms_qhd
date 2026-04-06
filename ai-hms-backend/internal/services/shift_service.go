@@ -68,21 +68,21 @@ type ShiftCreateRequest struct {
 }
 
 // Create 创建班次
-func (s *ShiftService) Create(req ShiftCreateRequest) (*models.Shift, error) {
+func (s *ShiftService) Create(req ShiftCreateRequest, tenantId, creatorId int64) (*models.Shift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	shift := models.Shift{
-		TenantId:  1, // TODO: 从上下文获取
-		Name:      req.Name,
-		StartTime: req.StartTime,
-		EndTime:   req.EndTime,
-		Type:      req.Type,
+		TenantId:   tenantId,
+		Name:       req.Name,
+		StartTime:  req.StartTime,
+		EndTime:    req.EndTime,
+		Type:       req.Type,
 		IsDisabled: false,
-		Sort:      0,
-		Notes:     req.Notes,
-		CreatorId: 1, // TODO: 从上下文获取
+		Sort:       0,
+		Notes:      req.Notes,
+		CreatorId:  creatorId,
 	}
 
 	if req.Sort != nil {

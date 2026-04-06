@@ -139,6 +139,15 @@ func main() {
 
 			// 字典管理路由
 			v1api.RegisterDictRoutes(protected)
+
+			// 用户管理路由（角色选择）
+			v1api.RegisterUserRoutes(protected)
+
+			// 设备管理路由
+			v1api.RegisterDeviceRoutes(protected)
+
+			// 库存管理路由
+			v1api.RegisterInventoryRoutes(protected)
 		}
 	}
 
