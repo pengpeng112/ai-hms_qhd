@@ -30,7 +30,8 @@ import {
 import { logout } from '@/services/auth'
 
 // 角色图标映射
-const RoleIcons: Record<UserRole, React.ComponentType<{ size?: number; className?: string }>> = {
+const RoleIcons: Record<string, React.ComponentType<{ size?: number; className?: string }>> = {
+  ADMIN: UserCheck,
   [UserRole.DOCTOR_CHIEF]: UserCheck,
   [UserRole.DOCTOR_SUPERVISOR]: Stethoscope,
   [UserRole.DOCTOR_DUTY]: Activity,
@@ -42,7 +43,8 @@ const RoleIcons: Record<UserRole, React.ComponentType<{ size?: number; className
 }
 
 // 角色颜色映射
-const RoleColors: Record<UserRole, string> = {
+const RoleColors: Record<string, string> = {
+  ADMIN: 'border-slate-700',
   [UserRole.DOCTOR_CHIEF]: 'border-indigo-600',
   [UserRole.DOCTOR_SUPERVISOR]: 'border-blue-500',
   [UserRole.DOCTOR_DUTY]: 'border-blue-400',

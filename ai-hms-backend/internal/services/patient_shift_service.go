@@ -29,8 +29,8 @@ type PatientShiftListRequest struct {
 	ShiftId   *int64     `form:"shiftId"`
 	WardId    *int64     `form:"wardId"`
 	BedId     *int64     `form:"bedId"`
-	StartDate *time.Time `form:"startDate"`
-	EndDate   *time.Time `form:"endDate"`
+	StartDate *time.Time `form:"startDate" time_format:"2006-01-02"`
+	EndDate   *time.Time `form:"endDate" time_format:"2006-01-02"`
 	Status    *int       `form:"status"`
 }
 
@@ -76,10 +76,10 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 		query = query.Where("status = ?", *req.Status)
 	}
 	if req.StartDate != nil {
-		query = query.Where("schedule_date >= ?", *req.StartDate)
+		query = query.Where("DATE(schedule_date) >= DATE(?)", *req.StartDate)
 	}
 	if req.EndDate != nil {
-		query = query.Where("schedule_date <= ?", *req.EndDate)
+		query = query.Where("DATE(schedule_date) <= DATE(?)", *req.EndDate)
 	}
 
 	// 获取总数
@@ -260,7 +260,7 @@ func (s *PatientShiftService) GetByPatientAndDate(patientId int64, date time.Tim
 
 	var patientShift models.PatientShift
 	err := s.db.
-		Where("patient_id = ? AND schedule_date = ?", patientId, date).
+		Where("patient_id = ? AND DATE(schedule_date) = DATE(?)", patientId, date).
 		Preload("Shift").
 		Preload("Bed").
 		Preload("Ward").
@@ -283,7 +283,7 @@ func (s *PatientShiftService) CheckConflict(patientId int64, date time.Time, shi
 	}
 
 	query := s.db.Model(&models.PatientShift{}).
-		Where("patient_id = ? AND schedule_date = ? AND shift_id = ?", patientId, date, shiftId)
+		Where("patient_id = ? AND DATE(schedule_date) = DATE(?) AND shift_id = ?", patientId, date, shiftId)
 
 	if excludeId != nil {
 		query = query.Where("id != ?", *excludeId)

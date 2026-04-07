@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"strings"
+	"sync"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
@@ -13,6 +14,8 @@ type PermissionService struct {
 	db *gorm.DB
 }
 
+var defaultPermissionsOnce sync.Once
+
 func NewPermissionService() *PermissionService {
 	return &PermissionService{db: database.GetDB()}
 }
@@ -20,6 +23,9 @@ func NewPermissionService() *PermissionService {
 func (s *PermissionService) ListPermissions() ([]models.Permission, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
+	}
+	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
+		return nil, err
 	}
 	if err := s.ensureDefaultsInitialized(); err != nil {
 		return nil, err
@@ -34,6 +40,9 @@ func (s *PermissionService) ListPermissions() ([]models.Permission, error) {
 func (s *PermissionService) SavePermission(input models.Permission) (*models.Permission, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
+	}
+	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
+		return nil, err
 	}
 	var existing models.Permission
 	err := s.db.Where("code = ?", input.Code).First(&existing).Error
@@ -64,6 +73,9 @@ func (s *PermissionService) GetRolePermissionCodes(role string) ([]string, error
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
+		return nil, err
+	}
 	if err := s.ensureDefaultsInitialized(); err != nil {
 		return nil, err
 	}
@@ -81,6 +93,9 @@ func (s *PermissionService) GetRolePermissionCodes(role string) ([]string, error
 func (s *PermissionService) SetRolePermissionCodes(role string, permissionCodes []string) error {
 	if s.db == nil {
 		return errors.New("database not available")
+	}
+	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
+		return err
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("role = ?", role).Delete(&models.RolePermission{}).Error; err != nil {
@@ -101,19 +116,19 @@ func (s *PermissionService) SetRolePermissionCodes(role string, permissionCodes 
 }
 
 func (s *PermissionService) ensureDefaultsInitialized() error {
-	var count int64
-	if err := s.db.Model(&models.Permission{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-	return s.InitDefaultPermissions()
+	var initErr error
+	defaultPermissionsOnce.Do(func() {
+		initErr = s.InitDefaultPermissions()
+	})
+	return initErr
 }
 
 func (s *PermissionService) InitDefaultPermissions() error {
 	if s.db == nil {
 		return errors.New("database not available")
+	}
+	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
+		return err
 	}
 
 	permissions := []models.Permission{
@@ -134,6 +149,10 @@ func (s *PermissionService) InitDefaultPermissions() error {
 		{Code: "task.prescription.view", Name: "处方任务查看", Module: "task", Action: "view", Status: "active"},
 		{Code: "task.order.view", Name: "医嘱任务查看", Module: "task", Action: "view", Status: "active"},
 		{Code: "task.assessment.view", Name: "评估任务查看", Module: "task", Action: "view", Status: "active"},
+		{Code: "task.alert.handle", Name: "告警任务处理", Module: "task", Action: "handle", Status: "active"},
+		{Code: "task.prescription.handle", Name: "处方任务处理", Module: "task", Action: "handle", Status: "active"},
+		{Code: "task.order.handle", Name: "医嘱任务处理", Module: "task", Action: "handle", Status: "active"},
+		{Code: "task.assessment.handle", Name: "评估任务处理", Module: "task", Action: "handle", Status: "active"},
 	}
 
 	rolePermissions := map[string][]string{
@@ -142,41 +161,50 @@ func (s *PermissionService) InitDefaultPermissions() error {
 			"menu.schedule", "menu.inventory", "menu.device_binding", "menu.statistics", "menu.master_data",
 			"menu.treatment_config", "menu.dict_config", "menu.settings",
 			"task.alert.view", "task.prescription.view", "task.order.view", "task.assessment.view",
+			"task.alert.handle", "task.prescription.handle", "task.order.handle", "task.assessment.handle",
 		},
 		models.RoleDoctorChief: {
 			"menu.dashboard", "menu.ward_overview", "menu.patients", "menu.monitoring",
 			"menu.schedule", "menu.statistics", "menu.treatment_config", "menu.dict_config", "menu.settings",
 			"task.alert.view", "task.prescription.view",
+			"task.alert.handle", "task.prescription.handle",
 		},
 		models.RoleDoctorSupervisor: {
 			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
 			"task.alert.view", "task.prescription.view",
+			"task.alert.handle", "task.prescription.handle",
 		},
 		models.RoleDoctorDuty: {
 			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
 			"task.alert.view", "task.prescription.view", "task.assessment.view",
+			"task.alert.handle", "task.prescription.handle", "task.assessment.handle",
 		},
 		models.RoleNurseHead: {
 			"menu.dashboard", "menu.ward_overview", "menu.patients", "menu.dialysis_processing",
 			"menu.schedule", "menu.inventory", "menu.statistics", "menu.master_data",
 			"menu.treatment_config", "menu.dict_config", "menu.settings",
 			"task.alert.view", "task.order.view", "task.assessment.view",
+			"task.alert.handle", "task.order.handle", "task.assessment.handle",
 		},
-		"NURSE_SCHEDULER": {
+		models.RoleNurseScheduler: {
 			"menu.dashboard", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
 			"task.alert.view",
+			"task.alert.handle",
 		},
 		models.RoleNurseManager: {
 			"menu.dashboard", "menu.inventory", "menu.statistics", "menu.settings",
 			"task.alert.view", "task.order.view",
+			"task.alert.handle", "task.order.handle",
 		},
 		models.RoleNurseResponsible: {
 			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.dialysis_processing", "menu.statistics", "menu.settings",
 			"task.alert.view", "task.prescription.view", "task.order.view", "task.assessment.view",
+			"task.alert.handle", "task.prescription.handle", "task.order.handle", "task.assessment.handle",
 		},
 		models.RoleEngineer: {
 			"menu.dashboard", "menu.monitoring", "menu.device_binding", "menu.statistics", "menu.master_data", "menu.dict_config", "menu.settings",
 			"task.alert.view",
+			"task.alert.handle",
 		},
 	}
 
@@ -209,16 +237,16 @@ func (s *PermissionService) InitDefaultPermissions() error {
 		}
 
 		for role, codes := range rolePermissions {
-			var count int64
-			if err := tx.Model(&models.RolePermission{}).Where("role = ?", role).Count(&count).Error; err != nil {
-				return err
-			}
-			if count > 0 {
-				continue
-			}
-
 			rows := make([]models.RolePermission, 0, len(codes))
 			for _, code := range codes {
+				var existing models.RolePermission
+				err := tx.Where("role = ? AND permission_code = ?", role, code).First(&existing).Error
+				if err == nil {
+					continue
+				}
+				if !errors.Is(err, gorm.ErrRecordNotFound) {
+					return err
+				}
 				rows = append(rows, models.RolePermission{
 					Role:           role,
 					PermissionCode: code,

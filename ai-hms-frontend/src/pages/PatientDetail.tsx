@@ -63,7 +63,7 @@ export default function PatientDetail() {
           insuranceType: partialPatient.insuranceType || '自费',
           dryWeight: partialPatient.dryWeight || 65,
           defaultMode: partialPatient.defaultMode || 'HD',
-          doctorName: partialPatient.doctorName || '王医生',
+          doctorName: partialPatient.doctorName || '',
           diagnosis: partialPatient.diagnosis || '慢性肾脏病5期',
           riskLevel: partialPatient.riskLevel || '低危',
           vitals: partialPatient.vitals || {

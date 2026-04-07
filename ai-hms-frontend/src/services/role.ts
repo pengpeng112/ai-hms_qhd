@@ -19,6 +19,7 @@ const SELECTED_ROLE_KEY = 'selected_role'
 const SELECTED_USER_KEY = 'selected_role_user'
 
 const ROLE_SUBLABEL_MAP: Record<string, string> = {
+  ADMIN: '系统管理员',
   [UserRole.DOCTOR_CHIEF]: 'role:subLabel.doctorChief',
   [UserRole.DOCTOR_SUPERVISOR]: 'role:subLabel.doctorSupervisor',
   [UserRole.DOCTOR_DUTY]: 'role:subLabel.doctorDuty',
@@ -44,7 +45,7 @@ export async function getRoleUsers(): Promise<RoleUser[]> {
       return []
     }
     return (res as ApiUser[])
-      .filter(u => Object.values(UserRole).includes(u.role as UserRole))
+      .filter(u => u.role === 'ADMIN' || Object.values(UserRole).includes(u.role as UserRole))
       .map(u => ({
         id: u.id,
         name: u.realName || u.username,
@@ -65,6 +66,11 @@ export async function getRoleUsersByGroup(): Promise<RoleGroup[]> {
 
   return [
     {
+      key: 'admin',
+      labelKey: '系统管理组',
+      roles: users.filter(u => u.role === ('ADMIN' as UserRole)),
+    },
+    {
       key: 'doctor',
       labelKey: 'role:group.doctor',
       roles: users.filter(u => doctorRoles.includes(u.role)),
@@ -84,6 +90,8 @@ export async function getRoleUsersByGroup(): Promise<RoleGroup[]> {
 
 export function getDefaultRouteByRole(role: UserRole): string {
   switch (role) {
+    case 'ADMIN' as UserRole:
+      return '/dashboard'
     case UserRole.DOCTOR_CHIEF:
     case UserRole.NURSE_HEAD:
       return '/ward-overview'
@@ -194,6 +202,9 @@ export function getSelectedRoleUser(): RoleUser | null {
 export function getSelectedRole(): UserRole | null {
   const role = localStorage.getItem(SELECTED_ROLE_KEY)
   if (!role) return null
+  if (role === 'ADMIN') {
+    return role as UserRole
+  }
   if (Object.values(UserRole).includes(role as UserRole)) {
     return role as UserRole
   }

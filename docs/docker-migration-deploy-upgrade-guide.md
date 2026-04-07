@@ -525,7 +525,7 @@ docker load -i ai-hms-images.tar
 
 ```bash
 cd /opt/ai-hms-docker
-bash docker_upgrade.sh
+ bash /opt/ai-hms-docker/docker_upgrade.sh
 ```
 
 仅升级后端：

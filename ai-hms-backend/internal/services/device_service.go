@@ -43,6 +43,9 @@ func (s *DeviceService) List(req DeviceListRequest) (*DeviceListResponse, error)
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	if err := ensureSchema(s.db, &models.Device{}); err != nil {
+		return nil, err
+	}
 	if req.Page <= 0 {
 		req.Page = 1
 	}
@@ -104,6 +107,9 @@ func (s *DeviceService) Create(req DeviceCreateRequest, tenantId, creatorId int6
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	if err := ensureSchema(s.db, &models.Device{}); err != nil {
+		return nil, err
+	}
 
 	device := models.Device{
 		ID:           fmt.Sprintf("DEV-%d", creatorId*1000+int64(s.count())+1),
@@ -149,6 +155,9 @@ type DeviceUpdateRequest struct {
 func (s *DeviceService) Update(id string, req DeviceUpdateRequest) (*models.Device, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
+	}
+	if err := ensureSchema(s.db, &models.Device{}); err != nil {
+		return nil, err
 	}
 
 	var device models.Device
@@ -196,6 +205,9 @@ func (s *DeviceService) Delete(id string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
+	if err := ensureSchema(s.db, &models.Device{}); err != nil {
+		return err
+	}
 
 	result := s.db.Model(&models.Device{}).Where("id = ?", id).Update("is_disabled", true)
 	if result.Error != nil {
@@ -211,6 +223,9 @@ func (s *DeviceService) Delete(id string) error {
 func (s *DeviceService) UpdateStatus(id, status string) error {
 	if s.db == nil {
 		return errors.New("database not available")
+	}
+	if err := ensureSchema(s.db, &models.Device{}); err != nil {
+		return err
 	}
 
 	validStatuses := map[string]bool{

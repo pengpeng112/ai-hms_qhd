@@ -134,3 +134,83 @@
 - 修改文件：`ai-hms-backend/internal/services/permission_service.go`
 - 变更：新增 `InitDefaultPermissions`（菜单级+任务级权限定义与角色基线授权，幂等）；新增 `ensureDefaultsInitialized`，在权限读取接口首次调用时自动初始化，避免前端权限化后出现空菜单
 - 编译验证：`go build ./...` 通过；`npx.cmd tsc --noEmit` 通过
+
+## [T-D1-R2] 全量编译复验
+- 执行日期：2026-04-06
+- 命令：`npx.cmd tsc --noEmit`、`go build ./...`、`go vet ./...`
+- 结果：全部通过
+
+## [T-D2-R2] Mock 残留复扫与补充清理
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-frontend/src/pages/Monitoring.tsx`
+- 变更：移除 `generateMiniGraphData` 等随机模拟逻辑，监控曲线与生命体征改为无数据空态，不再使用 `Math.random` 生成假数据
+- 扫描命令：`rg -n "MOCK_" ...`、`rg -n "武琼迪|李俊雅|高敬兰|..." ...`、`rg -n "2025-12-13|2024-05-04|2024-05-10" ...`、`rg -n "generateHistoryData|generateMiniGraphData|mockHistoryData|mockHelpers|return\s+MOCK_" ...`
+- 结果：全部 0 命中；`src/utils/mockHelpers.ts` 为 `missing`
+
+## [T-D3-R2] 回归验证复核（命令行可验证项）
+- 执行日期：2026-04-06
+- 校验点：护士下拉动态加载、治疗历史真实接口、病区 processData 动态化、统计页面真实接口、任务栏真实任务与空态、监控页 patientName 空态显示
+- 结果：代码路径与关键调用复核通过；受当前环境限制，浏览器手工点击回归仍需在 UI 环境执行
+
+## [T-D1-R3] 编译与构建链修复完成
+- 执行日期：2026-04-06
+- 修改文件：`ai-hms-frontend/src/services/restClient.ts`、`ai-hms-frontend/src/pages/DialysisProcessing.tsx`、`ai-hms-frontend/src/pages/Monitoring.tsx`、`ai-hms-frontend/src/pages/Statistics.tsx`、`ai-hms-frontend/src/pages/patient-detail/tabs/HistoryTab.tsx`
+- 变更：修复历史遗留的注释粘连/字符串引号损坏/单位字段损坏等语法问题，恢复前端构建链
+- 验证：`npx.cmd tsc -b` 通过；`npm.cmd run build` 通过；`go build ./...` 通过；`go vet ./...` 通过
+
+## [T-D2-R3] Mock 残留再扫描
+- 执行日期：2026-04-06
+- 命令：`rg -n "MOCK_" ...`、`rg -n "武琼迪|李俊雅|高敬兰|..." ...`、`rg -n "2025-12-13|2024-05-04|2024-05-10" ...`、`rg -n "generateHistoryData|generateMiniGraphData|mockHistoryData|mockHelpers|return\s+MOCK_" ...`
+- 结果：全部 0 命中
+
+## [P5-5] 阶段五：任务处理操作级权限控制
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-backend/internal/services/permission_service.go`、`ai-hms-frontend/src/layouts/MainLayout.tsx`
+- 变更：
+  - 后端默认权限新增 `task.*.handle`（alert/prescription/order/assessment）并写入角色基线授权
+  - 前端任务栏新增操作级权限校验：仅有 `task.*.handle` 才可点击处理；无权限显示“无处理权限”并禁用点击
+- 编译验证：`npx.cmd tsc --noEmit` 通过；`go build ./...` 通过；`go vet ./...` 通过
+- 残留扫描：`rg -n "MOCK_" ai-hms-frontend/src/pages ai-hms-frontend/src/layouts`、`rg -n "武琪迪|李俊雅|高敬兰" ai-hms-frontend/src`、`rg -n "2025-12-13" ai-hms-frontend/src/pages`、`rg -n "mockHistoryData|mockHelpers|generateHistoryData|generateMiniGraphData|return\\s+MOCK_" ai-hms-frontend/src` 均 0 命中
+
+## [BUGFIX-2026-04-07] 历史改造后缺陷修复
+- 执行日期：2026-04-07
+- 修改文件：
+  - `ai-hms-frontend/src/layouts/MainLayout.tsx`
+  - `ai-hms-frontend/src/pages/patient-detail/tabs/HistoryTab.tsx`
+  - `ai-hms-frontend/src/pages/DialysisProcessing.tsx`
+  - `ai-hms-backend/internal/services/permission_service.go`
+- 变更：
+  - 修复任务栏路由：`ORDER/ASSESSMENT` 从 `/dialysis` 改为 `/dialysis-processing`
+  - 增加患者 ID 数值安全校验，避免 `Number(...)` 为 `NaN` 时继续请求治疗相关 API
+  - 后端权限默认初始化改为幂等增量补齐，支持已有环境自动补入新增权限（含 `task.*.handle`）
+- 编译验证：`npx.cmd tsc --noEmit` 通过；`go build ./...` 通过；`go vet ./...` 通过
+
+## [FIX-1+2] statistics 接口 tenant_id 隔离修复
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-backend/internal/services/statistics_service.go`、`ai-hms-backend/internal/api/v1/statistics_handler.go`
+- 变更：4 个统计方法（`QualityByYear/InfectionByYear/VascularByYear/WorkloadByYearMonth`）增加 `tenantId` 参数；所有 DB 查询加入 `tenant_id = ?` 过滤；Handler 层从 `middleware.GetTenantID(c)` 提取并传入
+- 编译验证：`go build ./...` 通过；`go vet ./...` 通过
+
+## [FIX-3] Monitoring.tsx OrderListModal 硬编码医嘱清除
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-frontend/src/pages/Monitoring.tsx`
+- 变更：删除 `longOrders/tempOrders` 硬编码初始值（含 `2025-12-01` 日期、`王医生` 等），改为空数组并增加后续 API 对接 TODO 注释
+- 编译验证：`npx.cmd tsc --noEmit` 通过
+
+## [FIX-4] permission_service.go 初始化并发安全修复
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-backend/internal/services/permission_service.go`
+- 变更：引入包级 `sync.Once`，`ensureDefaultsInitialized()` 在进程生命周期内只执行一次
+- 编译验证：`go build ./...` 通过；`go vet ./...` 通过
+
+## [FIX-5] NURSE_SCHEDULER 角色常量化
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-backend/internal/models/user.go`、`ai-hms-backend/internal/services/permission_service.go`
+- 变更：`user.go` 新增 `RoleNurseScheduler = "NURSE_SCHEDULER"`；`permission_service.go` 中角色键从硬编码字符串改为 `models.RoleNurseScheduler`
+- 编译验证：`go build ./...` 通过；`go vet ./...` 通过
+
+## [FIX-6] parseYear 年份上界校验
+- 执行日期：2026-04-07
+- 修改文件：`ai-hms-backend/internal/api/v1/statistics_handler.go`
+- 变更：`parseYear()` 合法范围限定为 `[2000, currentYear+1]`，超出范围回退当前年份
+- 编译验证：`go build ./...` 通过；`go vet ./...` 通过

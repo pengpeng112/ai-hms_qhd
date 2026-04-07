@@ -82,7 +82,7 @@ export default function Statistics() {
       'statistics:month.jan', 'statistics:month.feb', 'statistics:month.mar', 'statistics:month.apr', 'statistics:month.may', 'statistics:month.jun',
       'statistics:month.jul', 'statistics:month.aug', 'statistics:month.sep', 'statistics:month.oct', 'statistics:month.nov', 'statistics:month.dec',
     ]
-    return t(map[month - 1] || 'statistics:month.jan')
+    return t((map[month - 1] || 'statistics:month.jan') as never)
   }
 
   const qualityChartData = useMemo(() => qualityData.map(i => ({ ...i, month: monthLabel(i.month) })), [qualityData])

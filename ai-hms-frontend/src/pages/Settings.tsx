@@ -320,7 +320,7 @@ export default function Settings() {
               <div className="space-y-6">
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 border-2 border-white shadow-sm overflow-hidden relative group cursor-pointer">
-                    <img src="https://picsum.photos/200" alt="Avatar" className="w-full h-full object-cover" />
+                    <UserIcon size={28} className="text-gray-500" />
                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                       <span className="text-white text-xs">{t('settings:action.changeAvatar')}</span>
                     </div>

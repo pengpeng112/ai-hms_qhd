@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
@@ -18,9 +19,9 @@ interface HeaderProps {
 }
 
 export default function Header({
-    username = '王医生',
+    username = '',
     userRole = UserRole.DOCTOR_SUPERVISOR,
-    userAvatar = 'https://api.dicebear.com/7.x/avataaars/svg?seed=Doctor',
+    userAvatar = '',
     department = '肾内透析中心 · 第一病区',
     onLogout,
     sidebarOpen = true,
@@ -31,6 +32,8 @@ export default function Header({
     toggleBtnRef,
 }: HeaderProps) {
     const { t } = useTranslation('nav')
+    const [avatarFailed, setAvatarFailed] = useState(false)
+    const avatarText = (username || userRole || 'U').trim().slice(0, 1).toUpperCase()
 
     return (
         <header className="h-16 bg-[#f0f7ff] border-b border-blue-100 flex items-center justify-between px-6 z-10">
@@ -76,11 +79,18 @@ export default function Header({
                         <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">{userRole}</p>
                     </div>
                     <div className="relative group">
-                        <img
-                            src={userAvatar}
-                            className="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-100 cursor-pointer"
-                            alt="avatar"
-                        />
+                        {!avatarFailed && userAvatar ? (
+                            <img
+                                src={userAvatar}
+                                className="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-100 cursor-pointer"
+                                alt="avatar"
+                                onError={() => setAvatarFailed(true)}
+                            />
+                        ) : (
+                            <div className="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-100 bg-slate-700 text-white flex items-center justify-center font-bold cursor-default">
+                                {avatarText}
+                            </div>
+                        )}
                         <div className="absolute top-0 right-0 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
                     </div>
                     <button

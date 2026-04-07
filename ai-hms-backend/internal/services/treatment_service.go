@@ -28,9 +28,9 @@ type TreatmentListRequest struct {
 	PatientId          *int64     `form:"patientId"`
 	Status             *int       `form:"status"`
 	Type               *int       `form:"type"`
-	TreatmentDate      *time.Time `form:"treatmentDate"`
-	TreatmentDateStart *time.Time `form:"treatmentDateStart"`
-	TreatmentDateEnd   *time.Time `form:"treatmentDateEnd"`
+	TreatmentDate      *time.Time `form:"treatmentDate" time_format:"2006-01-02"`
+	TreatmentDateStart *time.Time `form:"treatmentDateStart" time_format:"2006-01-02"`
+	TreatmentDateEnd   *time.Time `form:"treatmentDateEnd" time_format:"2006-01-02"`
 }
 
 // ListResponse 获取治疗记录列表响应
@@ -69,13 +69,13 @@ func (s *TreatmentService) List(req TreatmentListRequest) (*TreatmentListRespons
 		query = query.Where("type = ?", *req.Type)
 	}
 	if req.TreatmentDate != nil {
-		query = query.Where("treatment_date = ?", *req.TreatmentDate)
+		query = query.Where("DATE(treatment_date) = DATE(?)", *req.TreatmentDate)
 	}
 	if req.TreatmentDateStart != nil {
-		query = query.Where("treatment_date >= ?", *req.TreatmentDateStart)
+		query = query.Where("DATE(treatment_date) >= DATE(?)", *req.TreatmentDateStart)
 	}
 	if req.TreatmentDateEnd != nil {
-		query = query.Where("treatment_date <= ?", *req.TreatmentDateEnd)
+		query = query.Where("DATE(treatment_date) <= DATE(?)", *req.TreatmentDateEnd)
 	}
 
 	// 获取总数

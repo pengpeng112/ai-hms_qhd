@@ -1,7 +1,7 @@
 ﻿import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '../types/original'
-import { restApi, type RestDevice } from '../services/restClient'
+import { restApi, type RestDevice, type RestPatientShift } from '../services/restClient'
 import {
   Monitor,
   Search,
@@ -295,8 +295,8 @@ const PrescriptionEditModal = ({
     { id: 1, name: 'JRHLL-025', category: '琛€璺', count: 1, code: '', brand: '', spec: '', note: '' },
     { id: 2, name: '10ML娉ㄥ皠鍣?10ML', category: '鍏朵粬', count: 2, code: '', brand: '', spec: '10ML', note: '' },
     { id: 3, name: '15G', category: '閫忔瀽銆佽婊ゅ櫒', count: 1, code: '', brand: 'NIPRO', spec: '', note: '' },
-    { id: 4, name: '鍐呯槝鍖?, category: '鎶ょ悊鍖?, count: 1, code: '1102011534', brand: '', spec: '', note: '' },
-    { id: 5, name: '閿愰拡-16G', category: '绌垮埡閽?, count: 2, code: '', brand: 'NIPRO', spec: '', note: '' }
+    { id: 4, name: '内瘘区', category: '护理区', count: 1, code: '1102011534', brand: '', spec: '', note: '' },
+    { id: 5, name: '锐针-16G', category: '穿刺针', count: 2, code: '', brand: 'NIPRO', spec: '', note: '' }
   ])
 
   return (
@@ -434,7 +434,7 @@ const PrescriptionEditModal = ({
             <label className="text-sm text-gray-600">{t('monitoring:prescription.dialysateCat')}:</label>
             <div className="relative">
               <select className="h-8 w-40 border rounded text-xs px-2 bg-white appearance-none outline-none focus:ring-1 focus:ring-blue-500">
-                <option>A娑?B娑?/option>
+                <option>A娑?B娑</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -566,53 +566,11 @@ const OrderListModal = ({
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
   const [activeTab, setActiveTab] = useState<'LONG' | 'TEMP'>('LONG')
-  const currentOrderTime = new Date().toLocaleString('zh-CN', { hour12: false }).replace(/\//g, '-').slice(0, 16)
+  // TODO: 从 /api/v1/patients/:id/orders?type=LONG 加载长期医嘱
+  const [longOrders] = useState<OrderItem[]>([])
 
-  const [longOrders] = useState<OrderItem[]>([
-    {
-      id: 1,
-      content: '0.9% 姘寲閽犳敞灏勬恫 100ml',
-      frequency: '姣忔閫忔瀽',
-      doctor: '鐜嬪尰鐢?,
-      time: '2025-12-01 08:30',
-      status: 'ACTIVE'
-    },
-    {
-      id: 2,
-      content: '宸﹀崱灏兼眬娉ㄥ皠娑?1.0g',
-      frequency: '姣忔閫忔瀽',
-      doctor: '鐜嬪尰鐢?,
-      time: '2025-12-01 08:31',
-      status: 'ACTIVE'
-    },
-    {
-      id: 3,
-      content: '閭ｅ眻鑲濈礌閽?2500iu iv',
-      frequency: '姣忔閫忔瀽',
-      doctor: '鏉庡尰鐢?,
-      time: '2025-11-15 09:00',
-      status: 'STOPPED'
-    }
-  ])
-
-  const [tempOrders] = useState<OrderItem[]>([
-    {
-      id: 4,
-      content: '50% 钁¤悇绯栨敞灏勬恫 20ml iv',
-      frequency: 'ST',
-      doctor: '鐜嬪尰鐢?,
-      time: currentOrderTime,
-      status: 'EXECUTED'
-    },
-    {
-      id: 5,
-      content: '鍘讳箼閰版瘺鑺辫嫹 0.2mg iv',
-      frequency: 'ST',
-      doctor: '闄堜富浠?,
-      time: currentOrderTime,
-      status: 'PENDING'
-    }
-  ])
+  // TODO: 从 /api/v1/patients/:id/orders?type=TEMP 加载临时医嘱
+  const [tempOrders] = useState<OrderItem[]>([])
 
   const currentOrders = activeTab === 'LONG' ? longOrders : tempOrders
 
@@ -812,48 +770,68 @@ const SummaryModal = ({
   )
 }
 
-// --- 棰勭敓鎴愬浘琛ㄦ暟鎹紙閬垮厤姣忔娓叉煋閲嶆柊璁＄畻锛?--
-const generateMiniGraphData = (device: MonitorDevice) => {
-  return Array.from({ length: 12 }).map(() => ({
-    sbp: device.vitals.sbp + Math.floor(Math.random() * 8 - 4),
-    hr: device.vitals.hr + Math.floor(Math.random() * 6 - 3)
-  }))
+type MiniGraphPoint = { sbp: number; hr: number }
+type HistoryPoint = {
+  time: string
+  sbp: number
+  dbp: number
+  hr: number
+  ap: number
+  vp: number
+  tmp: number
+  bf: number
+  uf: number
 }
 
-// 棰勭敓鎴愬巻鍙叉暟鎹紙鐢ㄤ簬寮圭獥鍥捐〃锛?
-const buildHistoryData = (device: MonitorDevice) => {
-  const now = new Date()
-  return Array.from({ length: 15 }).map((_, i) => {
-    const time = new Date(now)
-    time.setMinutes(now.getMinutes() - (14 - i) * 15)
-    return {
-      time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      sbp: device.vitals.sbp + Math.floor(Math.random() * 10 - 5),
-      dbp: device.vitals.dbp + Math.floor(Math.random() * 8 - 4),
-      hr: device.vitals.hr + Math.floor(Math.random() * 10 - 5),
-      ap: -120 + Math.floor(Math.random() * 20),
-      vp: 110 + Math.floor(Math.random() * 15),
-      tmp: 130 + Math.floor(Math.random() * 30),
-      bf: 240 + Math.floor(Math.random() * 10 - 5),
-      uf: 500 + Math.floor(Math.random() * 100 - 50)
-    }
-  })
-}
+// 缓存设备图表数据（按需填充）
+const cachedGraphData = new Map<string, MiniGraphPoint[]>()
+const cachedHistoryData = new Map<string, HistoryPoint[]>()
 
-// 缂撳瓨璁惧鍥捐〃鏁版嵁锛堟寜闇€濉厖锛?const cachedGraphData = new Map<string, { sbp: number; hr: number }[]>()
-const cachedHistoryData = new Map<string, ReturnType<typeof buildHistoryData>>()
+type DeviceAssignment = {
+  patientName: string
+  mode: string
+}
 
 function ensureDeviceCache(device: MonitorDevice) {
   if (!cachedGraphData.has(device.id)) {
-    cachedGraphData.set(device.id, generateMiniGraphData(device))
+    cachedGraphData.set(device.id, [])
   }
   if (!cachedHistoryData.has(device.id)) {
-    cachedHistoryData.set(device.id, buildHistoryData(device))
+    cachedHistoryData.set(device.id, [])
   }
 }
 
+function formatDateOnly(value: Date): string {
+  const year = value.getFullYear()
+  const month = `${value.getMonth() + 1}`.padStart(2, '0')
+  const day = `${value.getDate()}`.padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function buildDeviceAssignments(items: RestPatientShift[]): Map<string, DeviceAssignment> {
+  const assignments = new Map<string, DeviceAssignment>()
+
+  items.forEach((item) => {
+    const patientName = item.patient?.name?.trim()
+    if (!patientName) {
+      return
+    }
+
+    const mode = item.patient?.defaultMode?.trim() || 'HD'
+    const keys = [item.patient?.bedNumber?.trim(), item.bed?.name?.trim()].filter(
+      (value): value is string => !!value,
+    )
+
+    keys.forEach((key) => {
+      assignments.set(key, { patientName, mode })
+    })
+  })
+
+  return assignments
+}
+
 // 灏嗗悗绔?Device 杞崲涓哄墠绔?MonitorDevice 鏍煎紡
-function toMonitorDevice(d: RestDevice): MonitorDevice {
+function toMonitorDevice(d: RestDevice, assignment?: DeviceAssignment): MonitorDevice {
   const statusMap: Record<string, MonitorDevice['status']> = {
     normal: 'normal',
     warning: 'warning',
@@ -862,26 +840,25 @@ function toMonitorDevice(d: RestDevice): MonitorDevice {
     maintenance: 'offline',
   }
   const status = statusMap[d.status] ?? 'offline'
-  const isActive = status !== 'offline'
   return {
     id: d.id,
     bedNumber: d.bedNumber || d.name,
-    patientName: isActive ? '' : '',
+    patientName: assignment?.patientName || '',
     status,
-    mode: 'HD',
-    timeRemaining: isActive ? `${Math.floor(Math.random() * 3 + 1)}h${Math.floor(Math.random() * 60)}m` : '--',
+    mode: assignment?.mode || 'HD',
+    timeRemaining: '--',
     vitals: {
-      sbp: isActive ? 110 + Math.floor(Math.random() * 40) : 0,
-      dbp: isActive ? 60 + Math.floor(Math.random() * 20) : 0,
-      hr: isActive ? 65 + Math.floor(Math.random() * 20) : 0,
-      bf: isActive ? 240 + Math.floor(Math.random() * 20 - 10) : 0,
-      tmp: isActive ? 100 + Math.floor(Math.random() * 50) : 0,
-      ufGoal: isActive ? 2000 + Math.floor(Math.random() * 500) : 0,
-      ufVolume: isActive ? Math.floor(Math.random() * 1800) : 0,
-      conductivity: isActive ? 13 + Math.random() * 2 : 0,
-      temp: isActive ? 36 + Math.random() * 1 : 0,
+      sbp: 0,
+      dbp: 0,
+      hr: 0,
+      bf: 0,
+      tmp: 0,
+      ufGoal: 0,
+      ufVolume: 0,
+      conductivity: 0,
+      temp: 0,
     },
-    alarms: status === 'alarm' ? ['琛€鍘嬪亸浣?] : status === 'warning' ? ['琛€娴侀噺涓嶈冻'] : [],
+    alarms: status === 'alarm' ? ['血压偏低'] : status === 'warning' ? ['血流量不足'] : [],
   }
 }
 
@@ -952,12 +929,36 @@ export default function Monitoring() {
   const [devices, setDevices] = useState<MonitorDevice[]>([])
 
   useEffect(() => {
-    restApi.getDeviceList({ pageSize: 200 }).then((items) => {
-      const mapped = items.map(toMonitorDevice)
+    const loadMonitoringData = async () => {
+      const today = formatDateOnly(new Date())
+      const [devicesResult, shiftsResult] = await Promise.allSettled([
+        restApi.getDeviceList({ pageSize: 200 }),
+        restApi.getPatientShifts({
+          startDate: today,
+          endDate: today,
+          page: 1,
+          pageSize: 500,
+        }),
+      ])
+
+      if (devicesResult.status !== 'fulfilled') {
+        setDevices([])
+        return
+      }
+
+      const assignments =
+        shiftsResult.status === 'fulfilled'
+          ? buildDeviceAssignments(shiftsResult.value.data.items || [])
+          : new Map<string, DeviceAssignment>()
+
+      const mapped = devicesResult.value.map((item) =>
+        toMonitorDevice(item, assignments.get(item.bedNumber || item.name)),
+      )
       mapped.forEach(ensureDeviceCache)
       setDevices(mapped)
-    }).catch(() => {
-      // 鍚庣涓嶅彲鐢ㄦ椂涓嶆樉绀鸿澶囧垪琛?    })
+    }
+
+    void loadMonitoringData()
   }, [])
 
   const filteredDevices = useMemo(() => {
@@ -1038,6 +1039,10 @@ export default function Monitoring() {
             const weightGainVal = 1.2 + (i % 2)
             const weightGainPct = ((weightGainVal / dryWeight) * 100).toFixed(1)
             const access = i % 3 === 0 ? 'AVF' : 'TCC'
+            const ufPercent =
+              device.vitals.ufGoal > 0
+                ? Math.round((device.vitals.ufVolume / device.vitals.ufGoal) * 100)
+                : 0
 
             return (
               <div
@@ -1157,9 +1162,7 @@ export default function Monitoring() {
                       <Droplet size={10} className="mr-1 text-blue-500" />{' '}
                       {device.vitals.ufVolume.toFixed(2)}L / {device.vitals.ufGoal.toFixed(1)}L
                     </span>
-                    <span className="text-blue-700">
-                      {Math.round((device.vitals.ufVolume / device.vitals.ufGoal) * 100)}%
-                    </span>
+                    <span className="text-blue-700">{ufPercent}%</span>
                   </div>
                   <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden mb-2 relative shadow-inner">
                     <div
@@ -1167,7 +1170,7 @@ export default function Monitoring() {
                         device.status === 'alarm' ? 'bg-red-500' : 'bg-blue-600'
                       }`}
                       style={{
-                        width: `${Math.min(100, (device.vitals.ufVolume / device.vitals.ufGoal) * 100)}%`
+                        width: `${Math.min(100, ufPercent)}%`
                       }}
                     ></div>
                   </div>
@@ -1199,4 +1202,5 @@ export default function Monitoring() {
     </div>
   )
 }
+
 

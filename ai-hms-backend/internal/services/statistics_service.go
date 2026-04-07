@@ -34,17 +34,17 @@ type VascularItem struct {
 }
 
 type WorkloadItem struct {
-	UserID    int64  `json:"userId"`
-	Name      string `json:"name"`
-	Treatments int   `json:"treatments"`
-	Punctures int    `json:"punctures"`
+	UserID     int64  `json:"userId"`
+	Name       string `json:"name"`
+	Treatments int    `json:"treatments"`
+	Punctures  int    `json:"punctures"`
 }
 
 func NewStatisticsService() *StatisticsService {
 	return &StatisticsService{}
 }
 
-func (s *StatisticsService) QualityByYear(year int) ([]QualityItem, error) {
+func (s *StatisticsService) QualityByYear(tenantId int64, year int) ([]QualityItem, error) {
 	items := make([]QualityItem, 12)
 	for i := 1; i <= 12; i++ {
 		items[i-1] = QualityItem{Month: i}
@@ -52,10 +52,20 @@ func (s *StatisticsService) QualityByYear(year int) ([]QualityItem, error) {
 	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
 	end := start.AddDate(1, 0, 0)
 
+	db := database.GetDB()
+	if db == nil || !db.Migrator().HasTable(&models.LabReportItem{}) {
+		return items, nil
+	}
+
 	var rows []models.LabReportItem
-	if err := database.GetDB().
-		Where("tested_at >= ? AND tested_at < ?", start, end).
-		Find(&rows).Error; err != nil {
+	query := db.Model(&models.LabReportItem{})
+	if db.Migrator().HasColumn(&models.LabReportItem{}, "tenant_id") {
+		query = query.Where("tenant_id = ?", tenantId)
+	}
+	if !db.Migrator().HasColumn(&models.LabReportItem{}, "tested_at") {
+		return items, nil
+	}
+	if err := query.Where("tested_at >= ? AND tested_at < ?", start, end).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
@@ -111,7 +121,7 @@ func (s *StatisticsService) QualityByYear(year int) ([]QualityItem, error) {
 	return items, nil
 }
 
-func (s *StatisticsService) InfectionByYear(year int) ([]InfectionItem, error) {
+func (s *StatisticsService) InfectionByYear(tenantId int64, year int) ([]InfectionItem, error) {
 	items := make([]InfectionItem, 12)
 	for i := 1; i <= 12; i++ {
 		items[i-1] = InfectionItem{Month: i}
@@ -119,10 +129,20 @@ func (s *StatisticsService) InfectionByYear(year int) ([]InfectionItem, error) {
 	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
 	end := start.AddDate(1, 0, 0)
 
+	db := database.GetDB()
+	if db == nil || !db.Migrator().HasTable(&models.InfectionInfo{}) {
+		return items, nil
+	}
+
 	var rows []models.InfectionInfo
-	if err := database.GetDB().
-		Where("update_date >= ? AND update_date < ?", start, end).
-		Find(&rows).Error; err != nil {
+	query := db.Model(&models.InfectionInfo{})
+	if db.Migrator().HasColumn(&models.InfectionInfo{}, "tenant_id") {
+		query = query.Where("tenant_id = ?", tenantId)
+	}
+	if !db.Migrator().HasColumn(&models.InfectionInfo{}, "update_date") {
+		return items, nil
+	}
+	if err := query.Where("update_date >= ? AND update_date < ?", start, end).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	isPositive := func(v string) bool {
@@ -151,7 +171,7 @@ func (s *StatisticsService) InfectionByYear(year int) ([]InfectionItem, error) {
 	return items, nil
 }
 
-func (s *StatisticsService) VascularByYear(year int) ([]VascularItem, error) {
+func (s *StatisticsService) VascularByYear(tenantId int64, year int) ([]VascularItem, error) {
 	items := make([]VascularItem, 12)
 	for i := 1; i <= 12; i++ {
 		items[i-1] = VascularItem{Month: i}
@@ -159,10 +179,26 @@ func (s *StatisticsService) VascularByYear(year int) ([]VascularItem, error) {
 	start := time.Date(year, 1, 1, 0, 0, 0, 0, time.Local)
 	end := start.AddDate(1, 0, 0)
 
+	db := database.GetDB()
+	if db == nil || !db.Migrator().HasTable(&models.VascularAccess{}) {
+		return items, nil
+	}
+
 	var rows []models.VascularAccess
-	if err := database.GetDB().
-		Where("created_at >= ? AND created_at < ?", start, end).
-		Find(&rows).Error; err != nil {
+	query := db.Model(&models.VascularAccess{})
+	if db.Migrator().HasColumn(&models.VascularAccess{}, "tenant_id") {
+		query = query.Where("tenant_id = ?", tenantId)
+	}
+	dateColumn := ""
+	switch {
+	case db.Migrator().HasColumn(&models.VascularAccess{}, "created_at"):
+		dateColumn = "created_at"
+	case db.Migrator().HasColumn(&models.VascularAccess{}, "create_time"):
+		dateColumn = "create_time"
+	default:
+		return items, nil
+	}
+	if err := query.Where(dateColumn+" >= ? AND "+dateColumn+" < ?", start, end).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
@@ -184,17 +220,24 @@ func (s *StatisticsService) VascularByYear(year int) ([]VascularItem, error) {
 	return items, nil
 }
 
-func (s *StatisticsService) WorkloadByYearMonth(yearMonth string) ([]WorkloadItem, error) {
+func (s *StatisticsService) WorkloadByYearMonth(tenantId int64, yearMonth string) ([]WorkloadItem, error) {
 	start, err := time.ParseInLocation("2006-01", yearMonth, time.Local)
 	if err != nil {
 		return []WorkloadItem{}, nil
 	}
 	end := start.AddDate(0, 1, 0)
 
+	db := database.GetDB()
+	if db == nil || !db.Migrator().HasTable(&models.Treatment{}) {
+		return []WorkloadItem{}, nil
+	}
+
 	var treatments []models.Treatment
-	if err := database.GetDB().
-		Where("treatment_date >= ? AND treatment_date < ?", start, end).
-		Find(&treatments).Error; err != nil {
+	treatmentQuery := db.Model(&models.Treatment{})
+	if db.Migrator().HasColumn(&models.Treatment{}, "tenant_id") {
+		treatmentQuery = treatmentQuery.Where("tenant_id = ?", tenantId)
+	}
+	if err := treatmentQuery.Where("treatment_date >= ? AND treatment_date < ?", start, end).Find(&treatments).Error; err != nil {
 		return nil, err
 	}
 
@@ -210,7 +253,11 @@ func (s *StatisticsService) WorkloadByYearMonth(yearMonth string) ([]WorkloadIte
 	}
 
 	var users []models.User
-	if err := database.GetDB().Find(&users).Error; err == nil {
+	userQuery := db.Model(&models.User{})
+	if db.Migrator().HasColumn(&models.User{}, "tenant_id") {
+		userQuery = userQuery.Where("tenant_id = ?", tenantId)
+	}
+	if err := userQuery.Find(&users).Error; err == nil {
 		nameMap := map[int64]string{}
 		for _, user := range users {
 			id, parseErr := strconv.ParseInt(user.ID, 10, 64)

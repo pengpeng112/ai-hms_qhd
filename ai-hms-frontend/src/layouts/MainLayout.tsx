@@ -20,8 +20,23 @@ const TASK_PERMISSION_MAP: Record<string, string[]> = {
     ASSESSMENT: ['task.assessment.view', 'dialysis_processing', 'menu.dialysis_processing'],
 }
 
+const TASK_HANDLE_PERMISSION_MAP: Record<string, string[]> = {
+    ALERT: ['task.alert.handle'],
+    PRESCRIPTION: ['task.prescription.handle'],
+    ORDER: ['task.order.handle'],
+    ASSESSMENT: ['task.assessment.handle'],
+}
+
 const canViewTask = (permissions: Set<string>, type: string) => {
     const required = TASK_PERMISSION_MAP[type]
+    if (!required || required.length === 0) {
+        return false
+    }
+    return required.some(code => permissions.has(code))
+}
+
+const canHandleTask = (permissions: Set<string>, type: string) => {
+    const required = TASK_HANDLE_PERMISSION_MAP[type]
     if (!required || required.length === 0) {
         return false
     }
@@ -31,8 +46,8 @@ const canViewTask = (permissions: Set<string>, type: string) => {
 const getTaskRoute = (type: string) => {
     if (type === 'ALERT') return '/monitoring'
     if (type === 'PRESCRIPTION') return '/monitoring'
-    if (type === 'ORDER') return '/dialysis'
-    if (type === 'ASSESSMENT') return '/dialysis'
+    if (type === 'ORDER') return '/dialysis-processing'
+    if (type === 'ASSESSMENT') return '/dialysis-processing'
     return '/dashboard'
 }
 
@@ -56,7 +71,7 @@ export default function MainLayout() {
     const user = {
         name: roleUser?.name || '用户',
         role: roleUser?.role || UserRole.DOCTOR_SUPERVISOR,
-        avatar: roleUser?.avatar || 'https://api.dicebear.com/7.x/avataaars/svg?seed=User',
+        avatar: roleUser?.avatar || '',
     }
 
     useEffect(() => {
@@ -175,11 +190,13 @@ export default function MainLayout() {
                                     <div key={idx} className="p-4 rounded-2xl border border-gray-200 bg-white animate-pulse h-24" />
                                 ))
                             ) : visibleTasks.length > 0 ? (
-                                visibleTasks.map(task => (
+                                visibleTasks.map(task => {
+                                    const canHandle = canHandleTask(permissionSet, task.type)
+                                    return (
                                     <div
                                         key={task.id}
-                                        onClick={() => handleTaskClick(task)}
-                                        className={`group p-4 rounded-2xl border-l-4 shadow-sm cursor-pointer transition-all active:scale-[0.98] ${getSeverityStyles(task.severity)} border-l-current`}
+                                        onClick={canHandle ? () => handleTaskClick(task) : undefined}
+                                        className={`group p-4 rounded-2xl border-l-4 shadow-sm transition-all ${canHandle ? 'cursor-pointer active:scale-[0.98]' : 'cursor-not-allowed opacity-70'} ${getSeverityStyles(task.severity)} border-l-current`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center font-bold text-sm whitespace-nowrap">
@@ -192,11 +209,12 @@ export default function MainLayout() {
                                         </div>
                                         <p className="text-xs font-bold mb-1">{task.patientName || '--'}</p>
                                         <p className="text-xs opacity-80 leading-relaxed mb-3">{task.description || ''}</p>
-                                        <div className="flex items-center justify-end text-[10px] font-bold uppercase tracking-wider group-hover:translate-x-1 transition-transform">
-                                            {t('taskbar.goHandle')} <ChevronRight size={12} className="ml-1" />
+                                        <div className={`flex items-center justify-end text-[10px] font-bold uppercase tracking-wider transition-transform ${canHandle ? 'group-hover:translate-x-1' : ''}`}>
+                                            {canHandle ? t('taskbar.goHandle') : '无处理权限'} <ChevronRight size={12} className="ml-1" />
                                         </div>
                                     </div>
-                                ))
+                                    )
+                                })
                             ) : (
                                 <div className="flex flex-col items-center justify-center h-full text-gray-400 opacity-50 space-y-3">
                                     <CheckCircle2 size={48} className="text-green-500" />

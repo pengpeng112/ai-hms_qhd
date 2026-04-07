@@ -50,7 +50,8 @@ export interface LoginResponse {
   role: string
 }
 
-// 鍒嗛〉鍝嶅簲鍏冩暟鎹?export interface PaginationMeta {
+// 分页响应元数据
+export interface PaginationMeta {
   page: number
   pageSize: number
   total: number
@@ -340,8 +341,11 @@ export interface PatientCoreCurrentPlan {
   dialysisMode: string   // HD/HDF/CRRT
   frequency: string      // "3娆?鍛?
   duration: number       // 鏃堕暱(灏忔椂)
-  dryWeight: number      // 骞蹭綋閲?  bloodFlow: number      // 琛€娴侀噺
-  anticoagulant: string  // 鎶楀嚌鍓傛柟妗?  lastTreatmentNote?: string  // 涓婃娌荤枟鍔ㄦ€?}
+  dryWeight: number      // 骞蹭綋閲?
+  bloodFlow: number      // 琛€娴侀噺
+  anticoagulant: string  // 鎶楀嚌鍓傛柟妗?
+  lastTreatmentNote?: string  // 涓婃娌荤枟鍔ㄦ€?
+}
 
 /**
  * 鍖诲槺鎽樿
@@ -547,7 +551,9 @@ export interface HistoryNamedContent {
   name: string
   content: string
   type?: string        // 鍒嗙被锛堝瓧鍏稿€硷級
-  checkTime?: string   // 妫€鏌ユ椂闂?  checkDoctor?: string // 妫€鏌ュ尰鐢?}
+  checkTime?: string   // 妫€鏌ユ椂闂?
+  checkDoctor?: string // 妫€鏌ュ尰鐢?
+}
 
 /**
  * 涓村簥鐥呭彶鍝嶅簲
@@ -857,11 +863,13 @@ const createAxiosInstance = () => {
       return response
     },
     (error) => {
-      // Token 杩囨湡鎴栨棤鏁?      if (error.response?.status === 401) {
-        // 娓呴櫎鏈湴瀛樺偍鐨勮璇佷俊鎭?        localStorage.removeItem('hdis_access_token')
+      // Token 过期或无效
+      if (error.response?.status === 401) {
+        // 清除本地存储的认证信息
+        localStorage.removeItem('hdis_access_token')
         localStorage.removeItem('hdis_user_info')
         localStorage.removeItem('hdis_token_expiry')
-        // 瑙﹀彂閲嶆柊鐧诲綍
+        // 触发重新登录
         window.location.href = '/login'
       }
       return Promise.reject(error)
@@ -874,7 +882,8 @@ const createAxiosInstance = () => {
 // 瀵煎嚭 axios 瀹炰緥
 export const apiClient = createAxiosInstance()
 
-// API 鏈嶅姟绫?class RestApiService {
+// API 服务类
+class RestApiService {
   /**
    * 鐢ㄦ埛鐧诲綍
    */
@@ -920,7 +929,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鎮ｈ€呭垪琛ㄥけ璐?)
+      throw new Error('Failed to get patient list')
     }
 
     return response.data
@@ -956,7 +965,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鍒涘缓鎮ｈ€呭け璐?)
+      throw new Error('Failed to create patient')
     }
 
     return response.data.data
@@ -968,7 +977,7 @@ export const apiClient = createAxiosInstance()
     const response = await apiClient.get<ApiSuccessResponse<unknown>>(`/api/v1/patients/${id}`)
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鎮ｈ€呰鎯呭け璐?)
+      throw new Error('Failed to get patient detail')
     }
 
     return response.data.data
@@ -982,7 +991,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鎮ｈ€呮牳蹇冧俊鎭け璐?)
+      throw new Error('Failed to get patient core')
     }
 
     return response.data.data
@@ -996,7 +1005,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鎮ｈ€呭熀鏈俊鎭け璐?)
+      throw new Error('Failed to get patient basic info')
     }
 
     return response.data.data
@@ -1011,7 +1020,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if ('success' in response.data && !response.data.success) {
-      throw new Error(response.data.error?.message || '鏇存柊鎮ｈ€呭熀鏈俊鎭け璐?)
+      throw new Error(response.data.error?.message || 'Failed to update patient basic info')
     }
 
     return (response.data as ApiSuccessResponse<unknown>).data
@@ -1032,12 +1041,13 @@ export const apiClient = createAxiosInstance()
       `/api/v1/patients/${id}`
     )
 
-    // 204 No Content 鍝嶅簲娌℃湁 body锛宺esponse.data 鍙兘鏄┖瀛楃涓?    // 鍙鐘舵€佺爜鏄?2xx 灏辫涓烘垚鍔?    if (response.status === 204) {
+    // 204 No Content: no response body, still treated as success.
+    if (response.status === 204) {
       return
     }
 
     if (!response.data?.success) {
-      throw new Error('鍒犻櫎鎮ｈ€呭け璐?)
+      throw new Error('Failed to delete patient')
     }
 
     return response.data.data
@@ -1145,7 +1155,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇妫€楠屾姤鍛婂垪琛ㄥけ璐?)
+      throw new Error('Failed to get lab reports')
     }
 
     return response.data.data
@@ -1159,7 +1169,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鍚屾妫€楠屾姤鍛婂け璐?)
+      throw new Error('Failed to sync lab reports')
     }
 
     return response.data.data
@@ -1173,7 +1183,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鍚屾妫€鏌ユ姤鍛婂け璐?)
+      throw new Error('Failed to sync exam reports')
     }
 
     return response.data.data
@@ -1188,7 +1198,7 @@ export const apiClient = createAxiosInstance()
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇妫€鏌ユ姤鍛婂垪琛ㄥけ璐?)
+      throw new Error('Failed to get exam reports')
     }
 
     return response.data.data
@@ -1495,7 +1505,7 @@ export const apiClient = createAxiosInstance()
   }): Promise<{ items: RestStockLog[]; total: number; page: number; pageSize: number; totalPage: number }> {
     const response = await apiClient.get<ApiSuccessResponse<{ items: RestStockLog[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/logs', { params })
     if (!response.data.success) {
-      throw new Error('鑾峰彇鍑哄叆搴撹褰曞け璐?)
+      throw new Error('Failed to get stock logs')
     }
     return response.data.data
   }
@@ -1546,7 +1556,7 @@ export const apiClient = createAxiosInstance()
       { params }
     )
     if (!response.data.success) {
-      throw new Error('鑾峰彇鎮ｈ€呮帓鐝垪琛ㄥけ璐?)
+      throw new Error('Failed to get patient shifts')
     }
     return response.data
   }
@@ -1704,7 +1714,7 @@ export function getErrorMessage(error: unknown): string {
   return '鏈煡閿欒'
 }
 
-// ============ 鏁版嵁杞崲鍑芥暟 ============
+// ============ Data Converters ============
 
 import type {
   Patient,
@@ -1714,20 +1724,14 @@ import type {
   InfectionInfo,
 } from '@/types/original'
 
-/**
- * 鍚庣鎮ｈ€呮暟鎹浆鎹负鍓嶇 UI 鏍煎紡
- * 鍙浆鎹㈡帴鍙ｅ疄闄呰繑鍥炵殑瀛楁锛岃繑鍥?Partial<Patient> 绫诲瀷
- */
 export function convertRestPatientToUI(restPatient: RestPatient): Partial<Patient> {
   const statusMap: Record<string, string> = {
-    active: '閫忔瀽涓?,
-    inactive: '鍊欒瘖',
-    discharged: '宸茬粨鏉?,
+    active: '透析中',
+    inactive: '候诊',
+    discharged: '已结束',
   }
-  const status = statusMap[restPatient.status] || '灞呭'
-
-  // 鍚庣杩斿洖 ISO 5218 鏍囧噯鐨?M/F锛岃浆鎹负涓枃
-  const gender: '鐢? | '濂? = restPatient.gender === 'M' ? '鐢? : '濂?
+  const status = statusMap[restPatient.status] || '居家'
+  const gender: '男' | '女' = restPatient.gender === 'M' ? '男' : '女'
 
   return {
     id: restPatient.id,
@@ -1736,131 +1740,107 @@ export function convertRestPatientToUI(restPatient: RestPatient): Partial<Patien
     age: restPatient.age,
     bedNumber: restPatient.bedNumber || '',
     status,
-    patientType: restPatient.patientType || '闂ㄨ瘖',
-    insuranceType: restPatient.insuranceType || '鑷垂',
+    patientType: restPatient.patientType || '门诊',
+    insuranceType: restPatient.insuranceType || '自费',
     dryWeight: restPatient.dryWeight ?? 65,
     defaultMode: restPatient.defaultMode || 'HD',
-    doctorName: restPatient.doctorName || '鐜嬪尰鐢?,
+    doctorName: restPatient.doctorName || '',
   }
 }
 
-/**
- * 鎵归噺杞崲鎮ｈ€呮暟鎹? */
 export function convertRestPatientList(patients: unknown[]): Partial<Patient>[] {
   return patients.map((p) => convertRestPatientToUI(p as RestPatient))
 }
 
-// ============ /core 鎺ュ彛鏁版嵁杞崲鍑芥暟 ============
-
-/**
- * 灏?/core 鎺ュ彛杩斿洖鐨勬暟鎹浆鎹负鍓嶇 Patient 绫诲瀷
- *
- * 鏄犲皠瑙勫垯锛? * - header 鈫?鍩虹瀛楁锛坕d, name, age, gender 绛夛級
- * - overview.infection 鈫?Patient.infection
- * - overview.currentPlan 鈫?Patient.treatmentPlan锛堝熀纭€瀛楁锛? * - overview.activeOrders 鈫?Patient.orders
- * - overview.labTrends[] 鈫?Patient.recentLabs锛堝彇鏈€鏂板€硷級
- * - clinicalFocus.criticalAlerts 鈫?鐢ㄤ簬濉厖涓村簥鐒︾偣
- *
- * 瀵逛簬 /core 鎺ュ彛涓嶅寘鍚殑瀛楁锛岃缃悎鐞嗙殑榛樿鍊? */
-export function convertCoreResponseToPatient(
-  coreData: PatientCoreResponse
-): Partial<Patient> {
+export function convertCoreResponseToPatient(coreData: PatientCoreResponse): Partial<Patient> {
   const { header, overview, clinicalFocus } = coreData
+  const gender: '男' | '女' = header.gender === 'M' ? '男' : '女'
 
-  // Gender 杞崲: M 鈫?'鐢?, F 鈫?'濂?
-  const gender: '鐢? | '濂? = header.gender === 'M' ? '鐢? : '濂?
-
-  // LabTrends[] 鈫?recentLabs锛堝彇鏈€鏂扮殑瀹為獙瀹ゆ暟鎹級
-  const recentLabs: LabResult[] = []
-  if (overview.labTrends && overview.labTrends.length > 0) {
-    // 閬嶅巻鎵€鏈夎秼鍔匡紝鍙栨瘡涓寚鏍囩殑鏈€鏂板€?    overview.labTrends.forEach(trend => {
-      if (trend.data && trend.data.length > 0) {
-        const latest = trend.data[trend.data.length - 1]
-        recentLabs.push({
-          id: `${trend.code}_${latest.date}`,
-          name: trend.name,
-          value: String(latest.value),
-          unit: trend.unit,
-          date: latest.date,
-          isAbnormal: latest.isAbnormal,
-          reference: trend.normalRange,
-        })
+  const recentLabs: LabResult[] = (overview.labTrends || [])
+    .filter(trend => trend.data && trend.data.length > 0)
+    .map(trend => {
+      const latest = trend.data[trend.data.length - 1]
+      return {
+        id: `${trend.code}_${latest.date}`,
+        name: trend.name,
+        value: String(latest.value),
+        unit: trend.unit,
+        date: latest.date,
+        isAbnormal: latest.isAbnormal,
+        reference: trend.normalRange,
       }
     })
-  }
 
-  // activeOrders 鈫?orders锛堣浆鎹㈢被鍨嬶級
   const orders: MedicalOrder[] = (overview.activeOrders || []).map(order => ({
     id: order.id,
     content: order.content,
-    type: (order.type === '闀挎湡' || order.type === '涓存椂') ? order.type : '闀挎湡',
-    status: '寰呮墽琛?,  // 榛樿涓哄緟鎵ц
+    type: (order.type === '长期' || order.type === '临时') ? order.type : '长期',
+    status: '待执行',
     doctor: order.doctor,
     startTime: order.startTime,
   }))
 
-  // infection 鈫?杞崲涓?InfectionInfo 绫诲瀷锛堜粎褰撴湁鏁版嵁鏃讹級
-  const infection: InfectionInfo | undefined = overview.infection ? {
-    hbsag: (overview.infection.hbsag === '闃虫€? ? '闃虫€? : '闃存€?),
-    hcvab: (overview.infection.hcvab === '闃虫€? ? '闃虫€? : '闃存€?),
-    hivab: (overview.infection.hivab === '闃虫€? ? '闃虫€? : '闃存€?),
-    tpab: (overview.infection.tpab === '闃虫€? ? '闃虫€? : '闃存€?),
-    tb: overview.infection.tb === '闃虫€? ? '闃虫€? : '闃存€?,
-    updateDate: overview.infection.updateDate,
-  } : undefined
-
-  // currentPlan 鈫?treatmentPlan锛堝熀纭€鏄犲皠锛?  const treatmentPlan: TreatmentPlan | undefined = overview.currentPlan
+  const infection: InfectionInfo | undefined = overview.infection
     ? {
-        weeklyFrequency: parseFrequency(overview.currentPlan.frequency),
-        biweeklyFrequency: 0,
-        duration: overview.currentPlan.duration,
-        dryWeight: overview.currentPlan.dryWeight,
-        extraWeight: 0,
-        vascularAccess: overview.currentPlan.dialysisMode,
-        indicators: {
-          mode: overview.currentPlan.dialysisMode,
-          bloodFlow: overview.currentPlan.bloodFlow,
-          bv: '鏈缃?,
-          frequencyDesc: overview.currentPlan.frequency,
-          autoConfirm: false,
-          status: '鍚敤',
-          notes: overview.currentPlan.lastTreatmentNote || '',
-        },
-        anticoagulant: {
-          initialDrug: overview.currentPlan.anticoagulant || '浣庡垎瀛愯倽绱?,
-          initialDose: '',
-          maintenanceDrug: overview.currentPlan.anticoagulant || '浣庡垎瀛愯倽绱?,
-          infusionRate: '',
-          infusionTime: '',
-          maintenanceDose: '',
-          totalDose: '',
-        },
-        parameters: {
-          dialysateType: '鏍囧噯',
-          dialysateGroup: 'A',
-          flowRate: 500,
-          na: 140,
-          ca: 1.5,
-          k: 2.0,
-          hco3: 35,
-          glucose: '5.5',
-          conductivity: 14.0,
-          temp: 36.5,
-          volume: 0,
-        },
-        materials: [],
-        adjustmentHistory: [],
-      }
+      hbsag: overview.infection.hbsag === '阳性' ? '阳性' : '阴性',
+      hcvab: overview.infection.hcvab === '阳性' ? '阳性' : '阴性',
+      hivab: overview.infection.hivab === '阳性' ? '阳性' : '阴性',
+      tpab: overview.infection.tpab === '阳性' ? '阳性' : '阴性',
+      tb: overview.infection.tb === '阳性' ? '阳性' : '阴性',
+      updateDate: overview.infection.updateDate,
+    }
     : undefined
 
-  // riskLevel 杞崲
-  const riskLevel: '楂樺嵄' | '涓嵄' | '浣庡嵄' =
-    (header.riskLevel === '楂樺嵄' || header.riskLevel === '涓嵄' || header.riskLevel === '浣庡嵄')
-      ? header.riskLevel
-      : '浣庡嵄'
+  const treatmentPlan: TreatmentPlan | undefined = overview.currentPlan
+    ? {
+      weeklyFrequency: parseFrequency(overview.currentPlan.frequency),
+      biweeklyFrequency: 0,
+      duration: overview.currentPlan.duration,
+      dryWeight: overview.currentPlan.dryWeight,
+      extraWeight: 0,
+      vascularAccess: overview.currentPlan.dialysisMode,
+      indicators: {
+        mode: overview.currentPlan.dialysisMode,
+        bloodFlow: overview.currentPlan.bloodFlow,
+        bv: '未设置',
+        frequencyDesc: overview.currentPlan.frequency,
+        autoConfirm: false,
+        status: '启用',
+        notes: overview.currentPlan.lastTreatmentNote || '',
+      },
+      anticoagulant: {
+        initialDrug: overview.currentPlan.anticoagulant || '低分子肝素',
+        initialDose: '',
+        maintenanceDrug: overview.currentPlan.anticoagulant || '低分子肝素',
+        infusionRate: '',
+        infusionTime: '',
+        maintenanceDose: '',
+        totalDose: '',
+      },
+      parameters: {
+        dialysateType: '标准',
+        dialysateGroup: 'A',
+        flowRate: 500,
+        na: 140,
+        ca: 1.5,
+        k: 2.0,
+        hco3: 35,
+        glucose: '5.5',
+        conductivity: 14.0,
+        temp: 36.5,
+        volume: 0,
+      },
+      materials: [],
+      adjustmentHistory: [],
+    }
+    : undefined
 
-  // 鍚堝苟鍩虹鏁版嵁
-  const basePatient: Partial<Patient> = {
+  const riskLevel: '高危' | '中危' | '低危' =
+    (header.riskLevel === '高危' || header.riskLevel === '中危' || header.riskLevel === '低危')
+      ? header.riskLevel
+      : '低危'
+
+  return {
     id: header.id,
     name: header.name,
     age: header.age,
@@ -1873,21 +1853,18 @@ export function convertCoreResponseToPatient(
     defaultMode: overview.currentPlan?.dialysisMode || 'HD',
     doctorName: header.doctorName,
     riskLevel,
-    diagnosis: '鎱㈡€ц偩鑴忕梾5鏈?,  // 榛樿璇婃柇
-    ...(infection && { infection }),  // 鍙湪鏈夋劅鏌撴暟鎹椂鎵嶆坊鍔?    orders,
+    diagnosis: '慢性肾脏病5期',
+    ...(infection && { infection }),
+    orders,
     recentLabs,
     treatmentPlan,
-  }
-
-  // 娣诲姞榛樿鍊硷紙/core 鎺ュ彛涓嶅寘鍚殑瀛楁锛?  return {
-    ...basePatient,
-    // 鐢熷懡浣撳緛锛堝悗缁粠鐙珛 API 鑾峰彇锛?    vitals: {
+    vitals: {
       bp: '120/80',
       hr: 75,
       spO2: 98,
       weight: overview.currentPlan?.dryWeight || 65,
     },
-    // 閫忔瀽鍙傛暟锛堝悗缁粠鐙珛 API 鑾峰彇锛?    dialysisParams: {
+    dialysisParams: {
       timeRemaining: '00:00',
       ufRate: 0,
       targetUf: 2.5,
@@ -1896,42 +1873,39 @@ export function convertCoreResponseToPatient(
       dialysateFlow: 500,
       mode: overview.currentPlan?.dialysisMode || 'HD',
     },
-    // 琛€绠￠€氳矾锛堝悗缁粠鐙珛 API 鑾峰彇锛?    vascularAccess: {
+    vascularAccess: {
       type: '-',
       site: '-',
-      status: '鏈煡',
+      status: '未知',
     },
-    // EMR 鏂囨。锛堜粠 clinicalFocus.documentStatus 杞崲锛?    documents: (clinicalFocus.documentStatus || []).map(doc => ({
+    documents: (clinicalFocus.documentStatus || []).map(doc => ({
       id: doc.id,
       title: doc.documentName,
-      type: '鐭ユ儏鍚屾剰涔? as const,
-      author: '绯荤粺',
+      type: '知情同意书' as const,
+      author: '系统',
       date: doc.dueDate || new Date().toISOString(),
     })),
-    // 鐥呯▼璁板綍
     progressNotes: [],
-    // 鍖荤枟鍙?    medicalHistory: {
+    medicalHistory: {
       allergies: [],
-      primaryDisease: '鎱㈡€ц偩鑴忕梾5鏈?,
+      primaryDisease: '慢性肾脏病5期',
       pathology: '',
       tumorInfo: '',
       medicalHistory: '',
       complications: [],
     },
-    // 娌荤枟缁撳眬
     outcome: {
-      status: '娌荤枟涓?,
+      status: '治疗中',
     },
   }
 }
 
-/**
- * 瑙ｆ瀽棰戞瀛楃涓蹭负姣忓懆娆℃暟
- */
 function parseFrequency(frequency: string): number {
-  if (frequency.includes('3娆?鍛?)) return 3
-  if (frequency.includes('2娆?鍛?)) return 2
-  if (frequency.includes('4娆?鍛?)) return 4
-  if (frequency.includes('1娆?鍛?)) return 1
-  return 3  // 榛樿鍊?}
+  if (frequency.includes('3次/周')) return 3
+  if (frequency.includes('2次/周')) return 2
+  if (frequency.includes('4次/周')) return 4
+  if (frequency.includes('1次/周')) return 1
+  return 3
+}
+
 

@@ -253,11 +253,11 @@ const PrintView = ({ patient, onClose, t, dictNameMaps, monitoringRecords }: { p
                                   <div>{t('print.weight')}: 78.5 kg</div>
                                   <div>{t('print.bp')}: 145/88 mmHg</div>
                                   <div>{t('print.hr')}: 78 bpm</div>
-                                  <div>{t('print.temp')}: 36.5 鈩?/div>
+                                  <div>{t('print.temp')}: 36.5 鈩</div>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                   <div>{t('print.symptoms')}: 鏃犵壒娈婁笉閫傦紝绮剧灏氬彲</div>
-                                  <div>{t('print.fistula')}: 闇囬ⅳ鑹ソ锛岀毊鑲ゅ畬鏁?/div>
+                                  <div>{t('print.fistula')}: 闇囬ⅳ鑹ソ锛岀毊鑲ゅ畬鏁</div>
                               </div>
                           </div>
                       </div>
@@ -332,9 +332,9 @@ const PrintView = ({ patient, onClose, t, dictNameMaps, monitoringRecords }: { p
                                   <div>{t('print.weight')}: 77.2 kg</div>
                                   <div>{t('print.bp')}: 130/80 mmHg</div>
                                   <div>{t('print.actualUF')}: 2.50 L</div>
-                                  <div>{t('print.temp')}: 36.6 鈩?/div>
+                                  <div>{t('print.temp')}: 36.6 鈩</div>
                               </div>
-                              <div>{t('print.punctureSite')}: 姝㈣鑹ソ锛屾棤娓楄锛屾棤琛€鑲裤€?/div>
+                              <div>{t('print.punctureSite')}: 姝㈣鑹ソ锛屾棤娓楄锛屾棤琛€鑲裤€</div>
                           </div>
                       </div>
                        <div className="flex">
@@ -347,7 +347,7 @@ const PrintView = ({ patient, onClose, t, dictNameMaps, monitoringRecords }: { p
                   <div className="flex justify-between text-sm mt-8 px-8">
                       <div>
                           <span className="font-bold mr-2">{t('print.doctorSign')}:</span>
-                          <span className="border-b border-gray-800 w-32 inline-block text-center font-script text-lg">鐜嬪尰鐢?/span>
+                          <span className="border-b border-gray-800 w-32 inline-block text-center font-script text-lg">鐜嬪尰鐢</span>
                       </div>
                       <div>
                           <span className="font-bold mr-2">{t('print.nurseSign')}:</span>
@@ -377,16 +377,18 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
   ], []);
   const dictNameMaps = useDictNameMaps(dictTypeCodes);
 
-  // REST API 鎮ｈ€呮暟鎹?  const [patients, setPatients] = useState<Partial<Patient>[]>([]);
+  // REST API 患者数据
+  const [patients, setPatients] = useState<Partial<Patient>[]>([]);
 
-  // 鍔犺浇鎮ｈ€呭垪琛?  useEffect(() => {
+  // 加载患者列表
+  useEffect(() => {
     restApi.getPatientList({ page: 1, pageSize: 200 })
       .then(res => {
         const list = convertRestPatientList(res.data.items);
         setPatients(list);
         // 鏁版嵁鍔犺浇鍚庤缃粯璁ら€変腑
         if (!initialPatientId && list.length > 0) {
-          const active = list.find(p => p.status === '閫忔瀽涓?);
+          const active = list.find(p => p.status === '透析中');
           setSelectedPatientId(active?.id || list[0]?.id || null);
         }
       })
@@ -417,7 +419,6 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
     ));
   };
 
-  const currentDateText = getCurrentDateText();
   const currentDateTimeText = getCurrentDateTimeText();
   const currentDateTimeLocal = getCurrentDateTimeLocal();
 
@@ -466,9 +467,9 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
   }, [selectedPatientId]);
 
   const [materials] = useState([
-      { id: 1, name: '閿愰拡-16G', category: '绌垮埡閽?, count: 2, code: '', brand: 'NIPRO', spec: '', note: '' },
-      { id: 2, name: 'SD-15HF', category: '閫忔瀽銆佽婊ゅ櫒', count: 1, code: '', brand: 'SWS寰疯幈绂?, spec: '', note: '' },
-      { id: 3, name: '鍐呯槝鍖?, category: '鎶ょ悊鍖?, count: 1, code: '1102011534', brand: '', spec: '', note: '' },
+      { id: 1, name: '锐针-16G', category: '穿刺针', count: 2, code: '', brand: 'NIPRO', spec: '', note: '' },
+      { id: 2, name: 'SD-15HF', category: '透析器', count: 1, code: '', brand: 'SWS德莱福', spec: '', note: '' },
+      { id: 3, name: '内瘘区', category: '护理区', count: 1, code: '1102011534', brand: '', spec: '', note: '' },
       { id: 4, name: '10ML娉ㄥ皠鍣?10ML', category: '鍏朵粬', count: 1, code: '', brand: '', spec: '10ML', note: '' },
       { id: 5, name: 'JRHLL-025', category: '琛€璺', count: 1, code: '', brand: '', spec: '', note: '' },
   ]);
@@ -479,8 +480,16 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
     (p.name?.includes(searchTerm) || p.bedNumber?.includes(searchTerm) || p.id?.includes(searchTerm))
   );
 
+  const parseSelectedPatientId = (): number | null => {
+    if (!selectedPatientId) return null;
+    const parsed = Number(selectedPatientId);
+    if (!Number.isFinite(parsed)) return null;
+    return parsed;
+  };
+
   const ensureTodayTreatment = async (status: number) => {
-    if (!selectedPatientId || !selectedPatient) return null;
+    const numericPatientId = parseSelectedPatientId();
+    if (!selectedPatient || numericPatientId === null) return null;
     if (currentTreatment) {
       const updated = await restApi.updateTreatment(currentTreatment.id, {
         status,
@@ -490,7 +499,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
       return updated.data;
     }
     const created = await restApi.createTreatment({
-      patientId: Number(selectedPatientId),
+      patientId: numericPatientId,
       treatmentDate: new Date().toISOString(),
       type: 1,
       status,
@@ -646,12 +655,12 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-6 mb-6">
                                 <PreAssessInput label={t('pre.weightGain')} suffix="kg" defaultValue="1.5" readOnly warning={t('pre.weightWarning')}/>
                                 <PreAssessInput label={t('pre.ufVolume')} suffix="L" required defaultValue="1.7"/>
-                                <PreAssessInput label={t('pre.temp')} suffix="鈩? required defaultValue="36.5"/>
+                                <PreAssessInput label={t('pre.temp')} suffix="℃" required defaultValue="36.5"/>
                             </div>
 
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-x-12 gap-y-6 mb-6">
-                                <PreAssessInput label={t('pre.hr')} suffix="娆?鍒? required defaultValue="64"/>
-                                <PreAssessInput label={t('pre.resp')} suffix="娆?鍒? required defaultValue="16"/>
+                                <PreAssessInput label={t('pre.hr')} suffix="次/分" required defaultValue="64"/>
+                                <PreAssessInput label={t('pre.resp')} suffix="次/分" required defaultValue="16"/>
                                 <div className="flex items-center">
                                     <label className="w-28 text-right text-sm text-gray-600 mr-3 shrink-0 whitespace-nowrap flex justify-end items-center"><span className="text-red-500 mr-1">*</span>{t('pre.bp')}:</label>
                                     <div className="flex-1 flex space-x-2 items-center">
@@ -857,7 +866,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
 
                                         <div className="col-span-2 md:col-span-3 lg:col-span-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-y-8 gap-x-8 border-t border-gray-100 pt-6">
                                             <InfoField label={t('prescription.vascularAccess')} value="AVF-涓婅噦" />
-                                            <InfoField label={t('prescription.dialysate')} value="A娑?B娑? />
+                                            <InfoField label={t('prescription.dialysate')} value="A液+B液" />
                                             <InfoField label={t('prescription.dialysateFlow')} value="500" unit="ml/min" />
                                             <InfoField label={t('prescription.naConc')} value="138" unit="mmol/L" />
                                             <InfoField label={t('prescription.caConc')} value="1.5" unit="mmol/L" />
@@ -1010,7 +1019,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                         <label className="text-sm text-gray-600">{t('prescription.dialysateType')}:</label>
                                         <div className="relative w-32">
                                             <select className="w-full h-8 border rounded text-sm px-2 bg-white appearance-none outline-none">
-                                                <option>A娑?B娑?/option>
+                                                <option>A娑?B娑</option>
                                             </select>
                                             <ChevronDown size={14} className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"/>
                                         </div>
@@ -1144,7 +1153,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                 <table className="w-full text-left text-sm">
                                     <thead className="bg-blue-100/50 text-gray-700 font-bold"><tr><th className="px-4 py-3">{t('orders.type')}</th><th className="px-4 py-3">{t('orders.content')}</th><th className="px-4 py-3">{t('orders.doctorTime')}</th><th className="px-4 py-3 text-center">{t('orders.status')}</th><th className="px-4 py-3 text-right">{t('orders.action')}</th></tr></thead>
                                     <tbody className="divide-y divide-gray-100">
-                                        {[{id:1, type: t('orders.longTerm'), content:'浣庡垎瀛愯倽绱?2500iu', doctor:'鐜嬪尰鐢?, time:'08:00', status: t('orders.executed')}, {id:2, type: t('orders.temp'), content:'鐢熺悊鐩愭按 100ml', doctor:'鏉庡尰鐢?, time:'10:30', status: t('orders.pending')}].map(o => (
+                                        {([] as {id:number, type:string, content:string, doctor:string, time:string, status:string}[]).map(o => (
                                             <tr key={o.id} className="hover:bg-blue-50/30">
                                                 <td className="px-4 py-3 text-gray-800">{o.type}</td>
                                                 <td className="px-4 py-3 font-medium">{o.content}</td>
@@ -1232,17 +1241,17 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6">
                                             <MonitorInput label={t('monitor.sbp')} suffix="mmHg" defaultValue="133"/>
                                             <MonitorInput label={t('monitor.dbp')} suffix="mmHg" defaultValue="73"/>
-                                            <MonitorInput label={t('monitor.hr')} suffix="娆?鍒? defaultValue="65"/>
-                                            <MonitorInput label={t('monitor.temp')} suffix="鈩?/>
+                                            <MonitorInput label={t('monitor.hr')} suffix="次/分" defaultValue="65"/>
+                                            <MonitorInput label={t('monitor.temp')} suffix="℃"/>
 
-                                            <MonitorInput label={t('monitor.resp')} suffix="娆?鍒? required defaultValue="16"/>
+                                            <MonitorInput label={t('monitor.resp')} suffix="次/分" required defaultValue="16"/>
                                             <MonitorInput label={t('monitor.spO2Full')} suffix="%"/>
                                             <MonitorInput label={t('monitor.bloodFlow')} suffix="ml/min" required defaultValue="240"/>
                                             <MonitorInput label={t('monitor.ap')} suffix="mmHg" defaultValue="-114"/>
 
                                             <MonitorInput label={t('monitor.vp')} suffix="mmHg" required defaultValue="102"/>
                                             <MonitorInput label={t('monitor.tmp')} suffix="mmHg" required defaultValue="55"/>
-                                            <MonitorInput label={t('monitor.machineTemp')} suffix="鈩? required defaultValue="35.8"/>
+                                            <MonitorInput label={t('monitor.machineTemp')} suffix="℃" required defaultValue="35.8"/>
                                             <MonitorInput label={t('monitor.ufVolume')} suffix="ml" required defaultValue="234"/>
 
                                             <MonitorInput label={t('monitor.conductivity')} suffix="ms/cm" required defaultValue="13.86"/>
@@ -1251,7 +1260,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                             <MonitorInput label={t('monitor.realTimeBV')} suffix="mL" defaultValue="0"/>
 
                                             <MonitorInput label={t('monitor.realTimeClearance')} suffix="mL/min" defaultValue="0"/>
-                                            <MonitorInput label={t('monitor.arterialTemp')} suffix="鈩? defaultValue="0"/>
+                                            <MonitorInput label={t('monitor.arterialTemp')} suffix="℃" defaultValue="0"/>
                                             <MonitorInput label={t('monitor.symptoms')} className="col-span-1"/>
                                             <MonitorInput label={t('monitor.symptomType')} className="col-span-1"/>
 
@@ -1351,7 +1360,7 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                     </div>
                                 </FormField>
                                 <FormField label={t('post.actualDuration')}>
-                                    <input type="text" defaultValue="3灏忔椂30鍒? disabled className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-500"/>
+                                    <input type="text" defaultValue="3小时30分" disabled className="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-500"/>
                                 </FormField>
 
                                 <FormField label={t('post.actualUF')} required>
@@ -1426,14 +1435,14 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
                                 <FormField label={t('post.postResp')} required>
                                     <div className="relative">
                                         <input type="number" defaultValue="16" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-10"/>
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">娆?鍒?/span>
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">娆?鍒</span>
                                     </div>
                                 </FormField>
 
                                 <FormField label={t('post.postHR')} required>
                                     <div className="relative">
                                         <input type="number" defaultValue="65" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none pr-10"/>
-                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">娆?鍒?/span>
+                                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-xs">娆?鍒</span>
                                     </div>
                                 </FormField>
                                 <FormField label={t('post.postBP')} required>
@@ -1640,5 +1649,6 @@ const DialysisProcessing: React.FC<DialysisProcessingProps> = ({ initialPatientI
 };
 
 export default DialysisProcessing;
+
 
 

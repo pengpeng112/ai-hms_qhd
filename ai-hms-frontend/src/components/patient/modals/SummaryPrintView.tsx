@@ -189,7 +189,7 @@ export default function SummaryPrintView({ patient, year, month, onClose }: Summ
 
             <div className="mt-auto px-10 py-10 flex justify-end items-end gap-2">
               <span className="font-bold">医师签名: </span>
-              <div className="border-b border-black w-32 text-center pb-1 text-lg italic">王医生</div>
+              <div className="border-b border-black w-32 text-center pb-1 text-lg italic">{patient.doctorName || ''}</div>
             </div>
           </div>
         </div>

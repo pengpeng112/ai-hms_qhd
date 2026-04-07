@@ -24,10 +24,18 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
   const [historyList, setHistoryList] = useState<TreatmentHistoryItem[]>([])
   const [loading, setLoading] = useState(false)
 
+  const parsePatientId = (id: string | undefined): number | null => {
+    if (!id) return null
+    const parsed = Number(id)
+    if (!Number.isFinite(parsed)) return null
+    return parsed
+  }
+
   useEffect(() => {
-    const patientId = Number(patient?.id)
-    if (!patient?.id || Number.isNaN(patientId)) {
+    const patientId = parsePatientId(patient?.id)
+    if (patientId === null) {
       setHistoryList([])
+      setLoading(false)
       return
     }
 
@@ -107,7 +115,7 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
         {loading ? (
           <div className="py-40 text-center text-slate-300 flex flex-col items-center gap-4 bg-white rounded-[40px] border border-dashed border-slate-200">
             <History size={64} className="opacity-10" />
-            <p className="font-bold">{t('common.loading')}</p>
+            <p className="font-bold">{t('loading' as never)}</p>
           </div>
         ) : paginatedHistory.length > 0 ? paginatedHistory.map((h, idx) => (
           <div key={h.id} className="flex items-center gap-4 group/row">

@@ -132,7 +132,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
           <div className="bg-slate-800/50 rounded-lg p-3">
             <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{t('role:label.current')}</p>
             <p className="text-sm text-white mt-1 font-medium">{roleUser.name}</p>
-            <p className="text-xs text-blue-400 mt-0.5">{UserRoleLabel[roleUser.role]}</p>
+            <p className="text-xs text-blue-400 mt-0.5">{String(roleUser.role) === 'ADMIN' ? '系统管理员' : (UserRoleLabel[roleUser.role] || roleUser.role)}</p>
           </div>
         </div>
       )}

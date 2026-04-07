@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
 import type { Patient as OriginalPatient, DashboardCardConfig } from '@/types/original'
 import { DASHBOARD_CARDS } from '@/constants'
+import { getSelectedRoleUser } from '@/services/role'
 import {
     restApi,
     convertRestPatientList,
@@ -35,10 +36,12 @@ interface DashboardProps {
     userRole?: UserRole
 }
 
-export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: DashboardProps) {
+export default function Dashboard({ userRole }: DashboardProps) {
     const navigate = useNavigate()
     const { t } = useTranslation(['dashboard', 'common', 'role'])
     const [, startTransition] = useTransition()
+    const selectedRoleUser = getSelectedRoleUser()
+    const currentUserRole = userRole ?? selectedRoleUser?.role ?? UserRole.DOCTOR_SUPERVISOR
     const [isCustomizing, setIsCustomizing] = useState(false)
     const [showWidgetLibrary, setShowWidgetLibrary] = useState(false)
     const [cardsConfig, setCardsConfig] = useState<LocalCardConfig[]>([])
@@ -91,7 +94,7 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
     // Initialize cards based on user role - load from localStorage if available
     useEffect(() => {
         // Try to load from localStorage first
-        const storageKey = `${LAYOUT_STORAGE_KEY}_${userRole}`
+        const storageKey = `${LAYOUT_STORAGE_KEY}_${currentUserRole}`
         const savedConfig = localStorage.getItem(storageKey)
 
         if (savedConfig) {
@@ -113,7 +116,7 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                     if (card.id === 'device_status_eng') { defaultCol = 12; defaultRow = 5 }
                     return {
                         ...card,
-                        visible: card.roles.includes(userRole),
+                        visible: card.roles.includes(currentUserRole),
                         colSpan: defaultCol,
                         rowSpan: defaultRow
                     }
@@ -145,7 +148,7 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
             if (card.id === 'duty_monitor') { defaultCol = 12; defaultRow = 5 }
             if (card.id === 'device_status_eng') { defaultCol = 12; defaultRow = 5 }
 
-            const isAllowed = card.roles.includes(userRole)
+            const isAllowed = card.roles.includes(currentUserRole)
 
             return {
                 ...card,
@@ -157,15 +160,15 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
         startTransition(() => {
             setCardsConfig(initialConfig)
         })
-    }, [userRole])
+    }, [currentUserRole])
 
     // Save layout to localStorage when it changes
     useEffect(() => {
         if (cardsConfig.length > 0) {
-            const storageKey = `${LAYOUT_STORAGE_KEY}_${userRole}`
+            const storageKey = `${LAYOUT_STORAGE_KEY}_${currentUserRole}`
             localStorage.setItem(storageKey, JSON.stringify(cardsConfig))
         }
-    }, [cardsConfig, userRole])
+    }, [cardsConfig, currentUserRole])
 
     const toggleVisibility = (id: string, visible: boolean) => {
         setCardsConfig(prev => prev.map(c => c.id === id ? { ...c, visible } : c))
@@ -318,7 +321,7 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
             case 'nurse_workload':
             case 'quality_stats':
                 return (
-                    <div className="h-full w-full">
+                    <div className="h-full min-h-[220px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={card.id === 'quality_stats' ? qualityByHour : treatmentsByHour}>
                                 <XAxis dataKey="name" fontSize={10} tickLine={false} axisLine={false} tick={{ fill: '#9ca3af' }} />
@@ -502,8 +505,8 @@ export default function Dashboard({ userRole = UserRole.DOCTOR_SUPERVISOR }: Das
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">{t('dashboard:title')}</h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        {userRole.includes('OPS_ADMIN') ? t('role:desc.engineer') :
-                            userRole.includes('NURSE') ? t('role:desc.nurse') :
+                        {currentUserRole === ('ADMIN' as UserRole) ? '系统配置、权限治理与全局运营看板' :
+                            currentUserRole.includes('NURSE') ? t('role:desc.nurse') :
                                 t('role:desc.doctor')}
                     </p>
                 </div>

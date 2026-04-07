@@ -286,18 +286,22 @@ class DictCache {
   async getCascaderOptions(typeCode: string): Promise<CascaderOption[]> {
     // 树形数据从 API 获取，不使用本地缓存
     const items = await dictApi.getItemsTree(typeCode, true)
-    return this.buildCascaderOptions(items)
+    return this.buildCascaderOptions(Array.isArray(items) ? items : [])
   }
 
   // 递归构建级联选项
-  private buildCascaderOptions(items: DictItem[]): CascaderOption[] {
-    return items.map(item => {
+  private buildCascaderOptions(items?: DictItem[] | null): CascaderOption[] {
+    if (!Array.isArray(items)) {
+      return []
+    }
+
+    return items.filter((item): item is DictItem => !!item).map(item => {
       const option: CascaderOption = {
         value: item.code,
         label: item.name,
       }
       // 如果有子项，递归构建
-      if (item.children && item.children.length > 0) {
+      if (Array.isArray(item.children) && item.children.length > 0) {
         option.children = this.buildCascaderOptions(item.children)
       }
       return option

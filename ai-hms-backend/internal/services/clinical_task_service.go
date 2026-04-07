@@ -1,6 +1,7 @@
 package services
 
 import (
+	"errors"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
@@ -14,24 +15,40 @@ func NewClinicalTaskService() *ClinicalTaskService {
 }
 
 func (s *ClinicalTaskService) List(status string, tenantId int64) ([]models.ClinicalTask, int64, error) {
-	db := database.GetDB().Model(&models.ClinicalTask{}).Where("tenant_id = ?", tenantId)
+	db := database.GetDB()
+	if db == nil {
+		return nil, 0, errors.New("database not available")
+	}
+	if err := ensureTables(db, &models.ClinicalTask{}); err != nil {
+		return nil, 0, err
+	}
+
+	query := db.Model(&models.ClinicalTask{}).Where("tenant_id = ?", tenantId)
 	if status != "" {
-		db = db.Where("status = ?", status)
+		query = query.Where("status = ?", status)
 	}
 
 	var total int64
-	if err := db.Count(&total).Error; err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	var tasks []models.ClinicalTask
-	if err := db.Order("created_at DESC").Find(&tasks).Error; err != nil {
+	if err := query.Order("created_at DESC").Find(&tasks).Error; err != nil {
 		return nil, 0, err
 	}
 	return tasks, total, nil
 }
 
 func (s *ClinicalTaskService) UpdateStatus(id int64, status string, handledBy int64, tenantId int64) error {
+	db := database.GetDB()
+	if db == nil {
+		return errors.New("database not available")
+	}
+	if err := ensureTables(db, &models.ClinicalTask{}); err != nil {
+		return err
+	}
+
 	updates := map[string]any{
 		"status": status,
 	}
@@ -41,7 +58,7 @@ func (s *ClinicalTaskService) UpdateStatus(id int64, status string, handledBy in
 		updates["handled_by"] = handledBy
 	}
 
-	return database.GetDB().
+	return db.
 		Model(&models.ClinicalTask{}).
 		Where("id = ? AND tenant_id = ?", id, tenantId).
 		Updates(updates).Error
