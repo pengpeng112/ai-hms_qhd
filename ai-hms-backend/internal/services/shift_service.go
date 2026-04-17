@@ -21,15 +21,20 @@ func NewShiftService() *ShiftService {
 }
 
 // List 获取班次列表
-func (s *ShiftService) List() ([]models.Shift, error) {
+func (s *ShiftService) List(tenantId int64) ([]models.Shift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
+	query := s.db.Model(&models.Shift{})
+	if tenantId > 0 {
+		query = query.Where("\"TenantId\" = ?", tenantId)
+	}
+
 	var shifts []models.Shift
-	err := s.db.
-		Where("is_disabled = ?", false).
-		Order("sort ASC, create_time DESC").
+	err := query.
+		Where("\"IsDisabled\" = ?", false).
+		Order("\"Sort\" ASC, \"CreateTime\" DESC").
 		Find(&shifts).Error
 
 	if err != nil {
@@ -40,13 +45,16 @@ func (s *ShiftService) List() ([]models.Shift, error) {
 }
 
 // Get 获取班次详情
-func (s *ShiftService) Get(id int64) (*models.Shift, error) {
+func (s *ShiftService) Get(id, tenantId int64) (*models.Shift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var shift models.Shift
-	err := s.db.First(&shift, "id = ?", id).Error
+	err := s.db.
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		First(&shift).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("shift not found")
@@ -59,12 +67,12 @@ func (s *ShiftService) Get(id int64) (*models.Shift, error) {
 
 // CreateRequest 创建班次请求
 type ShiftCreateRequest struct {
-	Name       string `json:"name" binding:"required"`
+	Name      string `json:"name" binding:"required"`
 	StartTime string `json:"startTime" binding:"required"` // HH:MM
 	EndTime   string `json:"endTime" binding:"required"`   // HH:MM
-	Type       string `json:"type"`
-	Sort       *int   `json:"sort"`
-	Notes      string `json:"notes"`
+	Type      string `json:"type"`
+	Sort      *int   `json:"sort"`
+	Notes     string `json:"notes"`
 }
 
 // Create 创建班次
@@ -99,8 +107,8 @@ func (s *ShiftService) Create(req ShiftCreateRequest, tenantId, creatorId int64)
 // UpdateRequest 更新班次请求
 type ShiftUpdateRequest struct {
 	Name       *string `json:"name"`
-	StartTime *string `json:"startTime"`
-	EndTime   *string `json:"endTime"`
+	StartTime  *string `json:"startTime"`
+	EndTime    *string `json:"endTime"`
 	Type       *string `json:"type"`
 	IsDisabled *bool   `json:"isDisabled"`
 	Sort       *int    `json:"sort"`
@@ -108,13 +116,13 @@ type ShiftUpdateRequest struct {
 }
 
 // Update 更新班次
-func (s *ShiftService) Update(id int64, req ShiftUpdateRequest) (*models.Shift, error) {
+func (s *ShiftService) Update(id, tenantId int64, req ShiftUpdateRequest) (*models.Shift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var shift models.Shift
-	if err := s.db.First(&shift, "id = ?", id).Error; err != nil {
+	if err := s.db.Where("\"Id\" = ?", id).Where("\"TenantId\" = ?", tenantId).First(&shift).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("shift not found")
 		}
@@ -124,25 +132,25 @@ func (s *ShiftService) Update(id int64, req ShiftUpdateRequest) (*models.Shift, 
 	// 更新字段
 	updates := make(map[string]interface{})
 	if req.Name != nil {
-		updates["name"] = *req.Name
+		updates["Name"] = *req.Name
 	}
 	if req.StartTime != nil {
-		updates["start_time"] = *req.StartTime
+		updates["StartTime"] = *req.StartTime
 	}
 	if req.EndTime != nil {
-		updates["end_time"] = *req.EndTime
+		updates["EndTime"] = *req.EndTime
 	}
 	if req.Type != nil {
-		updates["type"] = *req.Type
+		updates["Type"] = *req.Type
 	}
 	if req.IsDisabled != nil {
-		updates["is_disabled"] = *req.IsDisabled
+		updates["IsDisabled"] = *req.IsDisabled
 	}
 	if req.Sort != nil {
-		updates["sort"] = *req.Sort
+		updates["Sort"] = *req.Sort
 	}
 	if req.Notes != nil {
-		updates["notes"] = *req.Notes
+		updates["Note"] = *req.Notes
 	}
 
 	if err := s.db.Model(&shift).Updates(updates).Error; err != nil {
@@ -150,7 +158,7 @@ func (s *ShiftService) Update(id int64, req ShiftUpdateRequest) (*models.Shift, 
 	}
 
 	// 重新获取更新后的数据
-	if err := s.db.First(&shift, "id = ?", id).Error; err != nil {
+	if err := s.db.Where("\"Id\" = ?", id).Where("\"TenantId\" = ?", tenantId).First(&shift).Error; err != nil {
 		return nil, err
 	}
 
@@ -158,12 +166,15 @@ func (s *ShiftService) Update(id int64, req ShiftUpdateRequest) (*models.Shift, 
 }
 
 // Delete 删除班次
-func (s *ShiftService) Delete(id int64) error {
+func (s *ShiftService) Delete(id, tenantId int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	result := s.db.Delete(&models.Shift{}, "id = ?", id)
+	result := s.db.Model(&models.Shift{}).
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		Update("IsDisabled", true)
 	if result.Error != nil {
 		return result.Error
 	}

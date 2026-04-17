@@ -31,7 +31,8 @@ func NewShiftHandler() *ShiftHandler {
 // @Success 200 {array} models.Shift
 // @Router /api/v1/shifts [get]
 func (h *ShiftHandler) List(c *gin.Context) {
-	shifts, err := h.service.List()
+	tenantId := middleware.GetTenantID(c)
+	shifts, err := h.service.List(tenantId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -56,7 +57,8 @@ func (h *ShiftHandler) Get(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.service.Get(id)
+	tenantId := middleware.GetTenantID(c)
+	shift, err := h.service.Get(id, tenantId)
 	if err != nil {
 		if err.Error() == "shift not found" {
 			response.NotFound(c, "班次不存在")
@@ -119,7 +121,8 @@ func (h *ShiftHandler) Update(c *gin.Context) {
 		return
 	}
 
-	shift, err := h.service.Update(id, req)
+	tenantId := middleware.GetTenantID(c)
+	shift, err := h.service.Update(id, tenantId, req)
 	if err != nil {
 		if err.Error() == "shift not found" {
 			response.NotFound(c, "班次不存在")
@@ -148,7 +151,8 @@ func (h *ShiftHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	tenantId := middleware.GetTenantID(c)
+	if err := h.service.Delete(id, tenantId); err != nil {
 		if err.Error() == "shift not found" {
 			response.NotFound(c, "班次不存在")
 			return
@@ -193,6 +197,8 @@ func (h *PatientShiftHandler) List(c *gin.Context) {
 		return
 	}
 
+	req.TenantId = middleware.GetTenantID(c)
+
 	result, err := h.service.List(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
@@ -218,7 +224,8 @@ func (h *PatientShiftHandler) Get(c *gin.Context) {
 		return
 	}
 
-	patientShift, err := h.service.Get(id)
+	tenantId := middleware.GetTenantID(c)
+	patientShift, err := h.service.Get(id, tenantId)
 	if err != nil {
 		if err.Error() == "patient shift not found" {
 			response.NotFound(c, "排班记录不存在")
@@ -247,8 +254,10 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 	}
 
 	// 检查冲突
+	tenantId := middleware.GetTenantID(c)
 	hasConflict, err := h.service.CheckConflict(
 		req.PatientId,
+		tenantId,
 		req.ScheduleDate,
 		req.ShiftId,
 		nil,
@@ -262,7 +271,6 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 		return
 	}
 
-	tenantId := middleware.GetTenantID(c)
 	creatorId := middleware.GetCreatorID(c)
 
 	patientShift, err := h.service.Create(req, tenantId, creatorId)
@@ -297,7 +305,8 @@ func (h *PatientShiftHandler) Update(c *gin.Context) {
 		return
 	}
 
-	patientShift, err := h.service.Update(id, req)
+	tenantId := middleware.GetTenantID(c)
+	patientShift, err := h.service.Update(id, tenantId, req)
 	if err != nil {
 		if err.Error() == "patient shift not found" {
 			response.NotFound(c, "排班记录不存在")
@@ -326,7 +335,8 @@ func (h *PatientShiftHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	tenantId := middleware.GetTenantID(c)
+	if err := h.service.Delete(id, tenantId); err != nil {
 		if err.Error() == "patient shift not found" {
 			response.NotFound(c, "排班记录不存在")
 			return
@@ -367,7 +377,8 @@ func (h *PatientShiftHandler) GetByPatientAndDate(c *gin.Context) {
 		return
 	}
 
-	patientShift, err := h.service.GetByPatientAndDate(patientId, date)
+	tenantId := middleware.GetTenantID(c)
+	patientShift, err := h.service.GetByPatientAndDate(patientId, tenantId, date)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -389,21 +400,21 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	// 班次路由
 	shifts := r.Group("/shifts")
 	{
-		shifts.GET("", shiftHandler.List)           // 获取班次列表
-		shifts.POST("", shiftHandler.Create)        // 创建班次
-		shifts.GET("/:id", shiftHandler.Get)         // 获取班次详情
-		shifts.PUT("/:id", shiftHandler.Update)      // 更新班次
-		shifts.DELETE("/:id", shiftHandler.Delete)   // 删除班次
+		shifts.GET("", shiftHandler.List)          // 获取班次列表
+		shifts.POST("", shiftHandler.Create)       // 创建班次
+		shifts.GET("/:id", shiftHandler.Get)       // 获取班次详情
+		shifts.PUT("/:id", shiftHandler.Update)    // 更新班次
+		shifts.DELETE("/:id", shiftHandler.Delete) // 删除班次
 	}
 
 	// 患者排班路由
 	patientShifts := r.Group("/patient-shifts")
 	{
-		patientShifts.GET("", patientShiftHandler.List)           // 获取患者排班列表
-		patientShifts.POST("", patientShiftHandler.Create)        // 创建患者排班
-		patientShifts.GET("/:id", patientShiftHandler.Get)         // 获取患者排班详情
-		patientShifts.PUT("/:id", patientShiftHandler.Update)      // 更新患者排班
-		patientShifts.DELETE("/:id", patientShiftHandler.Delete)   // 删除患者排班
+		patientShifts.GET("", patientShiftHandler.List)          // 获取患者排班列表
+		patientShifts.POST("", patientShiftHandler.Create)       // 创建患者排班
+		patientShifts.GET("/:id", patientShiftHandler.Get)       // 获取患者排班详情
+		patientShifts.PUT("/:id", patientShiftHandler.Update)    // 更新患者排班
+		patientShifts.DELETE("/:id", patientShiftHandler.Delete) // 删除患者排班
 	}
 
 	// 患者相关的排班查询

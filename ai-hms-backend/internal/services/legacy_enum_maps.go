@@ -29,4 +29,35 @@ func MapPatientTypeLegacyToNew(v string) string {
 	return v
 }
 
+// PatientShiftStatus: 新（0/1/2/3/4）→ 老（10/20/30/40/50）
+var patientShiftStatusNewToLegacy = map[int]int{
+	0: 10, // 待执行 -> 待确认
+	1: 20, // 已确认
+	2: 30, // 进行中
+	3: 40, // 已完成
+	4: 50, // 已取消
+}
+
+var patientShiftStatusLegacyToNew = map[int]int{
+	10: 0,
+	20: 1,
+	30: 2,
+	40: 3,
+	50: 4,
+}
+
+func MapPatientShiftStatusNewToLegacy(v int) int {
+	if mapped, ok := patientShiftStatusNewToLegacy[v]; ok {
+		return mapped
+	}
+	return v
+}
+
+func MapPatientShiftStatusLegacyToNew(v int) int {
+	if mapped, ok := patientShiftStatusLegacyToNew[v]; ok {
+		return mapped
+	}
+	return v
+}
+
 // TODO: 后续 Phase 补充 DialysisMode / OrderStatus / OrderType / ...

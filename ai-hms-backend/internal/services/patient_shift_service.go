@@ -6,6 +6,7 @@ import (
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"gorm.io/gorm"
 )
 
@@ -32,6 +33,7 @@ type PatientShiftListRequest struct {
 	StartDate *time.Time `form:"startDate" time_format:"2006-01-02"`
 	EndDate   *time.Time `form:"endDate" time_format:"2006-01-02"`
 	Status    *int       `form:"status"`
+	TenantId  int64      `form:"-"`
 }
 
 // ListResponse 获取患者排班列表响应
@@ -58,28 +60,31 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 	}
 
 	query := s.db.Model(&models.PatientShift{})
+	if req.TenantId > 0 {
+		query = query.Where("\"TenantId\" = ?", req.TenantId)
+	}
 
 	// 筛选条件
 	if req.PatientId != nil {
-		query = query.Where("patient_id = ?", *req.PatientId)
+		query = query.Where("\"PatientId\" = ?", *req.PatientId)
 	}
 	if req.ShiftId != nil {
-		query = query.Where("shift_id = ?", *req.ShiftId)
+		query = query.Where("\"ShiftId\" = ?", *req.ShiftId)
 	}
 	if req.WardId != nil {
-		query = query.Where("ward_id = ?", *req.WardId)
+		query = query.Where("\"WardId\" = ?", *req.WardId)
 	}
 	if req.BedId != nil {
-		query = query.Where("bed_id = ?", *req.BedId)
+		query = query.Where("\"BedId\" = ?", *req.BedId)
 	}
 	if req.Status != nil {
-		query = query.Where("status = ?", *req.Status)
+		query = query.Where("\"Status\" = ?", MapPatientShiftStatusNewToLegacy(*req.Status))
 	}
 	if req.StartDate != nil {
-		query = query.Where("DATE(schedule_date) >= DATE(?)", *req.StartDate)
+		query = query.Where("DATE(\"TreatmentTime\") >= DATE(?)", *req.StartDate)
 	}
 	if req.EndDate != nil {
-		query = query.Where("DATE(schedule_date) <= DATE(?)", *req.EndDate)
+		query = query.Where("DATE(\"TreatmentTime\") <= DATE(?)", *req.EndDate)
 	}
 
 	// 获取总数
@@ -98,9 +103,13 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 		Preload("Ward").
 		Offset(offset).
 		Limit(req.PageSize).
-		Order("schedule_date DESC, create_time DESC").
+		Order("\"TreatmentTime\" DESC, \"CreateTime\" DESC").
 		Find(&items).Error; err != nil {
 		return nil, err
+	}
+
+	for i := range items {
+		items[i].Status = MapPatientShiftStatusLegacyToNew(items[i].Status)
 	}
 
 	totalPage := int(total) / req.PageSize
@@ -118,7 +127,7 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 }
 
 // Get 获取患者排班详情
-func (s *PatientShiftService) Get(id int64) (*models.PatientShift, error) {
+func (s *PatientShiftService) Get(id, tenantId int64) (*models.PatientShift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -129,7 +138,9 @@ func (s *PatientShiftService) Get(id int64) (*models.PatientShift, error) {
 		Preload("Shift").
 		Preload("Bed").
 		Preload("Ward").
-		First(&patientShift, "id = ?", id).Error
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		First(&patientShift).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -138,6 +149,7 @@ func (s *PatientShiftService) Get(id int64) (*models.PatientShift, error) {
 		return nil, err
 	}
 
+	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
 	return &patientShift, nil
 }
 
@@ -159,12 +171,12 @@ func (s *PatientShiftService) Create(req PatientShiftCreateRequest, tenantId, cr
 
 	patientShift := models.PatientShift{
 		TenantId:     tenantId,
-		PatientId:    req.PatientId,
+		PatientId:    modeltypes.LegacyID(req.PatientId),
 		ScheduleDate: req.ScheduleDate,
 		ShiftId:      req.ShiftId,
 		BedId:        req.BedId,
 		WardId:       req.WardId,
-		Status:       models.PatientShiftStatusPending,
+		Status:       MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusPending),
 		IsDisabled:   false,
 		Notes:        req.Notes,
 		CreatorId:    creatorId,
@@ -187,13 +199,13 @@ type PatientShiftUpdateRequest struct {
 }
 
 // Update 更新患者排班
-func (s *PatientShiftService) Update(id int64, req PatientShiftUpdateRequest) (*models.PatientShift, error) {
+func (s *PatientShiftService) Update(id, tenantId int64, req PatientShiftUpdateRequest) (*models.PatientShift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var patientShift models.PatientShift
-	if err := s.db.First(&patientShift, "id = ?", id).Error; err != nil {
+	if err := s.db.Where("\"Id\" = ?", id).Where("\"TenantId\" = ?", tenantId).First(&patientShift).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("patient shift not found")
 		}
@@ -203,19 +215,16 @@ func (s *PatientShiftService) Update(id int64, req PatientShiftUpdateRequest) (*
 	// 更新字段
 	updates := make(map[string]interface{})
 	if req.ShiftId != nil {
-		updates["shift_id"] = *req.ShiftId
+		updates["ShiftId"] = *req.ShiftId
 	}
 	if req.BedId != nil {
-		updates["bed_id"] = *req.BedId
+		updates["BedId"] = *req.BedId
 	}
 	if req.WardId != nil {
-		updates["ward_id"] = *req.WardId
+		updates["WardId"] = *req.WardId
 	}
 	if req.Status != nil {
-		updates["status"] = *req.Status
-	}
-	if req.Notes != nil {
-		updates["notes"] = *req.Notes
+		updates["Status"] = MapPatientShiftStatusNewToLegacy(*req.Status)
 	}
 
 	if err := s.db.Model(&patientShift).Updates(updates).Error; err != nil {
@@ -228,20 +237,30 @@ func (s *PatientShiftService) Update(id int64, req PatientShiftUpdateRequest) (*
 		Preload("Shift").
 		Preload("Bed").
 		Preload("Ward").
-		First(&patientShift, "id = ?", id).Error; err != nil {
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		First(&patientShift).Error; err != nil {
 		return nil, err
+	}
+
+	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
+	if req.Notes != nil {
+		patientShift.Notes = *req.Notes
 	}
 
 	return &patientShift, nil
 }
 
 // Delete 删除患者排班
-func (s *PatientShiftService) Delete(id int64) error {
+func (s *PatientShiftService) Delete(id, tenantId int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	result := s.db.Delete(&models.PatientShift{}, "id = ?", id)
+	result := s.db.Model(&models.PatientShift{}).
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		Update("Status", MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusCancelled))
 	if result.Error != nil {
 		return result.Error
 	}
@@ -253,14 +272,15 @@ func (s *PatientShiftService) Delete(id int64) error {
 }
 
 // GetByPatientAndDate 根据患者ID和日期获取排班
-func (s *PatientShiftService) GetByPatientAndDate(patientId int64, date time.Time) (*models.PatientShift, error) {
+func (s *PatientShiftService) GetByPatientAndDate(patientId, tenantId int64, date time.Time) (*models.PatientShift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var patientShift models.PatientShift
 	err := s.db.
-		Where("patient_id = ? AND DATE(schedule_date) = DATE(?)", patientId, date).
+		Where("\"TenantId\" = ?", tenantId).
+		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?)", patientId, date).
 		Preload("Shift").
 		Preload("Bed").
 		Preload("Ward").
@@ -273,20 +293,22 @@ func (s *PatientShiftService) GetByPatientAndDate(patientId int64, date time.Tim
 		return nil, err
 	}
 
+	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
 	return &patientShift, nil
 }
 
 // CheckConflict 检查排班冲突
-func (s *PatientShiftService) CheckConflict(patientId int64, date time.Time, shiftId int64, excludeId *int64) (bool, error) {
+func (s *PatientShiftService) CheckConflict(patientId, tenantId int64, date time.Time, shiftId int64, excludeId *int64) (bool, error) {
 	if s.db == nil {
 		return false, errors.New("database not available")
 	}
 
 	query := s.db.Model(&models.PatientShift{}).
-		Where("patient_id = ? AND DATE(schedule_date) = DATE(?) AND shift_id = ?", patientId, date, shiftId)
+		Where("\"TenantId\" = ?", tenantId).
+		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?) AND \"ShiftId\" = ?", patientId, date, shiftId)
 
 	if excludeId != nil {
-		query = query.Where("id != ?", *excludeId)
+		query = query.Where("\"Id\" != ?", *excludeId)
 	}
 
 	var count int64

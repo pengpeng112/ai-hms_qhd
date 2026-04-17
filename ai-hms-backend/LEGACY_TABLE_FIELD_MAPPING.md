@@ -304,3 +304,31 @@
     - `admissionDate` 派生为 `CreateTime`
     - `dischargeDate/notes` 仅接受请求回显，不入库。
   - 删除操作因目标表无 `IsDisabled` 字段，沿用物理删除，但增加 `TenantId` 过滤。
+
+### 6.3 Task 1.2 `wards/beds/shifts/patient_shifts` → `Schedule_*`
+
+- 修改文件：
+  - `internal/models/schedule.go`
+  - `internal/services/shift_service.go`
+  - `internal/services/patient_shift_service.go`
+  - `internal/api/v1/schedule_handler.go`
+  - `internal/services/legacy_enum_maps.go`
+- 变更要点：
+  - `TableName()` 切换：
+    - `Ward` -> `Schedule_Ward`
+    - `Bed` -> `Schedule_Bed`
+    - `Shift` -> `Schedule_Shift`
+    - `PatientShift` -> `Schedule_PatientShift`
+  - 模型字段补齐 legacy column tag，并将 `ScheduleDate` 持久化映射到 `TreatmentTime`。
+  - service 查询/排序/更新条件由 snake_case 改为 legacy PascalCase 列名，统一补充 `TenantId` 过滤。
+  - `ShiftService.Delete` 改为软删除（`IsDisabled=true`）。
+  - `PatientShiftService.Delete` 改为状态取消（写入 legacy `Status=50`），保持按租户隔离。
+  - `schedule_handler` 全链路透传 `tenantId` 到 service（List/Get/Update/Delete/冲突检查/按日查询）。
+- 枚举映射追加：
+  - 新增 `PatientShiftStatus` 双向映射：`0/1/2/3/4 <-> 10/20/30/40/50`
+  - 导出函数：
+    - `MapPatientShiftStatusNewToLegacy(v int) int`
+    - `MapPatientShiftStatusLegacyToNew(v int) int`
+- 兼容策略说明：
+  - `Ward.Department/Floor`、`Bed.BedType/Status` 在目标老表无直接持久列，暂以 `gorm:"-"` 兼容保留。
+  - `PatientShift.Notes/IsDisabled` 在目标老表无直接持久列，暂以 `gorm:"-"` 兼容保留。
