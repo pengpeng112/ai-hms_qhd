@@ -28,6 +28,7 @@ type HospitalizationListRequest struct {
 	PatientId *int64 `form:"patientId"`
 	Status    *int   `form:"status"`
 	HospWard  string `form:"hospWard"`
+	TenantId  int64  `form:"-"`
 }
 
 // ListResponse 获取住院信息列表响应
@@ -54,16 +55,23 @@ func (s *HospitalizationService) List(req HospitalizationListRequest) (*Hospital
 	}
 
 	query := s.db.Model(&models.Hospitalization{})
+	if req.TenantId > 0 {
+		query = query.Where("\"TenantId\" = ?", req.TenantId)
+	}
 
 	// 筛选条件
 	if req.PatientId != nil {
-		query = query.Where("patient_id = ?", *req.PatientId)
+		query = query.Where("\"PatientId\" = ?", *req.PatientId)
 	}
 	if req.Status != nil {
-		query = query.Where("status = ?", *req.Status)
+		// Register_Hospitalization 无独立 Status 字段，按兼容语义处理：
+		// 0(出院) 直接返回空；其余按在院记录处理。
+		if *req.Status == models.HospitalizationStatusDischarged {
+			return &HospitalizationListResponse{Items: []models.Hospitalization{}, Total: 0, Page: req.Page, PageSize: req.PageSize, TotalPage: 0}, nil
+		}
 	}
 	if req.HospWard != "" {
-		query = query.Where("hosp_ward LIKE ?", "%"+req.HospWard+"%")
+		query = query.Where("\"HospWard\" LIKE ?", "%"+req.HospWard+"%")
 	}
 
 	// 获取总数
@@ -79,9 +87,13 @@ func (s *HospitalizationService) List(req HospitalizationListRequest) (*Hospital
 		Preload("Patient").
 		Offset(offset).
 		Limit(req.PageSize).
-		Order("create_time DESC").
+		Order("\"CreateTime\" DESC").
 		Find(&items).Error; err != nil {
 		return nil, err
+	}
+
+	for i := range items {
+		normalizeHospitalizationDerivedFields(&items[i])
 	}
 
 	totalPage := int(total) / req.PageSize
@@ -99,7 +111,7 @@ func (s *HospitalizationService) List(req HospitalizationListRequest) (*Hospital
 }
 
 // Get 获取住院信息详情
-func (s *HospitalizationService) Get(id int64) (*models.Hospitalization, error) {
+func (s *HospitalizationService) Get(id, tenantId int64) (*models.Hospitalization, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -107,7 +119,9 @@ func (s *HospitalizationService) Get(id int64) (*models.Hospitalization, error) 
 	var hospitalization models.Hospitalization
 	err := s.db.
 		Preload("Patient").
-		First(&hospitalization, "id = ?", id).Error
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		First(&hospitalization).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -116,6 +130,7 @@ func (s *HospitalizationService) Get(id int64) (*models.Hospitalization, error) 
 		return nil, err
 	}
 
+	normalizeHospitalizationDerivedFields(&hospitalization)
 	return &hospitalization, nil
 }
 
@@ -163,6 +178,13 @@ func (s *HospitalizationService) Create(req HospitalizationCreateRequest, tenant
 		return nil, err
 	}
 
+	normalizeHospitalizationDerivedFields(&hospitalization)
+	if req.AdmissionDate != nil {
+		hospitalization.AdmissionDate = req.AdmissionDate
+	}
+	if req.Notes != "" {
+		hospitalization.Notes = req.Notes
+	}
 	return &hospitalization, nil
 }
 
@@ -177,13 +199,13 @@ type HospitalizationUpdateRequest struct {
 }
 
 // Update 更新住院信息
-func (s *HospitalizationService) Update(id int64, req HospitalizationUpdateRequest) (*models.Hospitalization, error) {
+func (s *HospitalizationService) Update(id, tenantId int64, req HospitalizationUpdateRequest) (*models.Hospitalization, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var hospitalization models.Hospitalization
-	if err := s.db.First(&hospitalization, "id = ?", id).Error; err != nil {
+	if err := s.db.Where("\"Id\" = ?", id).Where("\"TenantId\" = ?", tenantId).First(&hospitalization).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("hospitalization not found")
 		}
@@ -193,45 +215,60 @@ func (s *HospitalizationService) Update(id int64, req HospitalizationUpdateReque
 	// 更新字段
 	updates := make(map[string]interface{})
 	if req.HospWard != nil {
-		updates["hosp_ward"] = *req.HospWard
+		updates["HospWard"] = *req.HospWard
 	}
 	if req.HospBed != nil {
-		updates["hosp_bed"] = *req.HospBed
+		updates["HospBed"] = *req.HospBed
 	}
 	if req.AttendDr != nil {
-		updates["attend_dr"] = *req.AttendDr
+		updates["AttendDr"] = *req.AttendDr
 	}
 	if req.Status != nil {
-		updates["status"] = *req.Status
+		hospitalization.Status = *req.Status
 	}
 	if req.DischargeDate != nil {
-		updates["discharge_date"] = *req.DischargeDate
+		hospitalization.DischargeDate = req.DischargeDate
 	}
 	if req.Notes != nil {
-		updates["notes"] = *req.Notes
+		hospitalization.Notes = *req.Notes
 	}
 
-	if err := s.db.Model(&hospitalization).Updates(updates).Error; err != nil {
-		return nil, err
+	if len(updates) > 0 {
+		if err := s.db.Model(&hospitalization).Updates(updates).Error; err != nil {
+			return nil, err
+		}
 	}
 
 	// 重新获取更新后的数据
 	if err := s.db.
 		Preload("Patient").
-		First(&hospitalization, "id = ?", id).Error; err != nil {
+		Where("\"Id\" = ?", id).
+		Where("\"TenantId\" = ?", tenantId).
+		First(&hospitalization).Error; err != nil {
 		return nil, err
+	}
+	normalizeHospitalizationDerivedFields(&hospitalization)
+	if req.Status != nil {
+		hospitalization.Status = *req.Status
+	}
+	if req.DischargeDate != nil {
+		hospitalization.DischargeDate = req.DischargeDate
+	}
+	if req.Notes != nil {
+		hospitalization.Notes = *req.Notes
 	}
 
 	return &hospitalization, nil
 }
 
 // Delete 删除住院信息
-func (s *HospitalizationService) Delete(id int64) error {
+func (s *HospitalizationService) Delete(id, tenantId int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	result := s.db.Delete(&models.Hospitalization{}, "id = ?", id)
+	// Register_Hospitalization 未定义 IsDisabled 字段，沿用物理删除并补 Tenant 约束。
+	result := s.db.Where("\"TenantId\" = ?", tenantId).Delete(&models.Hospitalization{}, "\"Id\" = ?", id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -243,15 +280,17 @@ func (s *HospitalizationService) Delete(id int64) error {
 }
 
 // GetByPatientId 获取患者的当前住院信息
-func (s *HospitalizationService) GetByPatientId(patientId int64) (*models.Hospitalization, error) {
+func (s *HospitalizationService) GetByPatientId(patientId, tenantId int64) (*models.Hospitalization, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var hospitalization models.Hospitalization
 	err := s.db.
-		Where("patient_id = ? AND status = ?", patientId, models.HospitalizationStatusInPatient).
+		Where("\"TenantId\" = ?", tenantId).
+		Where("\"PatientId\" = ?", patientId).
 		Preload("Patient").
+		Order("\"CreateTime\" DESC").
 		First(&hospitalization).Error
 
 	if err != nil {
@@ -261,5 +300,15 @@ func (s *HospitalizationService) GetByPatientId(patientId int64) (*models.Hospit
 		return nil, err
 	}
 
+	normalizeHospitalizationDerivedFields(&hospitalization)
 	return &hospitalization, nil
+}
+
+func normalizeHospitalizationDerivedFields(h *models.Hospitalization) {
+	if h == nil {
+		return
+	}
+	h.Status = models.HospitalizationStatusInPatient
+	admission := h.CreateTime
+	h.AdmissionDate = &admission
 }

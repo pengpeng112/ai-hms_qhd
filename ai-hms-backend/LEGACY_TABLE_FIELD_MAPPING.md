@@ -284,3 +284,23 @@
   - `MapPatientTypeLegacyToNew(v string) string`
 - 约定：未命中映射时返回原值，避免服务层硬失败。
 - 后续待补：`DialysisMode`、`OrderStatus`、`OrderType` 等枚举映射。
+
+### 6.2 Task 1.1 `hospitalizations` → `Register_Hospitalization`
+
+- 修改文件：
+  - `internal/models/hospitalization.go`
+  - `internal/services/hospitalization_service.go`
+  - `internal/api/v1/hospitalization_handler.go`
+- 变更要点：
+  - `Hospitalization.TableName()` 切换为 `Register_Hospitalization`。
+  - 模型字段补充 legacy 列映射：`Id/TenantId/PatientId/CaseNo/HospNo/BarCode/HospPatientType/HospReceiveDept/HospWard/HospBed/AttendDr/ReceptionDr/CreatorId/CreateTime/LastModifyTime`。
+  - 新表语义字段 `status/admission_date/discharge_date/notes` 改为非持久化字段（`gorm:"-"`），在 service 层做兼容派生。
+  - service 查询条件由 snake_case 改为 legacy PascalCase 列；补充 `TenantId` 过滤；列表排序改为 `CreateTime DESC`。
+  - `GetByPatientId` 按 `CreateTime DESC` 取最近住院记录。
+  - handler 将认证上下文 `tenantId` 传入服务层，保证按租户隔离。
+- 兼容策略说明：
+  - `Register_Hospitalization` 表结构中无 `Status/AdmissionDate/DischargeDate/Note` 对应持久列；
+    - `status` 默认为在院（1）
+    - `admissionDate` 派生为 `CreateTime`
+    - `dischargeDate/notes` 仅接受请求回显，不入库。
+  - 删除操作因目标表无 `IsDisabled` 字段，沿用物理删除，但增加 `TenantId` 过滤。

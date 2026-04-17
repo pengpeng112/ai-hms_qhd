@@ -40,6 +40,7 @@ func (h *HospitalizationHandler) List(c *gin.Context) {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
+	req.TenantId = middleware.GetTenantID(c)
 
 	result, err := h.service.List(req)
 	if err != nil {
@@ -66,7 +67,8 @@ func (h *HospitalizationHandler) Get(c *gin.Context) {
 		return
 	}
 
-	hospitalization, err := h.service.Get(id)
+	tenantId := middleware.GetTenantID(c)
+	hospitalization, err := h.service.Get(id, tenantId)
 	if err != nil {
 		if err.Error() == "hospitalization not found" {
 			response.NotFound(c, "住院信息不存在")
@@ -129,7 +131,8 @@ func (h *HospitalizationHandler) Update(c *gin.Context) {
 		return
 	}
 
-	hospitalization, err := h.service.Update(id, req)
+	tenantId := middleware.GetTenantID(c)
+	hospitalization, err := h.service.Update(id, tenantId, req)
 	if err != nil {
 		if err.Error() == "hospitalization not found" {
 			response.NotFound(c, "住院信息不存在")
@@ -158,7 +161,8 @@ func (h *HospitalizationHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	tenantId := middleware.GetTenantID(c)
+	if err := h.service.Delete(id, tenantId); err != nil {
 		if err.Error() == "hospitalization not found" {
 			response.NotFound(c, "住院信息不存在")
 			return
@@ -186,7 +190,8 @@ func (h *HospitalizationHandler) GetByPatient(c *gin.Context) {
 		return
 	}
 
-	hospitalization, err := h.service.GetByPatientId(patientId)
+	tenantId := middleware.GetTenantID(c)
+	hospitalization, err := h.service.GetByPatientId(patientId, tenantId)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -206,10 +211,10 @@ func RegisterHospitalizationRoutes(r *gin.RouterGroup) {
 
 	hospitalizations := r.Group("/hospitalizations")
 	{
-		hospitalizations.GET("", handler.List)           // 获取住院信息列表
-		hospitalizations.POST("", handler.Create)        // 创建住院信息
-		hospitalizations.GET("/:id", handler.Get)        // 获取住院信息详情
-		hospitalizations.PUT("/:id", handler.Update)     // 更新住院信息
-		hospitalizations.DELETE("/:id", handler.Delete)  // 删除住院信息
+		hospitalizations.GET("", handler.List)          // 获取住院信息列表
+		hospitalizations.POST("", handler.Create)       // 创建住院信息
+		hospitalizations.GET("/:id", handler.Get)       // 获取住院信息详情
+		hospitalizations.PUT("/:id", handler.Update)    // 更新住院信息
+		hospitalizations.DELETE("/:id", handler.Delete) // 删除住院信息
 	}
 }

@@ -1,3 +1,4 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import (
@@ -6,25 +7,25 @@ import (
 
 // Hospitalization 住院信息
 type Hospitalization struct {
-	Id              int64     `gorm:"type:bigint;primaryKey" json:"id"`
-	TenantId        int64     `gorm:"type:bigint;index" json:"tenantId"`
-	PatientId       int64     `gorm:"type:bigint;not null;index:idx_patient_id" json:"patientId"`
-	CaseNo          string    `gorm:"type:varchar(64)" json:"caseNo"`           // 病案号
-	HospNo          string    `gorm:"type:varchar(64)" json:"hospNo"`           // 住院号
-	BarCode         string    `gorm:"type:varchar(64)" json:"barCode"`          // 条码
-	HospPatientType string    `gorm:"type:varchar(64)" json:"hospPatientType"`  // 住院患者类型
-	HospReceiveDept string    `gorm:"type:varchar(64)" json:"hospReceiveDept"` // 接收科室
-	HospWard        string    `gorm:"type:varchar(64)" json:"hospWard"`        // 病房
-	HospBed         string    `gorm:"type:varchar(64)" json:"hospBed"`         // 床位
-	AttendDr        string    `gorm:"type:varchar(64)" json:"attendDr"`        // 主治医生
-	ReceptionDr     string    `gorm:"type:varchar(64)" json:"receptionDr"`     // 接诊医生
-	Status          int       `gorm:"type:int;default:1" json:"status"`        // 状态：1-在院，0-出院
-	AdmissionDate   *time.Time `json:"admissionDate"`                        // 入院日期
-	DischargeDate   *time.Time `json:"dischargeDate"`                        // 出院日期
-	Notes          string    `gorm:"type:text" json:"notes"`                // 备注
-	CreatorId      int64     `gorm:"type:bigint" json:"creatorId"`
-	CreateTime     time.Time `json:"createTime"`
-	LastModifyTime time.Time `json:"lastModifyTime"`
+	Id              int64      `gorm:"column:Id;type:bigint;primaryKey" json:"id"`
+	TenantId        int64      `gorm:"column:TenantId;type:bigint;index" json:"tenantId"`
+	PatientId       int64      `gorm:"column:PatientId;type:bigint;not null;index:idx_hospitalization_patient" json:"patientId"`
+	CaseNo          string     `gorm:"column:CaseNo;type:varchar(64)" json:"caseNo"`
+	HospNo          string     `gorm:"column:HospNo;type:varchar(64)" json:"hospNo"`
+	BarCode         string     `gorm:"column:BarCode;type:varchar(64)" json:"barCode"`
+	HospPatientType string     `gorm:"column:HospPatientType;type:varchar(64)" json:"hospPatientType"`
+	HospReceiveDept string     `gorm:"column:HospReceiveDept;type:varchar(64)" json:"hospReceiveDept"`
+	HospWard        string     `gorm:"column:HospWard;type:varchar(64)" json:"hospWard"`
+	HospBed         string     `gorm:"column:HospBed;type:varchar(64)" json:"hospBed"`
+	AttendDr        string     `gorm:"column:AttendDr;type:varchar(64)" json:"attendDr"`
+	ReceptionDr     string     `gorm:"column:ReceptionDr;type:varchar(64)" json:"receptionDr"`
+	Status          int        `gorm:"-" json:"status"`
+	AdmissionDate   *time.Time `gorm:"-" json:"admissionDate"`
+	DischargeDate   *time.Time `gorm:"-" json:"dischargeDate"`
+	Notes           string     `gorm:"-" json:"notes"`
+	CreatorId       int64      `gorm:"column:CreatorId;type:bigint" json:"creatorId"`
+	CreateTime      time.Time  `gorm:"column:CreateTime;autoCreateTime" json:"createTime"`
+	LastModifyTime  time.Time  `gorm:"column:LastModifyTime;autoUpdateTime" json:"lastModifyTime"`
 
 	// 关联
 	Patient *Patient `gorm:"foreignKey:PatientId" json:"patient,omitempty"`
@@ -32,12 +33,12 @@ type Hospitalization struct {
 
 // TableName 指定表名
 func (Hospitalization) TableName() string {
-	return "hospitalizations"
+	return "Register_Hospitalization"
 }
 
 // HospitalizationStatus 住院状态常量
 const (
-	HospitalizationStatusInPatient = 1 // 在院
+	HospitalizationStatusInPatient  = 1 // 在院
 	HospitalizationStatusDischarged = 0 // 出院
 )
 
