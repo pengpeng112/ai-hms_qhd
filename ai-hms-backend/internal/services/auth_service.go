@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
@@ -50,16 +51,14 @@ type AuthService struct {
 }
 
 func NewAuthService() *AuthService {
-	backdoor := resolveBackdoorPassword(os.Getenv("DEFAULT_PASSWORD"), os.Getenv("GIN_MODE"))
+	emergencyEnabled := resolveEmergencyAuthEnabled(os.Getenv("AUTH_EMERGENCY_ENABLED"))
+	backdoor := resolveBackdoorPassword(emergencyEnabled, os.Getenv("DEFAULT_PASSWORD"))
 
-	builtinUser := os.Getenv("BUILTIN_ADMIN_USER")
-	if builtinUser == "" {
-		builtinUser = defaultBuiltinAdminUser
-	}
-	builtinPass := os.Getenv("BUILTIN_ADMIN_PASS")
-	if builtinPass == "" {
-		builtinPass = defaultBuiltinAdminPass
-	}
+	builtinUser, builtinPass := resolveBuiltinAdminCredentials(
+		emergencyEnabled,
+		os.Getenv("BUILTIN_ADMIN_USER"),
+		os.Getenv("BUILTIN_ADMIN_PASS"),
+	)
 
 	return &AuthService{
 		db:               database.GetDB(),
@@ -67,6 +66,29 @@ func NewAuthService() *AuthService {
 		builtinAdminUser: builtinUser,
 		builtinAdminPass: builtinPass,
 	}
+}
+
+func resolveEmergencyAuthEnabled(raw string) bool {
+	enabled, err := strconv.ParseBool(strings.TrimSpace(raw))
+	return err == nil && enabled
+}
+
+func resolveBuiltinAdminCredentials(enabled bool, username, password string) (string, string) {
+	if !enabled {
+		return "", ""
+	}
+
+	builtinUser := strings.TrimSpace(username)
+	if builtinUser == "" {
+		builtinUser = defaultBuiltinAdminUser
+	}
+
+	builtinPass := strings.TrimSpace(password)
+	if builtinPass == "" {
+		builtinPass = defaultBuiltinAdminPass
+	}
+
+	return builtinUser, builtinPass
 }
 
 func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, error) {
@@ -131,14 +153,16 @@ func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, 
 	}, nil
 }
 
-func resolveBackdoorPassword(defaultPassword, ginMode string) string {
+func resolveBackdoorPassword(enabled bool, defaultPassword string) string {
+	if !enabled {
+		return ""
+	}
+
 	password := strings.TrimSpace(defaultPassword)
 	if password != "" {
 		return password
 	}
-	if strings.ToLower(strings.TrimSpace(ginMode)) == "release" {
-		return ""
-	}
+
 	return defaultBackdoorPass
 }
 

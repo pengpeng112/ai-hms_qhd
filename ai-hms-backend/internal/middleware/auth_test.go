@@ -3,6 +3,7 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/elliotxin/ai-hms-backend/config"
@@ -33,6 +34,9 @@ func TestAuthMiddlewareRejectsMissingTenantClaim(t *testing.T) {
 
 	if w.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want %d", w.Code, http.StatusForbidden)
+	}
+	if !strings.Contains(w.Body.String(), "缺少租户信息") {
+		t.Fatalf("response body = %q, want missing tenant message", w.Body.String())
 	}
 }
 

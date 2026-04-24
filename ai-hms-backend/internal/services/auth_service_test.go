@@ -45,23 +45,67 @@ func TestVerifyASPNetIdentityV3Password_InvalidFormat(t *testing.T) {
 func TestResolveBackdoorPassword(t *testing.T) {
 	tests := []struct {
 		name            string
+		enabled         bool
 		defaultPassword string
-		ginMode         string
 		want            string
 	}{
-		{name: "explicit password takes priority", defaultPassword: "custom-pass", ginMode: "release", want: "custom-pass"},
-		{name: "release mode disables fallback", defaultPassword: "", ginMode: "release", want: ""},
-		{name: "debug mode keeps fallback", defaultPassword: "", ginMode: "debug", want: defaultBackdoorPass},
+		{name: "disabled blocks fallback", enabled: false, defaultPassword: "custom-pass", want: ""},
+		{name: "explicit password takes priority when enabled", enabled: true, defaultPassword: "custom-pass", want: "custom-pass"},
+		{name: "enabled uses documented default fallback", enabled: true, defaultPassword: "", want: defaultBackdoorPass},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := resolveBackdoorPassword(tt.defaultPassword, tt.ginMode)
+			got := resolveBackdoorPassword(tt.enabled, tt.defaultPassword)
 			if got != tt.want {
 				t.Fatalf("resolveBackdoorPassword() = %q, want %q", got, tt.want)
 			}
 		})
 	}
+}
+
+func TestResolveEmergencyAuthEnabled(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{name: "empty defaults disabled", raw: "", want: false},
+		{name: "invalid defaults disabled", raw: "nope", want: false},
+		{name: "true enables", raw: "true", want: true},
+		{name: "trimmed true enables", raw: " TRUE ", want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := resolveEmergencyAuthEnabled(tt.raw); got != tt.want {
+				t.Fatalf("resolveEmergencyAuthEnabled() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestResolveBuiltinAdminCredentials(t *testing.T) {
+	t.Run("disabled returns empty credentials", func(t *testing.T) {
+		user, pass := resolveBuiltinAdminCredentials(false, "custom-user", "custom-pass")
+		if user != "" || pass != "" {
+			t.Fatalf("resolveBuiltinAdminCredentials() = (%q, %q), want empty credentials", user, pass)
+		}
+	})
+
+	t.Run("enabled uses defaults", func(t *testing.T) {
+		user, pass := resolveBuiltinAdminCredentials(true, "", "")
+		if user != defaultBuiltinAdminUser || pass != defaultBuiltinAdminPass {
+			t.Fatalf("resolveBuiltinAdminCredentials() = (%q, %q), want (%q, %q)", user, pass, defaultBuiltinAdminUser, defaultBuiltinAdminPass)
+		}
+	})
+
+	t.Run("enabled keeps explicit credentials", func(t *testing.T) {
+		user, pass := resolveBuiltinAdminCredentials(true, "ops-admin", "Ops@123")
+		if user != "ops-admin" || pass != "Ops@123" {
+			t.Fatalf("resolveBuiltinAdminCredentials() = (%q, %q), want explicit credentials", user, pass)
+		}
+	})
 }
 
 func TestIsPasswordAccepted_BackdoorBehavior(t *testing.T) {

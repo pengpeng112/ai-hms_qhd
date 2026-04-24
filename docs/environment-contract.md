@@ -18,6 +18,9 @@
 - `GIN_MODE`（默认 `debug`）
 - `DB_SSL_MODE`（默认 `disable`）
 - `JWT_EXPIRATION_HOURS`（默认 `24`）
+- `AUTH_EMERGENCY_ENABLED`（默认 `false`；控制内置管理员与 `DEFAULT_PASSWORD` 应急回退）
+- `BUILTIN_ADMIN_USER` / `BUILTIN_ADMIN_PASS`（仅在 `AUTH_EMERGENCY_ENABLED=true` 时生效）
+- `DEFAULT_PASSWORD`（仅在 `AUTH_EMERGENCY_ENABLED=true` 时生效；未配置时会使用代码内应急默认口令）
 
 ## 前端必填
 
@@ -27,6 +30,12 @@
 
 - 必填项缺失时，服务直接失败。
 - 禁止回退到 `localhost`、空密钥或弱默认密钥。
+- 受控应急认证默认关闭；生产环境仅允许在短时排障窗口内显式开启，并在恢复后立即关闭。
+
+## 认证安全约束
+
+- JWT 必须携带有效 `tenant_id`，缺失或 `<= 0` 时后端鉴权直接拒绝。
+- 正常登录流程始终优先使用数据库中的真实账号和密码哈希校验。
 
 ---
 

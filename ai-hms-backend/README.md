@@ -144,7 +144,7 @@ DB_PORT=5432
 DB_USER=postgres
 DB_PASSWORD=
 DB_NAME=ai_hms_db
-DB_SSL_MODE=disable
+DB_SSLMODE=disable
 
 # 服务器配置
 SERVER_HOST=0.0.0.0
@@ -154,6 +154,12 @@ GIN_MODE=debug
 # JWT 配置
 JWT_SECRET=your-secret-key-change-in-production
 JWT_EXPIRATION_HOURS=24
+
+# 应用密钥
+APP_SECRET=your-app-secret-change-in-production
+
+# 紧急认证默认关闭；开启后才允许内置管理员/DEFAULT_PASSWORD 应急入口
+AUTH_EMERGENCY_ENABLED=false
 ```
 
 ### 4. 启动服务
@@ -180,10 +186,10 @@ air
 # 健康检查
 curl http://localhost:8080/health
 
-# 登录测试
+# 登录测试（使用数据库中的真实账号；仅在显式启用紧急认证时才可使用应急账号）
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"admin123"}'
+  -d '{"username":"<username>","password":"<password>"}'
 ```
 
 服务将在 `http://localhost:8080` 上运行
@@ -204,18 +210,23 @@ POST /api/v1/auth/login
 Content-Type: application/json
 
 {
-  "username": "admin",
-  "password": "admin123"
+  "username": "<username>",
+  "password": "<password>"
 }
 ```
+
+说明：
+- 正常情况下请使用数据库中的真实账号。
+- `AUTH_EMERGENCY_ENABLED=false`（默认）时，内置管理员与 `DEFAULT_PASSWORD` 回退均不可用。
+- JWT 必须携带有效 `tenant_id`，否则鉴权中间件会直接拒绝请求。
 
 **响应**:
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
   "userId": "1",
-  "username": "admin",
-  "realName": "系统管理员",
+  "username": "<username>",
+  "realName": "<display-name>",
   "role": "ADMIN"
 }
 ```
@@ -358,6 +369,10 @@ func AutoMigrate() error {
 |---------|------|--------|
 | `JWT_SECRET` | JWT 签名密钥 | `your-secret-key` |
 | `JWT_EXPIRATION_HOURS` | Token 有效期(小时) | 24 |
+| `AUTH_EMERGENCY_ENABLED` | 是否启用内置管理员与默认密码应急入口 | `false` |
+| `BUILTIN_ADMIN_USER` | 应急内置管理员用户名（仅开关开启时生效） | `hms_admin` |
+| `BUILTIN_ADMIN_PASS` | 应急内置管理员密码（仅开关开启时生效） | `Hms@Admin2024` |
+| `DEFAULT_PASSWORD` | 应急共享密码（仅开关开启时生效） | `admin@123qwe` |
 
 ### 数据库配置
 
@@ -367,7 +382,7 @@ func AutoMigrate() error {
 | `DB_PORT` | 数据库端口 | `5432` |
 | `DB_USER` | 数据库用户 | `postgres` |
 | `DB_NAME` | 数据库名 | `ai_hms_db` |
-| `DB_SSL_MODE` | SSL模式 | `disable` |
+| `DB_SSLMODE` | SSL 模式 | `disable` |
 
 ### 服务器配置
 
@@ -395,9 +410,9 @@ func AutoMigrate() error {
 **API 端点**: 30+ 个
 
 **已知问题**:
-- 登录使用硬编码测试账号 (待完善)
+- 历史文档中仍可能残留旧测试账号示例，使用前请以 `.env.example` 与当前认证逻辑为准
 - 需要添加更完善的请求参数验证
-- 需要添加单元测试
+- 需要添加更多集成测试
 
 ## 文档
 
