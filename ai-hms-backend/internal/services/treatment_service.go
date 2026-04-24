@@ -2565,3 +2565,24 @@ func valueTimePtr(v any) *time.Time {
 		return nil
 	}
 }
+func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req TreatmentAfterSignsRequest, creatorID int64) (*TreatmentRealtimeResponse, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		txService := &TreatmentService{db: tx}
+		if _, err := txService.SaveAfterSigns(treatmentID, req, creatorID); err != nil {
+			return err
+		}
+		if err := txService.UpdateStatus(treatmentID, models.TreatmentStatusCompleted); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.Get(treatmentID)
+}
+

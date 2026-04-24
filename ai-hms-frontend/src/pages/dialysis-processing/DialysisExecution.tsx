@@ -287,8 +287,7 @@ export default function DialysisExecution() {
   const handleSubmitPostAssessment = async (payload: TreatmentAfterSignsRequest) => {
     const treatment = await ensureTodayTreatment(1)
     if (!treatment) return
-    await restApi.saveTreatmentAfterSigns(treatment.id, payload)
-    await restApi.updateTreatmentStatus(treatment.id, 2)
+    await restApi.submitTreatmentPostAssessment(treatment.id, payload)
     await reloadTodayTreatment()
   }
 

@@ -327,6 +327,29 @@ func (h *TreatmentHandler) SaveAfterSigns(c *gin.Context) {
 	response.Success(c, item)
 }
 
+func (h *TreatmentHandler) SubmitPostAssessment(c *gin.Context) {
+	treatmentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid treatment id")
+		return
+	}
+	var req services.TreatmentAfterSignsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	item, err := h.service.SubmitPostAssessment(treatmentID, req, middleware.GetCreatorID(c))
+	if err != nil {
+		if err.Error() == "treatment not found" {
+			response.NotFound(c, "treatment not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, item)
+}
+
 func (h *TreatmentHandler) SaveFirstCheck(c *gin.Context) {
 	treatmentID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -389,6 +412,7 @@ func RegisterTreatmentRoutes(r *gin.RouterGroup) {
 		treatments.DELETE("/:id/during-params/:paramId", handler.DeleteDuringParam)
 		treatments.PUT("/:id/before-signs", handler.SaveBeforeSigns)
 		treatments.PUT("/:id/after-signs", handler.SaveAfterSigns)
+		treatments.PUT("/:id/post-assessment-submit", handler.SubmitPostAssessment)
 		treatments.PUT("/:id/first-check", handler.SaveFirstCheck)
 		treatments.PUT("/:id/second-check", handler.SaveSecondCheck)
 	}

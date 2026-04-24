@@ -1921,6 +1921,14 @@ class RestApiService {
     return response.data
   }
 
+  async submitTreatmentPostAssessment(treatmentId: number, data: TreatmentAfterSignsRequest): Promise<ApiSuccessResponse<RestTreatment>> {
+    const response = await apiClient.put<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${treatmentId}/post-assessment-submit`, data)
+    if (!response.data.success) {
+      throw new Error('????????')
+    }
+    return response.data
+  }
+
   async saveTreatmentFirstCheck(treatmentId: number, data: TreatmentFirstCheckRequest): Promise<ApiSuccessResponse<unknown>> {
     const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${treatmentId}/first-check`, data)
     if (!response.data.success) {
