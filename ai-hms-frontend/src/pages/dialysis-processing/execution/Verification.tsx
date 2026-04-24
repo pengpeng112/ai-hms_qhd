@@ -3,6 +3,7 @@ import { CheckCircle2, ClipboardCheck, ShieldCheck, UserCheck } from 'lucide-rea
 import { useEffect, useMemo, useState } from 'react'
 import { restApi } from '@/services'
 import type { RestTreatment } from '@/services'
+import { getErrorMessage } from '@/services/restClient'
 import type {
   TreatmentFirstCheckRequest,
   TreatmentSecondCheckRequest,
@@ -12,6 +13,7 @@ import type { Patient } from '../types'
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
   onSaveFirstCheck: (payload: TreatmentFirstCheckRequest) => Promise<void>
   onSaveSecondCheck: (payload: TreatmentSecondCheckRequest) => Promise<void>
 }
@@ -163,6 +165,7 @@ function StaffSelect({
 export default function Verification({
   patient,
   treatment,
+  treatmentLoading = false,
   onSaveFirstCheck,
   onSaveSecondCheck,
 }: Props) {
@@ -191,7 +194,7 @@ export default function Verification({
         )
       } catch (error) {
         console.error('[Verification] load staff failed', error)
-        message.error('操作人列表加载失败')
+        message.error(getErrorMessage(error))
       } finally {
         setLoadingStaff(false)
       }
@@ -220,7 +223,7 @@ export default function Verification({
       })
     } catch (error) {
       console.error('[Verification] save first failed', error)
-      message.error('首次核对保存失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSavingFirst(false)
     }
@@ -247,7 +250,7 @@ export default function Verification({
       })
     } catch (error) {
       console.error('[Verification] save second failed', error)
-      message.error('二次核对保存失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSavingSecond(false)
     }
@@ -255,6 +258,12 @@ export default function Verification({
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗数据，核对表单已切换为空状态。
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
         <section className="rounded-3xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-slate-200 flex items-center gap-2">
@@ -283,10 +292,10 @@ export default function Verification({
             <button
               type="button"
               onClick={() => void handleSaveFirst()}
-              disabled={savingFirst || loadingStaff}
+              disabled={treatmentLoading || savingFirst || loadingStaff}
               className="w-full h-12 rounded-2xl bg-blue-600 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {savingFirst ? '保存中...' : '保存首次核对'}
+              {treatmentLoading ? '治疗加载中...' : savingFirst ? '保存中...' : '保存首次核对'}
             </button>
           </div>
         </section>
@@ -323,27 +332,32 @@ export default function Verification({
             <button
               type="button"
               onClick={() => void handleSaveSecond()}
-              disabled={savingSecond || loadingStaff}
+              disabled={treatmentLoading || savingSecond || loadingStaff}
               className="w-full h-12 rounded-2xl bg-orange-500 text-sm font-semibold text-white disabled:opacity-60"
             >
-              {savingSecond ? '保存中...' : '保存二次核对'}
+              {treatmentLoading ? '治疗加载中...' : savingSecond ? '保存中...' : '保存二次核对'}
             </button>
           </div>
         </section>
 
         <section className="rounded-3xl border border-emerald-200 bg-white shadow-sm overflow-hidden">
-          <div className="px-5 py-4 border-b border-emerald-100 flex items-center gap-2">
-            <ClipboardCheck size={16} className="text-emerald-600" />
-            <h3 className="text-sm font-black text-slate-800">消毒登记</h3>
+          <div className="px-5 py-4 border-b border-emerald-100 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck size={16} className="text-emerald-600" />
+              <h3 className="text-sm font-black text-slate-800">消毒登记</h3>
+            </div>
+            <span className="rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-emerald-700">
+              未接入保存
+            </span>
           </div>
           <div className="p-5 space-y-4">
             <label className="block">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">消毒方式</div>
-              <input defaultValue="机表消毒" className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none" />
+              <input value="机表消毒" readOnly disabled className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-500 outline-none disabled:cursor-not-allowed" />
             </label>
             <label className="block">
               <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">消毒液</div>
-              <input defaultValue="500mg/L 含氯消毒液" className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 text-sm font-semibold outline-none" />
+              <input value="500mg/L 含氯消毒液" readOnly disabled className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-100 px-4 text-sm font-semibold text-slate-500 outline-none disabled:cursor-not-allowed" />
             </label>
             <div className="rounded-2xl bg-emerald-50 border border-emerald-100 p-4 flex items-center justify-between">
               <div>
@@ -353,6 +367,7 @@ export default function Verification({
               </div>
               <CheckCircle2 size={20} className="text-emerald-600" />
             </div>
+            <div className="text-xs text-slate-400">当前页面仅保留展示态，消毒登记未绑定独立保存接口，避免产生未持久化的假数据。</div>
           </div>
         </section>
       </div>

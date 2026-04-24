@@ -5,15 +5,31 @@ import type { Patient } from '../types'
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
 }
 
-export default function HealthEducation({ patient, treatment }: Props) {
+export default function HealthEducation({ patient, treatment, treatmentLoading = false }: Props) {
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗上下文，宣教页面暂不展示上一位患者的治疗方式。
+        </section>
+      ) : null}
+
+      <section className="rounded-3xl border border-amber-200 bg-amber-50 px-6 py-4 text-sm font-semibold text-amber-800">
+        占位页面：当前健康宣教模块未接入独立后端数据源，仅展示患者上下文与提示文案，避免静态假数据误导联调。
+      </section>
+
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center gap-2">
           <BookMarked size={16} className="text-emerald-600" />
           <h3 className="text-sm font-black text-slate-800">健康宣教计划</h3>
+          </div>
+          <span className="rounded-full bg-amber-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-amber-700">
+            Placeholder
+          </span>
         </div>
         <div className="grid grid-cols-1 gap-4 p-6 lg:grid-cols-3">
           <label className="block">
@@ -53,9 +69,14 @@ export default function HealthEducation({ patient, treatment }: Props) {
       </section>
 
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-6 py-4">
+          <div className="flex items-center gap-2">
           <ClipboardList size={16} className="text-blue-600" />
           <h3 className="text-sm font-black text-slate-800">宣教记录</h3>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black uppercase tracking-wide text-slate-500">
+            No backend
+          </span>
         </div>
         <div className="px-6 py-10 text-center text-sm text-slate-400">
           暂无真实宣教记录数据源，当前不展示静态假记录。

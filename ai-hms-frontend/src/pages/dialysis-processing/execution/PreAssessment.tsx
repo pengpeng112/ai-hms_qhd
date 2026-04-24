@@ -2,6 +2,7 @@ import { message } from 'antd'
 import { Activity, Heart, Scale, Stethoscope, Thermometer } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { RestTreatment } from '@/services'
+import { getErrorMessage } from '@/services/restClient'
 import type { TreatmentBeforeSignsRequest } from '@/services/restClient'
 import type { Patient, PreAssessmentFormValue } from '../types'
 
@@ -110,14 +111,23 @@ interface Props {
   patient: Patient
   treatment: RestTreatment | null
   saving?: boolean
+  treatmentLoading?: boolean
   onSave: (payload: TreatmentBeforeSignsRequest) => Promise<void>
 }
 
-export default function PreAssessment({ patient, treatment, saving = false, onSave }: Props) {
+export default function PreAssessment({
+  patient,
+  treatment,
+  saving = false,
+  treatmentLoading = false,
+  onSave,
+}: Props) {
   const [form, setForm] = useState<PreAssessmentFormValue>(EMPTY_FORM)
+  const [newSymptom, setNewSymptom] = useState('')
 
   useEffect(() => {
     setForm(mapTreatmentToForm(treatment))
+    setNewSymptom('')
   }, [treatment])
 
   const weightGain = useMemo(() => {
@@ -128,6 +138,13 @@ export default function PreAssessment({ patient, treatment, saving = false, onSa
 
   const updateField = (key: keyof PreAssessmentFormValue, value: string | string[]) => {
     setForm((current) => ({ ...current, [key]: value }))
+  }
+
+  const handleAddSymptom = () => {
+    const symptom = newSymptom.trim()
+    if (!symptom) return
+    updateField('symptoms', [...form.symptoms, symptom])
+    setNewSymptom('')
   }
 
   const handleSave = async () => {
@@ -153,12 +170,18 @@ export default function PreAssessment({ patient, treatment, saving = false, onSa
       })
     } catch (error) {
       console.error('[PreAssessment] save failed', error)
-      message.error('透前评估保存失败')
+      message.error(getErrorMessage(error))
     }
   }
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在切换患者并加载今日治疗，透前评估已清空旧患者数据。
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
         <Card title="体重与容量评估" icon={<Scale size={18} className="text-blue-600" />}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -202,14 +225,24 @@ export default function PreAssessment({ patient, treatment, saving = false, onSa
                   </button>
                 </span>
               ))}
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3">
+              <input
+                value={newSymptom}
+                onChange={(e) => setNewSymptom(e.target.value)}
+                placeholder="请输入真实症状后再添加"
+                className="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 outline-none placeholder:text-slate-400"
+              />
               <button
                 type="button"
-                onClick={() => updateField('symptoms', [...form.symptoms, `新增症状 ${form.symptoms.length + 1}`])}
-                className="inline-flex items-center rounded-xl border border-dashed border-blue-300 px-3 py-1 text-xs font-semibold text-blue-600"
+                onClick={handleAddSymptom}
+                disabled={!newSymptom.trim()}
+                className="h-11 rounded-2xl bg-blue-600 px-5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
-                添加
+                添加真实症状
               </button>
             </div>
+            <div className="mt-2 text-xs text-slate-400">旧的“新增症状”占位写法已移除，必须输入真实内容才能添加。</div>
           </div>
           <div className="mt-5">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-2">透前备注</div>
@@ -241,14 +274,14 @@ export default function PreAssessment({ patient, treatment, saving = false, onSa
           </div>
           <div className="md:col-span-2 flex items-center justify-end gap-3">
             <button type="button" className="px-5 py-3 rounded-2xl bg-slate-800 text-sm font-semibold border border-slate-700">暂存</button>
-            <button
-              type="button"
-              onClick={() => void handleSave()}
-              disabled={saving}
-              className="px-5 py-3 rounded-2xl bg-blue-600 text-sm font-semibold disabled:opacity-60"
-            >
-              {saving ? '保存中...' : '提交透前评估'}
-            </button>
+              <button
+                type="button"
+                onClick={() => void handleSave()}
+                disabled={saving || treatmentLoading}
+                className="px-5 py-3 rounded-2xl bg-blue-600 text-sm font-semibold disabled:opacity-60"
+              >
+                {treatmentLoading ? '治疗加载中...' : saving ? '保存中...' : '提交透前评估'}
+              </button>
           </div>
         </div>
       </section>
