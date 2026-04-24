@@ -18,4 +18,8 @@ echo "--- go build ---"
 go build ./cmd/server
 echo "PASS: go build"
 
+echo "--- go test ---"
+go test ./...
+echo "PASS: go test"
+
 echo "=== All backend checks passed ==="
