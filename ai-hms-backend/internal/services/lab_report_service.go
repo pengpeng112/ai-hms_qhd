@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,6 +17,52 @@ import (
 type LabReportService struct {
 	db *gorm.DB
 }
+
+type legacyLabExamination struct {
+	ID             int64     `gorm:"column:Id"`
+	TenantID       int64     `gorm:"column:TenantId"`
+	PatientID      int64     `gorm:"column:PatientId"`
+	Name           string    `gorm:"column:Name"`
+	Type           string    `gorm:"column:Type"`
+	ResultTime     *time.Time `gorm:"column:ResultTime"`
+	SyncUserID     int64     `gorm:"column:SyncUserId"`
+	SyncTime       *time.Time `gorm:"column:SyncTime"`
+	LastModifyTime time.Time `gorm:"column:LastModifyTime"`
+	TestNO         string    `gorm:"column:TestNO"`
+}
+
+func (legacyLabExamination) TableName() string { return "LIS_Examination" }
+
+type legacyLabExaminationApply struct {
+	TestNO                string     `gorm:"column:TestNO"`
+	ClinicalDiagnosisDesc string     `gorm:"column:ClinicalDiagnosisDesc"`
+	Specimen              string     `gorm:"column:Specimen"`
+	SpecimenDesc          string     `gorm:"column:SpecimenDesc"`
+	SpecimenReceivedTime  *time.Time `gorm:"column:SpecimenReceivedTime"`
+	SpecimenSampleTime    *time.Time `gorm:"column:SpecimenSampleTime"`
+	ApplyTime             *time.Time `gorm:"column:ApplyTime"`
+	ApplyUserName         string     `gorm:"column:ApplyUserName"`
+	Priority              int        `gorm:"column:Priority"`
+	ResultStatus          int        `gorm:"column:ResultStatus"`
+	ResultRPTTime         *time.Time `gorm:"column:ResultRPTTime"`
+}
+
+func (legacyLabExaminationApply) TableName() string { return "LIS_ExaminationApply" }
+
+type legacyLabExaminationItem struct {
+	ID             int64     `gorm:"column:Id"`
+	TenantID       int64     `gorm:"column:TenantId"`
+	ExaminationID  int64     `gorm:"column:ExaminationId"`
+	ItemName       string    `gorm:"column:ItemName"`
+	ItemCode       string    `gorm:"column:ItemCode"`
+	Result         string    `gorm:"column:Result"`
+	Unit           string    `gorm:"column:Unit"`
+	Reference      string    `gorm:"column:Reference"`
+	ResultSign     string    `gorm:"column:ResultSign"`
+	LastModifyTime time.Time `gorm:"column:LastModifyTime"`
+}
+
+func (legacyLabExaminationItem) TableName() string { return "LIS_ExaminationItem" }
 
 // NewLabReportService 创建检验报告服务
 func NewLabReportService() *LabReportService {
@@ -106,22 +153,31 @@ func (s *LabReportService) ListByPatient(patientID string, req LabReportListRequ
 	}
 
 	page, pageSize := normalizePagination(req.Page, req.PageSize)
+	return s.listLegacyByPatient(patientID, req, page, pageSize)
+}
 
-	query := s.db.Model(&models.LabReport{}).Where("patient_id = ?", patientID)
+func (s *LabReportService) listLegacyByPatient(patientID string, req LabReportListRequest, page, pageSize int) (*LabReportListResponse, error) {
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("patient id is required")
+	}
+
+	query := s.db.Model(&legacyLabExamination{}).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID)
 
 	if strings.TrimSpace(req.StartDate) != "" {
 		startDate, err := parseOptionalTime(req.StartDate)
 		if err != nil {
 			return nil, fmt.Errorf("invalid startDate: %w", err)
 		}
-		query = query.Where("reported_at >= ?", *startDate)
+		query = query.Where(`COALESCE("ResultTime", "LastModifyTime") >= ?`, *startDate)
 	}
 	if strings.TrimSpace(req.EndDate) != "" {
 		endDate, err := parseOptionalTime(req.EndDate)
 		if err != nil {
 			return nil, fmt.Errorf("invalid endDate: %w", err)
 		}
-		query = query.Where("reported_at <= ?", *endDate)
+		query = query.Where(`COALESCE("ResultTime", "LastModifyTime") <= ?`, *endDate)
 	}
 
 	var total int64
@@ -129,14 +185,94 @@ func (s *LabReportService) ListByPatient(patientID string, req LabReportListRequ
 		return nil, err
 	}
 
-	var reports []models.LabReport
+	var exams []legacyLabExamination
 	offset := (page - 1) * pageSize
-	if err := query.Preload("Items").
+	if err := query.
 		Offset(offset).
 		Limit(pageSize).
-		Order("reported_at DESC NULLS LAST, created_at DESC").
-		Find(&reports).Error; err != nil {
+		Order(`COALESCE("ResultTime", "LastModifyTime") DESC`).
+		Order(`"Id" DESC`).
+		Find(&exams).Error; err != nil {
 		return nil, err
+	}
+
+	examIDs := make([]int64, 0, len(exams))
+	testNos := make([]string, 0, len(exams))
+	for _, exam := range exams {
+		examIDs = append(examIDs, exam.ID)
+		if strings.TrimSpace(exam.TestNO) != "" {
+			testNos = append(testNos, strings.TrimSpace(exam.TestNO))
+		}
+	}
+
+	itemMap := make(map[int64][]models.LabReportItem)
+	if len(examIDs) > 0 {
+		var rows []legacyLabExaminationItem
+		if err := s.db.Where(`"ExaminationId" IN ?`, examIDs).
+			Order(`"ExaminationId" ASC`).
+			Order(`"Id" ASC`).
+			Find(&rows).Error; err != nil && !isIgnorableLegacyQueryError(err) {
+			return nil, err
+		} else if err == nil {
+			for _, row := range rows {
+				itemMap[row.ExaminationID] = append(itemMap[row.ExaminationID], models.LabReportItem{
+					ID:             strconv.FormatInt(row.ID, 10),
+					LabReportID:    strconv.FormatInt(row.ExaminationID, 10),
+					ItemCode:       strings.TrimSpace(row.ItemCode),
+					ItemName:       strings.TrimSpace(row.ItemName),
+					ResultValue:    strings.TrimSpace(row.Result),
+					Unit:           strings.TrimSpace(row.Unit),
+					ReferenceRange: strings.TrimSpace(row.Reference),
+					AbnormalFlag:   strings.TrimSpace(row.ResultSign),
+					TestedAt:       timePtrOrNil(row.LastModifyTime),
+					CreatedAt:      row.LastModifyTime,
+					UpdatedAt:      row.LastModifyTime,
+				})
+			}
+		}
+	}
+
+	applyMap := make(map[string]legacyLabExaminationApply)
+	if len(testNos) > 0 {
+		var applyRows []legacyLabExaminationApply
+		if err := s.db.Where(`"TestNO" IN ?`, testNos).
+			Order(`"LastModifyTime" DESC`).
+			Find(&applyRows).Error; err == nil {
+			for _, row := range applyRows {
+				if _, ok := applyMap[strings.TrimSpace(row.TestNO)]; !ok {
+					applyMap[strings.TrimSpace(row.TestNO)] = row
+				}
+			}
+		}
+	}
+
+	reports := make([]models.LabReport, 0, len(exams))
+	for _, exam := range exams {
+		apply := applyMap[strings.TrimSpace(exam.TestNO)]
+		reportedAt := firstTimePtr(exam.ResultTime, apply.ResultRPTTime, apply.ApplyTime, apply.SpecimenReceivedTime)
+		report := models.LabReport{
+			ID:                strconv.FormatInt(exam.ID, 10),
+			PatientID:         patientID,
+			ReportNo:          strings.TrimSpace(exam.TestNO),
+			ItemCode:          firstLabItemCode(itemMap[exam.ID]),
+			ItemName:          firstNonEmptyText(strings.TrimSpace(exam.Name), firstLabItemName(itemMap[exam.ID])),
+			ClinicalDiagnosis: strings.TrimSpace(apply.ClinicalDiagnosisDesc),
+			SpecimenType:      firstNonEmptyText(strings.TrimSpace(apply.SpecimenDesc), strings.TrimSpace(apply.Specimen)),
+			Urgency:           legacyPriorityText(apply.Priority),
+			RequestDoctor:     strings.TrimSpace(apply.ApplyUserName),
+			RequestedAt:       apply.ApplyTime,
+			SampledAt:         apply.SpecimenSampleTime,
+			ReceivedAt:        apply.SpecimenReceivedTime,
+			ReportedAt:        reportedAt,
+			Status:            legacyLabStatusText(apply.ResultStatus),
+			ExternalReportID:  nil,
+			SourceSystem:      models.SourceSystemLIS,
+			SyncedAt:          exam.SyncTime,
+			CreatedAt:         exam.LastModifyTime,
+			UpdatedAt:         exam.LastModifyTime,
+			Items:             itemMap[exam.ID],
+		}
+		reports = append(reports, report)
 	}
 
 	totalPage := int(total) / pageSize
@@ -151,6 +287,57 @@ func (s *LabReportService) ListByPatient(patientID string, req LabReportListRequ
 		PageSize:  pageSize,
 		TotalPage: totalPage,
 	}, nil
+}
+
+func firstTimePtr(values ...*time.Time) *time.Time {
+	for _, value := range values {
+		if value != nil && !value.IsZero() {
+			return value
+		}
+	}
+	return nil
+}
+
+func timePtrOrNil(value time.Time) *time.Time {
+	if value.IsZero() {
+		return nil
+	}
+	v := value
+	return &v
+}
+
+func firstLabItemCode(items []models.LabReportItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	return items[0].ItemCode
+}
+
+func firstLabItemName(items []models.LabReportItem) string {
+	if len(items) == 0 {
+		return ""
+	}
+	return items[0].ItemName
+}
+
+func legacyPriorityText(priority int) string {
+	switch priority {
+	case 1:
+		return "急诊"
+	default:
+		return "常规"
+	}
+}
+
+func legacyLabStatusText(status int) string {
+	switch status {
+	case 1:
+		return "已出报告"
+	case 2:
+		return "已审核"
+	default:
+		return "已出报告"
+	}
 }
 
 // Create 创建检验报告

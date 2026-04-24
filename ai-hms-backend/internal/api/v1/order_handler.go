@@ -32,6 +32,7 @@ func (h *OrderHandler) List(c *gin.Context) {
 		return
 	}
 	req.PatientID = patientID
+	req.TenantID = middleware.GetTenantID(c)
 
 	orders, err := h.service.List(req)
 	if err != nil {
@@ -54,7 +55,13 @@ func (h *OrderHandler) Create(c *gin.Context) {
 		return
 	}
 
-	order, err := h.service.Create(patientID, middleware.GetUserID(c), middleware.GetUsername(c), req)
+	order, err := h.service.Create(
+		patientID,
+		middleware.GetTenantID(c),
+		middleware.GetUserID(c),
+		middleware.GetUsername(c),
+		req,
+	)
 	if err != nil {
 		h.respondOrderError(c, err)
 		return
@@ -96,7 +103,14 @@ func (h *OrderHandler) Revise(c *gin.Context) {
 		return
 	}
 
-	order, err := h.service.Revise(patientID, orderID, middleware.GetUserID(c), middleware.GetUsername(c), req)
+	order, err := h.service.Revise(
+		patientID,
+		orderID,
+		middleware.GetTenantID(c),
+		middleware.GetUserID(c),
+		middleware.GetUsername(c),
+		req,
+	)
 	if err != nil {
 		h.respondOrderError(c, err)
 		return
@@ -111,7 +125,13 @@ func (h *OrderHandler) Copy(c *gin.Context) {
 		return
 	}
 
-	order, err := h.service.Copy(patientID, orderID, middleware.GetUserID(c), middleware.GetUsername(c))
+	order, err := h.service.Copy(
+		patientID,
+		orderID,
+		middleware.GetTenantID(c),
+		middleware.GetUserID(c),
+		middleware.GetUsername(c),
+	)
 	if err != nil {
 		h.respondOrderError(c, err)
 		return
@@ -127,7 +147,10 @@ func (h *OrderHandler) Stop(c *gin.Context) {
 	}
 
 	var req services.OrderStopRequest
-	_ = c.ShouldBindJSON(&req)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "请求参数格式错误: "+err.Error())
+		return
+	}
 
 	orders, err := h.service.Stop(patientID, orderID, req.StopReason, req.StopDate)
 	if err != nil {
@@ -150,7 +173,13 @@ func (h *OrderHandler) CreateFromTemplate(c *gin.Context) {
 		return
 	}
 
-	orders, err := h.service.CreateFromTemplate(patientID, middleware.GetUserID(c), middleware.GetUsername(c), req)
+	orders, err := h.service.CreateFromTemplate(
+		patientID,
+		middleware.GetTenantID(c),
+		middleware.GetUserID(c),
+		middleware.GetUsername(c),
+		req,
+	)
 	if err != nil {
 		h.respondOrderError(c, err)
 		return

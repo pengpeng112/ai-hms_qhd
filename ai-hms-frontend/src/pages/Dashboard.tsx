@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
 import type { Patient as OriginalPatient, DashboardCardConfig } from '@/types/original'
 import { DASHBOARD_CARDS } from '@/constants'
-import { getSelectedRoleUser } from '@/services/role'
+import { getSelectedRoleUser, type AppRole } from '@/services/role'
 import {
     restApi,
     convertRestPatientList,
@@ -33,7 +33,18 @@ interface LocalCardConfig extends DashboardCardConfig {
 const LAYOUT_STORAGE_KEY = 'dashboard_layout_config'
 
 interface DashboardProps {
-    userRole?: UserRole
+    userRole?: AppRole
+}
+
+interface DashboardStatsSummary {
+    activePatients: number
+    shiftCount: number
+    equipmentCount: number
+    todaySchedules: number
+    todayTreatments: number
+    alertItems: number
+    treatmentsByHour: { name: string; value: number }[]
+    qualityByHour: { name: string; value: number }[]
 }
 
 export default function Dashboard({ userRole }: DashboardProps) {
@@ -42,14 +53,24 @@ export default function Dashboard({ userRole }: DashboardProps) {
     const [, startTransition] = useTransition()
     const selectedRoleUser = getSelectedRoleUser()
     const currentUserRole = userRole ?? selectedRoleUser?.role ?? UserRole.DOCTOR_SUPERVISOR
+    const isAdminRole = String(currentUserRole) === 'ADMIN'
+    const nurseRoles: UserRole[] = [
+        UserRole.NURSE_HEAD,
+        UserRole.NURSE_MANAGER,
+        UserRole.NURSE_RESPONSIBLE,
+        UserRole.NURSE_SCHEDULER,
+    ]
+    const isNurseRole = currentUserRole !== 'ADMIN' && nurseRoles.includes(currentUserRole)
     const [isCustomizing, setIsCustomizing] = useState(false)
     const [showWidgetLibrary, setShowWidgetLibrary] = useState(false)
     const [cardsConfig, setCardsConfig] = useState<LocalCardConfig[]>([])
     const [patients, setPatients] = useState<Partial<OriginalPatient>[]>([])
+    const [patientTotal, setPatientTotal] = useState<number | null>(null)
     const [shifts, setShifts] = useState<APIShift[]>([])
     const [equipments, setEquipments] = useState<EquipmentInfo[]>([])
     const [treatments, setTreatments] = useState<Treatment[]>([])
     const [apiError, setApiError] = useState<string | null>(null)
+    const [dashboardStats, setDashboardStats] = useState<DashboardStatsSummary | null>(null)
     const [treatmentsByHour, setTreatmentsByHour] = useState<{ name: string; value: number }[]>([])
     const [qualityByHour, setQualityByHour] = useState<{ name: string; value: number }[]>([])
 
@@ -57,7 +78,6 @@ export default function Dashboard({ userRole }: DashboardProps) {
     useEffect(() => {
         const loadData = async () => {
             try {
-                // 并行加载所有数据
                 const [patientResult, shiftsData, equipmentsData, treatmentsData, statsData] = await Promise.all([
                     restApi.getPatientList({ page: 1, pageSize: 50 }).catch(() => null),
                     getActiveShifts().catch(() => []),
@@ -68,6 +88,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
 
                 if (patientResult?.data?.items) {
                     setPatients(convertRestPatientList(patientResult.data.items))
+                    setPatientTotal(patientResult.data.pagination?.total ?? patientResult.data.items.length)
                 }
                 if (shiftsData.length > 0) {
                     setShifts(shiftsData)
@@ -79,6 +100,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                     setTreatments(treatmentsData)
                 }
                 if (statsData) {
+                    setDashboardStats(statsData)
                     setTreatmentsByHour(statsData.treatmentsByHour ?? [])
                     setQualityByHour(statsData.qualityByHour ?? [])
                 }
@@ -116,7 +138,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                     if (card.id === 'device_status_eng') { defaultCol = 12; defaultRow = 5 }
                     return {
                         ...card,
-                        visible: card.roles.includes(currentUserRole),
+                        visible: isAdminRole ? card.roles.includes('ADMIN' as UserRole) : card.roles.includes(currentUserRole as UserRole),
                         colSpan: defaultCol,
                         rowSpan: defaultRow
                     }
@@ -148,7 +170,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
             if (card.id === 'duty_monitor') { defaultCol = 12; defaultRow = 5 }
             if (card.id === 'device_status_eng') { defaultCol = 12; defaultRow = 5 }
 
-            const isAllowed = card.roles.includes(currentUserRole)
+            const isAllowed = isAdminRole ? card.roles.includes('ADMIN' as UserRole) : card.roles.includes(currentUserRole as UserRole)
 
             return {
                 ...card,
@@ -285,14 +307,13 @@ export default function Dashboard({ userRole }: DashboardProps) {
     )
 
     const renderCardContent = (card: DashboardCardConfig) => {
-        const dialyzingCount = patients.filter(p => p.status === '透析中').length
-        const totalPatients = patients.length
+        const totalPatients = dashboardStats?.activePatients ?? patientTotal ?? patients.length
 
         switch (card.id) {
             case 'dept_overview': {
-                // 今日透析数使用真实数据或模拟的正在透析患者数
-                const todayTreatmentCount = treatments.length > 0 ? treatments.length : dialyzingCount
-                const equipmentCount = equipments.length
+                const todayTreatmentCount = dashboardStats?.todayTreatments ?? treatments.length
+                const equipmentCount = dashboardStats?.equipmentCount ?? equipments.length
+                const shiftCount = dashboardStats?.shiftCount ?? shifts.length
                 return (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 h-full">
                         <div className="p-4 bg-blue-50/50 rounded-lg border border-blue-100 flex flex-col justify-center">
@@ -304,7 +325,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                         </div>
                         <div className="p-4 bg-teal-50/50 rounded-lg border border-teal-100 flex flex-col justify-center">
                             <p className="text-xs text-teal-600 font-medium uppercase mb-1">{t('dashboard:stat.todayDialysis')}</p>
-                            <p className="text-3xl font-bold text-gray-800">{todayTreatmentCount}</p>
+                            <p className="text-3xl font-bold text-gray-800">{todayTreatmentCount || '--'}</p>
                         </div>
                         <div className="p-4 bg-purple-50/50 rounded-lg border border-purple-100 flex flex-col justify-center">
                             <p className="text-xs text-purple-600 font-medium uppercase mb-1">{t('dashboard:stat.totalDevices')}</p>
@@ -312,7 +333,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                         </div>
                         <div className="p-4 bg-orange-50/50 rounded-lg border border-orange-100 flex flex-col justify-center">
                             <p className="text-xs text-orange-600 font-medium uppercase mb-1">{t('dashboard:stat.shiftCount')}</p>
-                            <p className="text-3xl font-bold text-gray-800">{shifts.length || '--'}</p>
+                            <p className="text-3xl font-bold text-gray-800">{shiftCount || '--'}</p>
                         </div>
                     </div>
                 )
@@ -349,7 +370,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                             </div>
                         ))}
                         {patients.length === 0 && (
-                            <div className="text-center py-4 text-gray-400 text-sm">{t('common:noData.patient') || '暂无患者数据'}</div>
+                            <div className="text-center py-4 text-gray-400 text-sm">{t('common:noData.patient') || '\u6682\u65e0\u60a3\u8005\u6570\u636e'}</div>
                         )}
                         <button
                             onClick={(e) => { e.stopPropagation(); navigate('/patients') }}
@@ -373,7 +394,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                                 </div>
                             </div>
                             <p className="text-xs text-gray-600 pl-6 mb-2">{t('dashboard:alert.adjustUF')}</p>
-                            <button onClick={(e) => { e.stopPropagation(); }} className="ml-6 px-2 py-1 bg-orange-50 text-orange-600 text-xs rounded hover:bg-orange-100">
+                            <button onClick={(e) => { e.stopPropagation(); navigate('/monitoring') }} className="ml-6 px-2 py-1 bg-orange-50 text-orange-600 text-xs rounded hover:bg-orange-100">
                                 {t('common:action.handle')}
                             </button>
                         </div>
@@ -386,7 +407,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                                 </div>
                             </div>
                             <p className="text-xs text-gray-600 pl-6 mb-2">{t('common:order.heparinRequest')}</p>
-                            <button onClick={(e) => { e.stopPropagation(); }} className="ml-6 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded hover:bg-blue-100">
+                            <button onClick={(e) => { e.stopPropagation(); navigate('/dialysis-processing') }} className="ml-6 px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded hover:bg-blue-100">
                                 {t('common:action.review')}
                             </button>
                         </div>
@@ -395,14 +416,14 @@ export default function Dashboard({ userRole }: DashboardProps) {
 
             case 'duty_monitor':
             case 'device_status_eng': {
-                // 使用真实设备数据，最多显示24台
+                // ????????????? 24 ?
                 const displayEquipments = equipments.slice(0, 24)
                 return (
                     <div className="grid grid-cols-4 lg:grid-cols-6 gap-2">
                         {displayEquipments.length > 0 ? displayEquipments.map((eq, i) => {
-                            // 随机模拟状态（实际应从API获取）
-                            const isAlarm = i === 3
-                            const isOffline = i === 6
+                            const status = (eq.Status || '').toLowerCase()
+                            const isAlarm = status === 'alarm' || status === 'error' || status === '报警'
+                            const isOffline = status === 'offline' || status === 'inactive' || status === '离线'
                             return (
                                 <div key={eq.Id} className={`p-2 rounded border flex flex-col items-center text-center relative ${isAlarm ? 'bg-red-50 border-red-200' :
                                         isOffline ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-100'
@@ -505,8 +526,8 @@ export default function Dashboard({ userRole }: DashboardProps) {
                 <div>
                     <h2 className="text-2xl font-bold text-gray-800">{t('dashboard:title')}</h2>
                     <p className="text-gray-500 text-sm mt-1">
-                        {currentUserRole === ('ADMIN' as UserRole) ? '系统配置、权限治理与全局运营看板' :
-                            currentUserRole.includes('NURSE') ? t('role:desc.nurse') :
+                        {isAdminRole ? t('role:desc.admin') :
+                            isNurseRole ? t('role:desc.nurse') :
                                 t('role:desc.doctor')}
                     </p>
                 </div>

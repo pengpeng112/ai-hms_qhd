@@ -1,14 +1,18 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"github.com/elliotxin/ai-hms-backend/internal/utils"
+	"github.com/elliotxin/ai-hms-backend/internal/utils/idgen"
 	"gorm.io/gorm"
 )
 
@@ -17,11 +21,394 @@ type PatientService struct {
 	db *gorm.DB
 }
 
+type legacyPatientPlan struct {
+	ID                         int64               `gorm:"column:Id"`
+	TenantID                   int64               `gorm:"column:TenantId"`
+	PatientID                  modeltypes.LegacyID `gorm:"column:PatientId"`
+	Name                       string              `gorm:"column:Name"`
+	CreatorID                  int64               `gorm:"column:CreatorId"`
+	CreateTime                 time.Time           `gorm:"column:CreateTime"`
+	PlanTemplateID             int64               `gorm:"column:PlanTPLId"`
+	OddWeekFrequency           int                 `gorm:"column:OddWeekFrequency"`
+	EvenWeekFrequency          int                 `gorm:"column:EvenWeekFrequency"`
+	DialysisMethod             string              `gorm:"column:DialysisMethod"`
+	DialysisDuration           float64             `gorm:"column:DialysisDuration"`
+	DryWeight                  float64             `gorm:"column:DryWeight"`
+	ExtraWeight                float64             `gorm:"column:ExtraWeight"`
+	AdjustQuantity             float64             `gorm:"column:AdjustQuantity"`
+	BF                         float64             `gorm:"column:BF"`
+	BV                         float64             `gorm:"column:BV"`
+	FirstAnticoagulant         int64               `gorm:"column:FirstAnticoagulant"`
+	FirstDosage                float64             `gorm:"column:FirstDosage"`
+	MaintainAnticoagulant      int64               `gorm:"column:MaintainAnticoagulant"`
+	DilutionProportion         float64             `gorm:"column:DilutionProportion"`
+	InjectionRate              float64             `gorm:"column:InjectionRate"`
+	InjectionDuration          float64             `gorm:"column:InjectionDuration"`
+	InjectionVolume            float64             `gorm:"column:InjectionVolume"`
+	VascularAccessID           int64               `gorm:"column:VascularAccessId"`
+	Dialysate                  string              `gorm:"column:Dialysate"`
+	DialysateFlow              float64             `gorm:"column:DialysateFlow"`
+	DialysateVolume            float64             `gorm:"column:DialysateVolume"`
+	NaIonCon                   float64             `gorm:"column:NaIonCon"`
+	CaIonCon                   float64             `gorm:"column:CaIonCon"`
+	KIonCon                    float64             `gorm:"column:KIonCon"`
+	HCO3IonCon                 float64             `gorm:"column:HCO3IonCon"`
+	Conductivity               float64             `gorm:"column:Conductivity"`
+	DialysateTmp               float64             `gorm:"column:DialysateTmp"`
+	SubstituateVolume          float64             `gorm:"column:SubstituateVolume"`
+	DilutionMnt                string              `gorm:"column:DilutionMnt"`
+	IsDisabled                 bool                `gorm:"column:IsDisabled"`
+	LastModifyTime             time.Time           `gorm:"column:LastModifyTime"`
+	SalineQuantity             float64             `gorm:"column:SalineQuantity"`
+	SealQuantity               float64             `gorm:"column:SealQuantity"`
+	ArterialQuantity           float64             `gorm:"column:ArterialQuantity"`
+	VenousQuantity             float64             `gorm:"column:VenousQuantity"`
+	SealType                   string              `gorm:"column:SealType"`
+	Frequency                  string              `gorm:"column:Frequency"`
+	GlucoseCon                 float64             `gorm:"column:GlucoseCon"`
+	DialysateGroupID           int64               `gorm:"column:DialysateGroupId"`
+	AutoConfirmPrescriptionRaw string              `gorm:"column:AutoConfirmPrescription"`
+	Note                       string              `gorm:"column:Note"`
+	SubstituateFlow            float64             `gorm:"column:SubstituateFlow"`
+}
+
+func (legacyPatientPlan) TableName() string { return "Plan_PatientPlan" }
+
+type legacyPatientPlanMaterial struct {
+	ID             int64     `gorm:"column:Id"`
+	TenantID       int64     `gorm:"column:TenantId"`
+	PatientPlanID  int64     `gorm:"column:PatientPlanId"`
+	MaterialID     int64     `gorm:"column:MaterialId"`
+	MaterialGroup  int64     `gorm:"column:MaterialGroup"`
+	Num            float64   `gorm:"column:Num"`
+	Note           string    `gorm:"column:Note"`
+	LastModifyTime time.Time `gorm:"column:LastModifyTime"`
+}
+
+func (legacyPatientPlanMaterial) TableName() string { return "Plan_PatientPlanMaterial" }
+
+type legacyMaterialCatalog struct {
+	ID             int64     `gorm:"column:Id"`
+	Name           string    `gorm:"column:Name"`
+	Classification string    `gorm:"column:Classification"`
+	Code           string    `gorm:"column:Code"`
+	Brand          string    `gorm:"column:Brand"`
+	Specification  string    `gorm:"column:Specification"`
+	Note           string    `gorm:"column:Note"`
+	LastModifyTime time.Time `gorm:"column:LastModifyTime"`
+}
+
+func (legacyMaterialCatalog) TableName() string { return "Auxiliary_MaterialInfomation" }
+
+type legacyPatientPrescription struct {
+	ID                           int64               `gorm:"column:Id"`
+	TenantID                     int64               `gorm:"column:TenantId"`
+	PatientID                    modeltypes.LegacyID `gorm:"column:PatientId"`
+	TreatmentID                  int64               `gorm:"column:TreatmentId"`
+	PatientPlanID                int64               `gorm:"column:PatientPlanId"`
+	CreatorID                    int64               `gorm:"column:CreatorId"`
+	CreateTime                   time.Time           `gorm:"column:CreateTime"`
+	ConfirmUserID                int64               `gorm:"column:ConfirmUserId"`
+	ConfirmTime                  *time.Time          `gorm:"column:ConfirmTime"`
+	Status                       int                 `gorm:"column:Status"`
+	CaseStatus                   string              `gorm:"column:CaseStatus"`
+	DialysisMethod               string              `gorm:"column:DialysisMethod"`
+	DialysisDuration             float64             `gorm:"column:DialysisDuration"`
+	DryWeight                    float64             `gorm:"column:DryWeight"`
+	AdjustQuantity               float64             `gorm:"column:AdjustQuantity"`
+	BF                           float64             `gorm:"column:BF"`
+	BV                           float64             `gorm:"column:BV"`
+	FirstAnticoagulant           int64               `gorm:"column:FirstAnticoagulant"`
+	FirstDosage                  float64             `gorm:"column:FirstDosage"`
+	MaintainAnticoagulant        int64               `gorm:"column:MaintainAnticoagulant"`
+	DilutionProportion           float64             `gorm:"column:DilutionProportion"`
+	InjectionRate                float64             `gorm:"column:InjectionRate"`
+	InjectionDuration            float64             `gorm:"column:InjectionDuration"`
+	InjectionVolume              float64             `gorm:"column:InjectionVolume"`
+	VascularAccessID             int64               `gorm:"column:VascularAccessId"`
+	Dialysate                    string              `gorm:"column:Dialysate"`
+	DialysateFlow                float64             `gorm:"column:DialysateFlow"`
+	DialysateVolume              float64             `gorm:"column:DialysateVolume"`
+	NaIonCon                     float64             `gorm:"column:NaIonCon"`
+	CaIonCon                     float64             `gorm:"column:CaIonCon"`
+	KIonCon                      float64             `gorm:"column:KIonCon"`
+	HCO3IonCon                   float64             `gorm:"column:HCO3IonCon"`
+	Conductivity                 float64             `gorm:"column:Conductivity"`
+	DialysateTmp                 float64             `gorm:"column:DialysateTmp"`
+	SubstituateVolume            float64             `gorm:"column:SubstituateVolume"`
+	DilutionMnt                  string              `gorm:"column:DilutionMnt"`
+	LastModifyTime               time.Time           `gorm:"column:LastModifyTime"`
+	SalineQuantity               float64             `gorm:"column:SalineQuantity"`
+	SealQuantity                 float64             `gorm:"column:SealQuantity"`
+	ArterialQuantity             float64             `gorm:"column:ArterialQuantity"`
+	VenousQuantity               float64             `gorm:"column:VenousQuantity"`
+	UFQuantity                   float64             `gorm:"column:UFQuantity"`
+	SealType                     string              `gorm:"column:SealType"`
+	GlucoseCon                   float64             `gorm:"column:GlucoseCon"`
+	DialysateGroupID             int64               `gorm:"column:DialysateGroupId"`
+	Note                         string              `gorm:"column:Note"`
+	SubstituateFlow              float64             `gorm:"column:SubstituateFlow"`
+	IsInduceDialysisPrescription bool                `gorm:"column:IsInduceDialysisPrescription"`
+	HeparinType                  int                 `gorm:"column:HeparinType"`
+}
+
+func (legacyPatientPrescription) TableName() string { return "Plan_PatientPrescription" }
+
+type legacyAdjustmentRecord struct {
+	ID                        int64     `gorm:"column:Id"`
+	TenantID                  int64     `gorm:"column:TenantId"`
+	PatientPlanPrescriptionID int64     `gorm:"column:PatientPlanPrescriptionId"`
+	AdjustUserID              int64     `gorm:"column:AdjustUserId"`
+	AdjustTime                time.Time `gorm:"column:AdjustTime"`
+	AdjustReason              string    `gorm:"column:AdjustReason"`
+	CreateTime                time.Time `gorm:"column:CreateTime"`
+}
+
+func (legacyAdjustmentRecord) TableName() string { return "Plan_PatientPlanPrescriptionAdjustment" }
+
 // NewPatientService 创建患者服务
 func NewPatientService() *PatientService {
 	return &PatientService{
 		db: database.GetDB(),
 	}
+}
+
+func normalizeLegacyDialysisMode(raw string) string {
+	v := strings.TrimSpace(raw)
+	if v == "" {
+		return models.DialysisModeHD
+	}
+	upper := strings.ToUpper(v)
+	switch upper {
+	case "HD", "HDF", "HP", "HF", "HFD", "HD+HP":
+		return upper
+	}
+	return v
+}
+
+func boolFromLegacyFlag(raw string) bool {
+	switch strings.TrimSpace(strings.ToLower(raw)) {
+	case "1", "true", "yes", "y", "10":
+		return true
+	default:
+		return false
+	}
+}
+
+func formatLegacyNumber(raw float64) string {
+	if raw == 0 {
+		return ""
+	}
+	return strconv.FormatFloat(raw, 'f', -1, 64)
+}
+
+func parseLegacyPlanNoteJSON(note string) map[string]any {
+	if strings.TrimSpace(note) == "" {
+		return nil
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(note), &payload); err != nil {
+		return nil
+	}
+	return payload
+}
+
+func legacyNoteString(payload map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if payload == nil {
+			return ""
+		}
+		if value, ok := payload[key]; ok {
+			if s, ok := value.(string); ok {
+				return strings.TrimSpace(s)
+			}
+		}
+	}
+	return ""
+}
+
+func legacyNoteBool(payload map[string]any, keys ...string) bool {
+	for _, key := range keys {
+		if payload == nil {
+			return false
+		}
+		if value, ok := payload[key]; ok {
+			switch v := value.(type) {
+			case bool:
+				return v
+			case string:
+				return boolFromLegacyFlag(v)
+			case float64:
+				return v != 0
+			}
+		}
+	}
+	return false
+}
+
+func legacyDrugNameByID(items map[int64]string, id int64) string {
+	if id <= 0 {
+		return ""
+	}
+	if name, ok := items[id]; ok {
+		return name
+	}
+	return strconv.FormatInt(id, 10)
+}
+
+func (s *PatientService) loadLegacyDrugNames(ids ...int64) (map[int64]string, error) {
+	unique := make([]int64, 0, len(ids))
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return map[int64]string{}, nil
+	}
+
+	var rows []struct {
+		ID   int64  `gorm:"column:Id"`
+		Name string `gorm:"column:Name"`
+	}
+	if err := s.db.Table(`"Auxiliary_DrugInfomation"`).
+		Select(`"Id", "Name"`).
+		Where(`"Id" IN ?`, unique).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make(map[int64]string, len(rows))
+	for _, row := range rows {
+		result[row.ID] = strings.TrimSpace(row.Name)
+	}
+	return result, nil
+}
+
+func (s *PatientService) loadLegacyPlanMaterials(planID int64) (models.MaterialList, error) {
+	var rows []legacyPatientPlanMaterial
+	if err := s.db.Where(`"PatientPlanId" = ?`, planID).
+		Order(`"MaterialGroup" ASC`).
+		Order(`"Id" ASC`).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return models.MaterialList{}, nil
+	}
+
+	materialIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.MaterialID > 0 {
+			materialIDs = append(materialIDs, row.MaterialID)
+		}
+	}
+
+	var catalogs []legacyMaterialCatalog
+	if len(materialIDs) > 0 {
+		if err := s.db.Where(`"Id" IN ?`, materialIDs).Find(&catalogs).Error; err != nil {
+			return nil, err
+		}
+	}
+	catalogMap := make(map[int64]legacyMaterialCatalog, len(catalogs))
+	for _, catalog := range catalogs {
+		catalogMap[catalog.ID] = catalog
+	}
+
+	materials := make(models.MaterialList, 0, len(rows))
+	for _, row := range rows {
+		catalog := catalogMap[row.MaterialID]
+		materials = append(materials, models.Material{
+			ID:       strconv.FormatInt(row.MaterialID, 10),
+			Name:     strings.TrimSpace(catalog.Name),
+			Category: strings.TrimSpace(catalog.Classification),
+			Count:    int(row.Num),
+			Code:     strings.TrimSpace(catalog.Code),
+			Brand:    strings.TrimSpace(catalog.Brand),
+			Spec:     strings.TrimSpace(catalog.Specification),
+			Note:     firstNonEmptyText(row.Note, catalog.Note),
+		})
+	}
+
+	return materials, nil
+}
+
+func firstNonEmptyText(values ...string) string {
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			return trimmed
+		}
+	}
+	return ""
+}
+
+func (s *PatientService) toTreatmentPlanDTO(plan legacyPatientPlan, drugNames map[int64]string) (*models.TreatmentPlan, error) {
+	materials, err := s.loadLegacyPlanMaterials(plan.ID)
+	if err != nil {
+		return nil, err
+	}
+	notePayload := parseLegacyPlanNoteJSON(plan.Note)
+	status := models.TreatmentPlanStatusActive
+	if plan.IsDisabled {
+		status = models.TreatmentPlanStatusInactive
+	}
+
+	dto := &models.TreatmentPlan{
+		ID:                strconv.FormatInt(plan.ID, 10),
+		PatientID:         plan.PatientID,
+		WeeklyFrequency:   plan.OddWeekFrequency,
+		BiweeklyFrequency: plan.EvenWeekFrequency,
+		Duration:          int(plan.DialysisDuration),
+		DryWeight:         plan.DryWeight,
+		ExtraWeight:       plan.ExtraWeight,
+		Status:            status,
+		Notes:             strings.TrimSpace(plan.Note),
+		CreatedAt:         plan.CreateTime,
+		UpdatedAt:         plan.LastModifyTime,
+		DialysisMode: models.DialysisMode{
+			Mode:                normalizeLegacyDialysisMode(plan.DialysisMethod),
+			BloodFlow:           int(plan.BF),
+			SubstituteInputMode: firstNonEmptyText(plan.DilutionMnt, legacyNoteString(notePayload, "substituteInputMode", "substituteMode")),
+			SubstituteFlow:      plan.SubstituateFlow,
+			SubstituteVolume:    plan.SubstituateVolume,
+			BV:                  firstNonEmptyText(formatLegacyNumber(plan.BV), legacyNoteString(notePayload, "bv")),
+			FrequencyDesc:       firstNonEmptyText(plan.Frequency),
+			AutoConfirm:         boolFromLegacyFlag(plan.AutoConfirmPrescriptionRaw) || legacyNoteBool(notePayload, "autoConfirm"),
+			Status:              status,
+			Notes:               legacyNoteString(notePayload, "dialysisModeNotes"),
+		},
+		Anticoagulant: models.Anticoagulant{
+			InitialDrug:     legacyDrugNameByID(drugNames, plan.FirstAnticoagulant),
+			InitialDose:     formatLegacyNumber(plan.FirstDosage),
+			MaintenanceDrug: legacyDrugNameByID(drugNames, plan.MaintainAnticoagulant),
+			InfusionRate:    formatLegacyNumber(plan.InjectionRate),
+			InfusionTime:    formatLegacyNumber(plan.InjectionDuration),
+			MaintenanceDose: formatLegacyNumber(plan.DilutionProportion),
+			TotalDose:       formatLegacyNumber(plan.InjectionVolume),
+		},
+		DialysisParameters: models.DialysisParameters{
+			DialysateType:  strings.TrimSpace(plan.Dialysate),
+			DialysateGroup: strconv.FormatInt(plan.DialysateGroupID, 10),
+			FlowRate:       int(plan.DialysateFlow),
+			Na:             plan.NaIonCon,
+			Ca:             plan.CaIonCon,
+			K:              plan.KIonCon,
+			HCO3:           plan.HCO3IonCon,
+			Glucose:        formatLegacyNumber(plan.GlucoseCon),
+			Conductivity:   plan.Conductivity,
+			Temp:           plan.DialysateTmp,
+			Volume:         plan.DialysateVolume,
+		},
+		Materials: materials,
+	}
+
+	return dto, nil
 }
 
 // ListRequest 获取患者列表请求
@@ -57,21 +444,17 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&models.Patient{})
+	// TenantId=3 过滤（老血透库多租户）
+	query := s.db.Model(&models.Patient{}).Where(`"TenantId" = ?`, legacyTenantID)
 
-	// 筛选条件
+	// 筛选条件（使用老库 PascalCase 列名）
 	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
-	}
-	if req.BedNumber != "" {
-		query = query.Where("bed_number LIKE ?", "%"+req.BedNumber+"%")
+		query = query.Where(`"TreatmentStatus" = ?`, req.Status)
 	}
 	if req.Name != "" {
-		query = query.Where("name LIKE ?", "%"+req.Name+"%")
+		query = query.Where(`"Name" LIKE ?`, "%"+req.Name+"%")
 	}
-	if req.RiskLevel != "" {
-		query = query.Where("risk_level = ?", req.RiskLevel)
-	}
+	// BedNumber 和 RiskLevel 在老库无对应列，忽略过滤
 
 	// 获取总数
 	var total int64
@@ -79,17 +462,23 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 		return nil, err
 	}
 
-	// 分页查询 - 列表页面只返回必要字段
+	// 分页查询
 	var items []models.Patient
 	offset := (req.Page - 1) * req.PageSize
 	if err := query.
-		Select("id", "name", "age", "gender", "bed_number", "status",
-			"patient_type", "insurance_type", "dry_weight", "default_mode", "doctor_name").
 		Offset(offset).
 		Limit(req.PageSize).
-		Order("created_at DESC").
+		Order(`"CreateTime" DESC`).
 		Find(&items).Error; err != nil {
 		return nil, err
+	}
+
+	// 计算 Age（老库存 BirthDate，无 Age 列）
+	now := time.Now()
+	for i := range items {
+		if items[i].BirthDate != nil {
+			items[i].Age = int(now.Sub(*items[i].BirthDate).Hours() / 8766)
+		}
 	}
 
 	totalPage := int(total) / req.PageSize
@@ -107,7 +496,7 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 }
 
 // Get 获取患者详情
-func (s *PatientService) Get(id string) (*models.Patient, error) {
+func (s *PatientService) Get(id modeltypes.LegacyID) (*models.Patient, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -117,7 +506,8 @@ func (s *PatientService) Get(id string) (*models.Patient, error) {
 		Preload("VascularAccesses").
 		Preload("MedicalHistory").
 		Preload("TreatmentPlan").
-		First(&patient, "id = ?", id).Error
+		Where(`"TenantId" = ?`, legacyTenantID).
+		First(&patient, `"Id" = ?`, id).Error
 
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -177,103 +567,72 @@ type CreateRequest struct {
 }
 
 // Create 创建患者
-func (s *PatientService) Create(req CreateRequest, tenantID string, creatorID string) (*models.Patient, error) {
+func (s *PatientService) Create(req CreateRequest, tenantID int64, creatorID string) (*models.Patient, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 	if strings.TrimSpace(creatorID) == "" {
 		return nil, errors.New("creator id is required")
 	}
-	if strings.TrimSpace(tenantID) == "" {
-		tenantID = creatorID
+	if tenantID <= 0 {
+		return nil, errors.New("tenant id is required")
 	}
 
-	// 生成业务ID，不作为主键，允许失败后重试
-	today := time.Now().Format("20060102")
-
-	// 重试机制：处理并发时的 ID 冲突
-	maxRetries := 10
-	var lastErr error
-
-	var createdPatientID string
-	for retry := 0; retry < maxRetries; retry++ {
-		err := s.db.Transaction(func(tx *gorm.DB) error {
-			tx = tx.Set("tenant_id", tenantID).Set("creator_id", creatorID)
-
-			// 查询今天已有的患者数量
-			var todayCount int64
-			if err := tx.Model(&models.Patient{}).
-				Where("id LIKE ?", "P"+today+"%").
-				Count(&todayCount).Error; err != nil {
-				return err
-			}
-
-			// 生成患者编号: P + 年月日 + 4位序号
-			// 序号从 0001 开始，使用较大的偏移量避免并发冲突
-			seq := int(todayCount) + retry + 1
-			patientID := fmt.Sprintf("P%s%04d", today, seq)
-
-			patient := models.Patient{
-				ID:            patientID,
-				Name:          req.Name,
-				Age:           req.Age,
-				Gender:        req.Gender,
-				BedNumber:     req.BedNumber,
-				Diagnosis:     req.Diagnosis,
-				RiskLevel:     req.RiskLevel,
-				Status:        req.Status,
-				PatientType:   req.PatientType,
-				InsuranceType: req.InsuranceType,
-				DryWeight:     req.DryWeight,
-				DefaultMode:   req.DefaultMode,
-				DoctorID:      req.DoctorID,
-				DoctorName:    req.DoctorName,
-			}
-
-			// 设置默认值
-			if patient.RiskLevel == "" {
-				patient.RiskLevel = models.RiskLevelLow
-			}
-			if patient.Status == "" {
-				patient.Status = models.PatientStatusActive
-			}
-
-			if err := tx.Create(&patient).Error; err != nil {
-				return err
-			}
-
-			if err := s.createBasicInfo(tx, patient.ID, req); err != nil {
-				return err
-			}
-
-			createdPatientID = patient.ID
-			return nil
-		})
-		if err == nil {
-			var patient models.Patient
-			if err := s.db.First(&patient, "id = ?", createdPatientID).Error; err != nil {
-				return nil, err
-			}
-			return &patient, nil
-		}
-
-		// 检查是否是主键冲突错误
-		if isDuplicateKeyError(err) {
-			lastErr = err
-			// 短暂延迟后重试，避免紧邻重试
-			time.Sleep(time.Millisecond * time.Duration(10*(retry+1)))
-			continue
-		}
-
-		// 其他错误直接返回
+	createdPatientID, err := idgen.NextID()
+	if err != nil {
 		return nil, err
 	}
 
-	return nil, fmt.Errorf("failed to create patient after %d retries: %w", maxRetries, lastErr)
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		tx = tx.Set("tenant_id", tenantID).Set("creator_id", creatorID)
+
+		patient := models.Patient{
+			ID:            modeltypes.LegacyID(createdPatientID),
+			Name:          req.Name,
+			Age:           req.Age,
+			Gender:        req.Gender,
+			BedNumber:     req.BedNumber,
+			Diagnosis:     req.Diagnosis,
+			RiskLevel:     req.RiskLevel,
+			Status:        req.Status,
+			PatientType:   req.PatientType,
+			InsuranceType: req.InsuranceType,
+			DryWeight:     req.DryWeight,
+			DefaultMode:   req.DefaultMode,
+			DoctorID:      req.DoctorID,
+			DoctorName:    req.DoctorName,
+		}
+
+		if patient.RiskLevel == "" {
+			patient.RiskLevel = models.RiskLevelLow
+		}
+		if patient.Status == "" {
+			patient.Status = models.PatientStatusActive
+		}
+
+		if err := tx.Create(&patient).Error; err != nil {
+			return err
+		}
+
+		if err := s.createBasicInfo(tx, patient.ID, req); err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	var patient models.Patient
+	if err := s.db.First(&patient, `"Id" = ?`, modeltypes.LegacyID(createdPatientID)).Error; err != nil {
+		return nil, err
+	}
+	return &patient, nil
 }
 
 // createBasicInfo 创建患者基本信息档案
-func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID string, req CreateRequest) error {
+func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID modeltypes.LegacyID, req CreateRequest) error {
 	// 创建基本信息档案（可选字段）
 	basicInfo := models.PatientBasicInfo{
 		ID:                    utils.GenerateID(),
@@ -340,13 +699,13 @@ type UpdateRequest struct {
 }
 
 // Update 更新患者
-func (s *PatientService) Update(id string, req UpdateRequest) (*models.Patient, error) {
+func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*models.Patient, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	var patient models.Patient
-	if err := s.db.First(&patient, "id = ?", id).Error; err != nil {
+	if err := s.db.First(&patient, `"Id" = ?`, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("patient not found")
 		}
@@ -395,7 +754,7 @@ func (s *PatientService) Update(id string, req UpdateRequest) (*models.Patient, 
 		Preload("VascularAccesses").
 		Preload("MedicalHistory").
 		Preload("TreatmentPlan").
-		First(&patient, "id = ?", id).Error; err != nil {
+		First(&patient, `"Id" = ?`, id).Error; err != nil {
 		return nil, err
 	}
 
@@ -403,7 +762,7 @@ func (s *PatientService) Update(id string, req UpdateRequest) (*models.Patient, 
 }
 
 // Delete 删除患者（硬删除 - 从数据库中真正删除）
-func (s *PatientService) Delete(id string) error {
+func (s *PatientService) Delete(id modeltypes.LegacyID) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
@@ -412,7 +771,7 @@ func (s *PatientService) Delete(id string) error {
 	s.db.Where("patient_id = ?", id).Delete(&models.PatientBasicInfo{})
 
 	// 硬删除患者记录
-	result := s.db.Delete(&models.Patient{}, "id = ?", id)
+	result := s.db.Delete(&models.Patient{}, `"Id" = ?`, id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -492,22 +851,48 @@ func stringPtr(s string) *string {
 // ===== 治疗方案相关方法 =====
 
 // GetTreatmentPlans 获取患者的所有治疗方案
-func (s *PatientService) GetTreatmentPlans(patientID string) ([]*models.TreatmentPlan, error) {
+func (s *PatientService) GetTreatmentPlans(patientID modeltypes.LegacyID) ([]*models.TreatmentPlan, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	var plans []*models.TreatmentPlan
-	err := s.db.Where("patient_id = ?", patientID).Find(&plans).Error
+	var legacyPlans []legacyPatientPlan
+	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Order(`"IsDisabled" ASC`).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"CreateTime" DESC`).
+		Find(&legacyPlans).Error
 	if err != nil {
 		return nil, err
+	}
+
+	if len(legacyPlans) == 0 {
+		return []*models.TreatmentPlan{}, nil
+	}
+
+	drugIDs := make([]int64, 0, len(legacyPlans)*2)
+	for _, plan := range legacyPlans {
+		drugIDs = append(drugIDs, plan.FirstAnticoagulant, plan.MaintainAnticoagulant)
+	}
+	drugNames, err := s.loadLegacyDrugNames(drugIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	plans := make([]*models.TreatmentPlan, 0, len(legacyPlans))
+	for _, plan := range legacyPlans {
+		dto, convErr := s.toTreatmentPlanDTO(plan, drugNames)
+		if convErr != nil {
+			return nil, convErr
+		}
+		plans = append(plans, dto)
 	}
 
 	return plans, nil
 }
 
 // GetTreatmentPlan 获取患者治疗方案（可指定透析模式）
-func (s *PatientService) GetTreatmentPlan(patientID string, mode ...string) (*models.TreatmentPlan, error) {
+func (s *PatientService) GetTreatmentPlan(patientID modeltypes.LegacyID, mode ...string) (*models.TreatmentPlan, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -549,14 +934,14 @@ type CreateTreatmentPlanRequest struct {
 }
 
 // CreateTreatmentPlan 创建患者治疗方案
-func (s *PatientService) CreateTreatmentPlan(patientID string, req CreateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
+func (s *PatientService) CreateTreatmentPlan(patientID modeltypes.LegacyID, req CreateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	// 检查患者是否存在
 	var patient models.Patient
-	if err := s.db.First(&patient, "id = ?", patientID).Error; err != nil {
+	if err := s.db.First(&patient, `"Id" = ?`, patientID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("patient not found")
 		}
@@ -611,7 +996,7 @@ type UpdateTreatmentPlanRequest struct {
 }
 
 // UpdateTreatmentPlan 更新患者治疗方案
-func (s *PatientService) UpdateTreatmentPlan(patientID string, req UpdateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
+func (s *PatientService) UpdateTreatmentPlan(patientID modeltypes.LegacyID, req UpdateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -678,7 +1063,7 @@ func (s *PatientService) UpdateTreatmentPlan(patientID string, req UpdateTreatme
 }
 
 // DeleteTreatmentPlan 删除患者治疗方案
-func (s *PatientService) DeleteTreatmentPlan(patientID string) error {
+func (s *PatientService) DeleteTreatmentPlan(patientID modeltypes.LegacyID) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
@@ -695,12 +1080,13 @@ func (s *PatientService) DeleteTreatmentPlan(patientID string) error {
 
 // CreateAdjustmentRecordRequest 创建调整记录请求
 type CreateAdjustmentRecordRequest struct {
-	Content  string `json:"content" binding:"required"`
-	Operator string `json:"operator"`
+	Content                   string `json:"content" binding:"required"`
+	Operator                  string `json:"operator"`
+	PatientPlanPrescriptionID *int64 `json:"patientPlanPrescriptionId,omitempty"`
 }
 
 // GetAdjustmentRecords 获取患者方案调整记录列表
-func (s *PatientService) GetAdjustmentRecords(patientID string) ([]models.AdjustmentRecord, error) {
+func (s *PatientService) GetAdjustmentRecords(patientID modeltypes.LegacyID) ([]models.AdjustmentRecord, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -713,14 +1099,14 @@ func (s *PatientService) GetAdjustmentRecords(patientID string) ([]models.Adjust
 }
 
 // CreateAdjustmentRecord 创建方案调整记录
-func (s *PatientService) CreateAdjustmentRecord(patientID string, req CreateAdjustmentRecordRequest) (*models.AdjustmentRecord, error) {
+func (s *PatientService) CreateAdjustmentRecord(patientID modeltypes.LegacyID, req CreateAdjustmentRecordRequest) (*models.AdjustmentRecord, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
 	// 校验患者是否存在
 	var count int64
-	if err := s.db.Model(&models.Patient{}).Where("id = ?", patientID).Count(&count).Error; err != nil {
+	if err := s.db.Model(&models.Patient{}).Where(`"Id" = ?`, patientID).Count(&count).Error; err != nil {
 		return nil, err
 	}
 	if count == 0 {
@@ -738,4 +1124,519 @@ func (s *PatientService) CreateAdjustmentRecord(patientID string, req CreateAdju
 		return nil, err
 	}
 	return &record, nil
+}
+
+func (s *PatientService) GetLegacyTreatmentPlans(patientID modeltypes.LegacyID) ([]*models.TreatmentPlan, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	var legacyPlans []legacyPatientPlan
+	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Order(`"IsDisabled" ASC`).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"CreateTime" DESC`).
+		Find(&legacyPlans).Error; err != nil {
+		return nil, err
+	}
+
+	if len(legacyPlans) == 0 {
+		return []*models.TreatmentPlan{}, nil
+	}
+
+	drugIDs := make([]int64, 0, len(legacyPlans)*2)
+	for _, plan := range legacyPlans {
+		drugIDs = append(drugIDs, plan.FirstAnticoagulant, plan.MaintainAnticoagulant)
+	}
+
+	drugNames, err := s.loadLegacyDrugNames(drugIDs...)
+	if err != nil {
+		return nil, err
+	}
+
+	plans := make([]*models.TreatmentPlan, 0, len(legacyPlans))
+	for _, plan := range legacyPlans {
+		dto, convErr := s.toTreatmentPlanDTO(plan, drugNames)
+		if convErr != nil {
+			return nil, convErr
+		}
+		plans = append(plans, dto)
+	}
+
+	return plans, nil
+}
+
+func (s *PatientService) GetLegacyTreatmentPlan(patientID modeltypes.LegacyID, mode ...string) (*models.TreatmentPlan, error) {
+	plans, err := s.GetLegacyTreatmentPlans(patientID)
+	if err != nil {
+		return nil, err
+	}
+	if len(plans) == 0 {
+		return nil, nil
+	}
+
+	if len(mode) > 0 && strings.TrimSpace(mode[0]) != "" {
+		targetMode := normalizeLegacyDialysisMode(mode[0])
+		for _, plan := range plans {
+			if normalizeLegacyDialysisMode(plan.DialysisMode.Mode) == targetMode {
+				return plan, nil
+			}
+		}
+		return nil, nil
+	}
+
+	return plans[0], nil
+}
+
+func (s *PatientService) GetLegacyAdjustmentRecords(patientID modeltypes.LegacyID) ([]models.AdjustmentRecord, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	var prescriptions []legacyPatientPrescription
+	if err := s.db.Where(`"PatientId" = ?`, patientID).Find(&prescriptions).Error; err != nil {
+		return nil, err
+	}
+	if len(prescriptions) == 0 {
+		return []models.AdjustmentRecord{}, nil
+	}
+
+	prescriptionIDs := make([]int64, 0, len(prescriptions))
+	for _, prescription := range prescriptions {
+		prescriptionIDs = append(prescriptionIDs, prescription.ID)
+	}
+
+	var legacyRecords []legacyAdjustmentRecord
+	if err := s.db.Where(`"PatientPlanPrescriptionId" IN ?`, prescriptionIDs).
+		Order(`"AdjustTime" DESC`).
+		Find(&legacyRecords).Error; err != nil {
+		return nil, err
+	}
+
+	records := make([]models.AdjustmentRecord, 0, len(legacyRecords))
+	prescriptionService := &PrescriptionService{db: s.db}
+	for _, record := range legacyRecords {
+		operatorName, err := prescriptionService.lookupLegacyUserDisplayName(record.AdjustUserID)
+		if err != nil || strings.TrimSpace(operatorName) == "" {
+			operatorName = "--"
+		}
+		createdAt := record.CreateTime
+		if createdAt.IsZero() {
+			createdAt = record.AdjustTime
+		}
+		records = append(records, models.AdjustmentRecord{
+			ID:        strconv.FormatInt(record.ID, 10),
+			PatientID: patientID,
+			Content:   strings.TrimSpace(record.AdjustReason),
+			Operator:  operatorName,
+			CreatedAt: createdAt,
+		})
+	}
+
+	return records, nil
+}
+
+func parseLegacyNumericID(raw string) int64 {
+	v, err := strconv.ParseInt(strings.TrimSpace(raw), 10, 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func parseStringFloat(raw string) float64 {
+	v, err := strconv.ParseFloat(strings.TrimSpace(raw), 64)
+	if err != nil {
+		return 0
+	}
+	return v
+}
+
+func normalizePlanStatus(status string, modeStatus string) string {
+	if strings.TrimSpace(status) != "" {
+		return strings.TrimSpace(status)
+	}
+	if strings.TrimSpace(modeStatus) != "" {
+		return strings.TrimSpace(modeStatus)
+	}
+	return models.TreatmentPlanStatusActive
+}
+
+func legacyPlanDisabled(status string) bool {
+	return strings.TrimSpace(status) == models.TreatmentPlanStatusInactive
+}
+
+func boolToLegacyFlag(v bool) string {
+	if v {
+		return "10"
+	}
+	return "0"
+}
+
+func (s *PatientService) findLegacyDrugIDByName(name string) (int64, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return 0, nil
+	}
+
+	var row struct {
+		ID int64 `gorm:"column:Id"`
+	}
+	if err := s.db.Table(`"Auxiliary_DrugInfomation"`).
+		Select(`"Id"`).
+		Where(`"TenantId" = ? AND "Name" = ?`, legacyTenantID, name).
+		Limit(1).
+		First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return row.ID, nil
+}
+
+func (s *PatientService) findLegacyMaterialID(material models.Material) (int64, error) {
+	if id := parseLegacyNumericID(material.ID); id > 0 {
+		return id, nil
+	}
+	name := strings.TrimSpace(material.Name)
+	if name == "" {
+		return 0, nil
+	}
+
+	var row struct {
+		ID int64 `gorm:"column:Id"`
+	}
+	if err := s.db.Table(`"Auxiliary_MaterialInfomation"`).
+		Select(`"Id"`).
+		Where(`"TenantId" = ? AND "Name" = ?`, legacyTenantID, name).
+		Limit(1).
+		First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return row.ID, nil
+}
+
+func (s *PatientService) syncLegacyPlanMaterials(tx *gorm.DB, planID int64, materials models.MaterialList) error {
+	if err := tx.Where(`"PatientPlanId" = ?`, planID).Delete(&legacyPatientPlanMaterial{}).Error; err != nil {
+		return err
+	}
+
+	now := time.Now()
+	for idx, material := range materials {
+		materialID, err := s.findLegacyMaterialID(material)
+		if err != nil {
+			return err
+		}
+		if materialID == 0 {
+			continue
+		}
+		id, err := idgen.NextID()
+		if err != nil {
+			return err
+		}
+		row := map[string]any{
+			"Id":             id,
+			"TenantId":       legacyTenantID,
+			"PatientPlanId":  planID,
+			"MaterialId":     materialID,
+			"MaterialGroup":  idx + 1,
+			"Num":            material.Count,
+			"Note":           strings.TrimSpace(material.Note),
+			"LastModifyTime": now,
+		}
+		if err := tx.Table(`"Plan_PatientPlanMaterial"`).Create(row).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (s *PatientService) legacyPlanByMode(patientID modeltypes.LegacyID, mode string) (*legacyPatientPlan, error) {
+	var plan legacyPatientPlan
+	query := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID)
+	if strings.TrimSpace(mode) != "" {
+		query = query.Where(`"DialysisMethod" = ?`, normalizeLegacyDialysisMode(mode))
+	}
+	err := query.
+		Order(`"IsDisabled" ASC`).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"CreateTime" DESC`).
+		First(&plan).Error
+	if err != nil {
+		return nil, err
+	}
+	return &plan, nil
+}
+
+func (s *PatientService) LegacyCreateTreatmentPlan(patientID modeltypes.LegacyID, req CreateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	var patient models.Patient
+	if err := s.db.First(&patient, `"Id" = ?`, patientID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("patient not found")
+		}
+		return nil, err
+	}
+
+	if existing, err := s.legacyPlanByMode(patientID, req.DialysisMode.Mode); err == nil && existing != nil {
+		return nil, fmt.Errorf("该患者已存在 %s 模式的治疗方案", req.DialysisMode.Mode)
+	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	firstDrugID, err := s.findLegacyDrugIDByName(req.Anticoagulant.InitialDrug)
+	if err != nil {
+		return nil, err
+	}
+	maintainDrugID, err := s.findLegacyDrugIDByName(req.Anticoagulant.MaintenanceDrug)
+	if err != nil {
+		return nil, err
+	}
+	planID, err := idgen.NextID()
+	if err != nil {
+		return nil, err
+	}
+
+	status := normalizePlanStatus(req.Status, req.DialysisMode.Status)
+	now := time.Now()
+	createMap := map[string]any{
+		"Id":                      planID,
+		"TenantId":                legacyTenantID,
+		"PatientId":               patientID,
+		"Name":                    patient.Name,
+		"CreatorId":               0,
+		"CreateTime":              now,
+		"OddWeekFrequency":        req.WeeklyFrequency,
+		"EvenWeekFrequency":       req.BiweeklyFrequency,
+		"DialysisMethod":          normalizeLegacyDialysisMode(req.DialysisMode.Mode),
+		"DialysisDuration":        req.Duration,
+		"DryWeight":               req.DryWeight,
+		"ExtraWeight":             req.ExtraWeight,
+		"BF":                      req.DialysisMode.BloodFlow,
+		"BV":                      parseStringFloat(req.DialysisMode.BV),
+		"FirstAnticoagulant":      firstDrugID,
+		"FirstDosage":             parseStringFloat(req.Anticoagulant.InitialDose),
+		"MaintainAnticoagulant":   maintainDrugID,
+		"DilutionProportion":      parseStringFloat(req.Anticoagulant.MaintenanceDose),
+		"InjectionRate":           parseStringFloat(req.Anticoagulant.InfusionRate),
+		"InjectionDuration":       parseStringFloat(req.Anticoagulant.InfusionTime),
+		"InjectionVolume":         parseStringFloat(req.Anticoagulant.TotalDose),
+		"Dialysate":               strings.TrimSpace(req.DialysisParameters.DialysateType),
+		"DialysateFlow":           req.DialysisParameters.FlowRate,
+		"DialysateVolume":         req.DialysisParameters.Volume,
+		"NaIonCon":                req.DialysisParameters.Na,
+		"CaIonCon":                req.DialysisParameters.Ca,
+		"KIonCon":                 req.DialysisParameters.K,
+		"HCO3IonCon":              req.DialysisParameters.HCO3,
+		"Conductivity":            req.DialysisParameters.Conductivity,
+		"DialysateTmp":            req.DialysisParameters.Temp,
+		"SubstituateVolume":       req.DialysisMode.SubstituteVolume,
+		"DilutionMnt":             strings.TrimSpace(req.DialysisMode.SubstituteInputMode),
+		"IsDisabled":              legacyPlanDisabled(status),
+		"LastModifyTime":          now,
+		"Frequency":               strings.TrimSpace(req.DialysisMode.FrequencyDesc),
+		"GlucoseCon":              parseStringFloat(req.DialysisParameters.Glucose),
+		"DialysateGroupId":        parseLegacyNumericID(req.DialysisParameters.DialysateGroup),
+		"AutoConfirmPrescription": boolToLegacyFlag(req.DialysisMode.AutoConfirm),
+		"Note":                    strings.TrimSpace(req.Notes),
+		"SubstituateFlow":         req.DialysisMode.SubstituteFlow,
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(`"Plan_PatientPlan"`).Create(createMap).Error; err != nil {
+			return err
+		}
+		return s.syncLegacyPlanMaterials(tx, planID, req.Materials)
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.GetLegacyTreatmentPlan(patientID, req.DialysisMode.Mode)
+}
+
+func (s *PatientService) LegacyUpdateTreatmentPlan(patientID modeltypes.LegacyID, req UpdateTreatmentPlanRequest) (*models.TreatmentPlan, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	if req.DialysisMode == nil || strings.TrimSpace(req.DialysisMode.Mode) == "" {
+		return nil, errors.New("dialysisMode.mode is required for update")
+	}
+
+	plan, err := s.legacyPlanByMode(patientID, req.DialysisMode.Mode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("treatment plan not found")
+		}
+		return nil, err
+	}
+
+	updates := map[string]any{
+		"LastModifyTime": time.Now(),
+	}
+	if req.WeeklyFrequency != nil {
+		updates["OddWeekFrequency"] = *req.WeeklyFrequency
+	}
+	if req.BiweeklyFrequency != nil {
+		updates["EvenWeekFrequency"] = *req.BiweeklyFrequency
+	}
+	if req.Duration != nil {
+		updates["DialysisDuration"] = *req.Duration
+	}
+	if req.DryWeight != nil {
+		updates["DryWeight"] = *req.DryWeight
+	}
+	if req.ExtraWeight != nil {
+		updates["ExtraWeight"] = *req.ExtraWeight
+	}
+	if req.Status != nil {
+		updates["IsDisabled"] = legacyPlanDisabled(*req.Status)
+	}
+	if req.Notes != nil {
+		updates["Note"] = strings.TrimSpace(*req.Notes)
+	}
+	if req.DialysisMode != nil {
+		updates["DialysisMethod"] = normalizeLegacyDialysisMode(req.DialysisMode.Mode)
+		updates["BF"] = req.DialysisMode.BloodFlow
+		updates["BV"] = parseStringFloat(req.DialysisMode.BV)
+		updates["SubstituateVolume"] = req.DialysisMode.SubstituteVolume
+		updates["DilutionMnt"] = strings.TrimSpace(req.DialysisMode.SubstituteInputMode)
+		updates["Frequency"] = strings.TrimSpace(req.DialysisMode.FrequencyDesc)
+		updates["AutoConfirmPrescription"] = boolToLegacyFlag(req.DialysisMode.AutoConfirm)
+		if req.Status == nil {
+			updates["IsDisabled"] = legacyPlanDisabled(normalizePlanStatus("", req.DialysisMode.Status))
+		}
+		updates["SubstituateFlow"] = req.DialysisMode.SubstituteFlow
+	}
+	if req.Anticoagulant != nil {
+		firstDrugID, err := s.findLegacyDrugIDByName(req.Anticoagulant.InitialDrug)
+		if err != nil {
+			return nil, err
+		}
+		maintainDrugID, err := s.findLegacyDrugIDByName(req.Anticoagulant.MaintenanceDrug)
+		if err != nil {
+			return nil, err
+		}
+		updates["FirstAnticoagulant"] = firstDrugID
+		updates["FirstDosage"] = parseStringFloat(req.Anticoagulant.InitialDose)
+		updates["MaintainAnticoagulant"] = maintainDrugID
+		updates["DilutionProportion"] = parseStringFloat(req.Anticoagulant.MaintenanceDose)
+		updates["InjectionRate"] = parseStringFloat(req.Anticoagulant.InfusionRate)
+		updates["InjectionDuration"] = parseStringFloat(req.Anticoagulant.InfusionTime)
+		updates["InjectionVolume"] = parseStringFloat(req.Anticoagulant.TotalDose)
+	}
+	if req.DialysisParameters != nil {
+		updates["Dialysate"] = strings.TrimSpace(req.DialysisParameters.DialysateType)
+		updates["DialysateFlow"] = req.DialysisParameters.FlowRate
+		updates["DialysateVolume"] = req.DialysisParameters.Volume
+		updates["NaIonCon"] = req.DialysisParameters.Na
+		updates["CaIonCon"] = req.DialysisParameters.Ca
+		updates["KIonCon"] = req.DialysisParameters.K
+		updates["HCO3IonCon"] = req.DialysisParameters.HCO3
+		updates["Conductivity"] = req.DialysisParameters.Conductivity
+		updates["DialysateTmp"] = req.DialysisParameters.Temp
+		updates["GlucoseCon"] = parseStringFloat(req.DialysisParameters.Glucose)
+		if groupID := parseLegacyNumericID(req.DialysisParameters.DialysateGroup); groupID > 0 {
+			updates["DialysateGroupId"] = groupID
+		}
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(`"Plan_PatientPlan"`).Where(`"Id" = ?`, plan.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if req.Materials != nil {
+			return s.syncLegacyPlanMaterials(tx, plan.ID, *req.Materials)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.GetLegacyTreatmentPlan(patientID, req.DialysisMode.Mode)
+}
+
+func (s *PatientService) LegacyDeleteTreatmentPlan(patientID modeltypes.LegacyID) error {
+	if s.db == nil {
+		return errors.New("database not available")
+	}
+
+	return s.db.Table(`"Plan_PatientPlan"`).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Updates(map[string]any{
+			"IsDisabled":     true,
+			"LastModifyTime": time.Now(),
+		}).Error
+}
+
+func (s *PatientService) LegacyCreateAdjustmentRecord(patientID modeltypes.LegacyID, req CreateAdjustmentRecordRequest) (*models.AdjustmentRecord, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	resolvedPrescriptionID := int64(0)
+	if req.PatientPlanPrescriptionID != nil && *req.PatientPlanPrescriptionID > 0 {
+		var matchCount int64
+		if err := s.db.Table(`"Plan_PatientPrescription"`).
+			Where(`"TenantId" = ? AND "Id" = ? AND "PatientId" = ?`, legacyTenantID, *req.PatientPlanPrescriptionID, patientID).
+			Count(&matchCount).Error; err != nil {
+			return nil, err
+		}
+		if matchCount > 0 {
+			resolvedPrescriptionID = *req.PatientPlanPrescriptionID
+		}
+	}
+	if resolvedPrescriptionID <= 0 {
+		var prescription legacyPatientPrescription
+		if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+			Order(`"LastModifyTime" DESC`).
+			Order(`"Id" DESC`).
+			First(&prescription).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil, errors.New("no legacy prescription found for adjustment record")
+			}
+			return nil, err
+		}
+		resolvedPrescriptionID = prescription.ID
+	}
+
+	recordID, err := idgen.NextID()
+	if err != nil {
+		return nil, err
+	}
+
+	prescriptionService := &PrescriptionService{db: s.db}
+	operatorUserID, operatorName, err := prescriptionService.resolveLegacyUserID(req.Operator, req.Operator)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	row := map[string]any{
+		"Id":                        recordID,
+		"TenantId":                  legacyTenantID,
+		"Type":                      0,
+		"PatientPlanPrescriptionId": resolvedPrescriptionID,
+		"AdjustUserId":              operatorUserID,
+		"AdjustTime":                now,
+		"AdjustReason":              strings.TrimSpace(req.Content),
+		"CreateTime":                now,
+	}
+	if err := s.db.Table(`"Plan_PatientPlanPrescriptionAdjustment"`).Create(row).Error; err != nil {
+		return nil, err
+	}
+
+	return &models.AdjustmentRecord{
+		ID:        strconv.FormatInt(recordID, 10),
+		PatientID: patientID,
+		Content:   strings.TrimSpace(req.Content),
+		Operator:  operatorName,
+		CreatedAt: now,
+	}, nil
 }

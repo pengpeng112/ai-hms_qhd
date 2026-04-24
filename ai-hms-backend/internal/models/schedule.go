@@ -84,9 +84,9 @@ type Shift struct {
 	Id             int64     `gorm:"column:Id;type:bigint;primaryKey" json:"id"`
 	TenantId       int64     `gorm:"column:TenantId;type:bigint;index" json:"tenantId"`
 	Name           string    `gorm:"column:Name;type:varchar(256);not null" json:"name"`          // 班次名称：早班/中班/晚班
-	StartTime      string    `gorm:"column:StartTime;type:varchar(32);not null" json:"startTime"` // 开始时间
-	EndTime        string    `gorm:"column:EndTime;type:varchar(32);not null" json:"endTime"`     // 结束时间
-	Type           string    `gorm:"column:Type;type:varchar(64)" json:"type"`                    // 班次类型
+	StartTime      string    `gorm:"column:StartTime;type:varchar(32);not null" json:"startTime"` // 兼容旧API: HH:MM 文本（legacy物理列为timestamp）
+	EndTime        string    `gorm:"column:EndTime;type:varchar(32);not null" json:"endTime"`     // 兼容旧API: HH:MM 文本（legacy物理列为timestamp）
+	Type           string    `gorm:"column:Type;type:varchar(64)" json:"type"`                    // 兼容旧API: 文本类型（legacy物理列为integer）
 	IsDisabled     bool      `gorm:"column:IsDisabled;default:false" json:"isDisabled"`
 	Sort           int       `gorm:"column:Sort" json:"sort"`
 	Notes          string    `gorm:"column:Note;type:varchar(512)" json:"notes"`
@@ -118,8 +118,10 @@ type PatientShift struct {
 	PatientId      modeltypes.LegacyID `gorm:"column:PatientId;type:bigint;not null;index" json:"patientId"`
 	ScheduleDate   time.Time           `gorm:"column:TreatmentTime;type:timestamp;not null;index" json:"scheduleDate"` // 映射到老表 TreatmentTime
 	ShiftId        int64               `gorm:"column:ShiftId;type:bigint;not null;index" json:"shiftId"`
-	BedId          *int64              `gorm:"column:BedId;type:bigint;index" json:"bedId"`
-	WardId         *int64              `gorm:"column:WardId;type:bigint;index" json:"wardId"`
+	BedId          *int64              `gorm:"column:BedId;type:bigint;index" json:"bedId"`                           // legacy schema标注NN；为兼容历史请求暂保留可空
+	WardId         *int64              `gorm:"column:WardId;type:bigint;index" json:"wardId"`                         // legacy schema标注NN；为兼容历史请求暂保留可空
+	PatientPlanId  *int64              `gorm:"column:PatientPlanId;type:bigint;index" json:"patientPlanId,omitempty"` // legacy字段
+	ShiftTiming    *int                `gorm:"column:ShiftTiming;type:int" json:"shiftTiming,omitempty"`              // legacy字段：临时10/长期20
 	Status         int                 `gorm:"column:Status;type:int" json:"status"`
 	IsDisabled     bool                `gorm:"-" json:"isDisabled"`
 	Notes          string              `gorm:"-" json:"notes"`

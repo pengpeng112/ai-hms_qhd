@@ -1,28 +1,50 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
-	"github.com/google/uuid"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
-// VascularAccessService 血管通路服务
+func strDeref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func parseFloat(s string) float64 {
+	if s == "" {
+		return 0
+	}
+	v, _ := strconv.ParseFloat(s, 64)
+	return v
+}
+
 type VascularAccessService struct {
 	db *gorm.DB
 }
 
-// NewVascularAccessService 创建血管通路服务
+type vascularAccessWithImages struct {
+	models.VascularAccess
+	Images []string
+}
+
 func NewVascularAccessService() *VascularAccessService {
 	return &VascularAccessService{
 		db: database.GetDB(),
 	}
 }
 
-// VascularAccessResponse 血管通路响应
 type VascularAccessResponse struct {
 	ID                string   `json:"id"`
 	AccessType        string   `json:"accessType"`
@@ -48,7 +70,6 @@ type VascularAccessResponse struct {
 	CreatedAt         string   `json:"createdAt"`
 }
 
-// VascularAccessRequest 创建/更新血管通路请求
 type VascularAccessRequest struct {
 	AccessType        string   `json:"accessType" binding:"required"`
 	Site              string   `json:"site"`
@@ -72,102 +93,146 @@ type VascularAccessRequest struct {
 	IsDisabled        bool     `json:"isDisabled"`
 }
 
-// List 获取患者的血管通路列表
 func (s *VascularAccessService) List(patientID string) ([]VascularAccessResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+
 	var accesses []models.VascularAccess
-	err := s.db.Where("patient_id = ?", patientID).
-		Order("is_default DESC, created_at DESC").
+	err = s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "IsDefault"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "CreateTime"}, Desc: true}).
 		Find(&accesses).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]VascularAccessResponse, len(accesses))
-	for i, a := range accesses {
-		result[i] = s.buildResponse(a)
+	imageMap, err := s.loadImagesByAccessIDs(accesses)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]VascularAccessResponse, 0, len(accesses))
+	for _, access := range accesses {
+		result = append(result, s.buildResponse(vascularAccessWithImages{
+			VascularAccess: access,
+			Images:         imageMap[access.ID.Int64()],
+		}))
 	}
 	return result, nil
 }
 
-// Create 创建血管通路
-func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequest) (*VascularAccessResponse, error) {
+func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequest, creatorID int64) (*VascularAccessResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	// 验证患者存在
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+
 	var count int64
-	s.db.Model(&models.Patient{}).Where("id = ?", patientID).Count(&count)
+	if err := s.db.Model(&models.Patient{}).
+		Where(`"Id" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+		Count(&count).Error; err != nil {
+		return nil, err
+	}
 	if count == 0 {
 		return nil, errors.New("patient not found")
 	}
 
-	access := models.VascularAccess{
-		ID:                uuid.New().String(),
-		PatientID:         patientID,
-		AccessType:        req.AccessType,
-		Site:              req.Site,
-		Artery:            req.Artery,
-		Vein:              req.Vein,
-		Side:              req.Side,
-		Hospital:          req.Hospital,
-		Surgeon:           req.Surgeon,
-		AccessNumber:      req.AccessNumber,
-		InterventionCount: req.InterventionCount,
-		CatheterMethod:    req.CatheterMethod,
-		CatheterDepth:     req.CatheterDepth,
-		VPuncturePosition: req.VPuncturePosition,
-		APuncturePosition: req.APuncturePosition,
-		Notes:             req.Notes,
-		Images:            req.Images,
-		IsDefault:         req.IsDefault,
-		IsDisabled:        req.IsDisabled,
-	}
-
-	// 解析日期
-	if req.SurgeryDate != "" {
-		if t, err := time.Parse("2006-01-02", req.SurgeryDate); err == nil {
-			access.SurgeryDate = &t
-		}
-	}
-	if req.FirstUseDate != "" {
-		if t, err := time.Parse("2006-01-02", req.FirstUseDate); err == nil {
-			access.FirstUseDate = &t
-		}
-	}
-	if req.InterventionDate != "" {
-		if t, err := time.Parse("2006-01-02", req.InterventionDate); err == nil {
-			access.InterventionDate = &t
-		}
-	}
-
-	// 如果设置为默认，需要将其他记录的默认状态取消
-	if req.IsDefault {
-		s.db.Model(&models.VascularAccess{}).
-			Where("patient_id = ? AND is_default = ?", patientID, true).
-			Update("is_default", false)
-	}
-
-	if err := s.db.Create(&access).Error; err != nil {
+	accessID, err := nextLegacyID()
+	if err != nil {
 		return nil, err
 	}
 
-	resp := s.buildResponse(access)
+	now := time.Now()
+	access := models.VascularAccess{
+		ID:                accessID,
+		TenantID:          legacyTenantID,
+		PatientID:         legacyPatientID,
+		AccessType:        req.AccessType,
+		Site:              req.Site,
+		Artery:            joinStringList(req.Artery),
+		Vein:              joinStringList(req.Vein),
+		Side:              req.Side,
+		Hospital:          req.Hospital,
+		Surgeon:           req.Surgeon,
+		AccessNumber:      int64(req.AccessNumber),
+		InterventionCount: int64(req.InterventionCount),
+		CatheterMethod:    strDeref(req.CatheterMethod),
+		CatheterDepth:     parseFloat(strDeref(req.CatheterDepth)),
+		VPuncturePosition: joinStringList(req.VPuncturePosition),
+		APuncturePosition: joinStringList(req.APuncturePosition),
+		Notes:             req.Notes,
+		IsDefault:         req.IsDefault,
+		IsDisabled:        req.IsDisabled,
+		CreatorID:         creatorID,
+		CreatedAt:         now,
+		UpdatedAt:         now,
+	}
+	access.SurgeryDate = parseDateStringPtr(req.SurgeryDate)
+	access.FirstUseDate = parseDateStringPtr(req.FirstUseDate)
+	access.InterventionDate = parseDateStringPtr(req.InterventionDate)
+
+	var imagePayload []string
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if req.IsDefault {
+			if err := tx.Model(&models.VascularAccess{}).
+				Where(`"PatientId" = ? AND "TenantId" = ? AND "IsDefault" = ?`, legacyPatientID, legacyTenantID, true).
+				Update("IsDefault", false).Error; err != nil {
+				return err
+			}
+		}
+
+		if err := tx.Create(&access).Error; err != nil {
+			return err
+		}
+
+		images, pictureID, err := s.replaceAccessImages(tx, access.ID, creatorID, req.Images)
+		if err != nil {
+			return err
+		}
+		imagePayload = images
+		access.PictureID = pictureID
+
+		return tx.Model(&models.VascularAccess{}).
+			Where(`"Id" = ? AND "TenantId" = ?`, access.ID, legacyTenantID).
+			Updates(map[string]any{
+				"LastModifyTime": now,
+			}).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	resp := s.buildResponse(vascularAccessWithImages{VascularAccess: access, Images: imagePayload})
 	return &resp, nil
 }
 
-// Update 更新血管通路
-func (s *VascularAccessService) Update(patientID, accessID string, req *VascularAccessRequest) (*VascularAccessResponse, error) {
+func (s *VascularAccessService) Update(patientID, accessID string, req *VascularAccessRequest, creatorID int64) (*VascularAccessResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+	legacyAccessID, err := parseLegacyID(accessID)
+	if err != nil {
+		return nil, errors.New("invalid vascular access id")
+	}
+
 	var access models.VascularAccess
-	err := s.db.Where("id = ? AND patient_id = ?", accessID, patientID).First(&access).Error
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+		First(&access).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("vascular access not found")
 	}
@@ -175,136 +240,277 @@ func (s *VascularAccessService) Update(patientID, accessID string, req *Vascular
 		return nil, err
 	}
 
-	// 更新字段
 	access.AccessType = req.AccessType
 	access.Site = req.Site
-	access.Artery = req.Artery
-	access.Vein = req.Vein
+	access.Artery = joinStringList(req.Artery)
+	access.Vein = joinStringList(req.Vein)
 	access.Side = req.Side
 	access.Hospital = req.Hospital
 	access.Surgeon = req.Surgeon
-	access.AccessNumber = req.AccessNumber
-	access.InterventionCount = req.InterventionCount
-	access.CatheterMethod = req.CatheterMethod
-	access.CatheterDepth = req.CatheterDepth
-	access.VPuncturePosition = req.VPuncturePosition
-	access.APuncturePosition = req.APuncturePosition
+	access.AccessNumber = int64(req.AccessNumber)
+	access.InterventionCount = int64(req.InterventionCount)
+	access.CatheterMethod = strDeref(req.CatheterMethod)
+	access.CatheterDepth = parseFloat(strDeref(req.CatheterDepth))
+	access.VPuncturePosition = joinStringList(req.VPuncturePosition)
+	access.APuncturePosition = joinStringList(req.APuncturePosition)
 	access.Notes = req.Notes
-	access.Images = req.Images
 	access.IsDefault = req.IsDefault
 	access.IsDisabled = req.IsDisabled
-
-	// 解析日期
-	if req.SurgeryDate != "" {
-		if t, err := time.Parse("2006-01-02", req.SurgeryDate); err == nil {
-			access.SurgeryDate = &t
-		}
-	} else {
-		access.SurgeryDate = nil
-	}
-	if req.FirstUseDate != "" {
-		if t, err := time.Parse("2006-01-02", req.FirstUseDate); err == nil {
-			access.FirstUseDate = &t
-		}
-	} else {
-		access.FirstUseDate = nil
-	}
-	if req.InterventionDate != "" {
-		if t, err := time.Parse("2006-01-02", req.InterventionDate); err == nil {
-			access.InterventionDate = &t
-		}
-	} else {
-		access.InterventionDate = nil
+	access.SurgeryDate = parseDateStringPtr(req.SurgeryDate)
+	access.FirstUseDate = parseDateStringPtr(req.FirstUseDate)
+	access.InterventionDate = parseDateStringPtr(req.InterventionDate)
+	access.UpdatedAt = time.Now()
+	if access.CreatorID == 0 && creatorID > 0 {
+		access.CreatorID = creatorID
 	}
 
-	// 如果设置为默认，需要将其他记录的默认状态取消
-	if req.IsDefault {
-		s.db.Model(&models.VascularAccess{}).
-			Where("patient_id = ? AND id != ? AND is_default = ?", patientID, accessID, true).
-			Update("is_default", false)
-	}
+	var imagePayload []string
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if req.IsDefault {
+			if err := tx.Model(&models.VascularAccess{}).
+				Where(`"PatientId" = ? AND "TenantId" = ? AND "Id" <> ? AND "IsDefault" = ?`, legacyPatientID, legacyTenantID, legacyAccessID, true).
+				Update("IsDefault", false).Error; err != nil {
+				return err
+			}
+		}
 
-	if err := s.db.Save(&access).Error; err != nil {
+		images, pictureID, err := s.replaceAccessImages(tx, access.ID, creatorID, req.Images)
+		if err != nil {
+			return err
+		}
+		imagePayload = images
+		access.PictureID = pictureID
+
+		return tx.Model(&models.VascularAccess{}).
+			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+			Updates(map[string]any{
+				"AccessType":        access.AccessType,
+				"AccessPosition":    access.Site,
+				"Artery":            access.Artery,
+				"Venous":            access.Vein,
+				"LeftAndRight":      access.Side,
+				"OperationHospital": access.Hospital,
+				"OperationDr":       access.Surgeon,
+				"OperationTime":     access.SurgeryDate,
+				"FirstUseTime":      access.FirstUseDate,
+				"AccessCount":       access.AccessNumber,
+				"InterveneCount":    access.InterventionCount,
+				"InterveneTime":     access.InterventionDate,
+				"CatheterizeMethod": access.CatheterMethod,
+				"CatheterDepth":     access.CatheterDepth,
+				"VSidePointCount":   access.VPuncturePosition,
+				"ASidePointCount":   access.APuncturePosition,
+				"Note":              access.Notes,
+				"IsDefault":         access.IsDefault,
+				"IsDisabled":        access.IsDisabled,
+				"LastModifyTime":    access.UpdatedAt,
+			}).Error
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	resp := s.buildResponse(access)
+	resp := s.buildResponse(vascularAccessWithImages{VascularAccess: access, Images: imagePayload})
 	return &resp, nil
 }
 
-// Delete 删除血管通路
 func (s *VascularAccessService) Delete(patientID, accessID string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	result := s.db.Where("id = ? AND patient_id = ?", accessID, patientID).Delete(&models.VascularAccess{})
-	if result.Error != nil {
-		return result.Error
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return errors.New("invalid patient id")
 	}
-	if result.RowsAffected == 0 {
-		return errors.New("vascular access not found")
+	legacyAccessID, err := parseLegacyID(accessID)
+	if err != nil {
+		return errors.New("invalid vascular access id")
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, legacyAccessID, legacyTenantID).
+			Delete(&models.VascularAccessImage{}).Error; err != nil {
+			return err
+		}
+		result := tx.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+			Delete(&models.VascularAccess{})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("vascular access not found")
+		}
+		return nil
+	})
+}
+
+func parseDateStringPtr(raw string) *time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if t, err := time.Parse("2006-01-02", raw); err == nil {
+		return &t
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &t
 	}
 	return nil
 }
 
-func (s *VascularAccessService) buildResponse(a models.VascularAccess) VascularAccessResponse {
+func compactStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		result = append(result, value)
+	}
+	return result
+}
+
+func joinStringList(values []string) string {
+	return strings.Join(compactStrings(values), ",")
+}
+
+func splitToSlice(raw string) []string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return []string{}
+	}
+
+	if strings.HasPrefix(raw, "[") {
+		var values []string
+		if err := json.Unmarshal([]byte(raw), &values); err == nil {
+			return compactStrings(values)
+		}
+	}
+
+	return compactStrings(strings.Split(raw, ","))
+}
+
+func strPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
+}
+
+func (s *VascularAccessService) buildResponse(access vascularAccessWithImages) VascularAccessResponse {
+	depthStr := ""
+	if access.CatheterDepth != 0 {
+		depthStr = strconv.FormatFloat(access.CatheterDepth, 'f', -1, 64)
+	}
+
 	resp := VascularAccessResponse{
-		ID:                a.ID,
-		AccessType:        a.AccessType,
-		Site:              a.Site,
-		Artery:            a.Artery,
-		Vein:              a.Vein,
-		Side:              a.Side,
-		Hospital:          a.Hospital,
-		Surgeon:           a.Surgeon,
-		AccessNumber:      a.AccessNumber,
-		InterventionCount: a.InterventionCount,
-		CatheterMethod:    a.CatheterMethod,
-		CatheterDepth:     a.CatheterDepth,
-		VPuncturePosition: a.VPuncturePosition,
-		APuncturePosition: a.APuncturePosition,
-		Notes:             a.Notes,
-		Images:            a.Images,
-		IsDefault:         a.IsDefault,
-		IsDisabled:        a.IsDisabled,
-		CreatedAt:         a.CreatedAt.Format("2006-01-02 15:04:05"),
+		ID:                legacyIDString(access.ID),
+		AccessType:        access.AccessType,
+		Site:              access.Site,
+		Artery:            splitToSlice(access.Artery),
+		Vein:              splitToSlice(access.Vein),
+		Side:              access.Side,
+		Hospital:          access.Hospital,
+		Surgeon:           access.Surgeon,
+		AccessNumber:      int(access.AccessNumber),
+		InterventionCount: int(access.InterventionCount),
+		CatheterMethod:    strPtr(access.CatheterMethod),
+		CatheterDepth:     strPtr(depthStr),
+		VPuncturePosition: splitToSlice(access.VPuncturePosition),
+		APuncturePosition: splitToSlice(access.APuncturePosition),
+		Notes:             access.Notes,
+		Images:            append([]string{}, access.Images...),
+		IsDefault:         access.IsDefault,
+		IsDisabled:        access.IsDisabled,
+		CreatedAt:         access.CreatedAt.Format("2006-01-02 15:04:05"),
 	}
 
-	// 确保数组不为 nil
-	if resp.Artery == nil {
-		resp.Artery = []string{}
+	if access.SurgeryDate != nil {
+		resp.SurgeryDate = access.SurgeryDate.Format("2006-01-02")
 	}
-	if resp.Vein == nil {
-		resp.Vein = []string{}
+	if access.FirstUseDate != nil {
+		resp.FirstUseDate = access.FirstUseDate.Format("2006-01-02")
 	}
-	if resp.VPuncturePosition == nil {
-		resp.VPuncturePosition = []string{}
-	}
-	if resp.APuncturePosition == nil {
-		resp.APuncturePosition = []string{}
-	}
-	if resp.Images == nil {
-		resp.Images = []string{}
-	}
-
-	// 格式化日期
-	if a.SurgeryDate != nil {
-		resp.SurgeryDate = a.SurgeryDate.Format("2006-01-02")
-	}
-	if a.FirstUseDate != nil {
-		resp.FirstUseDate = a.FirstUseDate.Format("2006-01-02")
-	}
-	if a.InterventionDate != nil {
-		resp.InterventionDate = a.InterventionDate.Format("2006-01-02")
+	if access.InterventionDate != nil {
+		resp.InterventionDate = access.InterventionDate.Format("2006-01-02")
 	}
 
 	return resp
 }
 
-// ===== 血管通路干预记录相关 =====
+func (s *VascularAccessService) loadImagesByAccessIDs(accesses []models.VascularAccess) (map[int64][]string, error) {
+	result := make(map[int64][]string, len(accesses))
+	if len(accesses) == 0 {
+		return result, nil
+	}
 
-// VascularAccessInterventionResponse 干预记录响应
+	ids := make([]modeltypes.LegacyID, 0, len(accesses))
+	for _, access := range accesses {
+		ids = append(ids, access.ID)
+	}
+
+	var images []models.VascularAccessImage
+	if err := s.db.Where(`"TenantId" = ? AND "VascularAccessId" IN ?`, legacyTenantID, ids).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "Sort"}, Desc: false}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "CreateTime"}, Desc: false}).
+		Find(&images).Error; err != nil {
+		return nil, err
+	}
+
+	for _, image := range images {
+		payload := strings.TrimSpace(image.ImageBase64String)
+		if payload == "" {
+			continue
+		}
+		result[image.VascularAccessID.Int64()] = append(result[image.VascularAccessID.Int64()], payload)
+	}
+
+	return result, nil
+}
+
+func (s *VascularAccessService) replaceAccessImages(tx *gorm.DB, accessID modeltypes.LegacyID, creatorID int64, images []string) ([]string, *modeltypes.LegacyID, error) {
+	cleaned := compactStrings(images)
+	if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, accessID, legacyTenantID).
+		Delete(&models.VascularAccessImage{}).Error; err != nil {
+		return nil, nil, err
+	}
+	if len(cleaned) == 0 {
+		return []string{}, nil, nil
+	}
+
+	now := time.Now()
+	rows := make([]models.VascularAccessImage, 0, len(cleaned))
+	var pictureID *modeltypes.LegacyID
+	for idx, payload := range cleaned {
+		imageID, err := nextLegacyID()
+		if err != nil {
+			return nil, nil, err
+		}
+		if pictureID == nil {
+			pictureID = new(modeltypes.LegacyID)
+			*pictureID = imageID
+		}
+		rows = append(rows, models.VascularAccessImage{
+			ID:                imageID,
+			TenantID:          legacyTenantID,
+			VascularAccessID:  accessID,
+			ImageName:         fmt.Sprintf("vascular-access-%s-%d", legacyIDString(accessID), idx+1),
+			ImageBase64String: payload,
+			Sort:              idx + 1,
+			CreatorID:         creatorID,
+			CreatedAt:         now,
+			UpdatedAt:         now,
+		})
+	}
+
+	if err := tx.Create(&rows).Error; err != nil {
+		return nil, nil, err
+	}
+
+	return cleaned, pictureID, nil
+}
+
 type VascularAccessInterventionResponse struct {
 	ID                 string `json:"id"`
 	VascularAccessID   string `json:"vascularAccessId"`
@@ -320,7 +526,6 @@ type VascularAccessInterventionResponse struct {
 	CreatedAt          string `json:"createdAt"`
 }
 
-// VascularAccessInterventionRequest 创建干预记录请求
 type VascularAccessInterventionRequest struct {
 	VascularAccessID   string `json:"vascularAccessId" binding:"required"`
 	AccessType         string `json:"accessType"`
@@ -333,41 +538,57 @@ type VascularAccessInterventionRequest struct {
 	Description        string `json:"description"`
 }
 
-// ListInterventions 获取血管通路的干预记录列表
 func (s *VascularAccessService) ListInterventions(patientID, vascularAccessID string) ([]VascularAccessInterventionResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	var interventions []models.VascularAccessIntervention
-	query := s.db.Where("patient_id = ?", patientID)
-
-	// 如果指定了血管通路ID，则过滤
-	if vascularAccessID != "" {
-		query = query.Where("vascular_access_id = ?", vascularAccessID)
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
 	}
 
-	err := query.Order("intervention_date DESC, created_at DESC").Find(&interventions).Error
+	query := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID)
+	if vascularAccessID != "" {
+		legacyVascularAccessID, parseErr := parseLegacyID(vascularAccessID)
+		if parseErr != nil {
+			return nil, errors.New("invalid vascular access id")
+		}
+		query = query.Where(`"VascularAccessId" = ?`, legacyVascularAccessID)
+	}
+
+	var interventions []models.VascularAccessIntervention
+	err = query.Order(clause.OrderByColumn{Column: clause.Column{Name: "ChangeTime"}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: "CreateTime"}, Desc: true}).
+		Find(&interventions).Error
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]VascularAccessInterventionResponse, len(interventions))
-	for i, iv := range interventions {
-		result[i] = s.buildInterventionResponse(iv)
+	result := make([]VascularAccessInterventionResponse, 0, len(interventions))
+	for _, intervention := range interventions {
+		result = append(result, s.buildInterventionResponse(intervention))
 	}
 	return result, nil
 }
 
-// CreateIntervention 创建干预记录
 func (s *VascularAccessService) CreateIntervention(patientID string, req *VascularAccessInterventionRequest) (*VascularAccessInterventionResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	// 验证血管通路存在且属于该患者
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+	legacyVascularAccessID, err := parseLegacyID(req.VascularAccessID)
+	if err != nil {
+		return nil, errors.New("invalid vascular access id")
+	}
+
 	var access models.VascularAccess
-	err := s.db.Where("id = ? AND patient_id = ?", req.VascularAccessID, patientID).First(&access).Error
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, legacyTenantID).
+		First(&access).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("vascular access not found")
 	}
@@ -375,51 +596,76 @@ func (s *VascularAccessService) CreateIntervention(patientID string, req *Vascul
 		return nil, err
 	}
 
-	// 解析干预日期
 	interventionDate, err := time.Parse("2006-01-02", req.InterventionDate)
 	if err != nil {
 		return nil, errors.New("invalid intervention date format")
 	}
 
+	interventionID, err := nextLegacyID()
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
 	intervention := models.VascularAccessIntervention{
-		ID:                 uuid.New().String(),
-		VascularAccessID:   req.VascularAccessID,
-		PatientID:          patientID,
+		ID:                 interventionID,
+		TenantID:           legacyTenantID,
+		VascularAccessID:   legacyVascularAccessID,
+		PatientID:          legacyPatientID,
 		AccessType:         req.AccessType,
-		AvgBloodFlow:       req.AvgBloodFlow,
+		AvgBloodFlow:       float64(req.AvgBloodFlow),
 		UsageDays:          req.UsageDays,
 		SurgeryType:        req.SurgeryType,
 		InterventionReason: req.InterventionReason,
 		Doctor:             req.Doctor,
 		InterventionDate:   interventionDate,
 		Description:        req.Description,
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
-
-	// 如果未指定通路类型，使用血管通路的类型
 	if intervention.AccessType == "" {
 		intervention.AccessType = access.AccessType
 	}
 
-	if err := s.db.Create(&intervention).Error; err != nil {
+	err = s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(&intervention).Error; err != nil {
+			return err
+		}
+		return tx.Model(&models.VascularAccess{}).
+			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, legacyTenantID).
+			Updates(map[string]any{
+				"InterveneCount": access.InterventionCount + 1,
+				"InterveneTime":  interventionDate,
+				"LastModifyTime": now,
+			}).Error
+	})
+	if err != nil {
 		return nil, err
 	}
 
-	// 更新血管通路的干预次数和干预日期
 	access.InterventionCount++
 	access.InterventionDate = &interventionDate
-	s.db.Save(&access)
 
 	resp := s.buildInterventionResponse(intervention)
 	return &resp, nil
 }
 
-// DeleteIntervention 删除干预记录
 func (s *VascularAccessService) DeleteIntervention(patientID, interventionID string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	result := s.db.Where("id = ? AND patient_id = ?", interventionID, patientID).Delete(&models.VascularAccessIntervention{})
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return errors.New("invalid patient id")
+	}
+	legacyInterventionID, err := parseLegacyID(interventionID)
+	if err != nil {
+		return errors.New("invalid intervention id")
+	}
+
+	result := s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyInterventionID, legacyPatientID, legacyTenantID).
+		Delete(&models.VascularAccessIntervention{})
 	if result.Error != nil {
 		return result.Error
 	}
@@ -431,11 +677,11 @@ func (s *VascularAccessService) DeleteIntervention(patientID, interventionID str
 
 func (s *VascularAccessService) buildInterventionResponse(iv models.VascularAccessIntervention) VascularAccessInterventionResponse {
 	return VascularAccessInterventionResponse{
-		ID:                 iv.ID,
-		VascularAccessID:   iv.VascularAccessID,
-		PatientID:          iv.PatientID,
+		ID:                 legacyIDString(iv.ID),
+		VascularAccessID:   legacyIDString(iv.VascularAccessID),
+		PatientID:          legacyIDString(iv.PatientID),
 		AccessType:         iv.AccessType,
-		AvgBloodFlow:       iv.AvgBloodFlow,
+		AvgBloodFlow:       int(iv.AvgBloodFlow),
 		UsageDays:          iv.UsageDays,
 		SurgeryType:        iv.SurgeryType,
 		InterventionReason: iv.InterventionReason,

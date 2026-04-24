@@ -31,13 +31,13 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
-	users, err := h.service.List(req)
+	dtos, err := h.service.List(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, users)
+	response.Success(c, dtos)
 }
 
 // RegisterUserRoutes 注册用户路由

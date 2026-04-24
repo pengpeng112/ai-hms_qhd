@@ -27,7 +27,7 @@ func (h *PrescriptionHandler) List(c *gin.Context) {
 		return
 	}
 
-	prescriptions, err := h.service.List(patientID)
+	prescriptions, err := h.service.LegacyList(patientID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -45,7 +45,7 @@ func (h *PrescriptionHandler) Get(c *gin.Context) {
 		return
 	}
 
-	p, err := h.service.Get(patientID, prescriptionID)
+	p, err := h.service.LegacyGet(patientID, prescriptionID)
 	if err != nil {
 		if err.Error() == "prescription not found" {
 			response.NotFound(c, "处方不存在")
@@ -75,7 +75,7 @@ func (h *PrescriptionHandler) Create(c *gin.Context) {
 	doctorID := middleware.GetUserID(c)
 	doctorName := middleware.GetUsername(c)
 
-	p, err := h.service.Create(patientID, doctorID, doctorName, req)
+	p, err := h.service.LegacyCreate(patientID, doctorID, doctorName, req)
 	if err != nil {
 		if err.Error() == "请先创建启用的治疗方案" {
 			response.BadRequest(c, err.Error())
@@ -103,7 +103,7 @@ func (h *PrescriptionHandler) Update(c *gin.Context) {
 		return
 	}
 
-	p, err := h.service.Update(patientID, prescriptionID, req)
+	p, err := h.service.LegacyUpdate(patientID, prescriptionID, req)
 	if err != nil {
 		if err.Error() == "prescription not found" {
 			response.NotFound(c, "处方不存在")
@@ -131,7 +131,7 @@ func (h *PrescriptionHandler) Execute(c *gin.Context) {
 
 	executedBy := middleware.GetUserID(c)
 
-	p, err := h.service.Execute(patientID, prescriptionID, executedBy)
+	p, err := h.service.LegacyExecute(patientID, prescriptionID, executedBy)
 	if err != nil {
 		if err.Error() == "prescription not found" {
 			response.NotFound(c, "处方不存在")
@@ -157,7 +157,7 @@ func (h *PrescriptionHandler) Cancel(c *gin.Context) {
 		return
 	}
 
-	p, err := h.service.Cancel(patientID, prescriptionID)
+	p, err := h.service.LegacyCancel(patientID, prescriptionID)
 	if err != nil {
 		if err.Error() == "prescription not found" {
 			response.NotFound(c, "处方不存在")
@@ -191,7 +191,7 @@ func (h *PrescriptionHandler) Extract(c *gin.Context) {
 	doctorID := middleware.GetUserID(c)
 	doctorName := middleware.GetUsername(c)
 
-	p, err := h.service.ExtractFromLongTermOrders(patientID, doctorID, doctorName, req.Date)
+	p, err := h.service.LegacyExtractFromLongTermOrders(patientID, doctorID, doctorName, req.Date)
 	if err != nil {
 		if err.Error() == "请先创建启用的治疗方案" {
 			response.BadRequest(c, err.Error())

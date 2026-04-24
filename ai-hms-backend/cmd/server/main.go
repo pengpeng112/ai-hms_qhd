@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/elliotxin/ai-hms-backend/config"
 	v1api "github.com/elliotxin/ai-hms-backend/internal/api/v1"
@@ -39,26 +38,11 @@ func main() {
 	}
 
 	// 初始化数据库
-	if err := database.Initialize(&cfg.Database); err != nil {
+	if err := database.Initialize(&cfg.Database, &cfg.Logging); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	} else {
 		defer database.Close()
-		// 自动迁移数据库表结构（仅开发环境）
-		if err := database.AutoMigrate(cfg); err != nil {
-			log.Printf("Warning: Failed to migrate database: %v", err)
-		}
-		// 启动时自动补齐默认字典（含医嘱用法/频次/时机等，幂等）
-		if err := services.NewDictService().InitDefaultDicts(); err != nil {
-			log.Printf("Warning: Failed to initialize default dictionaries: %v", err)
-		}
-		// 启动时自动补齐转归字典（幂等）
-		if err := services.NewDictService().InitOutcomeDicts(); err != nil {
-			log.Printf("Warning: Failed to initialize outcome dictionaries: %v", err)
-		}
-		// 启动时自动补齐方法种子数据（幂等）
-		if err := services.NewDictService().InitMethodDrugs(); err != nil {
-			log.Printf("Warning: Failed to initialize method drugs: %v", err)
-		}
+		log.Println("[LEGACY-DB] startup in legacy database mode: AutoMigrate and startup seed initialization are disabled")
 
 		// 启动过期临时医嘱定时任务
 		services.StartOrderCron()
@@ -66,10 +50,13 @@ func main() {
 
 	// 创建 JWT 管理器
 	jwtManager := utils.NewJWTManager(&cfg.JWT)
-	userService := services.NewUserService()
 
 	// 创建 Gin router
-	r := gin.Default()
+	r := gin.New()
+	if cfg.Logging.RequestEnabled {
+		r.Use(middleware.RequestLogger())
+	}
+	r.Use(gin.Recovery())
 
 	// 全局中间件
 	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
@@ -89,7 +76,7 @@ func main() {
 		// 公开路由（无需认证）
 		public := v1.Group("")
 		{
-			public.POST("/auth/login", loginHandler(jwtManager, userService))
+			v1api.RegisterAuthRoutes(public, jwtManager)
 		}
 
 		// 需要认证的路由
@@ -242,57 +229,5 @@ func (h *splitSlogHandler) WithGroup(name string) slog.Handler {
 	return &splitSlogHandler{
 		infoHandler:  h.infoHandler.WithGroup(name),
 		errorHandler: h.errorHandler.WithGroup(name),
-	}
-}
-
-// LoginRequest 登录请求
-type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password" binding:"required"`
-}
-
-// LoginResponse 登录响应
-type LoginResponse struct {
-	Token    string `json:"token"`
-	UserID   string `json:"userId"`
-	Username string `json:"username"`
-	RealName string `json:"realName"`
-	Role     string `json:"role"`
-}
-
-// loginHandler 登录处理器
-func loginHandler(jwtManager *utils.JWTManager, userService *services.UserService) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req LoginRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.BadRequest(c, "无效的请求参数")
-			return
-		}
-
-		username := strings.TrimSpace(req.Username)
-		user, err := userService.Authenticate(username, req.Password)
-		if err != nil {
-			response.Unauthorized(c, "用户名或密码错误")
-			return
-		}
-
-		roles := []string{}
-		if user.Role != "" {
-			roles = []string{user.Role}
-		}
-
-		token, err := jwtManager.GenerateToken(user.ID, user.Username, roles)
-		if err != nil {
-			response.InternalError(c, "登录失败")
-			return
-		}
-
-		response.Success(c, LoginResponse{
-			Token:    token,
-			UserID:   user.ID,
-			Username: user.Username,
-			RealName: user.RealName,
-			Role:     user.Role,
-		})
 	}
 }

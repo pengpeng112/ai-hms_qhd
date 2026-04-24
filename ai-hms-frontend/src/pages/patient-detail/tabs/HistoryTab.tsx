@@ -1,10 +1,12 @@
-﻿// History Tab - 治疗历史
+// History Tab - 治疗历史
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { History, Printer, FileText, Clock, Stethoscope, ClipboardList, ChevronLeft, ChevronRight } from 'lucide-react'
 import type { Patient } from '@/types/original'
 import { restApi } from '@/services'
+import { TreatmentHistorySheetModal } from '@/components/patient/modals'
+import type { ExtendedTreatmentHistory } from '@/components/patient/modals/types'
 import type { TreatmentHistoryItem } from '../types'
 
 interface HistoryTabProps {
@@ -23,17 +25,12 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
   const [selectedHistoryIds, setSelectedHistoryIds] = useState<string[]>([])
   const [historyList, setHistoryList] = useState<TreatmentHistoryItem[]>([])
   const [loading, setLoading] = useState(false)
-
-  const parsePatientId = (id: string | undefined): number | null => {
-    if (!id) return null
-    const parsed = Number(id)
-    if (!Number.isFinite(parsed)) return null
-    return parsed
-  }
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [sheetFilters, setSheetFilters] = useState({ year: 'ALL', month: 'ALL', day: 'ALL' })
 
   useEffect(() => {
-    const patientId = parsePatientId(patient?.id)
-    if (patientId === null) {
+    const patientId = patient?.id
+    if (!patientId) {
       setHistoryList([])
       setLoading(false)
       return
@@ -47,10 +44,20 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
           res.data.items.map((treatment) => ({
             id: String(treatment.id),
             date: treatment.treatmentDate?.slice(0, 10) ?? '',
-            timeRange: '',
+            timeRange: treatment.timeRange ?? (
+              treatment.startTime && treatment.endTime
+                ? `${new Date(treatment.startTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}-${new Date(treatment.endTime).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}`
+                : ''
+            ),
             mode: treatment.treatmentType ?? '',
-            doctorSummary: treatment.notes ?? '',
-            treatmentSummary: '',
+            duration: treatment.durationMinutes ? `${(treatment.durationMinutes / 60).toFixed(1)} 小时` : '',
+            weightLoss: treatment.weightLossKg ?? 0,
+            startBP: treatment.startBp ?? '',
+            endBP: treatment.endBp ?? '',
+            complications: treatment.complications ?? '',
+            doctor: treatment.doctorName ?? '',
+            doctorSummary: treatment.doctorSummary ?? treatment.notes ?? '',
+            treatmentSummary: treatment.treatmentSummary ?? '',
           }))
         )
       })
@@ -61,6 +68,35 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
   const filteredHistory = historyList
   const totalPages = Math.ceil(filteredHistory.length / historyPageSize) || 1
   const paginatedHistory = filteredHistory.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize)
+  const baseSheetRecords = (selectedHistoryIds.length > 0
+    ? historyList.filter(item => selectedHistoryIds.includes(item.id))
+    : historyList
+  ).map<ExtendedTreatmentHistory>((item) => ({
+    id: item.id,
+    date: item.date,
+    mode: item.mode,
+    duration: item.duration || '-',
+    timeRange: item.timeRange,
+    weightLoss: item.weightLoss || 0,
+    startBP: item.startBP || '-',
+    endBP: item.endBP || '-',
+    complications: item.complications || '',
+    doctor: item.doctor || '-',
+    doctorSummary: item.doctorSummary,
+    treatmentSummary: item.treatmentSummary,
+  }))
+  const selectedSheetRecords = baseSheetRecords.filter((item) => {
+    const year = item.date.slice(0, 4)
+    const month = item.date.slice(5, 7)
+    const day = item.date.slice(8, 10)
+    if (sheetFilters.year !== 'ALL' && sheetFilters.year !== year) return false
+    if (sheetFilters.month !== 'ALL' && sheetFilters.month !== month) return false
+    if (sheetFilters.day !== 'ALL' && sheetFilters.day !== day) return false
+    return true
+  })
+  const availableYears = Array.from(new Set(historyList.map(item => item.date.slice(0, 4)).filter(Boolean))).sort()
+  const availableMonths = Array.from(new Set(historyList.map(item => item.date.slice(5, 7)).filter(Boolean))).sort()
+  const availableDays = Array.from(new Set(historyList.map(item => item.date.slice(8, 10)).filter(Boolean))).sort()
 
   return (
     <div className="space-y-6 animate-fade-in pb-10 flex flex-col h-full">
@@ -105,7 +141,10 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
           <button onClick={() => window.print()} className="px-8 py-2.5 bg-white border border-slate-200 text-slate-700 text-xs font-black rounded-2xl hover:bg-slate-50 shadow-sm flex items-center gap-2">
             <Printer size={16} /> {t('action.print')}
           </button>
-          <button className="px-8 py-2.5 bg-blue-600 text-white text-xs font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center gap-2">
+          <button
+            onClick={() => setIsSheetOpen(true)}
+            className="px-8 py-2.5 bg-blue-600 text-white text-xs font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center gap-2"
+          >
             <FileText size={16} /> {t('history.treatmentRecordSheet')}
           </button>
         </div>
@@ -210,6 +249,17 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
           <ChevronRight size={24} strokeWidth={3} />
         </button>
       </div>
+
+      <TreatmentHistorySheetModal
+        isOpen={isSheetOpen}
+        onClose={() => setIsSheetOpen(false)}
+        records={selectedSheetRecords}
+        availableYears={availableYears}
+        availableMonths={availableMonths}
+        availableDays={availableDays}
+        filters={sheetFilters}
+        onFilterChange={(key, val) => setSheetFilters(prev => ({ ...prev, [key]: val }))}
+      />
     </div>
   )
 }

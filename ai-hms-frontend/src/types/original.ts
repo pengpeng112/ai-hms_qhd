@@ -167,6 +167,7 @@ export interface DialysisSession {
 export interface Patient {
   id: string;
   name: string;
+  avatar?: string;
   age: number;
   gender: '男' | '女';
   bedNumber: string;
@@ -234,6 +235,7 @@ export interface MonitorDevice {
   id: string;
   bedNumber: string;
   patientName: string;
+  patientId?: string;
   status: 'normal' | 'warning' | 'alarm' | 'offline';
   mode: string;
   timeRemaining: string;

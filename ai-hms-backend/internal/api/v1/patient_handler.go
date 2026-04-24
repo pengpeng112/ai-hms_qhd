@@ -2,9 +2,11 @@ package v1
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/elliotxin/ai-hms-backend/internal/middleware"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -20,6 +22,22 @@ func NewPatientHandler() *PatientHandler {
 	return &PatientHandler{
 		service: services.NewPatientService(),
 	}
+}
+
+func parsePatientIDParam(c *gin.Context) (modeltypes.LegacyID, bool) {
+	id := c.Param("id")
+	if id == "" {
+		response.BadRequest(c, "患者ID不能为空")
+		return 0, false
+	}
+
+	patientIDInt, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "无效的患者ID")
+		return 0, false
+	}
+
+	return modeltypes.LegacyID(patientIDInt), true
 }
 
 // List 获取患者列表
@@ -61,13 +79,12 @@ func (h *PatientHandler) List(c *gin.Context) {
 // @Success 200 {object} models.Patient
 // @Router /api/v1/patients/{id} [get]
 func (h *PatientHandler) Get(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
-	patient, err := h.service.Get(id)
+	patient, err := h.service.Get(patientID)
 	if err != nil {
 		if err.Error() == "patient not found" {
 			response.NotFound(c, "患者不存在")
@@ -101,11 +118,10 @@ func (h *PatientHandler) Create(c *gin.Context) {
 		return
 	}
 
-	tenantID := creatorID
-	if rawTenantID, exists := c.Get("tenant_id"); exists {
-		if t, ok := rawTenantID.(string); ok && strings.TrimSpace(t) != "" {
-			tenantID = t
-		}
+	tenantID := middleware.GetTenantID(c)
+	if tenantID <= 0 {
+		response.Forbidden(c, "无有效租户信息")
+		return
 	}
 
 	patient, err := h.service.Create(req, tenantID, creatorID)
@@ -127,9 +143,8 @@ func (h *PatientHandler) Create(c *gin.Context) {
 // @Success 200 {object} models.Patient
 // @Router /api/v1/patients/{id} [put]
 func (h *PatientHandler) Update(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
@@ -139,7 +154,7 @@ func (h *PatientHandler) Update(c *gin.Context) {
 		return
 	}
 
-	patient, err := h.service.Update(id, req)
+	patient, err := h.service.Update(patientID, req)
 	if err != nil {
 		if err.Error() == "patient not found" {
 			response.NotFound(c, "患者不存在")
@@ -161,13 +176,12 @@ func (h *PatientHandler) Update(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/patients/{id} [delete]
 func (h *PatientHandler) Delete(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	if err := h.service.Delete(patientID); err != nil {
 		if err.Error() == "patient not found" {
 			response.NotFound(c, "患者不存在")
 			return
@@ -203,13 +217,12 @@ func (h *PatientHandler) Me(c *gin.Context) {
 // @Success 200 {object} []models.TreatmentPlan
 // @Router /api/v1/patients/{id}/treatment-plans [get]
 func (h *PatientHandler) GetTreatmentPlans(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
-	plans, err := h.service.GetTreatmentPlans(id)
+	plans, err := h.service.GetLegacyTreatmentPlans(patientID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -228,15 +241,14 @@ func (h *PatientHandler) GetTreatmentPlans(c *gin.Context) {
 // @Success 200 {object} models.TreatmentPlan
 // @Router /api/v1/patients/{id}/treatment-plan [get]
 func (h *PatientHandler) GetTreatmentPlan(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
 	mode := c.Query("mode") // 可选的模式参数
 
-	plan, err := h.service.GetTreatmentPlan(id, mode)
+	plan, err := h.service.GetLegacyTreatmentPlan(patientID, mode)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -260,9 +272,8 @@ func (h *PatientHandler) GetTreatmentPlan(c *gin.Context) {
 // @Success 201 {object} models.TreatmentPlan
 // @Router /api/v1/patients/{id}/treatment-plan [post]
 func (h *PatientHandler) CreateTreatmentPlan(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
@@ -283,7 +294,7 @@ func (h *PatientHandler) CreateTreatmentPlan(c *gin.Context) {
 		req.Duration = 4
 	}
 
-	plan, err := h.service.CreateTreatmentPlan(id, req)
+	plan, err := h.service.LegacyCreateTreatmentPlan(patientID, req)
 	if err != nil {
 		if err.Error() == "patient not found" {
 			response.NotFound(c, "患者不存在")
@@ -310,9 +321,8 @@ func (h *PatientHandler) CreateTreatmentPlan(c *gin.Context) {
 // @Success 200 {object} models.TreatmentPlan
 // @Router /api/v1/patients/{id}/treatment-plan [put]
 func (h *PatientHandler) UpdateTreatmentPlan(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
@@ -322,7 +332,7 @@ func (h *PatientHandler) UpdateTreatmentPlan(c *gin.Context) {
 		return
 	}
 
-	plan, err := h.service.UpdateTreatmentPlan(id, req)
+	plan, err := h.service.LegacyUpdateTreatmentPlan(patientID, req)
 	if err != nil {
 		if err.Error() == "treatment plan not found" {
 			response.NotFound(c, "治疗方案不存在")
@@ -344,13 +354,12 @@ func (h *PatientHandler) UpdateTreatmentPlan(c *gin.Context) {
 // @Success 204
 // @Router /api/v1/patients/{id}/treatment-plan [delete]
 func (h *PatientHandler) DeleteTreatmentPlan(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
-	if err := h.service.DeleteTreatmentPlan(id); err != nil {
+	if err := h.service.LegacyDeleteTreatmentPlan(patientID); err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -360,13 +369,12 @@ func (h *PatientHandler) DeleteTreatmentPlan(c *gin.Context) {
 
 // GetAdjustmentRecords 获取患者方案调整记录列表
 func (h *PatientHandler) GetAdjustmentRecords(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
-	records, err := h.service.GetAdjustmentRecords(id)
+	records, err := h.service.GetLegacyAdjustmentRecords(patientID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -377,9 +385,8 @@ func (h *PatientHandler) GetAdjustmentRecords(c *gin.Context) {
 
 // CreateAdjustmentRecord 创建患者方案调整记录
 func (h *PatientHandler) CreateAdjustmentRecord(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "患者ID不能为空")
+	patientID, ok := parsePatientIDParam(c)
+	if !ok {
 		return
 	}
 
@@ -398,7 +405,7 @@ func (h *PatientHandler) CreateAdjustmentRecord(c *gin.Context) {
 		}
 	}
 
-	record, err := h.service.CreateAdjustmentRecord(id, req)
+	record, err := h.service.LegacyCreateAdjustmentRecord(patientID, req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

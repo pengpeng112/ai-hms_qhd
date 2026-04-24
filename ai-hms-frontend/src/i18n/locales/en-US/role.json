@@ -11,6 +11,7 @@
 
   "label.current": "Current Role",
 
+  "desc.admin": "System Configuration, Access Control & Operations Monitoring",
   "desc.doctor": "Clinical Diagnosis & Prescription",
   "desc.nurse": "Nursing Tasks & Patient Care",
   "desc.engineer": "Equipment Operation & Maintenance",

@@ -104,13 +104,21 @@ export default function RoleSelect() {
     setLoading(true)
     try {
       const groups = await getRoleUsersByGroup()
+      // 如果总角色数只有 1 且为 admin，直接自动选择，跳过选择页
+      const allRoles = groups.flatMap(g => g.roles)
+      if (allRoles.length === 1) {
+        saveSelectedRoleUser(allRoles[0])
+        const defaultRoute = getDefaultRouteByRole(allRoles[0].role)
+        navigate(defaultRoute, { replace: true })
+        return
+      }
       setRoleGroups(groups)
     } catch (error) {
       console.error(t('common:role.loadError'), error)
     } finally {
       setLoading(false)
     }
-  }, [t])
+  }, [t, navigate])
 
   useEffect(() => {
     loadRoleUsers()

@@ -1,10 +1,13 @@
-﻿import { UserRole, UserRoleLabel, RoleGroups } from '@/types/original'
+import { UserRole, UserRoleLabel, RoleGroups } from '@/types/original'
 import { restApi } from './restClient'
+import { getUserInfo } from '@/utils/token'
+
+export type AppRole = UserRole | 'ADMIN'
 
 export interface RoleUser {
   id: string
   name: string
-  role: UserRole
+  role: AppRole
   avatar?: string
   subLabelKey: string
 }
@@ -38,23 +41,47 @@ interface ApiUser {
   status: string
 }
 
+// 从当前已登录用户信息构建兜底角色列表
+function buildFallbackFromCurrentUser(): RoleUser[] {
+  const userInfo = getUserInfo()
+  if (!userInfo) return []
+
+  const role = normalizeAppRole(userInfo.role)
+  return [{
+    id: userInfo.id || '0',
+    name: userInfo.name || userInfo.nickname || '管理员',
+    role,
+    subLabelKey: ROLE_SUBLABEL_MAP[role] || '系统管理员',
+  }]
+}
+
+function normalizeAppRole(role: string | null | undefined): AppRole {
+  if (!role || role.toLowerCase() === 'admin') {
+    return 'ADMIN'
+  }
+
+  return role as UserRole
+}
+
 export async function getRoleUsers(): Promise<RoleUser[]> {
   try {
     const res = await restApi.getUserList()
-    if (!Array.isArray(res) || res.length === 0) {
-      return []
+    if (Array.isArray(res) && res.length > 0) {
+      const mapped = (res as ApiUser[])
+        .filter(u => u.role === 'ADMIN' || Object.values(UserRole).includes(u.role as UserRole))
+        .map(u => ({
+          id: u.id,
+          name: u.realName || u.username,
+          role: normalizeAppRole(u.role),
+          subLabelKey: ROLE_SUBLABEL_MAP[u.role] || 'role:subLabel.doctorSupervisor',
+        }))
+      if (mapped.length > 0) return mapped
     }
-    return (res as ApiUser[])
-      .filter(u => u.role === 'ADMIN' || Object.values(UserRole).includes(u.role as UserRole))
-      .map(u => ({
-        id: u.id,
-        name: u.realName || u.username,
-        role: u.role as UserRole,
-        subLabelKey: ROLE_SUBLABEL_MAP[u.role] || 'role:subLabel.doctorSupervisor',
-      }))
   } catch {
-    return []
+    // 接口异常，使用本地登录用户兜底
   }
+  // API 返回空或报错 → 用本地 localStorage 中的已登录用户
+  return buildFallbackFromCurrentUser()
 }
 
 export async function getRoleUsersByGroup(): Promise<RoleGroup[]> {
@@ -68,29 +95,29 @@ export async function getRoleUsersByGroup(): Promise<RoleGroup[]> {
     {
       key: 'admin',
       labelKey: '系统管理组',
-      roles: users.filter(u => u.role === ('ADMIN' as UserRole)),
+      roles: users.filter(u => u.role === 'ADMIN'),
     },
     {
       key: 'doctor',
       labelKey: 'role:group.doctor',
-      roles: users.filter(u => doctorRoles.includes(u.role)),
+      roles: users.filter(u => u.role !== 'ADMIN' && doctorRoles.includes(u.role)),
     },
     {
       key: 'nurse',
       labelKey: 'role:group.nurse',
-      roles: users.filter(u => nurseRoles.includes(u.role)),
+      roles: users.filter(u => u.role !== 'ADMIN' && nurseRoles.includes(u.role)),
     },
     {
       key: 'tech',
       labelKey: 'role:group.tech',
-      roles: users.filter(u => techRoles.includes(u.role)),
+      roles: users.filter(u => u.role !== 'ADMIN' && techRoles.includes(u.role)),
     },
   ]
 }
 
-export function getDefaultRouteByRole(role: UserRole): string {
+export function getDefaultRouteByRole(role: AppRole): string {
   switch (role) {
-    case 'ADMIN' as UserRole:
+    case 'ADMIN':
       return '/dashboard'
     case UserRole.DOCTOR_CHIEF:
     case UserRole.NURSE_HEAD:
@@ -160,7 +187,11 @@ const normalizePermissionToMenuKey = (code: string): string | null => {
   return null
 }
 
-export async function getRolePermissionCodes(role: UserRole): Promise<string[]> {
+export async function getRolePermissionCodes(role: AppRole): Promise<string[]> {
+  if (role === 'ADMIN') {
+    return []
+  }
+
   try {
     const res = await restApi.getRolePermissions(role)
     const items = Array.isArray(res.data.permissionCodes) ? res.data.permissionCodes : []
@@ -172,16 +203,35 @@ export async function getRolePermissionCodes(role: UserRole): Promise<string[]> 
   }
 }
 
-export async function getMenusByRole(role: UserRole): Promise<string[]> {
-  const items = await getRolePermissionCodes(role)
-  const menuSet = new Set<string>()
-  for (const code of items) {
-    const menuKey = normalizePermissionToMenuKey(code)
-    if (menuKey) {
-      menuSet.add(menuKey)
-    }
+// 所有菜单 key（与 Sidebar.tsx roleMenuMap 保持一致）
+const ALL_MENU_KEYS = [
+  'dashboard', 'ward_overview', 'patients', 'monitoring',
+  'dialysis_processing', 'schedule', 'inventory', 'device_binding',
+  'statistics', 'master_data', 'treatment_config', 'dict_config', 'settings',
+]
+
+export async function getMenusByRole(role: AppRole): Promise<string[]> {
+  // admin 直接返回全部菜单，不查接口
+  if ((role as string) === 'ADMIN' || (role as string) === 'admin') {
+    return ALL_MENU_KEYS
   }
-  return Array.from(menuSet)
+
+  try {
+    const items = await getRolePermissionCodes(role)
+    if (items.length > 0) {
+      const menuSet = new Set<string>()
+      for (const code of items) {
+        const menuKey = normalizePermissionToMenuKey(code)
+        if (menuKey) menuSet.add(menuKey)
+      }
+      if (menuSet.size > 0) return Array.from(menuSet)
+    }
+  } catch {
+    // 接口失败，返回全部菜单作为兜底
+  }
+
+  // 接口失败或无权限数据时：返回全部菜单
+  return ALL_MENU_KEYS
 }
 
 export function saveSelectedRoleUser(user: RoleUser): void {
@@ -199,16 +249,24 @@ export function getSelectedRoleUser(): RoleUser | null {
   }
 }
 
-export function getSelectedRole(): UserRole | null {
+export function getSelectedRole(): AppRole | null {
   const role = localStorage.getItem(SELECTED_ROLE_KEY)
   if (!role) return null
   if (role === 'ADMIN') {
-    return role as UserRole
+    return role
   }
   if (Object.values(UserRole).includes(role as UserRole)) {
     return role as UserRole
   }
   return null
+}
+
+export function getRoleLabel(role: AppRole): string {
+  if (role === 'ADMIN') {
+    return '系统管理员'
+  }
+
+  return UserRoleLabel[role]
 }
 
 export function clearSelectedRole(): void {

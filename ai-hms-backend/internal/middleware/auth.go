@@ -39,7 +39,16 @@ func AuthMiddleware(jwtManager *utils.JWTManager) gin.HandlerFunc {
 		// 将用户信息存入上下文
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
+		if claims.EmployeeName != "" {
+			c.Set("employee_name", claims.EmployeeName)
+		}
 		c.Set("roles", claims.Roles)
+		if claims.TenantID <= 0 {
+			response.Forbidden(c, "缺少租户信息")
+			c.Abort()
+			return
+		}
+		c.Set("tenant_id", claims.TenantID)
 
 		c.Next()
 	}
@@ -59,7 +68,13 @@ func OptionalAuthMiddleware(jwtManager *utils.JWTManager) gin.HandlerFunc {
 			if claims, err := jwtManager.ParseToken(parts[1]); err == nil {
 				c.Set("user_id", claims.UserID)
 				c.Set("username", claims.Username)
+				if claims.EmployeeName != "" {
+					c.Set("employee_name", claims.EmployeeName)
+				}
 				c.Set("roles", claims.Roles)
+				if claims.TenantID > 0 {
+					c.Set("tenant_id", claims.TenantID)
+				}
 			}
 		}
 
@@ -77,7 +92,12 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 			return
 		}
 
-		userRoleList := userRoles.([]string)
+		userRoleList, ok := userRoles.([]string)
+		if !ok {
+			response.Forbidden(c, "鏉冮檺鏍煎紡閿欒")
+			c.Abort()
+			return
+		}
 		for _, requiredRole := range roles {
 			for _, userRole := range userRoleList {
 				if userRole == requiredRole {
@@ -134,7 +154,35 @@ func GetCreatorID(c *gin.Context) int64 {
 }
 
 // GetTenantID 从上下文获取租户 ID
-// 当前为单租户模式，固定返回 1；后续多租户时从 JWT 或请求头提取
+// 从上下文中解析 int64/int/float64/string 形式的 tenant_id，缺失或非法返回 0
 func GetTenantID(c *gin.Context) int64 {
-	return 1
+	v, exists := c.Get("tenant_id")
+	if !exists || v == nil {
+		return 0
+	}
+
+	switch tenantID := v.(type) {
+	case int64:
+		if tenantID > 0 {
+			return tenantID
+		}
+	case int:
+		if tenantID > 0 {
+			return int64(tenantID)
+		}
+	case float64:
+		if tenantID > 0 {
+			return int64(tenantID)
+		}
+	case string:
+		if tenantID == "" {
+			return 0
+		}
+		parsed, err := strconv.ParseInt(tenantID, 10, 64)
+		if err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+
+	return 0
 }

@@ -1,3 +1,4 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import (
@@ -11,17 +12,17 @@ import (
 
 // PlanTemplate 治疗方案模板
 type PlanTemplate struct {
-	ID              string               `gorm:"type:varchar(36);primaryKey" json:"id"`
-	Name            string               `gorm:"type:varchar(100);not null" json:"name"`
-	Description     string               `gorm:"type:text" json:"description"`
-	Mode            string               `gorm:"type:varchar(20);not null" json:"mode"` // HD, HDF, HP, HF, HFD
-	IsDefault       bool                 `gorm:"default:false" json:"isDefault"`
-	IsEnabled       bool                 `json:"isEnabled"`
-	Category        string               `gorm:"type:varchar(50)" json:"category"` // 分类: 急性, 慢性, 导管, 等
-	TenantID        *int64               `gorm:"index" json:"tenantId,omitempty"`
-	CreatedAt       time.Time            `json:"createdAt"`
-	UpdatedAt       time.Time            `json:"updatedAt"`
-	TemplateContent PlanTemplateContent  `gorm:"type:jsonb;serializer:json" json:"templateContent"`
+	ID              string              `gorm:"type:varchar(36);primaryKey" json:"id"`
+	Name            string              `gorm:"type:varchar(100);not null" json:"name"`
+	Description     string              `gorm:"type:text" json:"description"`
+	Mode            string              `gorm:"type:varchar(20);not null" json:"mode"` // HD, HDF, HP, HF, HFD
+	IsDefault       bool                `gorm:"default:false" json:"isDefault"`
+	IsEnabled       bool                `json:"isEnabled"`
+	Category        string              `gorm:"type:varchar(50)" json:"category"` // 分类: 急性, 慢性, 导管, 等
+	TenantID        *int64              `gorm:"index" json:"tenantId,omitempty"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	UpdatedAt       time.Time           `json:"updatedAt"`
+	TemplateContent PlanTemplateContent `gorm:"type:jsonb;serializer:json" json:"templateContent"`
 }
 
 // PlanTemplateContent 模板内容
@@ -34,16 +35,16 @@ type PlanTemplateContent struct {
 
 	// 透析模式
 	DialysisMode struct {
-		Mode         string `json:"mode"`
-		BloodFlow    int    `json:"bloodFlow"`
+		Mode                string  `json:"mode"`
+		BloodFlow           int     `json:"bloodFlow"`
 		SubstituteInputMode string  `json:"substituteInputMode"`
-		SubstituteFlow float64 `json:"substituteFlow"`
-		SubstituteVolume float64 `json:"substituteVolume"`
-		BV           string `json:"bv"`
-		FrequencyDesc string `json:"frequencyDesc"`
-		AutoConfirm  bool   `json:"autoConfirm"`
-		Status       string `json:"status"`
-		Notes        string `json:"notes"`
+		SubstituteFlow      float64 `json:"substituteFlow"`
+		SubstituteVolume    float64 `json:"substituteVolume"`
+		BV                  string  `json:"bv"`
+		FrequencyDesc       string  `json:"frequencyDesc"`
+		AutoConfirm         bool    `json:"autoConfirm"`
+		Status              string  `json:"status"`
+		Notes               string  `json:"notes"`
 	} `json:"dialysisMode"`
 
 	// 抗凝剂
@@ -59,17 +60,17 @@ type PlanTemplateContent struct {
 
 	// 透析参数
 	Parameters struct {
-		DialysateType string  `json:"dialysateType"`
-		DialysateGroup string `json:"dialysateGroup"`
-		FlowRate      int     `json:"flowRate"`
-		Na            float64 `json:"na"`
-		Ca            float64 `json:"ca"`
-		K             float64 `json:"k"`
-		HCO3          float64 `json:"hco3"`
-		Glucose       string  `json:"glucose"`
-		Conductivity  float64 `json:"conductivity"`
-		Temp          float64 `json:"temp"`
-		Volume        float64 `json:"volume"`
+		DialysateType  string  `json:"dialysateType"`
+		DialysateGroup string  `json:"dialysateGroup"`
+		FlowRate       int     `json:"flowRate"`
+		Na             float64 `json:"na"`
+		Ca             float64 `json:"ca"`
+		K              float64 `json:"k"`
+		HCO3           float64 `json:"hco3"`
+		Glucose        string  `json:"glucose"`
+		Conductivity   float64 `json:"conductivity"`
+		Temp           float64 `json:"temp"`
+		Volume         float64 `json:"volume"`
 	} `json:"parameters"`
 
 	// 材料
@@ -106,24 +107,24 @@ const (
 
 // MaterialCatalog 材料目录（主数据）
 type MaterialCatalog struct {
-	ID            uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Code          string    `gorm:"type:varchar(50);not null;uniqueIndex" json:"code"`
-	Name          string    `gorm:"type:varchar(100);not null" json:"name"`
-	ShortName     *string   `gorm:"type:varchar(50)" json:"shortName,omitempty"`     // 简称
-	Mnemonic      *string   `gorm:"type:varchar(50)" json:"mnemonic,omitempty"`      // 助记符
-	Category      string    `gorm:"type:varchar(50);not null;index" json:"category"`
-	Spec          string    `gorm:"type:varchar(100)" json:"spec"`
-	StandardType  *string   `gorm:"type:varchar(50)" json:"standardType,omitempty"`  // 标准类型
-	Brand         string    `gorm:"type:varchar(100)" json:"brand"`
-	Unit          string    `gorm:"type:varchar(20)" json:"unit"`
-	Packaging     *string   `gorm:"type:varchar(50)" json:"packaging,omitempty"`     // 包装
-	Manufacturer  *string   `gorm:"type:varchar(100)" json:"manufacturer,omitempty"` // 生产厂家
-	SortOrder     int       `gorm:"default:0" json:"sortOrder"`                      // 排序
-	IsEnabled     bool      `json:"isEnabled"`
-	TenantID      *int64    `gorm:"index" json:"tenantId,omitempty"`
-	Notes         string    `gorm:"type:text" json:"notes"`
-	CreatedAt     time.Time `json:"createdAt"`
-	UpdatedAt     time.Time `json:"updatedAt"`
+	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Code         string    `gorm:"type:varchar(50);not null;uniqueIndex" json:"code"`
+	Name         string    `gorm:"type:varchar(100);not null" json:"name"`
+	ShortName    *string   `gorm:"type:varchar(50)" json:"shortName,omitempty"` // 简称
+	Mnemonic     *string   `gorm:"type:varchar(50)" json:"mnemonic,omitempty"`  // 助记符
+	Category     string    `gorm:"type:varchar(50);not null;index" json:"category"`
+	Spec         string    `gorm:"type:varchar(100)" json:"spec"`
+	StandardType *string   `gorm:"type:varchar(50)" json:"standardType,omitempty"` // 标准类型
+	Brand        string    `gorm:"type:varchar(100)" json:"brand"`
+	Unit         string    `gorm:"type:varchar(20)" json:"unit"`
+	Packaging    *string   `gorm:"type:varchar(50)" json:"packaging,omitempty"`     // 包装
+	Manufacturer *string   `gorm:"type:varchar(100)" json:"manufacturer,omitempty"` // 生产厂家
+	SortOrder    int       `gorm:"default:0" json:"sortOrder"`                      // 排序
+	IsEnabled    bool      `json:"isEnabled"`
+	TenantID     *int64    `gorm:"index" json:"tenantId,omitempty"`
+	Notes        string    `gorm:"type:text" json:"notes"`
+	CreatedAt    time.Time `json:"createdAt"`
+	UpdatedAt    time.Time `json:"updatedAt"`
 }
 
 // TableName 指定表名
@@ -133,46 +134,46 @@ func (MaterialCatalog) TableName() string {
 
 // MaterialCategory 材料分类常量
 const (
-	MaterialCategoryDialyzer       = "透析器"
-	MaterialCategoryBloodLine      = "血路管"
-	MaterialCategoryCatheter       = "导管"
-	MaterialCategoryNeedle         = "穿刺针"
-	MaterialCategorySyringe        = "注射器"
-	MaterialCategoryInfusionSet    = "输液器"
-	MaterialCategoryDisinfectant   = "消毒剂"
-	MaterialCategoryDressing       = "敷料"
-	MaterialCategoryGlove          = "手套"
-	MaterialCategoryOther          = "其他"
+	MaterialCategoryDialyzer     = "透析器"
+	MaterialCategoryBloodLine    = "血路管"
+	MaterialCategoryCatheter     = "导管"
+	MaterialCategoryNeedle       = "穿刺针"
+	MaterialCategorySyringe      = "注射器"
+	MaterialCategoryInfusionSet  = "输液器"
+	MaterialCategoryDisinfectant = "消毒剂"
+	MaterialCategoryDressing     = "敷料"
+	MaterialCategoryGlove        = "手套"
+	MaterialCategoryOther        = "其他"
 )
 
 // ===== 药品目录 =====
 
 // DrugCatalog 药品目录（主数据）
 type DrugCatalog struct {
-	ID           uint      `gorm:"primaryKey;autoIncrement" json:"id"`
-	Code         string    `gorm:"type:varchar(50);not null;uniqueIndex" json:"code"`
-	Name         string    `gorm:"type:varchar(100);not null" json:"name"`
-	ShortName    *string   `gorm:"type:varchar(50)" json:"shortName,omitempty"`
-	Mnemonic     *string   `gorm:"type:varchar(50)" json:"mnemonic,omitempty"`
-	GenericName  string    `gorm:"type:varchar(100)" json:"genericName"`
-	Category     string    `gorm:"type:varchar(50);not null;index" json:"category"`
-	Spec         string    `gorm:"type:varchar(100)" json:"spec"`
-	Concentration *string  `gorm:"type:varchar(50)" json:"concentration,omitempty"`
-	SpecUnit     *string   `gorm:"type:varchar(20)" json:"specUnit,omitempty"`
-	MinUnitDose  *string   `gorm:"type:varchar(20)" json:"minUnitDose,omitempty"`
-	BaseUnit     string    `gorm:"column:unit;type:varchar(20)" json:"baseUnit"`
-	Brand        *string   `gorm:"type:varchar(100)" json:"brand,omitempty"`
-	Packaging    *string   `gorm:"type:varchar(50)" json:"packaging,omitempty"`
-	Manufacturer string    `gorm:"type:varchar(100)" json:"manufacturer"`
-	StandardType *string   `gorm:"type:varchar(50)" json:"standardType,omitempty"`
-	Timing       *string   `gorm:"type:varchar(50)" json:"timing,omitempty"`
-	Tips         *string   `gorm:"type:varchar(200)" json:"tips,omitempty"`
-	SortOrder    int       `gorm:"default:0" json:"sortOrder"`
-	IsEnabled    bool      `json:"isEnabled"`
-	TenantID     *int64    `gorm:"index" json:"tenantId,omitempty"`
-	Note         string    `gorm:"column:notes;type:text" json:"note"`
-	CreatedAt    time.Time `json:"createdAt"`
-	UpdatedAt    time.Time `json:"updatedAt"`
+	ID            uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	Code          string    `gorm:"type:varchar(50);not null;uniqueIndex" json:"code"`
+	Name          string    `gorm:"type:varchar(100);not null" json:"name"`
+	ShortName     *string   `gorm:"type:varchar(50)" json:"shortName,omitempty"`
+	Mnemonic      *string   `gorm:"type:varchar(50)" json:"mnemonic,omitempty"`
+	GenericName   string    `gorm:"type:varchar(100)" json:"genericName"`
+	Category      string    `gorm:"type:varchar(50);not null;index" json:"category"`
+	Spec          string    `gorm:"type:varchar(100)" json:"spec"`
+	Concentration *string   `gorm:"type:varchar(50)" json:"concentration,omitempty"`
+	SpecUnit      *string   `gorm:"type:varchar(20)" json:"specUnit,omitempty"`
+	MinUnitDose   *string   `gorm:"type:varchar(20)" json:"minUnitDose,omitempty"`
+	BaseUnit      string    `gorm:"column:unit;type:varchar(20)" json:"baseUnit"`
+	Brand         *string   `gorm:"type:varchar(100)" json:"brand,omitempty"`
+	Packaging     *string   `gorm:"type:varchar(50)" json:"packaging,omitempty"`
+	Manufacturer  string    `gorm:"type:varchar(100)" json:"manufacturer"`
+	StandardType  *string   `gorm:"type:varchar(50)" json:"standardType,omitempty"`
+	Timing        *string   `gorm:"type:varchar(50)" json:"timing,omitempty"`
+	Tips          *string   `gorm:"type:varchar(200)" json:"tips,omitempty"`
+	SortOrder     int       `gorm:"default:0" json:"sortOrder"`
+	IsEnabled     bool      `json:"isEnabled"`
+	TenantID      *int64    `gorm:"index" json:"tenantId,omitempty"`
+	Note          string    `gorm:"column:notes;type:text" json:"note"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 // TableName 指定表名
@@ -182,17 +183,17 @@ func (DrugCatalog) TableName() string {
 
 // DrugCategory 药品分类常量
 const (
-	DrugCategoryAnticoagulant     = "抗凝剂"
-	DrugCategoryAnticoagulantLow  = "低分子肝素"
+	DrugCategoryAnticoagulant        = "抗凝剂"
+	DrugCategoryAnticoagulantLow     = "低分子肝素"
 	DrugCategoryAnticoagulantCitrate = "柠檬酸钠"
-	DrugCategoryErythropoietin    = "促红素"
-	DrugCategoryIron              = "铁剂"
-	DrugCategoryCalcium           = "钙剂"
-	DrugCategoryVitaminD          = "维生素D"
-	DrugCategoryAntihypertensive  = "降压药"
-	DrugCategoryDiuretic          = "利尿剂"
-	DrugCategoryOther             = "其他"
-	DrugCategoryMethod            = "METHOD"
+	DrugCategoryErythropoietin       = "促红素"
+	DrugCategoryIron                 = "铁剂"
+	DrugCategoryCalcium              = "钙剂"
+	DrugCategoryVitaminD             = "维生素D"
+	DrugCategoryAntihypertensive     = "降压药"
+	DrugCategoryDiuretic             = "利尿剂"
+	DrugCategoryOther                = "其他"
+	DrugCategoryMethod               = "METHOD"
 )
 
 // ===== 医嘱模板 =====

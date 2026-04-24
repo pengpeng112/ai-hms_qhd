@@ -1,42 +1,66 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
-	"github.com/google/uuid"
+	legacymodels "github.com/elliotxin/ai-hms-backend/internal/models/legacy"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
+	"github.com/elliotxin/ai-hms-backend/internal/utils/idgen"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
-// PrescriptionService 处方服务
 type PrescriptionService struct {
 	db *gorm.DB
 }
 
-// NewPrescriptionService 创建处方服务
+type legacyPrescriptionMaterial struct {
+	ID                    int64     `gorm:"column:Id"`
+	TenantID              int64     `gorm:"column:TenantId"`
+	PatientPrescriptionID int64     `gorm:"column:PatientPrescriptionId"`
+	MaterialID            int64     `gorm:"column:MaterialId"`
+	MaterialGroup         int64     `gorm:"column:MaterialGroup"`
+	Num                   float64   `gorm:"column:Num"`
+	Note                  string    `gorm:"column:Note"`
+	LastModifyTime        time.Time `gorm:"column:LastModifyTime"`
+	ChargeItemID          int64     `gorm:"column:ChargeItemId"`
+}
+
+func (legacyPrescriptionMaterial) TableName() string { return "Plan_PatientPrescriptionMaterial" }
+
+type legacyPrescriptionNote struct {
+	Notes            string                           `json:"notes,omitempty"`
+	ExtraWeight      float64                          `json:"extraWeight,omitempty"`
+	OrderItems       models.PrescriptionOrderItemList `json:"orderItems,omitempty"`
+	PrescriptionDate string                           `json:"prescriptionDate,omitempty"`
+	DoctorName       string                           `json:"doctorName,omitempty"`
+}
+
 func NewPrescriptionService() *PrescriptionService {
 	return &PrescriptionService{
 		db: database.GetDB(),
 	}
 }
 
-// PrescriptionCreateRequest 创建处方请求
 type PrescriptionCreateRequest struct {
-	PrescriptionDate string                          `json:"prescriptionDate" binding:"required"`
-	Duration         int                             `json:"duration"`
-	DryWeight        float64                         `json:"dryWeight"`
-	ExtraWeight      float64                         `json:"extraWeight"`
-	DialysisMode     models.DialysisMode             `json:"dialysisMode"`
-	Anticoagulant    models.Anticoagulant            `json:"anticoagulant"`
-	Parameters       models.DialysisParameters       `json:"parameters"`
-	Materials        models.MaterialList             `json:"materials"`
+	PrescriptionDate string                           `json:"prescriptionDate" binding:"required"`
+	Duration         int                              `json:"duration"`
+	DryWeight        float64                          `json:"dryWeight"`
+	ExtraWeight      float64                          `json:"extraWeight"`
+	DialysisMode     models.DialysisMode              `json:"dialysisMode"`
+	Anticoagulant    models.Anticoagulant             `json:"anticoagulant"`
+	Parameters       models.DialysisParameters        `json:"parameters"`
+	Materials        models.MaterialList              `json:"materials"`
 	OrderItems       models.PrescriptionOrderItemList `json:"orderItems"`
-	Notes            string                          `json:"notes"`
+	Notes            string                           `json:"notes"`
 }
 
-// PrescriptionUpdateRequest 更新处方请求（全量替换语义）
 type PrescriptionUpdateRequest struct {
 	Duration      *int                              `json:"duration"`
 	DryWeight     *float64                          `json:"dryWeight"`
@@ -45,235 +69,869 @@ type PrescriptionUpdateRequest struct {
 	Anticoagulant *models.Anticoagulant             `json:"anticoagulant"`
 	Parameters    *models.DialysisParameters        `json:"parameters"`
 	Materials     *models.MaterialList              `json:"materials"`
-	OrderItems    *models.PrescriptionOrderItemList  `json:"orderItems"` // 全量替换
+	OrderItems    *models.PrescriptionOrderItemList `json:"orderItems"`
 	Notes         *string                           `json:"notes"`
 }
 
-// PrescriptionExtractRequest 提取长嘱请求
 type PrescriptionExtractRequest struct {
-	Date string `json:"date" binding:"required"` // yyyy-MM-dd
+	Date string `json:"date" binding:"required"`
 }
 
-// getActiveTreatmentPlan 获取患者启用的治疗方案（updated_at DESC 取第一条）
-func (s *PrescriptionService) getActiveTreatmentPlan(patientID string) (*models.TreatmentPlan, error) {
-	var plan models.TreatmentPlan
-	err := s.db.Where("patient_id = ? AND status = ?", patientID, models.TreatmentPlanStatusActive).
-		Order("updated_at DESC").
-		First(&plan).Error
+func mapLegacyPrescriptionStatus(status int) string {
+	switch status {
+	case 2:
+		return models.PrescriptionStatusExecuted
+	case 3:
+		return models.PrescriptionStatusCancelled
+	case 1, 0:
+		return models.PrescriptionStatusPending
+	default:
+		return models.PrescriptionStatusPending
+	}
+}
+
+func mapNewPrescriptionStatus(status string) int {
+	switch strings.TrimSpace(status) {
+	case models.PrescriptionStatusPending:
+		return 1
+	case models.PrescriptionStatusExecuting:
+		return 1
+	case models.PrescriptionStatusExecuted:
+		return 2
+	case models.PrescriptionStatusCancelled:
+		return 3
+	default:
+		return 0
+	}
+}
+
+func (s *PrescriptionService) loadLegacyPrescriptionTreatmentDate(treatmentID int64) *time.Time {
+	if treatmentID <= 0 {
+		return nil
+	}
+
+	var row struct {
+		StartTime     *time.Time `gorm:"column:StartTime"`
+		ReceptionTime *time.Time `gorm:"column:ReceptionTime"`
+		CreateTime    time.Time  `gorm:"column:CreateTime"`
+	}
+	err := s.db.Table(`"Treatment_Treatment"`).
+		Select(`"StartTime", "ReceptionTime", "CreateTime"`).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Limit(1).
+		First(&row).Error
+	if err != nil {
+		return nil
+	}
+	if row.StartTime != nil && !row.StartTime.IsZero() {
+		return row.StartTime
+	}
+	if row.ReceptionTime != nil && !row.ReceptionTime.IsZero() {
+		return row.ReceptionTime
+	}
+	if !row.CreateTime.IsZero() {
+		t := row.CreateTime
+		return &t
+	}
+	return nil
+}
+
+func parseLegacyPrescriptionNote(raw string) (*legacyPrescriptionNote, bool) {
+	if strings.TrimSpace(raw) == "" {
+		return &legacyPrescriptionNote{}, true
+	}
+	var note legacyPrescriptionNote
+	if err := json.Unmarshal([]byte(raw), &note); err != nil {
+		return nil, false
+	}
+	return &note, true
+}
+
+func buildLegacyPrescriptionNote(notes string, extraWeight float64, date time.Time, doctorName string, orderItems models.PrescriptionOrderItemList) string {
+	payload := legacyPrescriptionNote{
+		Notes:       strings.TrimSpace(notes),
+		ExtraWeight: extraWeight,
+		DoctorName:  strings.TrimSpace(doctorName),
+		OrderItems:  orderItems,
+	}
+	if !date.IsZero() {
+		payload.PrescriptionDate = date.Format("2006-01-02")
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return strings.TrimSpace(notes)
+	}
+	return string(data)
+}
+
+func isMissingLegacyColumnError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "42703" {
+		return true
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "undefined_column") || strings.Contains(lower, "column") && strings.Contains(lower, "does not exist")
+}
+
+func (s *PrescriptionService) resolveLegacyUserID(userIDRaw, fallbackName string) (int64, string, error) {
+	if userID := parseLegacyNumericID(userIDRaw); userID > 0 {
+		name, err := s.lookupLegacyUserDisplayName(userID)
+		if err != nil {
+			return 0, "", err
+		}
+		if name == "" {
+			name = strings.TrimSpace(fallbackName)
+		}
+		return userID, name, nil
+	}
+
+	fallbackName = strings.TrimSpace(fallbackName)
+	if fallbackName == "" {
+		return 0, "", nil
+	}
+
+	var employee struct {
+		ID     int64  `gorm:"column:Id"`
+		UserID int64  `gorm:"column:UserId"`
+		Name   string `gorm:"column:Name"`
+	}
+	queries := []struct {
+		selectSQL string
+		whereSQL  string
+		args      []any
+	}{
+		{`"Id", "UserId", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, legacyTenantID}},
+		{`"Id", "UserId", "Name"`, `"Name" = ?`, []any{fallbackName}},
+		{`"Id", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, legacyTenantID}},
+		{`"Id", "Name"`, `"Name" = ?`, []any{fallbackName}},
+	}
+	var lastErr error
+	for _, query := range queries {
+		err := s.db.Table(`"Organ_Employee"`).
+			Select(query.selectSQL).
+			Where(query.whereSQL, query.args...).
+			Order(`"Id" DESC`).
+			First(&employee).Error
+		if err == nil {
+			resolved := employee.UserID
+			if resolved <= 0 {
+				resolved = employee.ID
+			}
+			return resolved, strings.TrimSpace(employee.Name), nil
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, fallbackName, nil
+		}
+		if isMissingLegacyColumnError(err) {
+			lastErr = err
+			continue
+		}
+		return 0, "", err
+	}
+	if lastErr != nil {
+		return 0, fallbackName, nil
+	}
+	return 0, fallbackName, nil
+}
+
+func (s *PrescriptionService) lookupLegacyUserDisplayName(userID int64) (string, error) {
+	if userID <= 0 {
+		return "", nil
+	}
+
+	var employee struct {
+		Name string `gorm:"column:Name"`
+	}
+	queries := []struct {
+		whereSQL string
+		args     []any
+	}{
+		{`"UserId" = ? AND "TenantId" = ?`, []any{userID, legacyTenantID}},
+		{`"UserId" = ?`, []any{userID}},
+		{`"Id" = ? AND "TenantId" = ?`, []any{userID, legacyTenantID}},
+		{`"Id" = ?`, []any{userID}},
+	}
+	var err error
+	for _, query := range queries {
+		err = s.db.Table(`"Organ_Employee"`).
+			Select(`"Name"`).
+			Where(query.whereSQL, query.args...).
+			Order(`"Id" ASC`).
+			First(&employee).Error
+		if err == nil && strings.TrimSpace(employee.Name) != "" {
+			return strings.TrimSpace(employee.Name), nil
+		}
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			break
+		}
+		if isMissingLegacyColumnError(err) {
+			continue
+		}
+		if err != nil {
+			return "", err
+		}
+	}
+
+	var identityUser legacymodels.IdentityUser
+	err = s.db.Model(&legacymodels.IdentityUser{}).
+		Select(`"UserName"`).
+		Where(`"Id" = ?`, userID).
+		First(&identityUser).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return strconv.FormatInt(userID, 10), nil
+		}
+		return "", err
+	}
+	if strings.TrimSpace(identityUser.UserName) != "" {
+		return strings.TrimSpace(identityUser.UserName), nil
+	}
+	return strconv.FormatInt(userID, 10), nil
+}
+
+func (s *PrescriptionService) getLegacyPlanForPrescription(patientID, mode string) (*legacyPatientPlan, error) {
+	planService := &PatientService{db: s.db}
+	if strings.TrimSpace(mode) != "" {
+		plan, err := planService.legacyPlanByMode(parseLegacyIDOrZero(patientID), mode)
+		if err == nil {
+			return plan, nil
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, err
+		}
+	}
+	return planService.legacyPlanByMode(parseLegacyIDOrZero(patientID), "")
+}
+
+func parseLegacyIDOrZero(raw string) modeltypes.LegacyID {
+	id, err := parseLegacyID(raw)
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
+func (s *PrescriptionService) loadLegacyPrescriptionMaterials(prescriptionID int64) (models.MaterialList, error) {
+	var rows []legacyPrescriptionMaterial
+	if err := s.db.Where(`"PatientPrescriptionId" = ?`, prescriptionID).
+		Order(`"MaterialGroup" ASC`).
+		Order(`"Id" ASC`).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	if len(rows) == 0 {
+		return models.MaterialList{}, nil
+	}
+
+	materialIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.MaterialID > 0 {
+			materialIDs = append(materialIDs, row.MaterialID)
+		}
+	}
+
+	var catalogs []legacyMaterialCatalog
+	if len(materialIDs) > 0 {
+		if err := s.db.Where(`"Id" IN ?`, materialIDs).Find(&catalogs).Error; err != nil {
+			return nil, err
+		}
+	}
+	catalogMap := make(map[int64]legacyMaterialCatalog, len(catalogs))
+	for _, catalog := range catalogs {
+		catalogMap[catalog.ID] = catalog
+	}
+
+	materials := make(models.MaterialList, 0, len(rows))
+	for _, row := range rows {
+		catalog := catalogMap[row.MaterialID]
+		materials = append(materials, models.Material{
+			ID:       strconv.FormatInt(row.MaterialID, 10),
+			Name:     strings.TrimSpace(catalog.Name),
+			Category: strings.TrimSpace(catalog.Classification),
+			Count:    int(row.Num),
+			Code:     strings.TrimSpace(catalog.Code),
+			Brand:    strings.TrimSpace(catalog.Brand),
+			Spec:     strings.TrimSpace(catalog.Specification),
+			Note:     firstNonEmptyText(row.Note, catalog.Note),
+		})
+	}
+	return materials, nil
+}
+
+func (s *PrescriptionService) syncLegacyPrescriptionMaterials(tx *gorm.DB, prescriptionID int64, materials models.MaterialList) error {
+	if err := tx.Where(`"PatientPrescriptionId" = ?`, prescriptionID).Delete(&legacyPrescriptionMaterial{}).Error; err != nil {
+		return err
+	}
+
+	planService := &PatientService{db: tx}
+	now := time.Now()
+	for idx, material := range materials {
+		materialID, err := planService.findLegacyMaterialID(material)
+		if err != nil {
+			return err
+		}
+		if materialID == 0 {
+			continue
+		}
+		id, err := idgen.NextID()
+		if err != nil {
+			return err
+		}
+		row := map[string]any{
+			"Id":                    id,
+			"TenantId":              legacyTenantID,
+			"PatientPrescriptionId": prescriptionID,
+			"MaterialId":            materialID,
+			"MaterialGroup":         idx + 1,
+			"Num":                   material.Count,
+			"Note":                  strings.TrimSpace(material.Note),
+			"LastModifyTime":        now,
+			"ChargeItemId":          0,
+		}
+		if err := tx.Table(`"Plan_PatientPrescriptionMaterial"`).Create(row).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *PrescriptionService) toPrescriptionDTO(item legacyPatientPrescription) (*models.Prescription, error) {
+	planService := &PatientService{db: s.db}
+	drugNames, err := planService.loadLegacyDrugNames(item.FirstAnticoagulant, item.MaintainAnticoagulant)
+	if err != nil {
+		return nil, err
+	}
+	materials, err := s.loadLegacyPrescriptionMaterials(item.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	notePayload, noteIsJSON := parseLegacyPrescriptionNote(item.Note)
+	orderItems := models.PrescriptionOrderItemList{}
+	notes := strings.TrimSpace(item.Note)
+	extraWeight := item.AdjustQuantity
+	prescriptionDate := item.CreateTime
+	if treatmentDate := s.loadLegacyPrescriptionTreatmentDate(item.TreatmentID); treatmentDate != nil {
+		prescriptionDate = *treatmentDate
+	}
+	doctorName, err := s.lookupLegacyUserDisplayName(item.CreatorID)
+	if err != nil {
+		return nil, err
+	}
+	if noteIsJSON && notePayload != nil {
+		orderItems = notePayload.OrderItems
+		if strings.TrimSpace(notePayload.Notes) != "" {
+			notes = strings.TrimSpace(notePayload.Notes)
+		} else {
+			notes = ""
+		}
+		if notePayload.ExtraWeight != 0 {
+			extraWeight = notePayload.ExtraWeight
+		}
+		if notePayload.PrescriptionDate != "" && item.TreatmentID <= 0 {
+			if parsed, parseErr := time.Parse("2006-01-02", notePayload.PrescriptionDate); parseErr == nil {
+				prescriptionDate = parsed
+			}
+		}
+		if strings.TrimSpace(notePayload.DoctorName) != "" {
+			doctorName = strings.TrimSpace(notePayload.DoctorName)
+		}
+	}
+
+	status := mapLegacyPrescriptionStatus(item.Status)
+	var executedAt *time.Time
+	if item.ConfirmTime != nil && !item.ConfirmTime.IsZero() {
+		executedAt = item.ConfirmTime
+	}
+
+	var executedBy *string
+	if item.ConfirmUserID > 0 {
+		value := strconv.FormatInt(item.ConfirmUserID, 10)
+		executedBy = &value
+	}
+
+	dto := &models.Prescription{
+		ID:               strconv.FormatInt(item.ID, 10),
+		PatientID:        item.PatientID,
+		TreatmentPlanID:  strconv.FormatInt(item.PatientPlanID, 10),
+		TreatmentID:      item.TreatmentID,
+		PrescriptionDate: prescriptionDate,
+		DoctorID:         strconv.FormatInt(item.CreatorID, 10),
+		DoctorName:       doctorName,
+		Status:           status,
+		Duration:         int(item.DialysisDuration),
+		DryWeight:        item.DryWeight,
+		ExtraWeight:      extraWeight,
+		DialysisMode: models.DialysisMode{
+			Mode:                normalizeLegacyDialysisMode(item.DialysisMethod),
+			BloodFlow:           int(item.BF),
+			SubstituteInputMode: strings.TrimSpace(item.DilutionMnt),
+			SubstituteFlow:      item.SubstituateFlow,
+			SubstituteVolume:    item.SubstituateVolume,
+			BV:                  formatLegacyNumber(item.BV),
+			Status:              status,
+		},
+		Anticoagulant: models.Anticoagulant{
+			InitialDrug:     legacyDrugNameByID(drugNames, item.FirstAnticoagulant),
+			InitialDose:     formatLegacyNumber(item.FirstDosage),
+			MaintenanceDrug: legacyDrugNameByID(drugNames, item.MaintainAnticoagulant),
+			InfusionRate:    formatLegacyNumber(item.InjectionRate),
+			InfusionTime:    formatLegacyNumber(item.InjectionDuration),
+			MaintenanceDose: formatLegacyNumber(item.DilutionProportion),
+			TotalDose:       formatLegacyNumber(item.InjectionVolume),
+		},
+		Parameters: models.DialysisParameters{
+			DialysateType:  strings.TrimSpace(item.Dialysate),
+			DialysateGroup: strconv.FormatInt(item.DialysateGroupID, 10),
+			FlowRate:       int(item.DialysateFlow),
+			Na:             item.NaIonCon,
+			Ca:             item.CaIonCon,
+			K:              item.KIonCon,
+			HCO3:           item.HCO3IonCon,
+			Glucose:        formatLegacyNumber(item.GlucoseCon),
+			Conductivity:   item.Conductivity,
+			Temp:           item.DialysateTmp,
+			Volume:         item.DialysateVolume,
+		},
+		Materials:  materials,
+		OrderItems: orderItems,
+		Notes:      notes,
+		ExecutedAt: executedAt,
+		ExecutedBy: executedBy,
+		CreatedAt:  item.CreateTime,
+		UpdatedAt:  item.LastModifyTime,
+	}
+
+	return dto, nil
+}
+
+func (s *PrescriptionService) loadLegacyPrescription(patientID, prescriptionID string) (*legacyPatientPrescription, error) {
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+	id := parseLegacyNumericID(prescriptionID)
+	if id <= 0 {
+		return nil, errors.New("prescription not found")
+	}
+
+	var item legacyPatientPrescription
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, id, legacyPatientID, legacyTenantID).
+		First(&item).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("prescription not found")
+		}
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *PrescriptionService) List(patientID string) ([]models.Prescription, error) {
+	return s.LegacyList(patientID)
+}
+
+func (s *PrescriptionService) Get(patientID, prescriptionID string) (*models.Prescription, error) {
+	return s.LegacyGet(patientID, prescriptionID)
+}
+
+func (s *PrescriptionService) Create(patientID, doctorID, doctorName string, req PrescriptionCreateRequest) (*models.Prescription, error) {
+	return s.LegacyCreate(patientID, doctorID, doctorName, req)
+}
+
+func (s *PrescriptionService) Update(patientID, prescriptionID string, req PrescriptionUpdateRequest) (*models.Prescription, error) {
+	return s.LegacyUpdate(patientID, prescriptionID, req)
+}
+
+func (s *PrescriptionService) Execute(patientID, prescriptionID, executedBy string) (*models.Prescription, error) {
+	return s.LegacyExecute(patientID, prescriptionID, executedBy)
+}
+
+func (s *PrescriptionService) Cancel(patientID, prescriptionID string) (*models.Prescription, error) {
+	return s.LegacyCancel(patientID, prescriptionID)
+}
+
+func (s *PrescriptionService) ExtractFromLongTermOrders(patientID, doctorID, doctorName, dateStr string) (*models.Prescription, error) {
+	return s.LegacyExtractFromLongTermOrders(patientID, doctorID, doctorName, dateStr)
+}
+
+func (s *PrescriptionService) LegacyList(patientID string) ([]models.Prescription, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+
+	var rows []legacyPatientPrescription
+	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+		Order(`"CreateTime" DESC`).
+		Order(`"Id" DESC`).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	result := make([]models.Prescription, 0, len(rows))
+	for _, row := range rows {
+		dto, convErr := s.toPrescriptionDTO(row)
+		if convErr != nil {
+			return nil, convErr
+		}
+		result = append(result, *dto)
+	}
+	return result, nil
+}
+
+func (s *PrescriptionService) LegacyGet(patientID, prescriptionID string) (*models.Prescription, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	item, err := s.loadLegacyPrescription(patientID, prescriptionID)
+	if err != nil {
+		return nil, err
+	}
+	return s.toPrescriptionDTO(*item)
+}
+
+func (s *PrescriptionService) LegacyCreate(patientID, doctorID, doctorName string, req PrescriptionCreateRequest) (*models.Prescription, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+	if strings.TrimSpace(req.PrescriptionDate) == "" {
+		return nil, errors.New("prescriptionDate is required")
+	}
+	prescriptionDate, err := time.Parse("2006-01-02", req.PrescriptionDate)
+	if err != nil {
+		return nil, errors.New("日期格式错误，应为 yyyy-MM-dd")
+	}
+
+	resolvedUserID, resolvedDoctorName, err := s.resolveLegacyUserID(doctorID, doctorName)
+	if err != nil {
+		return nil, err
+	}
+
+	plan, err := s.getLegacyPlanForPrescription(patientID, req.DialysisMode.Mode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("请先创建启用的治疗方案")
 		}
 		return nil, err
 	}
-	return &plan, nil
-}
 
-// List 获取处方列表（按日期倒序）
-func (s *PrescriptionService) List(patientID string) ([]models.Prescription, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var prescriptions []models.Prescription
-	err := s.db.Where("patient_id = ?", patientID).
-		Order("prescription_date DESC").
-		Find(&prescriptions).Error
-	return prescriptions, err
-}
-
-// Get 获取处方详情（患者隔离）
-func (s *PrescriptionService) Get(patientID, prescriptionID string) (*models.Prescription, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var p models.Prescription
-	err := s.db.First(&p, "id = ? AND patient_id = ?", prescriptionID, patientID).Error
+	firstDrugID, err := (&PatientService{db: s.db}).findLegacyDrugIDByName(req.Anticoagulant.InitialDrug)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("prescription not found")
+		return nil, err
+	}
+	maintainDrugID, err := (&PatientService{db: s.db}).findLegacyDrugIDByName(req.Anticoagulant.MaintenanceDrug)
+	if err != nil {
+		return nil, err
+	}
+
+	prescriptionIDValue, err := idgen.NextID()
+	if err != nil {
+		return nil, err
+	}
+
+	duration := req.Duration
+	if duration == 0 {
+		duration = int(plan.DialysisDuration)
+	}
+	dryWeight := req.DryWeight
+	if dryWeight == 0 {
+		dryWeight = plan.DryWeight
+	}
+	mode := req.DialysisMode
+	if strings.TrimSpace(mode.Mode) == "" {
+		mode.Mode = normalizeLegacyDialysisMode(plan.DialysisMethod)
+		mode.BloodFlow = int(plan.BF)
+		mode.SubstituteInputMode = plan.DilutionMnt
+		mode.SubstituteFlow = plan.SubstituateFlow
+		mode.SubstituteVolume = plan.SubstituateVolume
+		mode.BV = formatLegacyNumber(plan.BV)
+	}
+	anticoagulant := req.Anticoagulant
+	if anticoagulant.InitialDrug == "" {
+		drugNames, loadErr := (&PatientService{db: s.db}).loadLegacyDrugNames(plan.FirstAnticoagulant, plan.MaintainAnticoagulant)
+		if loadErr != nil {
+			return nil, loadErr
 		}
-		return nil, err
+		anticoagulant.InitialDrug = legacyDrugNameByID(drugNames, plan.FirstAnticoagulant)
+		anticoagulant.InitialDose = formatLegacyNumber(plan.FirstDosage)
+		anticoagulant.MaintenanceDrug = legacyDrugNameByID(drugNames, plan.MaintainAnticoagulant)
+		anticoagulant.InfusionRate = formatLegacyNumber(plan.InjectionRate)
+		anticoagulant.InfusionTime = formatLegacyNumber(plan.InjectionDuration)
+		anticoagulant.MaintenanceDose = formatLegacyNumber(plan.DilutionProportion)
+		anticoagulant.TotalDose = formatLegacyNumber(plan.InjectionVolume)
 	}
-	return &p, nil
-}
-
-// Create 创建处方
-func (s *PrescriptionService) Create(patientID, doctorID, doctorName string, req PrescriptionCreateRequest) (*models.Prescription, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	// 自动填充 TreatmentPlanID
-	plan, err := s.getActiveTreatmentPlan(patientID)
-	if err != nil {
-		return nil, err
-	}
-
-	date, err := time.Parse("2006-01-02", req.PrescriptionDate)
-	if err != nil {
-		return nil, errors.New("日期格式错误，应为 yyyy-MM-dd")
-	}
-
-	p := models.Prescription{
-		ID:               uuid.New().String(),
-		PatientID:        patientID,
-		TreatmentPlanID:  plan.ID,
-		PrescriptionDate: date,
-		DoctorID:         doctorID,
-		DoctorName:       doctorName,
-		Status:           models.PrescriptionStatusPending,
-		Duration:         req.Duration,
-		DryWeight:        req.DryWeight,
-		ExtraWeight:      req.ExtraWeight,
-		DialysisMode:     req.DialysisMode,
-		Anticoagulant:    req.Anticoagulant,
-		Parameters:       req.Parameters,
-		Materials:        req.Materials,
-		OrderItems:       req.OrderItems,
-		Notes:            req.Notes,
-	}
-
-	if err := s.db.Create(&p).Error; err != nil {
-		return nil, err
-	}
-	return &p, nil
-}
-
-// Update 更新处方（仅允许待执行状态，OrderItems 全量替换）
-func (s *PrescriptionService) Update(patientID, prescriptionID string, req PrescriptionUpdateRequest) (*models.Prescription, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var p models.Prescription
-	if err := s.db.First(&p, "id = ? AND patient_id = ?", prescriptionID, patientID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("prescription not found")
+	parameters := req.Parameters
+	if strings.TrimSpace(parameters.DialysateType) == "" {
+		parameters = models.DialysisParameters{
+			DialysateType:  strings.TrimSpace(plan.Dialysate),
+			DialysateGroup: strconv.FormatInt(plan.DialysateGroupID, 10),
+			FlowRate:       int(plan.DialysateFlow),
+			Na:             plan.NaIonCon,
+			Ca:             plan.CaIonCon,
+			K:              plan.KIonCon,
+			HCO3:           plan.HCO3IonCon,
+			Glucose:        formatLegacyNumber(plan.GlucoseCon),
+			Conductivity:   plan.Conductivity,
+			Temp:           plan.DialysateTmp,
+			Volume:         plan.DialysateVolume,
 		}
+	}
+	materials := req.Materials
+	if len(materials) == 0 {
+		if copied, loadErr := (&PatientService{db: s.db}).loadLegacyPlanMaterials(plan.ID); loadErr == nil {
+			materials = copied
+		}
+	}
+
+	row := map[string]any{
+		"Id":                           prescriptionIDValue,
+		"TenantId":                     legacyTenantID,
+		"PatientId":                    legacyPatientID,
+		"TreatmentId":                  0,
+		"PatientPlanId":                plan.ID,
+		"CreatorId":                    resolvedUserID,
+		"CreateTime":                   prescriptionDate,
+		"ConfirmUserId":                0,
+		"Status":                       mapNewPrescriptionStatus(models.PrescriptionStatusPending),
+		"CaseStatus":                   "",
+		"DialysisMethod":               normalizeLegacyDialysisMode(mode.Mode),
+		"DialysisDuration":             duration,
+		"DryWeight":                    dryWeight,
+		"AdjustQuantity":               req.ExtraWeight,
+		"BF":                           mode.BloodFlow,
+		"BV":                           parseStringFloat(mode.BV),
+		"FirstAnticoagulant":           firstDrugID,
+		"FirstDosage":                  parseStringFloat(anticoagulant.InitialDose),
+		"MaintainAnticoagulant":        maintainDrugID,
+		"DilutionProportion":           parseStringFloat(anticoagulant.MaintenanceDose),
+		"InjectionRate":                parseStringFloat(anticoagulant.InfusionRate),
+		"InjectionDuration":            parseStringFloat(anticoagulant.InfusionTime),
+		"InjectionVolume":              parseStringFloat(anticoagulant.TotalDose),
+		"VascularAccessId":             plan.VascularAccessID,
+		"Dialysate":                    strings.TrimSpace(parameters.DialysateType),
+		"DialysateFlow":                parameters.FlowRate,
+		"DialysateVolume":              parameters.Volume,
+		"NaIonCon":                     parameters.Na,
+		"CaIonCon":                     parameters.Ca,
+		"KIonCon":                      parameters.K,
+		"HCO3IonCon":                   parameters.HCO3,
+		"Conductivity":                 parameters.Conductivity,
+		"DialysateTmp":                 parameters.Temp,
+		"SubstituateVolume":            mode.SubstituteVolume,
+		"DilutionMnt":                  strings.TrimSpace(mode.SubstituteInputMode),
+		"LastModifyTime":               time.Now(),
+		"SalineQuantity":               plan.SalineQuantity,
+		"SealQuantity":                 plan.SealQuantity,
+		"ArterialQuantity":             plan.ArterialQuantity,
+		"VenousQuantity":               plan.VenousQuantity,
+		"UFQuantity":                   plan.ExtraWeight,
+		"SealType":                     strings.TrimSpace(plan.SealType),
+		"GlucoseCon":                   parseStringFloat(parameters.Glucose),
+		"DialysateGroupId":             parseLegacyNumericID(parameters.DialysateGroup),
+		"Note":                         buildLegacyPrescriptionNote(req.Notes, req.ExtraWeight, prescriptionDate, resolvedDoctorName, req.OrderItems),
+		"SubstituateFlow":              mode.SubstituteFlow,
+		"IsInduceDialysisPrescription": false,
+		"HeparinType":                  0,
+	}
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(`"Plan_PatientPrescription"`).Create(row).Error; err != nil {
+			return err
+		}
+		return s.syncLegacyPrescriptionMaterials(tx, prescriptionIDValue, materials)
+	}); err != nil {
 		return nil, err
 	}
 
-	if p.Status != models.PrescriptionStatusPending {
+	return s.LegacyGet(patientID, strconv.FormatInt(prescriptionIDValue, 10))
+}
+
+func (s *PrescriptionService) LegacyUpdate(patientID, prescriptionID string, req PrescriptionUpdateRequest) (*models.Prescription, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	item, err := s.loadLegacyPrescription(patientID, prescriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if mapLegacyPrescriptionStatus(item.Status) != models.PrescriptionStatusPending {
 		return nil, errors.New("仅待执行状态的处方可编辑")
 	}
 
-	updates := make(map[string]interface{})
+	notePayload, noteIsJSON := parseLegacyPrescriptionNote(item.Note)
+	if !noteIsJSON || notePayload == nil {
+		notePayload = &legacyPrescriptionNote{Notes: strings.TrimSpace(item.Note), ExtraWeight: item.AdjustQuantity}
+	}
+
+	updates := map[string]any{
+		"LastModifyTime": time.Now(),
+	}
 	if req.Duration != nil {
-		updates["duration"] = *req.Duration
+		updates["DialysisDuration"] = *req.Duration
 	}
 	if req.DryWeight != nil {
-		updates["dry_weight"] = *req.DryWeight
+		updates["DryWeight"] = *req.DryWeight
 	}
 	if req.ExtraWeight != nil {
-		updates["extra_weight"] = *req.ExtraWeight
+		updates["AdjustQuantity"] = *req.ExtraWeight
+		notePayload.ExtraWeight = *req.ExtraWeight
 	}
 	if req.DialysisMode != nil {
-		updates["dialysis_mode"] = *req.DialysisMode
-	}
-	if req.Anticoagulant != nil {
-		updates["anticoagulant"] = *req.Anticoagulant
-	}
-	if req.Parameters != nil {
-		updates["parameters"] = *req.Parameters
-	}
-	if req.Materials != nil {
-		updates["materials"] = *req.Materials
-	}
-	if req.OrderItems != nil {
-		updates["order_items"] = *req.OrderItems
-	}
-	if req.Notes != nil {
-		updates["notes"] = *req.Notes
-	}
-
-	if len(updates) > 0 {
-		if err := s.db.Model(&p).Updates(updates).Error; err != nil {
-			return nil, err
+		updates["DialysisMethod"] = normalizeLegacyDialysisMode(req.DialysisMode.Mode)
+		updates["BF"] = req.DialysisMode.BloodFlow
+		updates["BV"] = parseStringFloat(req.DialysisMode.BV)
+		updates["DilutionMnt"] = strings.TrimSpace(req.DialysisMode.SubstituteInputMode)
+		updates["SubstituateFlow"] = req.DialysisMode.SubstituteFlow
+		updates["SubstituateVolume"] = req.DialysisMode.SubstituteVolume
+		if plan, planErr := s.getLegacyPlanForPrescription(patientID, req.DialysisMode.Mode); planErr == nil && plan != nil {
+			updates["PatientPlanId"] = plan.ID
 		}
 	}
+	if req.Anticoagulant != nil {
+		firstDrugID, findErr := (&PatientService{db: s.db}).findLegacyDrugIDByName(req.Anticoagulant.InitialDrug)
+		if findErr != nil {
+			return nil, findErr
+		}
+		maintainDrugID, findErr := (&PatientService{db: s.db}).findLegacyDrugIDByName(req.Anticoagulant.MaintenanceDrug)
+		if findErr != nil {
+			return nil, findErr
+		}
+		updates["FirstAnticoagulant"] = firstDrugID
+		updates["FirstDosage"] = parseStringFloat(req.Anticoagulant.InitialDose)
+		updates["MaintainAnticoagulant"] = maintainDrugID
+		updates["DilutionProportion"] = parseStringFloat(req.Anticoagulant.MaintenanceDose)
+		updates["InjectionRate"] = parseStringFloat(req.Anticoagulant.InfusionRate)
+		updates["InjectionDuration"] = parseStringFloat(req.Anticoagulant.InfusionTime)
+		updates["InjectionVolume"] = parseStringFloat(req.Anticoagulant.TotalDose)
+	}
+	if req.Parameters != nil {
+		updates["Dialysate"] = strings.TrimSpace(req.Parameters.DialysateType)
+		updates["DialysateFlow"] = req.Parameters.FlowRate
+		updates["DialysateVolume"] = req.Parameters.Volume
+		updates["NaIonCon"] = req.Parameters.Na
+		updates["CaIonCon"] = req.Parameters.Ca
+		updates["KIonCon"] = req.Parameters.K
+		updates["HCO3IonCon"] = req.Parameters.HCO3
+		updates["Conductivity"] = req.Parameters.Conductivity
+		updates["DialysateTmp"] = req.Parameters.Temp
+		updates["GlucoseCon"] = parseStringFloat(req.Parameters.Glucose)
+		if groupID := parseLegacyNumericID(req.Parameters.DialysateGroup); groupID > 0 {
+			updates["DialysateGroupId"] = groupID
+		}
+	}
+	if req.Notes != nil {
+		notePayload.Notes = strings.TrimSpace(*req.Notes)
+	}
+	if req.OrderItems != nil {
+		notePayload.OrderItems = *req.OrderItems
+	}
+	prescriptionDate := item.CreateTime
+	if notePayload.PrescriptionDate != "" {
+		if parsed, parseErr := time.Parse("2006-01-02", notePayload.PrescriptionDate); parseErr == nil {
+			prescriptionDate = parsed
+		}
+	}
+	doctorName, lookupErr := s.lookupLegacyUserDisplayName(item.CreatorID)
+	if lookupErr != nil {
+		return nil, lookupErr
+	}
+	if notePayload.DoctorName != "" {
+		doctorName = notePayload.DoctorName
+	}
+	updates["Note"] = buildLegacyPrescriptionNote(notePayload.Notes, notePayload.ExtraWeight, prescriptionDate, doctorName, notePayload.OrderItems)
 
-	if err := s.db.First(&p, "id = ?", prescriptionID).Error; err != nil {
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(`"Plan_PatientPrescription"`).Where(`"Id" = ?`, item.ID).Updates(updates).Error; err != nil {
+			return err
+		}
+		if req.Materials != nil {
+			return s.syncLegacyPrescriptionMaterials(tx, item.ID, *req.Materials)
+		}
+		return nil
+	}); err != nil {
 		return nil, err
 	}
-	return &p, nil
+
+	return s.LegacyGet(patientID, prescriptionID)
 }
 
-// Execute 标记处方已执行（幂等）
-func (s *PrescriptionService) Execute(patientID, prescriptionID, executedBy string) (*models.Prescription, error) {
+func (s *PrescriptionService) LegacyExecute(patientID, prescriptionID, executedBy string) (*models.Prescription, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	var p models.Prescription
-	if err := s.db.First(&p, "id = ? AND patient_id = ?", prescriptionID, patientID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("prescription not found")
-		}
+	item, err := s.loadLegacyPrescription(patientID, prescriptionID)
+	if err != nil {
 		return nil, err
 	}
 
-	// 幂等：已执行不报错
-	if p.Status == models.PrescriptionStatusExecuted {
-		return &p, nil
+	status := mapLegacyPrescriptionStatus(item.Status)
+	if status == models.PrescriptionStatusExecuted {
+		return s.toPrescriptionDTO(*item)
 	}
-
-	// 只有 待执行/执行中 可以标记执行
-	if p.Status == models.PrescriptionStatusCancelled {
+	if status == models.PrescriptionStatusCancelled {
 		return nil, errors.New("已取消的处方不能执行")
 	}
 
-	now := time.Now()
-	updates := map[string]interface{}{
-		"status":      models.PrescriptionStatusExecuted,
-		"executed_at":  now,
-		"executed_by":  executedBy,
+	resolvedUserID, _, err := s.resolveLegacyUserID(executedBy, "")
+	if err != nil {
+		return nil, err
 	}
-
-	if err := s.db.Model(&p).Updates(updates).Error; err != nil {
+	now := time.Now()
+	if err := s.db.Table(`"Plan_PatientPrescription"`).
+		Where(`"Id" = ?`, item.ID).
+		Updates(map[string]any{
+			"Status":         mapNewPrescriptionStatus(models.PrescriptionStatusExecuted),
+			"ConfirmUserId":  resolvedUserID,
+			"ConfirmTime":    now,
+			"LastModifyTime": now,
+		}).Error; err != nil {
 		return nil, err
 	}
 
-	p.Status = models.PrescriptionStatusExecuted
-	p.ExecutedAt = &now
-	p.ExecutedBy = &executedBy
-	return &p, nil
+	return s.LegacyGet(patientID, prescriptionID)
 }
 
-// Cancel 取消处方（幂等）
-func (s *PrescriptionService) Cancel(patientID, prescriptionID string) (*models.Prescription, error) {
+func (s *PrescriptionService) LegacyCancel(patientID, prescriptionID string) (*models.Prescription, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	var p models.Prescription
-	if err := s.db.First(&p, "id = ? AND patient_id = ?", prescriptionID, patientID).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("prescription not found")
-		}
+	item, err := s.loadLegacyPrescription(patientID, prescriptionID)
+	if err != nil {
 		return nil, err
 	}
 
-	// 幂等：已取消不报错
-	if p.Status == models.PrescriptionStatusCancelled {
-		return &p, nil
+	status := mapLegacyPrescriptionStatus(item.Status)
+	if status == models.PrescriptionStatusCancelled {
+		return s.toPrescriptionDTO(*item)
 	}
-
-	if p.Status == models.PrescriptionStatusExecuted {
+	if status == models.PrescriptionStatusExecuted {
 		return nil, errors.New("已执行的处方不能取消")
 	}
 
-	if err := s.db.Model(&p).Update("status", models.PrescriptionStatusCancelled).Error; err != nil {
+	if err := s.db.Table(`"Plan_PatientPrescription"`).
+		Where(`"Id" = ?`, item.ID).
+		Updates(map[string]any{
+			"Status":         mapNewPrescriptionStatus(models.PrescriptionStatusCancelled),
+			"LastModifyTime": time.Now(),
+		}).Error; err != nil {
 		return nil, err
 	}
-
-	p.Status = models.PrescriptionStatusCancelled
-	return &p, nil
+	return s.LegacyGet(patientID, prescriptionID)
 }
 
-// ExtractFromLongTermOrders 从在用长期医嘱提取处方
-func (s *PrescriptionService) ExtractFromLongTermOrders(patientID, doctorID, doctorName, dateStr string) (*models.Prescription, error) {
+func (s *PrescriptionService) LegacyExtractFromLongTermOrders(patientID, doctorID, doctorName, dateStr string) (*models.Prescription, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -283,24 +941,25 @@ func (s *PrescriptionService) ExtractFromLongTermOrders(patientID, doctorID, doc
 		return nil, errors.New("日期格式错误，应为 yyyy-MM-dd")
 	}
 
-	// 获取启用的治疗方案
-	plan, err := s.getActiveTreatmentPlan(patientID)
+	plan, err := s.getLegacyPlanForPrescription(patientID, "")
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("请先创建启用的治疗方案")
+		}
+		return nil, err
+	}
+
+	orders, err := (&OrderService{db: s.db}).listLegacyOrders(OrderListRequest{
+		PatientID: patientID,
+		TenantID:  legacyTenantID,
+		Type:      models.OrderTypeLongTerm,
+		Statuses:  strings.Join([]string{models.OrderStatusPending, models.OrderStatusExecuting}, ","),
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	// 查询在用长期医嘱
-	var orders []models.Order
-	if err := s.db.Where("patient_id = ? AND type = ? AND status IN ?",
-		patientID,
-		models.OrderTypeLongTerm,
-		[]string{models.OrderStatusPending, models.OrderStatusExecuting},
-	).Order("created_at ASC").Find(&orders).Error; err != nil {
-		return nil, err
-	}
-
-	// 生成 OrderItems 快照
-	var orderItems models.PrescriptionOrderItemList
+	orderItems := make(models.PrescriptionOrderItemList, 0, len(orders))
 	for _, o := range orders {
 		orderItems = append(orderItems, models.PrescriptionOrderItem{
 			OrderID:   o.ID,
@@ -308,34 +967,65 @@ func (s *PrescriptionService) ExtractFromLongTermOrders(patientID, doctorID, doc
 			Category:  o.Category,
 			Dose:      o.Dose,
 			Unit:      o.Unit,
-			Frequency: func() string { if o.Frequency != nil { return *o.Frequency }; return "" }(),
+			Frequency: firstNonEmptyText(valueOrEmpty(o.Frequency)),
 			Route:     o.Route,
 			Spec:      o.Spec,
 		})
 	}
 
-	// 创建处方，复制治疗方案参数
-	p := models.Prescription{
-		ID:               uuid.New().String(),
-		PatientID:        patientID,
-		TreatmentPlanID:  plan.ID,
-		PrescriptionDate: date,
-		DoctorID:         doctorID,
-		DoctorName:       doctorName,
-		Status:           models.PrescriptionStatusPending,
-		Duration:         plan.Duration,
+	req := PrescriptionCreateRequest{
+		PrescriptionDate: date.Format("2006-01-02"),
+		Duration:         int(plan.DialysisDuration),
 		DryWeight:        plan.DryWeight,
 		ExtraWeight:      plan.ExtraWeight,
-		DialysisMode:     plan.DialysisMode,
-		Anticoagulant:    plan.Anticoagulant,
-		Parameters:       plan.DialysisParameters,
-		Materials:        plan.Materials,
-		OrderItems:       orderItems,
-		Notes:            "",
+		DialysisMode: models.DialysisMode{
+			Mode:                normalizeLegacyDialysisMode(plan.DialysisMethod),
+			BloodFlow:           int(plan.BF),
+			SubstituteInputMode: plan.DilutionMnt,
+			SubstituteFlow:      plan.SubstituateFlow,
+			SubstituteVolume:    plan.SubstituateVolume,
+			BV:                  formatLegacyNumber(plan.BV),
+		},
+		Anticoagulant: models.Anticoagulant{
+			InitialDose:     formatLegacyNumber(plan.FirstDosage),
+			MaintenanceDose: formatLegacyNumber(plan.DilutionProportion),
+			InfusionRate:    formatLegacyNumber(plan.InjectionRate),
+			InfusionTime:    formatLegacyNumber(plan.InjectionDuration),
+			TotalDose:       formatLegacyNumber(plan.InjectionVolume),
+		},
+		Parameters: models.DialysisParameters{
+			DialysateType:  strings.TrimSpace(plan.Dialysate),
+			DialysateGroup: strconv.FormatInt(plan.DialysateGroupID, 10),
+			FlowRate:       int(plan.DialysateFlow),
+			Na:             plan.NaIonCon,
+			Ca:             plan.CaIonCon,
+			K:              plan.KIonCon,
+			HCO3:           plan.HCO3IonCon,
+			Glucose:        formatLegacyNumber(plan.GlucoseCon),
+			Conductivity:   plan.Conductivity,
+			Temp:           plan.DialysateTmp,
+			Volume:         plan.DialysateVolume,
+		},
+		OrderItems: orderItems,
 	}
 
-	if err := s.db.Create(&p).Error; err != nil {
+	drugNames, err := (&PatientService{db: s.db}).loadLegacyDrugNames(plan.FirstAnticoagulant, plan.MaintainAnticoagulant)
+	if err != nil {
 		return nil, err
 	}
-	return &p, nil
+	req.Anticoagulant.InitialDrug = legacyDrugNameByID(drugNames, plan.FirstAnticoagulant)
+	req.Anticoagulant.MaintenanceDrug = legacyDrugNameByID(drugNames, plan.MaintainAnticoagulant)
+
+	if copied, loadErr := (&PatientService{db: s.db}).loadLegacyPlanMaterials(plan.ID); loadErr == nil {
+		req.Materials = copied
+	}
+
+	return s.LegacyCreate(patientID, doctorID, doctorName, req)
+}
+
+func valueOrEmpty(v *string) string {
+	if v == nil {
+		return ""
+	}
+	return strings.TrimSpace(*v)
 }

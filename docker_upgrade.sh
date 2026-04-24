@@ -25,6 +25,9 @@ DEPLOY_DIR="$(pwd)"
 ENV_FILE="$DEPLOY_DIR/.env"
 COMPOSE_FILE="$DEPLOY_DIR/docker-compose.yml"
 UPGRADE_TARGET="${1:-all}"   # all | backend | frontend
+ALLOW_SAME_IMAGE="${ALLOW_SAME_IMAGE:-1}"
+ALLOW_METADATA_MISMATCH="${ALLOW_METADATA_MISMATCH:-1}"
+TARFILE_DEFAULT="/opt/ai-hms-images.tar"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -34,6 +37,31 @@ NC='\033[0m'
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
 error() { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
+
+resolve_first_existing() {
+    for p in "$@"; do
+        if [ -f "$p" ]; then
+            echo "$p"
+            return 0
+        fi
+    done
+    return 1
+}
+
+get_meta_value() {
+    local key="$1"
+    local file="$2"
+    awk -F'=' -v k="$key" '$1==k {print substr($0, index($0, "=")+1); exit}' "$file"
+}
+
+short_id() {
+    local id="$1"
+    if [ -z "$id" ] || [ "$id" = "none" ]; then
+        echo "none"
+    else
+        echo "${id:0:19}"
+    fi
+}
 
 # Docker Compose 命令
 if docker compose version >/dev/null 2>&1; then
@@ -60,6 +88,35 @@ info "[1/5] Pre-flight checks ..."
 
 [ -f "$ENV_FILE" ] || error ".env not found. Was docker_deploy.sh run first?"
 [ -f "$COMPOSE_FILE" ] || error "docker-compose.yml not found"
+
+TARFILE="$(resolve_first_existing "$TARFILE_DEFAULT" "$DEPLOY_DIR/ai-hms-images.tar" "" || true)"
+SHA_FILE="$(resolve_first_existing "$TARFILE_DEFAULT.sha256" "$DEPLOY_DIR/ai-hms-images.tar.sha256" "" || true)"
+META_FILE="$(resolve_first_existing "$DEPLOY_DIR/ai-hms-images.meta.txt" "${TARFILE_DEFAULT%.tar}.meta.txt" "" || true)"
+
+if [ -n "$TARFILE" ] && [ -n "$SHA_FILE" ]; then
+    if command -v sha256sum >/dev/null 2>&1; then
+        info "  Verifying tar checksum: $TARFILE"
+        EXPECTED_SHA=$(awk '{print $1}' "$SHA_FILE" | head -1 | tr -d '[:space:]')
+        ACTUAL_SHA=$(sha256sum "$TARFILE" | awk '{print $1}')
+        if [ -z "$EXPECTED_SHA" ]; then
+            warn "sha256 file is empty or malformed, skip checksum verification"
+        elif [ "$EXPECTED_SHA" != "$ACTUAL_SHA" ]; then
+            error "Image tar checksum mismatch!\n  expected: $EXPECTED_SHA\n  actual  : $ACTUAL_SHA\n  File: $SHA_FILE"
+        else
+            info "  Tar checksum OK ($ACTUAL_SHA)"
+        fi
+    else
+        warn "sha256sum not found, skip checksum verification"
+    fi
+else
+    warn "Tar or checksum file not found; skip checksum verification"
+fi
+
+if [ -n "$META_FILE" ]; then
+    info "  Using metadata file: $META_FILE"
+else
+    warn "ai-hms-images.meta.txt not found; metadata cross-check disabled"
+fi
 
 # ================================================================
 # [2] 备份当前镜像 ID（用于回滚）
@@ -92,10 +149,24 @@ if [[ "$UPGRADE_TARGET" == "all" || "$UPGRADE_TARGET" == "backend" ]]; then
     if [ -z "$NEW_BACKEND_ID" ]; then
         error "ai-hms-backend:latest not found. Run: docker load -i ai-hms-images.tar"
     fi
+    NEW_BACKEND_CREATED=$(docker inspect --format='{{.Created}}' ai-hms-backend:latest 2>/dev/null || echo "unknown")
+    info "  Backend  loaded : $(short_id "$NEW_BACKEND_ID")  created=$NEW_BACKEND_CREATED"
+    if [ -n "$META_FILE" ]; then
+        EXPECTED_BACKEND_ID=$(get_meta_value "backend_id" "$META_FILE")
+        if [ -n "$EXPECTED_BACKEND_ID" ] && [ "$EXPECTED_BACKEND_ID" != "$NEW_BACKEND_ID" ]; then
+            if [ "$ALLOW_METADATA_MISMATCH" != "1" ]; then
+                error "Backend image ID does not match metadata.\n  expected=$(short_id "$EXPECTED_BACKEND_ID")\n  actual=$(short_id "$NEW_BACKEND_ID")\n  If this is intentional, rerun with: ALLOW_METADATA_MISMATCH=1 bash docker_upgrade.sh ${UPGRADE_TARGET}"
+            fi
+            warn "Backend image ID mismatches metadata, continue because ALLOW_METADATA_MISMATCH=1"
+        fi
+    fi
     if [ "$NEW_BACKEND_ID" == "$OLD_BACKEND_ID" ]; then
-        warn "Backend image unchanged (same ID), will restart anyway"
+        if [ "$ALLOW_SAME_IMAGE" != "1" ]; then
+            error "Backend image unchanged (same ID: $(short_id "$NEW_BACKEND_ID")).\n  This usually means your ai-hms-images.tar is old.\n  Rebuild/export on build machine, re-transfer tar, docker load again.\n  If you really want restart-only, run: ALLOW_SAME_IMAGE=1 bash docker_upgrade.sh ${UPGRADE_TARGET}"
+        fi
+        warn "Backend image unchanged (same ID), continue because ALLOW_SAME_IMAGE=1"
     else
-        info "  Backend  new: ${NEW_BACKEND_ID:0:12}"
+        info "  Backend  change: $(short_id "$OLD_BACKEND_ID") -> $(short_id "$NEW_BACKEND_ID")"
     fi
 fi
 
@@ -104,10 +175,24 @@ if [[ "$UPGRADE_TARGET" == "all" || "$UPGRADE_TARGET" == "frontend" ]]; then
     if [ -z "$NEW_FRONTEND_ID" ]; then
         error "ai-hms-frontend:latest not found. Run: docker load -i ai-hms-images.tar"
     fi
+    NEW_FRONTEND_CREATED=$(docker inspect --format='{{.Created}}' ai-hms-frontend:latest 2>/dev/null || echo "unknown")
+    info "  Frontend loaded : $(short_id "$NEW_FRONTEND_ID")  created=$NEW_FRONTEND_CREATED"
+    if [ -n "$META_FILE" ]; then
+        EXPECTED_FRONTEND_ID=$(get_meta_value "frontend_id" "$META_FILE")
+        if [ -n "$EXPECTED_FRONTEND_ID" ] && [ "$EXPECTED_FRONTEND_ID" != "$NEW_FRONTEND_ID" ]; then
+            if [ "$ALLOW_METADATA_MISMATCH" != "1" ]; then
+                error "Frontend image ID does not match metadata.\n  expected=$(short_id "$EXPECTED_FRONTEND_ID")\n  actual=$(short_id "$NEW_FRONTEND_ID")\n  If this is intentional, rerun with: ALLOW_METADATA_MISMATCH=1 bash docker_upgrade.sh ${UPGRADE_TARGET}"
+            fi
+            warn "Frontend image ID mismatches metadata, continue because ALLOW_METADATA_MISMATCH=1"
+        fi
+    fi
     if [ "$NEW_FRONTEND_ID" == "$OLD_FRONTEND_ID" ]; then
-        warn "Frontend image unchanged (same ID), will restart anyway"
+        if [ "$ALLOW_SAME_IMAGE" != "1" ]; then
+            error "Frontend image unchanged (same ID: $(short_id "$NEW_FRONTEND_ID")).\n  This usually means your ai-hms-images.tar is old.\n  Rebuild/export on build machine, re-transfer tar, docker load again.\n  If you really want restart-only, run: ALLOW_SAME_IMAGE=1 bash docker_upgrade.sh ${UPGRADE_TARGET}"
+        fi
+        warn "Frontend image unchanged (same ID), continue because ALLOW_SAME_IMAGE=1"
     else
-        info "  Frontend new: ${NEW_FRONTEND_ID:0:12}"
+        info "  Frontend change: $(short_id "$OLD_FRONTEND_ID") -> $(short_id "$NEW_FRONTEND_ID")"
     fi
 fi
 

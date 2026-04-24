@@ -2,8 +2,11 @@ package services
 
 import (
 	"errors"
+	"fmt"
 	"log"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
@@ -35,16 +38,178 @@ type DictItemListResponse struct {
 	Total int64             `json:"total"`
 }
 
+type legacyCodeDictionaryRow struct {
+	Type       string `gorm:"column:Type"`
+	Code       string `gorm:"column:Code"`
+	Name       string `gorm:"column:Name"`
+	Sort       int    `gorm:"column:Sort"`
+	IsDisabled bool   `gorm:"column:IsDisabled"`
+}
+
+type legacyCodeDictionaryTypeAgg struct {
+	Type string `gorm:"column:Type"`
+	Sort int    `gorm:"column:Sort"`
+	Cnt  int64  `gorm:"column:Cnt"`
+}
+
+type unifiedDictTypeMeta struct {
+	Code string
+	Name string
+}
+
+var legacyTypeToUnifiedCode = map[string]unifiedDictTypeMeta{
+	"DialysisMethod":     {Code: models.DictTypeDialysisMode, Name: "透析方式"},
+	"HeparinType":        {Code: models.DictTypeAnticoagulant, Name: "抗凝剂类型"},
+	"Dialysate":          {Code: models.DictTypeDialysateType, Name: "透析液类型"},
+	"DialysateFlow":      {Code: models.DictTypeDialysateFlow, Name: "透析液流量"},
+	"GlucoseConOptions":  {Code: models.DictTypeGlucose, Name: "葡萄糖类型"},
+	"MaterialType":       {Code: models.DictTypeMaterialCat, Name: "材料分类"},
+	"DrugType":           {Code: models.DictTypeDrugCat, Name: "药品分类"},
+	"UseMethodType":      {Code: models.DictTypeOrderType, Name: "医嘱类型"},
+	"CatalogType":        {Code: models.DictTypeOrderCategory, Name: "医嘱分类"},
+	"AccessType":         {Code: models.DictTypeVascularAccess, Name: "血管通路类型"},
+	"AccessPosition":     {Code: models.DictTypeVascularSite, Name: "血管通路部位"},
+	"VenousType":         {Code: models.DictTypeVeinType, Name: "静脉类型"},
+	"ArteryType":         {Code: models.DictTypeArteryType, Name: "动脉类型"},
+	"ExpenseType":        {Code: models.DictTypeInsuranceType, Name: "医保类型"},
+	"PatientType":        {Code: models.DictTypePatientType, Name: "患者类型"},
+	"IDType":             {Code: models.DictTypeIDType, Name: "证件类型"},
+	"HospPatientType":    {Code: models.DictTypeVisitCategory, Name: "就诊类别"},
+	"ABOType":            {Code: models.DictTypeBloodTypeABO, Name: "ABO血型"},
+	"RHType":             {Code: models.DictTypeBloodTypeRH, Name: "Rh血型"},
+	"EducationLevel":     {Code: models.DictTypeEducationLevel, Name: "文化程度"},
+	"MaritalStatus":      {Code: models.DictTypeMaritalStatus, Name: "婚姻状况"},
+	"UseWayType":         {Code: models.DictTypeOrderRoute, Name: "医嘱用法"},
+	"FrequencyType":      {Code: models.DictTypeOrderFrequency, Name: "医嘱频次"},
+	"UseOpportunityType": {Code: models.DictTypeOrderTiming, Name: "医嘱使用时机"},
+	"OutComeType":        {Code: models.DictTypeOutcome, Name: "患者转归"},
+	"OutComeReason":      {Code: models.DictTypeOutcome, Name: "患者转归"},
+}
+
+var legacyTypeToDisplayName = map[string]string{
+	"RHType":                         "RH血型",
+	"ABOType":                        "ABO血型",
+	"AccessPosition":                 "通路部位",
+	"VascularAccessChange_Type":      "手术类型",
+	"AccessType":                     "通路类型",
+	"DrugType":                       "药品类别",
+	"ArteryType":                     "动脉类型",
+	"VenousType":                     "静脉类型",
+	"BasicUnitOptions":               "药品基本单位",
+	"CatheterizeMethodType":          "中心静脉置管方法",
+	"Dialysate":                      "透析液",
+	"DialysisMethod":                 "治疗方式",
+	"DilutionMnt":                    "稀释类别",
+	"DiseaseCourseType":              "病程类型",
+	"Disinfection10Disinfectant":     "机表消毒液",
+	"Disinfection20Disinfectant":     "液路消毒液",
+	"DisinfectionType":               "消毒类型",
+	"Disinfection10Way":              "机表消毒方式",
+	"Disinfection20Way":              "液路消毒方式",
+	"DuringSymptomType":              "透中症状",
+	"EducationLevel":                 "文化程度",
+	"EquipmentInfomationMaintenance": "运维厂家",
+	"EquipmentInfomationType":        "设备类型",
+	"ExpenseType":                    "费用类别",
+	"FamilyType":                     "家属类型",
+	"HospPatientType":                "门诊类别",
+	"IDType":                         "证件类型",
+	"InfectionType":                  "传染病",
+	"MaritalStatus":                  "婚姻状况",
+	"MaterialType":                   "材料分类",
+	"OutComeStatus":                  "转归状态",
+	"OutComeType":                    "转归类型",
+	"PatientType":                    "患者类型",
+	"PressurePointOptions":           "测压部位",
+	"RelationshipOptions":            "患者关系",
+	"SealType":                       "封管液",
+	"InfectionDay":                   "传染病检测周期",
+	"SpecificationUnitOptions":       "规格单位",
+	"OutComeReason":                  "转归原因",
+	"DialysateFlow":                  "透析液流速",
+	"FluxType":                       "通量",
+	"UseMethodType":                  "医嘱用法",
+	"UseWayType":                     "医嘱使用途径",
+	"UseOpportunityType":             "医嘱使用时机",
+	"ElectronicDocumentType":         "电子文书类型",
+	"FrequencyType":                  "透析治疗频次描述",
+	"HealthEducationType":            "宣教内容类型",
+	"InfectionIntervalDay":           "传染病提醒间隔天数",
+	"CatalogType":                    "项目种类",
+}
+
+var unifiedCodeToLegacyTypes = map[string][]string{
+	models.DictTypeDialysisMode:   {"DialysisMethod"},
+	models.DictTypeAnticoagulant:  {"HeparinType"},
+	models.DictTypeDialysateType:  {"Dialysate"},
+	models.DictTypeDialysateGroup: {"Dialysate"},
+	models.DictTypeDialysateFlow:  {"DialysateFlow"},
+	models.DictTypeGlucose:        {"GlucoseConOptions"},
+	models.DictTypeMaterialCat:    {"MaterialType"},
+	models.DictTypeDrugCat:        {"DrugType"},
+	models.DictTypeOrderType:      {"UseMethodType"},
+	models.DictTypeOrderCategory:  {"CatalogType"},
+	models.DictTypeVascularAccess: {"AccessType"},
+	models.DictTypeVascularSite:   {"AccessPosition"},
+	models.DictTypeVeinType:       {"VenousType"},
+	models.DictTypeArteryType:     {"ArteryType"},
+	models.DictTypeInsuranceType:  {"ExpenseType"},
+	models.DictTypePatientType:    {"PatientType"},
+	models.DictTypeIDType:         {"IDType"},
+	models.DictTypeVisitCategory:  {"HospPatientType"},
+	models.DictTypeBloodTypeABO:   {"ABOType"},
+	models.DictTypeBloodTypeRH:    {"RHType"},
+	models.DictTypeEducationLevel: {"EducationLevel"},
+	models.DictTypeMaritalStatus:  {"MaritalStatus"},
+	models.DictTypeOrderRoute:     {"UseWayType"},
+	models.DictTypeOrderFrequency: {"FrequencyType"},
+	models.DictTypeOrderTiming:    {"UseOpportunityType"},
+	models.DictTypeOutcome:        {"OutComeType", "OutComeReason"},
+}
+
 // ListTypes 获取字典类型列表
 func (s *DictService) ListTypes() (*DictTypeListResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
 
-	var types []models.DictType
-	if err := s.db.Order("sort_order ASC").Find(&types).Error; err != nil {
+	typesByCode := make(map[string]models.DictType)
+	legacyTypes, err := s.listLegacyCodeDictionaryTypes()
+	if err == nil {
+		for _, item := range legacyTypes {
+			typesByCode[item.Code] = item
+		}
+	} else if !isMissingRelationError(err) {
 		return nil, err
 	}
+
+	newTypes, err := s.listNewSchemaDictTypes()
+	if err == nil {
+		for _, item := range newTypes {
+			if _, exists := typesByCode[item.Code]; !exists {
+				typesByCode[item.Code] = item
+			}
+		}
+	} else if !isMissingRelationError(err) {
+		return nil, err
+	}
+
+	if len(typesByCode) == 0 {
+		for _, item := range legacyFallbackDictTypes() {
+			typesByCode[item.Code] = item
+		}
+	}
+
+	types := make([]models.DictType, 0, len(typesByCode))
+	for _, item := range typesByCode {
+		types = append(types, item)
+	}
+	sort.Slice(types, func(i, j int) bool {
+		if types[i].SortOrder == types[j].SortOrder {
+			return types[i].Code < types[j].Code
+		}
+		return types[i].SortOrder < types[j].SortOrder
+	})
 
 	return &DictTypeListResponse{
 		Items: types,
@@ -54,16 +219,21 @@ func (s *DictService) ListTypes() (*DictTypeListResponse, error) {
 
 // GetTypeByCode 根据代码获取字典类型
 func (s *DictService) GetTypeByCode(code string) (*models.DictType, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var dictType models.DictType
-	if err := s.db.Where("code = ?", code).First(&dictType).Error; err != nil {
+	resp, err := s.ListTypes()
+	if err != nil {
 		return nil, err
 	}
-
-	return &dictType, nil
+	for _, item := range resp.Items {
+		if strings.EqualFold(item.Code, code) {
+			dictType := item
+			return &dictType, nil
+		}
+	}
+	fallbackType, ok := legacyFallbackDictType(code)
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return &fallbackType, nil
 }
 
 // GetItemsByTypeCode 获取指定类型的字典项列表
@@ -72,14 +242,19 @@ func (s *DictService) GetItemsByTypeCode(typeCode string, isEnabledOnly bool) (*
 		return nil, errors.New("database not available")
 	}
 
-	query := s.db.Where("type_code = ?", typeCode)
-	if isEnabledOnly {
-		query = query.Where("is_enabled = ?", true)
-	}
-
-	var items []models.DictItem
-	if err := query.Order("sort_order ASC").Find(&items).Error; err != nil {
+	typeCode = strings.TrimSpace(typeCode)
+	items, err := s.listLegacyCodeDictionaryItems(typeCode, isEnabledOnly)
+	if err != nil && !isMissingRelationError(err) {
 		return nil, err
+	}
+	if len(items) == 0 {
+		items, err = s.listNewSchemaDictItems(typeCode, isEnabledOnly)
+		if err != nil && !isMissingRelationError(err) {
+			return nil, err
+		}
+	}
+	if len(items) == 0 {
+		items = legacyFallbackDictItems(typeCode, isEnabledOnly)
 	}
 
 	return &DictItemListResponse{
@@ -90,22 +265,299 @@ func (s *DictService) GetItemsByTypeCode(typeCode string, isEnabledOnly bool) (*
 
 // GetItemsByTypeCodeTree 获取指定类型的字典项树形结构（用于级联选择）
 func (s *DictService) GetItemsByTypeCodeTree(typeCode string, isEnabledOnly bool) ([]models.DictItem, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	query := s.db.Where("type_code = ?", typeCode)
-	if isEnabledOnly {
-		query = query.Where("is_enabled = ?", true)
-	}
-
-	var items []models.DictItem
-	if err := query.Order("sort_order ASC").Find(&items).Error; err != nil {
+	result, err := s.GetItemsByTypeCode(typeCode, isEnabledOnly)
+	if err != nil {
 		return nil, err
 	}
 
 	// 构建树形结构
-	return buildTree(items, ""), nil
+	return buildTree(result.Items, ""), nil
+}
+
+func isMissingRelationError(err error) bool {
+	if err == nil {
+		return false
+	}
+	message := strings.ToLower(err.Error())
+	return (strings.Contains(message, "relation") && strings.Contains(message, "does not exist")) ||
+		strings.Contains(message, "undefined_table") ||
+		strings.Contains(message, "undefined_column")
+}
+
+func (s *DictService) listLegacyCodeDictionaryTypes() ([]models.DictType, error) {
+	var rows []legacyCodeDictionaryTypeAgg
+	err := s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Select(`"Type", MIN("Sort") AS "Sort", COUNT(1) AS "Cnt"`).
+		Where(`"Type" IS NOT NULL AND TRIM("Type") <> ''`).
+		Where(`COALESCE("IsDisabled", false) = false`).
+		Group(`"Type"`).
+		Order(`MIN("Sort") ASC, "Type" ASC`).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	types := make([]models.DictType, 0, len(rows))
+	for idx, row := range rows {
+		legacyType := strings.TrimSpace(row.Type)
+		if legacyType == "" {
+			continue
+		}
+		code := legacyType
+		name := legacyTypeDisplayName(legacyType)
+		sortOrder := row.Sort
+		if sortOrder == 0 {
+			sortOrder = (idx + 1) * 10
+		}
+		types = append(types, models.DictType{
+			ID:          code,
+			Code:        code,
+			Name:        name,
+			Description: legacyType,
+			SortOrder:   sortOrder,
+			IsEnabled:   true,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+		})
+	}
+
+	dedup := make(map[string]models.DictType, len(types))
+	for _, item := range types {
+		existing, ok := dedup[item.Code]
+		if !ok || item.SortOrder < existing.SortOrder {
+			dedup[item.Code] = item
+		}
+	}
+	result := make([]models.DictType, 0, len(dedup))
+	for _, item := range dedup {
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+func (s *DictService) listNewSchemaDictTypes() ([]models.DictType, error) {
+	var types []models.DictType
+	err := s.db.Order("sort_order ASC").Find(&types).Error
+	return types, err
+}
+
+func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOnly bool) ([]models.DictItem, error) {
+	legacyTypes := unifiedCodeToLegacyTypes[typeCode]
+	if len(legacyTypes) == 0 {
+		legacyTypes = []string{typeCode}
+	}
+
+	if typeCode == models.DictTypeOutcome {
+		return s.buildOutcomeDictItems(isEnabledOnly)
+	}
+
+	var rows []legacyCodeDictionaryRow
+	query := s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Select(`"Type", "Code", "Name", "Sort", "IsDisabled"`).
+		Where(`"Type" IN ?`, legacyTypes)
+	if isEnabledOnly {
+		query = query.Where(`COALESCE("IsDisabled", false) = false`)
+	}
+	if err := query.Order(`"Type" ASC, "Sort" ASC, "Code" ASC`).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	items := make([]models.DictItem, 0, len(rows))
+	for idx, row := range rows {
+		enabled := !row.IsDisabled
+		if isEnabledOnly && !enabled {
+			continue
+		}
+		itemCode := strings.TrimSpace(row.Code)
+		if itemCode == "" {
+			continue
+		}
+		itemName := strings.TrimSpace(row.Name)
+		if itemName == "" {
+			itemName = itemCode
+		}
+		items = append(items, models.DictItem{
+			ID:          fmt.Sprintf("%s|%s|%d", typeCode, row.Type, idx+1),
+			TypeCode:    typeCode,
+			Code:        itemCode,
+			Name:        itemName,
+			Description: legacyTypeDisplayName(strings.TrimSpace(row.Type)),
+			SortOrder:   row.Sort,
+			IsEnabled:   enabled,
+			CreatedAt:   now,
+			UpdatedAt:   now,
+			ParentCode:  "",
+		})
+	}
+	return items, nil
+}
+
+func (s *DictService) listNewSchemaDictItems(typeCode string, isEnabledOnly bool) ([]models.DictItem, error) {
+	query := s.db.Where("type_code = ?", typeCode)
+	if isEnabledOnly {
+		query = query.Where("is_enabled = ?", true)
+	}
+	var items []models.DictItem
+	err := query.Order("sort_order ASC").Find(&items).Error
+	return items, err
+}
+
+func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictItem, error) {
+	var rows []legacyCodeDictionaryRow
+	query := s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Select(`"Type", "Code", "Name", "Sort", "IsDisabled"`).
+		Where(`"Type" IN ?`, []string{"OutComeType", "OutComeReason"})
+	if isEnabledOnly {
+		query = query.Where(`COALESCE("IsDisabled", false) = false`)
+	}
+	if err := query.Order(`"Type" ASC, "Sort" ASC, "Code" ASC`).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	items := make([]models.DictItem, 0, len(rows))
+	parentCodeSet := make(map[string]struct{})
+
+	for _, row := range rows {
+		if row.Type != "OutComeType" {
+			continue
+		}
+		code := strings.TrimSpace(row.Code)
+		name := strings.TrimSpace(row.Name)
+		if code == "" {
+			continue
+		}
+		if name == "" {
+			name = code
+		}
+		parentCodeSet[code] = struct{}{}
+		items = append(items, models.DictItem{
+			ID:         fmt.Sprintf("%s|%s", models.DictTypeOutcome, code),
+			TypeCode:   models.DictTypeOutcome,
+			Code:       code,
+			Name:       name,
+			SortOrder:  row.Sort,
+			IsEnabled:  !row.IsDisabled,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			ParentCode: "",
+		})
+	}
+
+	for idx, row := range rows {
+		if row.Type != "OutComeReason" {
+			continue
+		}
+		reasonCode := strings.TrimSpace(row.Code)
+		rawName := strings.TrimSpace(row.Name)
+		parentCode, reasonName := parseLegacyOutcomeReason(rawName)
+		if reasonName == "" {
+			reasonName = reasonCode
+		}
+		if reasonCode == "" {
+			reasonCode = fmt.Sprintf("OUTCOME_REASON_%d", idx+1)
+		}
+		if _, ok := parentCodeSet[parentCode]; !ok {
+			parentCode = ""
+		}
+		items = append(items, models.DictItem{
+			ID:         fmt.Sprintf("%s|REASON|%d", models.DictTypeOutcome, idx+1),
+			TypeCode:   models.DictTypeOutcome,
+			Code:       reasonCode,
+			Name:       reasonName,
+			SortOrder:  row.Sort,
+			IsEnabled:  !row.IsDisabled,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+			ParentCode: parentCode,
+		})
+	}
+
+	sort.Slice(items, func(i, j int) bool {
+		if items[i].ParentCode == items[j].ParentCode {
+			if items[i].SortOrder == items[j].SortOrder {
+				return items[i].Code < items[j].Code
+			}
+			return items[i].SortOrder < items[j].SortOrder
+		}
+		return items[i].ParentCode < items[j].ParentCode
+	})
+	return items, nil
+}
+
+func parseLegacyOutcomeReason(raw string) (parentCode, reasonName string) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(raw, "|", 2)
+	if len(parts) == 2 {
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	}
+	return "", raw
+}
+
+func legacyTypeDisplayName(legacyType string) string {
+	normalized := strings.TrimSpace(legacyType)
+	if normalized == "" {
+		return ""
+	}
+	if name, ok := legacyTypeToDisplayName[normalized]; ok && strings.TrimSpace(name) != "" {
+		return name
+	}
+	return normalized
+}
+
+func legacyFallbackDictTypes() []models.DictType {
+	return []models.DictType{
+		{ID: models.DictTypeDialysisMode, Code: models.DictTypeDialysisMode, Name: "透析方式", SortOrder: 10, IsEnabled: true},
+		{ID: models.DictTypeInsuranceType, Code: models.DictTypeInsuranceType, Name: "医保类型", SortOrder: 20, IsEnabled: true},
+		{ID: models.DictTypePatientType, Code: models.DictTypePatientType, Name: "患者类型", SortOrder: 30, IsEnabled: true},
+	}
+}
+
+func legacyFallbackDictType(code string) (models.DictType, bool) {
+	for _, item := range legacyFallbackDictTypes() {
+		if item.Code == code {
+			return item, true
+		}
+	}
+	return models.DictType{}, false
+}
+
+func legacyFallbackDictItems(typeCode string, isEnabledOnly bool) []models.DictItem {
+	items := map[string][]models.DictItem{
+		models.DictTypeDialysisMode: {
+			{ID: "DIALYSIS_MODE_HD", TypeCode: models.DictTypeDialysisMode, Code: "HD", Name: "HD", SortOrder: 10, IsEnabled: true},
+			{ID: "DIALYSIS_MODE_HDF", TypeCode: models.DictTypeDialysisMode, Code: "HDF", Name: "HDF", SortOrder: 20, IsEnabled: true},
+			{ID: "DIALYSIS_MODE_HP", TypeCode: models.DictTypeDialysisMode, Code: "HP", Name: "HP", SortOrder: 30, IsEnabled: true},
+			{ID: "DIALYSIS_MODE_HDHP", TypeCode: models.DictTypeDialysisMode, Code: "HD+HP", Name: "HD+HP", SortOrder: 40, IsEnabled: true},
+		},
+		models.DictTypeInsuranceType: {
+			{ID: "INSURANCE_TYPE_1", TypeCode: models.DictTypeInsuranceType, Code: "市职工普通", Name: "市职工普通", SortOrder: 10, IsEnabled: true},
+			{ID: "INSURANCE_TYPE_2", TypeCode: models.DictTypeInsuranceType, Code: "异地居民医保", Name: "异地居民医保", SortOrder: 20, IsEnabled: true},
+			{ID: "INSURANCE_TYPE_3", TypeCode: models.DictTypeInsuranceType, Code: "城乡居民医保", Name: "城乡居民医保", SortOrder: 30, IsEnabled: true},
+			{ID: "INSURANCE_TYPE_4", TypeCode: models.DictTypeInsuranceType, Code: "自费", Name: "自费", SortOrder: 40, IsEnabled: true},
+		},
+		models.DictTypePatientType: {
+			{ID: "PATIENT_TYPE_10", TypeCode: models.DictTypePatientType, Code: "10", Name: "门诊", SortOrder: 10, IsEnabled: true},
+			{ID: "PATIENT_TYPE_20", TypeCode: models.DictTypePatientType, Code: "20", Name: "住院", SortOrder: 20, IsEnabled: true},
+		},
+	}
+
+	result := append([]models.DictItem(nil), items[typeCode]...)
+	if !isEnabledOnly {
+		return result
+	}
+	filtered := make([]models.DictItem, 0, len(result))
+	for _, item := range result {
+		if item.IsEnabled {
+			filtered = append(filtered, item)
+		}
+	}
+	return filtered
 }
 
 // buildTree 递归构建树形结构
@@ -816,12 +1268,13 @@ func (s *DictService) InitClinicalDicts() error {
 // ├── 10: 在科（一级，无 parent_code）
 // │   └── IN_DEPT: 在科（二级，parent_code=10）
 // └── 20: 转出（一级，无 parent_code）
-//     ├── TRANSFER_OUT: 转外院（二级，parent_code=20）
-//     ├── TRANSPLANT: 转肾移植（二级，parent_code=20）
-//     ├── PD_TRANSFER: 转腹透（二级，parent_code=20）
-//     ├── CURED: 病愈（二级，parent_code=20）
-//     ├── DEATH: 死亡（二级，parent_code=20）
-//     └── QUIT: 退出（二级，parent_code=20）
+//
+//	├── TRANSFER_OUT: 转外院（二级，parent_code=20）
+//	├── TRANSPLANT: 转肾移植（二级，parent_code=20）
+//	├── PD_TRANSFER: 转腹透（二级，parent_code=20）
+//	├── CURED: 病愈（二级，parent_code=20）
+//	├── DEATH: 死亡（二级，parent_code=20）
+//	└── QUIT: 退出（二级，parent_code=20）
 func (s *DictService) InitOutcomeDicts() error {
 	if s.db == nil {
 		return errors.New("database not available")

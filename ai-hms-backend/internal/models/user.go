@@ -1,3 +1,4 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import (

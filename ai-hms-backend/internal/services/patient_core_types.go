@@ -17,6 +17,7 @@ type PatientCoreResponse struct {
 type PatientCoreHeader struct {
 	ID          string     `json:"id"`
 	Name        string     `json:"name"`
+	Avatar      string     `json:"avatar,omitempty"`
 	Gender      string     `json:"gender"`
 	Age         int        `json:"age"`
 	BedNumber   string     `json:"bedNumber"`

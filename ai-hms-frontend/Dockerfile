@@ -13,8 +13,8 @@ RUN npm ci
 COPY . .
 
 # 构建生产产物
-# VITE_API_BASE_URL 可在 docker build 时通过 --build-arg 注入
-ARG VITE_API_BASE_URL=http://10.10.8.84:8080
+# 默认使用同源相对路径；仅在特殊场景下通过 --build-arg 覆盖为绝对地址
+ARG VITE_API_BASE_URL=
 ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build

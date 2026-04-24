@@ -1,4 +1,4 @@
-﻿/**
+/**
  * 鏈嶅姟灞傜粺涓€瀵煎嚭
  *
  * 鎸夋ā鍧楃粍缁囷細
@@ -43,6 +43,8 @@ export type {
   // 璁惧鐩稿叧
   EquipmentInfo,
   EquipmentDisinfection,
+  EquipmentMaintenanceRecord,
+  EquipmentUsageLog,
   MachineInfo,
   MachineRunRecord,
 } from './types/api'
@@ -152,6 +154,8 @@ export {
   getAllEquipments,
   getEquipmentById,
   getEquipmentDisinfections,
+  getEquipmentMaintenanceRecords,
+  getEquipmentUsageLogs,
   getRecentDisinfections,
   getEquipmentStats,
   getEquipmentOverview,

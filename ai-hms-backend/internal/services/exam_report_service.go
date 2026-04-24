@@ -69,6 +69,15 @@ func (s *ExamReportService) ListByPatient(patientID string, req ExamReportListRe
 
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
+		if isIgnorableLegacyQueryError(err) {
+			return &ExamReportListResponse{
+				Items:     []models.ExamReport{},
+				Total:     0,
+				Page:      page,
+				PageSize:  pageSize,
+				TotalPage: 0,
+			}, nil
+		}
 		return nil, err
 	}
 
@@ -79,6 +88,15 @@ func (s *ExamReportService) ListByPatient(patientID string, req ExamReportListRe
 		Limit(pageSize).
 		Order("exam_date DESC NULLS LAST, created_at DESC").
 		Find(&reports).Error; err != nil {
+		if isIgnorableLegacyQueryError(err) {
+			return &ExamReportListResponse{
+				Items:     []models.ExamReport{},
+				Total:     0,
+				Page:      page,
+				PageSize:  pageSize,
+				TotalPage: 0,
+			}, nil
+		}
 		return nil, err
 	}
 

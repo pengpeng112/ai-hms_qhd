@@ -1,82 +1,228 @@
-/**
- * 设备管理服务
- * 基于 HDIS API 文档 4.3.29 设备档案信息
- */
-
 import type {
   EquipmentInfo,
   EquipmentDisinfection,
+  EquipmentMaintenanceRecord,
+  EquipmentUsageLog,
   PaginatedResponse,
 } from './types/api'
-import {
-  fetchPaginatedData,
-  fetchListData,
-  fetchFilteredData,
-} from './api'
 import { apiCache, cacheKey, CACHE_TTL } from '@/utils/cache'
+import { apiClient, type ApiSuccessResponse } from './restClient'
 
-// ============ 字段定义 ============
+interface DeviceApiItem {
+  id: string
+  tenantId: number
+  name: string
+  idNo?: string
+  serialNo?: string
+  brand?: string
+  model?: string
+  dialysisMethod?: string
+  deviceType?: string
+  manufacturer?: string
+  bedNumber?: string
+  bedId?: number | null
+  wardId?: number | null
+  wardName?: string
+  status?: string
+  installDate?: string
+  manufactureDate?: string
+  lastMaintained?: string
+  maintenance?: number | null
+  maintenanceCycle?: string
+  flux?: string
+  notes?: string
+  isDisabled?: boolean
+  creatorId?: number
+  createdAt?: string
+  updatedAt?: string
+}
 
-// 根据 HDIS API 文档 4.3.29
-const EQUIPMENT_FIELDS = [
-  'Id', 'TenantId', 'Name', 'IDNo', 'SerialNo', 'Brand', 'ModelNo', 'DialysisMethod'
-]
+interface DeviceListApiResponse {
+  items: DeviceApiItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
 
-// 根据 HDIS API 文档 4.3.30
-const DISINFECTION_FIELDS = [
-  'Id', 'TenantId', 'EquipmentId', 'DisinfectUserId', 'DisinfectWay',
-  'StartTime', 'Description', 'Note'
-]
+interface DeviceDisinfectionApiItem {
+  id: number
+  tenantId?: number
+  equipmentId: number
+  disinfectUserId?: number
+  disinfectWay?: string
+  startTime?: string
+  description?: string
+  note?: string
+}
 
-// ============ 透析机信息服务 ============
+interface DeviceDisinfectionApiResponse {
+  items: DeviceDisinfectionApiItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+interface DeviceUsageLogApiItem {
+  id: number
+  tenantId?: number
+  equipmentId: number
+  useUserId?: number
+  useStartTime?: string
+  useDuration?: number
+  note?: string
+  creatorId?: number
+  createTime?: string
+  lastModifyTime?: string
+}
+
+interface DeviceUsageLogApiResponse {
+  items: DeviceUsageLogApiItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+interface DeviceMaintenanceApiItem {
+  id: number
+  tenantId?: number
+  equipmentId: number
+  type?: string
+  mode?: string
+  operatorId?: number
+  operateTime?: string
+  description?: string
+  note?: string
+  creatorId?: number
+  createTime?: string
+  lastModifyTime?: string
+}
+
+interface DeviceMaintenanceApiResponse {
+  items: DeviceMaintenanceApiItem[]
+  total: number
+  page: number
+  pageSize: number
+  totalPage: number
+}
+
+const toEquipmentInfo = (item: DeviceApiItem): EquipmentInfo => ({
+  Id: Number(item.id),
+  TenantId: item.tenantId,
+  Name: item.name,
+  IDNo: item.idNo || '',
+  SerialNo: item.serialNo || '',
+  Brand: item.brand || '',
+  ModelNo: item.model || '',
+  DialysisMethod: item.dialysisMethod || '',
+  DeviceType: item.deviceType || '',
+  Manufacturer: item.manufacturer || '',
+  BedNumber: item.bedNumber || '',
+  BedId: item.bedId ?? null,
+  WardId: item.wardId ?? null,
+  WardName: item.wardName || '',
+  Status: item.status || 'normal',
+  InstallDate: item.installDate,
+  ManufactureDate: item.manufactureDate,
+  LastMaintained: item.lastMaintained,
+  Maintenance: item.maintenance ?? null,
+  MaintenanceCycle: item.maintenanceCycle || '',
+  Flux: item.flux || '',
+  Notes: item.notes || '',
+  IsDisabled: item.isDisabled ?? false,
+  CreatorId: item.creatorId || 0,
+  CreatedAt: item.createdAt,
+  UpdatedAt: item.updatedAt,
+})
+
+const toEquipmentDisinfection = (item: DeviceDisinfectionApiItem): EquipmentDisinfection => ({
+  Id: item.id,
+  TenantId: item.tenantId,
+  EquipmentId: item.equipmentId,
+  DisinfectUserId: item.disinfectUserId,
+  DisinfectWay: item.disinfectWay,
+  StartTime: item.startTime,
+  Description: item.description,
+  Note: item.note,
+})
+
+const toEquipmentUsageLog = (item: DeviceUsageLogApiItem): EquipmentUsageLog => ({
+  Id: item.id,
+  TenantId: item.tenantId,
+  EquipmentId: item.equipmentId,
+  UseUserId: item.useUserId,
+  UseStartTime: item.useStartTime,
+  UseDuration: item.useDuration,
+  Note: item.note,
+  CreatorId: item.creatorId,
+  CreateTime: item.createTime,
+  LastModifyTime: item.lastModifyTime,
+})
+
+const toEquipmentMaintenanceRecord = (item: DeviceMaintenanceApiItem): EquipmentMaintenanceRecord => ({
+  Id: item.id,
+  TenantId: item.tenantId,
+  EquipmentId: item.equipmentId,
+  Type: item.type,
+  Mode: item.mode,
+  OperatorId: item.operatorId,
+  OperateTime: item.operateTime,
+  Description: item.description,
+  Note: item.note,
+  CreatorId: item.creatorId,
+  CreateTime: item.createTime,
+  LastModifyTime: item.lastModifyTime,
+})
 
 export async function getEquipmentList(
   page: number = 1,
   pageSize: number = 100
 ): Promise<PaginatedResponse<EquipmentInfo>> {
   const key = cacheKey('equipment:list', page, pageSize)
-  return apiCache.withCache(key, () =>
-    fetchPaginatedData<EquipmentInfo>('EquipmentInfomation', EQUIPMENT_FIELDS, { page, pageSize }),
-    CACHE_TTL.EQUIPMENT_LIST
-  )
+  return apiCache.withCache(key, async () => {
+    const response = await apiClient.get<ApiSuccessResponse<DeviceListApiResponse>>('/api/v1/devices', {
+      params: { page, pageSize }
+    })
+    const data = response.data.data
+    return {
+      data: data.items.map(toEquipmentInfo),
+      total: data.total,
+    }
+  }, CACHE_TTL.EQUIPMENT_LIST)
 }
 
 export async function getAllEquipments(): Promise<EquipmentInfo[]> {
   const key = cacheKey('equipment:all')
-  return apiCache.withCache(key, () =>
-    fetchListData<EquipmentInfo>('EquipmentInfomation', EQUIPMENT_FIELDS),
-    CACHE_TTL.EQUIPMENT_LIST
-  )
+  return apiCache.withCache(key, async () => {
+    const result = await getEquipmentList(1, 500)
+    return result.data
+  }, CACHE_TTL.EQUIPMENT_LIST)
 }
 
 export async function getEquipmentById(id: number): Promise<EquipmentInfo | null> {
   const key = cacheKey('equipment:detail', id)
   return apiCache.withCache(key, async () => {
-    const result = await fetchFilteredData<EquipmentInfo>(
-      'EquipmentInfomation',
-      EQUIPMENT_FIELDS,
-      { Id: id },
-      1,
-      1
-    )
-    return result.data[0] || null
+    const response = await apiClient.get<ApiSuccessResponse<DeviceApiItem>>(`/api/v1/devices/${id}`)
+    return toEquipmentInfo(response.data.data)
   }, CACHE_TTL.EQUIPMENT_LIST)
 }
-
-// ============ 设备消毒记录服务 ============
 
 export async function getEquipmentDisinfections(
   equipmentId: number,
   page: number = 1,
   pageSize: number = 20
 ): Promise<PaginatedResponse<EquipmentDisinfection>> {
-  return fetchFilteredData<EquipmentDisinfection>(
-    'EquipmentDisinfection',
-    DISINFECTION_FIELDS,
-    { EquipmentId: equipmentId },
-    page,
-    pageSize
+  const response = await apiClient.get<ApiSuccessResponse<DeviceDisinfectionApiResponse>>(
+    `/api/v1/devices/${equipmentId}/disinfections`,
+    { params: { page, pageSize } }
   )
+  const data = response.data.data
+  return {
+    data: data.items.map(toEquipmentDisinfection),
+    total: data.total,
+  }
 }
 
 export async function getRecentDisinfections(
@@ -87,7 +233,37 @@ export async function getRecentDisinfections(
   return result.data
 }
 
-// ============ 设备统计 ============
+export async function getEquipmentUsageLogs(
+  equipmentId: number,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<PaginatedResponse<EquipmentUsageLog>> {
+  const response = await apiClient.get<ApiSuccessResponse<DeviceUsageLogApiResponse>>(
+    `/api/v1/devices/${equipmentId}/usage-logs`,
+    { params: { page, pageSize } }
+  )
+  const data = response.data.data
+  return {
+    data: data.items.map(toEquipmentUsageLog),
+    total: data.total,
+  }
+}
+
+export async function getEquipmentMaintenanceRecords(
+  equipmentId: number,
+  page: number = 1,
+  pageSize: number = 20
+): Promise<PaginatedResponse<EquipmentMaintenanceRecord>> {
+  const response = await apiClient.get<ApiSuccessResponse<DeviceMaintenanceApiResponse>>(
+    `/api/v1/devices/${equipmentId}/maintenance-records`,
+    { params: { page, pageSize } }
+  )
+  const data = response.data.data
+  return {
+    data: data.items.map(toEquipmentMaintenanceRecord),
+    total: data.total,
+  }
+}
 
 export interface EquipmentStats {
   total: number
@@ -105,7 +281,7 @@ export async function getEquipmentStats(): Promise<EquipmentStats> {
     byDialysisMethod: {},
   }
 
-  equipments.forEach(e => {
+  equipments.forEach((e) => {
     const brand = e.Brand || 'Unknown'
     stats.byBrand[brand] = (stats.byBrand[brand] || 0) + 1
 
@@ -116,11 +292,11 @@ export async function getEquipmentStats(): Promise<EquipmentStats> {
   return stats
 }
 
-// ============ 综合查询 ============
-
 export interface EquipmentOverview {
   equipment: EquipmentInfo
   recentDisinfections: EquipmentDisinfection[]
+  recentUsageLogs: EquipmentUsageLog[]
+  recentMaintenanceRecords: EquipmentMaintenanceRecord[]
 }
 
 export async function getEquipmentOverview(
@@ -129,15 +305,18 @@ export async function getEquipmentOverview(
   const equipment = await getEquipmentById(equipmentId)
   if (!equipment) return null
 
-  const disinfections = await getRecentDisinfections(equipmentId, 5)
-
+  const [disinfections, usageLogs, maintenanceRecords] = await Promise.all([
+    getRecentDisinfections(equipmentId, 5),
+    getEquipmentUsageLogs(equipmentId, 1, 5).then(r => r.data).catch(() => []),
+    getEquipmentMaintenanceRecords(equipmentId, 1, 5).then(r => r.data).catch(() => []),
+  ])
   return {
     equipment,
     recentDisinfections: disinfections,
+    recentUsageLogs: usageLogs,
+    recentMaintenanceRecords: maintenanceRecords,
   }
 }
-
-// ============ Dashboard 数据 ============
 
 export interface DashboardEquipmentData {
   stats: EquipmentStats

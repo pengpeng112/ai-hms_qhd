@@ -50,6 +50,9 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	if req.TenantId <= 0 {
+		return nil, errors.New("invalid tenant")
+	}
 
 	// 默认分页参数
 	if req.Page <= 0 {
@@ -59,10 +62,8 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&models.PatientShift{})
-	if req.TenantId > 0 {
-		query = query.Where("\"TenantId\" = ?", req.TenantId)
-	}
+	query := s.db.Model(&models.PatientShift{}).
+		Where("\"TenantId\" = ?", req.TenantId)
 
 	// 筛选条件
 	if req.PatientId != nil {
@@ -185,6 +186,7 @@ func (s *PatientShiftService) Create(req PatientShiftCreateRequest, tenantId, cr
 	if err := s.db.Create(&patientShift).Error; err != nil {
 		return nil, err
 	}
+	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
 
 	return &patientShift, nil
 }
@@ -210,6 +212,17 @@ func (s *PatientShiftService) Update(id, tenantId int64, req PatientShiftUpdateR
 			return nil, errors.New("patient shift not found")
 		}
 		return nil, err
+	}
+
+	if req.ShiftId != nil && *req.ShiftId != patientShift.ShiftId {
+		excludeId := id
+		hasConflict, err := s.CheckConflict(int64(patientShift.PatientId), tenantId, patientShift.ScheduleDate, *req.ShiftId, &excludeId)
+		if err != nil {
+			return nil, err
+		}
+		if hasConflict {
+			return nil, errors.New("schedule conflict")
+		}
 	}
 
 	// 更新字段
@@ -244,9 +257,6 @@ func (s *PatientShiftService) Update(id, tenantId int64, req PatientShiftUpdateR
 	}
 
 	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
-	if req.Notes != nil {
-		patientShift.Notes = *req.Notes
-	}
 
 	return &patientShift, nil
 }
@@ -305,7 +315,8 @@ func (s *PatientShiftService) CheckConflict(patientId, tenantId int64, date time
 
 	query := s.db.Model(&models.PatientShift{}).
 		Where("\"TenantId\" = ?", tenantId).
-		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?) AND \"ShiftId\" = ?", patientId, date, shiftId)
+		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?) AND \"ShiftId\" = ?", patientId, date, shiftId).
+		Where("\"Status\" != ?", MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusCancelled))
 
 	if excludeId != nil {
 		query = query.Where("\"Id\" != ?", *excludeId)

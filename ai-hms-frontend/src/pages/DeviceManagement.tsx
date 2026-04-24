@@ -13,11 +13,13 @@ import {
 import {
   getAllEquipments,
   getEquipmentDisinfections,
+  getEquipmentMaintenanceRecords,
   getEquipmentStats,
+  getEquipmentUsageLogs,
   getEquipmentOverview
 } from '@/services/equipment'
 import type { EquipmentStats, EquipmentOverview } from '@/services/equipment'
-import type { EquipmentInfo, EquipmentDisinfection } from '@/services/types/api'
+import type { EquipmentInfo, EquipmentDisinfection, EquipmentMaintenanceRecord, EquipmentUsageLog } from '@/services/types/api'
 
 // ============ 类型定义 ============
 interface EquipmentCardProps {
@@ -30,6 +32,8 @@ interface DetailModalProps {
   equipment: EquipmentInfo
   overview: EquipmentOverview | null
   disinfections: EquipmentDisinfection[]
+  maintenanceRecords: EquipmentMaintenanceRecord[]
+  usageLogs: EquipmentUsageLog[]
   loading: boolean
   onClose: () => void
   t: TFunction<'device'>
@@ -38,6 +42,9 @@ interface DetailModalProps {
 // ============ 辅助函数 ============
 /** 设备状态映射（模拟，实际应从API获取） */
 const getEquipmentStatus = (equipment: EquipmentInfo): 'normal' | 'warning' | 'error' | 'offline' => {
+  const status = String(equipment.Status || '').toLowerCase().trim()
+  if (status === 'normal' || status === 'warning' || status === 'offline') return status
+  if (status === 'alarm' || status === 'error' || status === 'maintenance') return 'error'
   // 基于设备ID模拟不同状态
   const statusMap = ['normal', 'normal', 'normal', 'warning', 'normal', 'error', 'normal', 'offline'] as const
   return statusMap[equipment.Id % statusMap.length]
@@ -121,6 +128,8 @@ const EquipmentCard = memo(function EquipmentCard({ equipment, onClick, t }: Equ
 const DetailModal = memo(function DetailModal({
   equipment,
   disinfections,
+  maintenanceRecords,
+  usageLogs,
   loading,
   onClose,
   t
@@ -187,6 +196,14 @@ const DetailModal = memo(function DetailModal({
                   <InfoItem label={t('info.model')} value={equipment.ModelNo || '-'} />
                   <InfoItem label={t('info.serialNumber')} value={equipment.SerialNo || '-'} />
                   <InfoItem label={t('info.dialysisMethod')} value={String(dialysisMethod)} />
+                  <InfoItem label="设备类型" value={equipment.DeviceType || '-'} />
+                  <InfoItem label="生产厂家" value={equipment.Manufacturer || '-'} />
+                  <InfoItem label="床位" value={equipment.BedNumber || '-'} />
+                  <InfoItem label="病区" value={equipment.WardName || '-'} />
+                  <InfoItem label="生产日期" value={equipment.ManufactureDate ? new Date(equipment.ManufactureDate).toLocaleDateString() : '-'} />
+                  <InfoItem label="安装日期" value={equipment.InstallDate ? new Date(equipment.InstallDate).toLocaleDateString() : '-'} />
+                  <InfoItem label="维护周期" value={equipment.MaintenanceCycle || '-'} />
+                  <InfoItem label="通量" value={equipment.Flux || '-'} />
                 </div>
               </div>
 
@@ -234,17 +251,64 @@ const DetailModal = memo(function DetailModal({
                   <Wrench className="w-4 h-4 text-amber-500" />
                   {t('section.maintenance')}
                 </h3>
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-amber-800">{t('maintenance.reminder')}</p>
-                      <p className="text-sm text-amber-700 mt-1">
-                        {t('maintenance.suggestion')}
-                      </p>
+                {maintenanceRecords.length > 0 ? (
+                  <div className="space-y-2">
+                    {maintenanceRecords.slice(0, 5).map((record) => (
+                      <div key={record.Id} className="flex items-center justify-between p-3 bg-amber-50 rounded-lg border border-amber-100">
+                        <div>
+                          <p className="font-medium text-amber-800">{record.Type || '维护'} / {record.Mode || '-'}</p>
+                          <p className="text-xs text-amber-700">{record.Description || record.Note || '-'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-amber-800">
+                            {record.OperateTime ? new Date(record.OperateTime).toLocaleDateString() : '-'}
+                          </p>
+                          <p className="text-xs text-amber-600">操作人ID: {record.OperatorId || '-'}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-amber-800">{t('maintenance.reminder')}</p>
+                        <p className="text-sm text-amber-700 mt-1">
+                          {t('maintenance.suggestion')}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
+              </div>
+
+              {/* 使用记录 */}
+              <div>
+                <h3 className="font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-blue-500" />
+                  使用记录
+                </h3>
+                {usageLogs.length > 0 ? (
+                  <div className="space-y-2">
+                    {usageLogs.slice(0, 5).map((record) => (
+                      <div key={record.Id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
+                        <div>
+                          <p className="font-medium text-blue-800">使用人ID: {record.UseUserId || '-'}</p>
+                          <p className="text-xs text-blue-700">{record.Note || '-'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-blue-800">
+                            {record.UseStartTime ? new Date(record.UseStartTime).toLocaleString() : '-'}
+                          </p>
+                          <p className="text-xs text-blue-600">时长: {record.UseDuration ?? '-'} 分钟</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-400 border border-dashed border-slate-200 rounded-lg">暂无使用记录</div>
+                )}
               </div>
             </div>
           )}
@@ -322,6 +386,8 @@ export default function DeviceManagement() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [overview, setOverview] = useState<EquipmentOverview | null>(null)
   const [disinfections, setDisinfections] = useState<EquipmentDisinfection[]>([])
+  const [maintenanceRecords, setMaintenanceRecords] = useState<EquipmentMaintenanceRecord[]>([])
+  const [usageLogs, setUsageLogs] = useState<EquipmentUsageLog[]>([])
 
   // 加载设备列表
   useEffect(() => {
@@ -348,12 +414,16 @@ export default function DeviceManagement() {
     setSelectedEquipment(equipment)
     setDetailLoading(true)
     try {
-      const [overviewData, disinfectionData] = await Promise.all([
+      const [overviewData, disinfectionData, maintenanceData, usageData] = await Promise.all([
         getEquipmentOverview(equipment.Id),
-        getEquipmentDisinfections(equipment.Id)
+        getEquipmentDisinfections(equipment.Id),
+        getEquipmentMaintenanceRecords(equipment.Id, 1, 20),
+        getEquipmentUsageLogs(equipment.Id, 1, 20),
       ])
       setOverview(overviewData)
       setDisinfections(disinfectionData.data || [])
+      setMaintenanceRecords(maintenanceData.data || [])
+      setUsageLogs(usageData.data || [])
     } catch (error) {
       console.error('加载设备详情失败:', error)
     } finally {
@@ -366,6 +436,8 @@ export default function DeviceManagement() {
     setSelectedEquipment(null)
     setOverview(null)
     setDisinfections([])
+    setMaintenanceRecords([])
+    setUsageLogs([])
   }, [])
 
   // 刷新数据
@@ -544,6 +616,8 @@ export default function DeviceManagement() {
           equipment={selectedEquipment}
           overview={overview}
           disinfections={disinfections}
+          maintenanceRecords={maintenanceRecords}
+          usageLogs={usageLogs}
           loading={detailLoading}
           onClose={handleCloseDetail}
           t={t}

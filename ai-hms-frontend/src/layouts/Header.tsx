@@ -2,11 +2,12 @@ import { useState } from 'react'
 import type { RefObject } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UserRole } from '@/types/original'
+import type { AppRole } from '@/services/role'
 import { Menu, LogOut, ClipboardList, Stethoscope } from 'lucide-react'
 
 interface HeaderProps {
     username?: string
-    userRole?: UserRole
+    userRole?: AppRole
     userAvatar?: string
     department?: string
     onLogout?: () => void

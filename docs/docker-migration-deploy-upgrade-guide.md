@@ -683,3 +683,102 @@ PGPASSWORD='admin123' psql -h 10.10.8.83 -p 5432 -U admin -d ai_hms_db -c '\dt'
 - 建表完成后即可长期使用 release 正式运行
 
 这套方式符合当前项目状态，也符合后续迭代升级要求。
+## 附录：2026-04-20 前端同源 `/api` 升级实机记录
+
+适用场景：
+
+- 前端旧镜像内已写死 `VITE_API_BASE_URL=http://10.10.8.84:8080`
+- 现要求前端只通过浏览器同源 `/api/...` 访问后端
+- 当前生产部署方式为“构建机重新打包镜像，服务器 `docker load` 后执行升级脚本”
+
+关键结论：
+
+- `VITE_API_BASE_URL` 是前端构建期变量，只改服务器 `.env` 不会改掉旧镜像中的静态资源
+- 因此要让该修改真正生效，必须重新生成前端镜像并上传服务器
+- 生产服务器若只支持 `docker-compose` 独立命令，应统一使用 `docker-compose`，不要混用 `docker compose`
+
+### 构建机重新生成并上传镜像包
+
+```powershell
+cd /d F:\python\前后端代码\ai-hms_qhd
+.\docker_build.bat
+scp ..\ai-hms-images.tar root@10.10.8.84:/opt/
+scp ..\ai-hms-images.meta.txt root@10.10.8.84:/opt/
+scp ..\ai-hms-images.tar.sha256 root@10.10.8.84:/opt/
+scp -r ..\ai-hms-docker root@10.10.8.84:/opt/
+```
+
+### 服务器加载新镜像并升级前端
+
+```bash
+cd /opt
+docker load -i ai-hms-images.tar
+cd /opt/ai-hms-docker
+cp .env .env.bak.$(date +%Y%m%d_%H%M%S) 2>/dev/null || true
+grep -n '^VITE_API_BASE_URL=' .env
+sed -i 's#^VITE_API_BASE_URL=.*#VITE_API_BASE_URL=#' .env
+grep -n '^VITE_API_BASE_URL=' .env
+bash docker_upgrade.sh frontend
+```
+
+如果服务器端需要手工重建前端容器，并且当前环境只有 `docker-compose` 可用：
+
+```bash
+cd /opt/ai-hms-docker
+docker-compose up -d --force-recreate frontend
+docker-compose ps
+```
+
+不要依赖下面这条命令判断环境是否支持 Compose v2：
+
+```bash
+docker compose build --no-cache frontend
+```
+
+实机曾出现：
+
+```text
+unknown flag: --no-cache
+```
+
+出现该错误时，应直接改用 `docker-compose`。
+
+### 实际验证命令
+
+```bash
+docker ps
+curl -sv http://127.0.0.1:3000/nginx-health
+curl -sv http://127.0.0.1:8080/health
+curl -sv http://127.0.0.1:3000/api/health
+docker logs ai-hms-frontend --since 10m
+docker logs ai-hms-backend --since 10m
+docker exec -it ai-hms-frontend sh -c "cat /etc/nginx/conf.d/default.conf"
+```
+
+### 验证结果解释
+
+- `http://127.0.0.1:3000/nginx-health` 返回 `200`：前端 Nginx 正常
+- `http://127.0.0.1:8080/health` 返回 `200`：后端健康检查正常
+- `docker ps` 中前后端均为 `healthy`：说明容器启动与健康检查已通过
+- `http://127.0.0.1:3000/api/health` 返回 `404` 不代表代理失效
+
+原因是当前前端 Nginx 配置为：
+
+```nginx
+location /api/ {
+    proxy_pass http://backend:8080;
+}
+```
+
+这意味着：
+
+- `/api/health` 会转发到后端 `/api/health`
+- 不会自动改写成后端 `/health`
+- 当前后端真实健康检查路由是 `/health`，所以 `/api/health` 返回 `404` 属于预期
+
+因此本次上线验收应以以下标准为准：
+
+- `docker ps` 中 `ai-hms-frontend` 与 `ai-hms-backend` 都为 `healthy`
+- 浏览器访问 `http://<server-ip>:3000` 正常
+- 浏览器开发者工具 `Network` 中前端请求使用相对路径 `/api/...`
+- 不再直接请求 `http://10.10.8.84:8080/...`

@@ -269,6 +269,7 @@ export interface Prescription {
   id: string
   patientId: string
   treatmentPlanId: string
+  treatmentId?: number
   prescriptionDate: string
   doctorId: string
   doctorName: string

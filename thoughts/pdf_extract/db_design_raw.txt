@@ -1,0 +1,2066 @@
+Dialysis 
+
+   
+ Dialysis 
+ Patient 
+ Register 
+ Plan 
+ Order 
+ Schedule 
+ Treatment 
+ Aux 
+ Prescription 
+ DayOrder 
+ VascularAccess 
+ Material 
+ Duration 
+ Ward 
+ Bed 
+ Equipment 
+ Note 
+ CreatorId 
+ Status--
+
+ OrderStatus
+
+ State--
+
+ IsDisabled
+Bool , false
+ Examination/
+Examine
+/
+ 
+ BodyTemp
+ CaseStatus (/)
+ Id TenantId  ID 
+
+1.  Register_PatientInfomation
+
+
+   
+1 Id Long 
+2 TenantId Long  ID
+3 IDName String 256 
+4 Name String 256 
+5 Spell String 256 
+6 Type String 64 
+7 TreatmentStatus String 64 //
+8 OutComeStatus String 64 /
+9 Gender String 64 
+10 BirthDate DateTime 
+11 Nation String 64 
+12 ABOType String 64 ABO (A/B/AB/O/)
+13 RHType String 64 RH (RH-/RH+/)
+14 Height Double 2  cm
+15 Weight Double 2 
+16 Occupation String 128 
+17 MaritalStatus String 64 //
+18 EducationLevel String 64 ///
+/
+19 Province String 64 
+20 City String 64 
+21 County String 64 
+22 Address String 256 
+23 PhoneNo String 32 
+24 ExpenseType String 64 ///
+
+25 SSN String 64 
+26 DialysisNo String 64 
+27 ResponsibilityDrId Long  ID
+28 ResponsibilityNurseId Long  ID
+29 FirstDialysisDate DateTime 
+30 FirstDialysisHospital String 64 
+31 Note String 1024 
+32 WeChatNo String 128        
+OpenId,unionId
+33 CreatorId Long  ID
+34 CreateTime DateTime 
+35 LastModifyTime DateTime 
+36 ImportInfo String 1024 
+37 ImageBase64String Text 
+38 PatientType String 64        10/  
+20
+
+
+39 PredictWeight Long 
+2.  Register_Hospitalization
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 CaseNo String 64 
+5 HospNo String 64 
+6 BarCode String 64  
+7 HospPatientType String 64  //
+
+8 HospReceiveDept String 64 
+9 HospWard String 64 
+10 HospBed String 64 
+11 AttendDr String 64 
+12 ReceptionDr String 64 
+13 CreatorId Long  ID
+14 CreateTime DateTime 
+15 LastModifyTime DateTime 
+3.  Register_IDInfomation
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 IDType String 64 (/
+///
+/)
+5 IDNo String 64 
+6 IsDisabled Bool /
+7 CreatorId Long  ID
+8 CreateTime DateTime 
+9 LastModifyTime DateTime 
+4.  Register_FamilyMember
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 Name String 64 
+5 Kinship String 64 
+...
+6 PhoneNo String 32 
+7 CreatorId Long  ID
+8 CreateTime DateTime 
+9 IsDisabled Bool /
+10 LastModifyTime DateTime 
+11 Type String 64 
+5.  Register_Infection
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 InfectionDesc String 1024 
+5 OtherDesc String 1024 
+6 Note String 1024 
+7 CreatorId Long  ID
+8 CreateTime DateTime 
+9 LastModifyTime DateTime 
+6.  Register_Diagnosis
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 DiagnosisDate DateTime 
+5 Complaints String 512 
+6 DiagnosisDesc String 1024 
+7 ComplicationDesc String 1024 
+8 Note String 1024 
+9 CreatorId Long  ID
+10 CreateTime DateTime 
+11 LastModifyTime DateTime 
+7.  Register_MedicalHistory
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 Type String 64 //
+
+5 Description text 
+6 Note String 1024 
+7 CreatorId Long  ID
+8 CreateTime DateTime 
+9 LastModifyTime DateTime 
+     2010              http://www.nhc.gov.cn/
+yzygj/s3585u/201002/0517a82e35224ee0912a5d855a9d249f.shtml
+8.  Register_MedicalHistory
+
+
+   
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 Complaints Text 
+5 PresentIllnessHistory Text 
+6 PastIllnessHistory Text 
+7 PersonalHistory Text 
+8 MaritalReproductiveHistory Text  Marital
+andreproductivehistory
+9 FamilyHistory Text 
+10 DiagnosisDesc Text 
+11 PhysicalExamination Text 
+12 SpecialistExamination Text 
+13 AncillaryExamination Text 
+14 Note String 1024 
+15 CreatorId Long  ID
+16 CreateTime DateTime 
+17 LastModifyTime DateTime 
+18 Narrator String 
+9.  Register_OutCome
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64 /
+
+Reason String 64 
+
+OutComeTime DateTime 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+10.  Register_Tumor
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64 ,
+Name String 512 
+TreatmentDesc String 1024 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+11.  Register_Allergen
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64  
+Name String 1024 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+12.  Register_Protopathy
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64  
+Name String 512 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+13.  Register_Complication
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64 
+Name String 512 
+Description String 1024 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+14.  Register_Comorbidity
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Name String 512 
+FirstType String 64 ,
+SecondType String 64 ,
+TreatmentDesc String 1024 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+15.  Register_Pathology
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64  
+Name String 512 
+Description String 1024 
+ExamineTime DateTime 
+ExamineDr String 64 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+16.  Register_InformedConsent
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Name String 256 
+AttachmentId Long  ID
+PatientSign String 64 
+SignTime DateTime 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+17.  Register_ ElectronicDocument
+    
+Id Long 
+TenantId Long  ID
+PatientId Long - Id
+Type String 64 
+
+Name String 256 
+AttachmentIds String  IDs
+PatientSign String 64 
+SignTime DateTime 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+18.  Register_VascularAccess
+    
+1 Id Long ID
+2 TenantId Long  ID
+3 PatientId Long  ID
+4 AccessType String 64 
+5 AccessPosition String 128 
+
+
+
+6 Artery String 128 (
+      
+)
+7 Venous String 128 (
+      
+
+      
+...
+...)
+8 LeftAndRight String 128 
+9 OperationTime DateTime 
+10 IsDefault Bool 
+11 Note String 1024 
+12 PictureIds String , Id 
+ PictureId
+13 IsDisabled Bool 
+/
+14 CreatorId Long  ID
+15 CreateTime DateTime 
+16 LastModifyTime DateTime 
+17 ASidePointCount Int  A 
+18 VSidePointCount Int  V 
+19 OperationHospital String 128 
+20 CatheterizeMethod String 64 
+(X 
+)
+21 CatheterDepth Double 
+22 FirstUseTime DateTime 
+23 InterveneCount Int 
+24 AccessCount Int 
+25 InterveneTime DateTime 
+19.  Register_VascularAccessChange
+    
+Id Long ID
+TenantId Long  ID
+PatientId Long  ID
+UseDuration Int 
+AvgBF Double 4 
+ChangeTime DateTime 
+ChangeReason String 512 
+ChangeDesc String 512 
+SketchMap Long ,
+ID
+PhysicalMap Long 
+ ID
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+VascularAccessId Long  ID
+ChangeType String 512 
+
+
+ChangeDr
+Long 
+20.  Register_Image-
+ Register_VascularAccessImage 
+    
+Id Long ID
+TenantId Long  ID
+BizId Long  ID
+ ID-
+PatientId
+BizId Type
+  ID 
+
+ID
+ImageName String 128 
+ImageBase64String text  base64
+FeatureCode text 
+Type String 64   (10- 
+20 30
+)
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+Sort Int 
+21.  Register_VascularAccessImage
+    
+Id Long ID
+TenantId Long  ID
+VascularAccessId Long  ID
+ImageName String 128 
+ImageBase64String text  base64
+Note String 1024 
+Sort Int 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+22.  Register_OrderSheet
+    
+Id Long ID
+TenantId Long  ID
+PatientId Long  ID
+OrderTime DateTime 
+ImageBase64String text  base64
+ContentJsonb jsonb 
+Status Int 0 -10
+
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+Age Int 
+DigitalSignature text 
+
+23.  Plan_PlanTPL
+
+
+   
+Id Long 
+TenantId Long  ID
+Name String 256 
+CreatorId Long  ID
+CreateTime DateTime 
+IsDisabled Bool 
+/
+DialysisMethod String 256    
+(HD,HDF...)hd+hp
+
+DialysisDuration Double 4   
+AdjustQuantity Double 4  
+BF Double 4  
+BV Double 4  BV 
+FirstAnticoagulant Long  
+FirstDosage Double 4  
+MaintainAnticoagulant Long  ?
+DilutionProportion Double 4  
+InjectionRate Double 4  
+InjectionDuration Double 4  
+InjectionVolume Double 4  
+VascularAccessId Long 
+Dialysate String 64  
+DialysateFlow Double 4  
+DialysateVolume Double 4  
+NaIonCon Double 4  Na 
+CaIonCon Double 4  Ca 
+KIonCon Double 4  K 
+HCO3IonCon Double 4  
+GlucoseCon Double 4  
+Conductivity Double 4  
+DialysateTmp Double 4  
+SubstituateVolume Double 4  
+DilutionMnt String 64 /
+
+LastModifyTime DateTime 
+DialysateGroupId Long  ID
+HeparinType Int 
+-10
+-20 
+ 0
+ 0
+
+,
+
+24.  Plan_PlanTPLMaterial
+
+
+   
+Id Long 
+TenantId Long  ID
+PlanTPLId Long  ID
+MaterialId Long  ID
+MaterialGroup Int 
+Num Double 4 
+Note String 512 
+LastModifyTime DateTime 
+25.  Plan_PatientPlan
+    
+1 Id Long ID
+2 TenantId Long  ID
+3 PatientId Long       ID
+
+4 Name String 256 
+5 CreatorId Long  ID
+6 CreateTime DateTime 
+7 PlanTPLId Long  ID 0
+8 OddWeekFrequency Int 
+9 EvenWeekFrequency Int 
+10 Frequency String 128 
+,
+
+11 DialysisMethod String 256 
+12 DialysisDuration Double 4  
+13 DryWeight Double 4  
+14 ExtraWeight Double 4  
+15 AdjustQuantity Double 4  
+16 BF Double 4  
+17 BV Double 4  BV
+18 FirstAnticoagulant Long 64 ,
+19 FirstDosage Double 4  
+20 MaintainAnticoagulant Long 64  ?
+21 DilutionProportion Double 4  
+22 InjectionRate Double 4  
+23 InjectionDuration Double 4  
+24 InjectionVolume Double 4  
+25 VascularAccessId Long 
+26 Dialysate String 64  
+27 DialysateFlow Double 4  
+28 DialysateVolume Double 4  
+29 NaIonCon Double 4  Na 
+30 CaIonCon Double 4  Ca 
+31 KIonCon Double 4  K 
+32 HCO3IonCon Double 4  
+33 GlucoseCon Double 4  
+34 Conductivity Double 4  
+35 DialysateTmp Double 4  
+36 SubstituateVolume Double 4  
+37 DilutionMnt String 64 /
+
+38 SalineQuantity Double 4  
+39 SealQuantity Double 4        
+ HeparinQuant
+ity
+40 ArterialQuantity Double 4  
+41 VenousQuantity Double 4  
+42 SealType String 64 
+43 IsDisabled Bool 
+/
+44 LastModifyTime DateTime 
+45 DialysateGroupId Long  ID
+46 AutoConfirmPrescription String 64 
+47 HeparinType Int 
+-10
+-20 
+ 0
+ 0
+
+,
+
+
+26.  Plan_PatientPlanMaterial
+    
+Id Long ID
+TenantId Long  ID
+PatientPlanId Long  ID
+
+MaterialId Long  ID
+MaterialGroup Int 
+Num Double 4 
+Note String 512 
+LastModifyTime DateTime 
+27. /
+Plan_PatientPlanPrescriptionAdjustment
+ 
+ 
+
+
+1 Id Long ID 
+2 TenantId Long  ID
+3 Type
+Int 
+0/ 1
+4
+PatientPlanPrescription
+Id
+Long
+/
+ ID
+5 AdjustUserId Long  ID
+6 AdjustTime
+DateTime /
+
+7 AdjustReason
+String 512 /
+
+8 BeforeOddWeekFrequency
+Int
+
+9 AfterOddWeekFrequency
+Int
+
+10 BeforeEvenWeekFrequency
+Int
+
+11 AfterEvenWeekFrequency Int 
+BeforeFrequency String 128 
+AfterFrequency String 128 
+12 BeforeDialysisMethod String 256 
+13 AfterDialysisMethod
+String 256
+
+14 BeforeDialysisDuration
+Double 4 
+
+
+15 AfterDialysisDuration
+Double 4 
+
+
+16 BeforeDryWeight
+Double 4 
+
+
+17 AfterDryWeight
+Double 4 
+
+
+18 BeforeExtraWeight
+Double 4  
+19 AfterExtraWeight
+Double 4 
+
+20 BeforeAdjustQuantity Double 4  
+21 AfterAdjustQuantity
+Double 4  
+22 BeforeBF
+Double 4  
+23 AfterBF
+Double 4  
+24
+BeforeFirstAnticoagulan
+t
+Long 
+25 AfterFirstAnticoagulant Long 64 
+26 BeforeFirstDosage
+Double 4  
+27 AfterFirstDosage Double 4  
+28
+BeforeMaintainAnticoagu
+lant
+Long 
+29
+AfterMaintainAnticoagul
+ant
+Long 
+30
+BeforeDilutionProportio
+n
+Double 4  
+31 AfterDilutionProportion Double 4  
+32 BeforeInjectionRate Double 4  
+33 AfterInjectionRate
+Double 4  
+34 BeforeInjectionDuration Double 4  
+35 AfterInjectionDuration
+Double 4  
+36 BeforeInjectionVolume
+Double 4  
+37 AfterInjectionVolume
+Double 4  
+38 BeforeVascularAccessId
+Long 
+
+39 AfterVascularAccessId
+Long 
+
+40 BeforeDialysate String 64  
+41 AfterDialysate String 64  
+42 BeforeDialysateFlow
+Double 4  
+43 AfterDialysateFlow Double 4  
+44 BeforeDialysateVolume Double 4  
+45 AfterDialysateVolume Double 4  
+46 BeforeNaIonCon Double 4   Na 
+47 AfterNaIonCon Double 4   Na 
+48 BeforeCaIonCon Double 4   Ca 
+49 AfterCaIonCon Double 4   Ca 
+50 BeforeKIonCon Double 4   K 
+51 AfterKIonCon Double 4   K 
+52 BeforeHCO3IonCon
+Double 4  
+
+53 AfterHCO3IonCon
+Double 4  
+
+BeforeGlucoseCon Double 4  
+AfterGlucoseCon Double 4  
+54 BeforeConductivity Double 4  
+55 AfterConductivity Double 4  
+56 BeforeDialysateTmp Double 4  
+57 AfterDialysateTmp Double 4  
+58 BeforeSubstituateVolume Double 4  
+59 AfterSubstituateVolume Double 4  
+60 BeforeDilutionMnt
+String 64 
+/
+61 AfterDilutionMnt
+String 64 
+/
+62 BeforeSalineQuantity Double 4  
+63 AfterSalineQuantity Double 4  
+64 BeforeSealType
+String 64 
+
+65 AfterSealType
+String 64 
+
+66 BeforeSealQuantity Double 4  
+67 AfterSealQuantity Double 4  
+68 BeforeArterialQuantity Double 4  
+69 AfterArterialQuantity Double 4  
+70 BeforeVenousQuantity Double 4  
+71 AfterVenousQuantity Double 4  
+72 BeforeUFQuantity Double 4  
+73 AfterUFQuantity Double 4  
+74
+Status Int  0/
+ 10 20)
+75 DealUserId Long  Id
+76
+DealTime DateTime 
+77
+DealContent 
+      
+
+78 CreatorId Long  ID
+79 CreateTime DateTime 
+80 LastModifyTime DateTime 
+81 BeforeBV Double 4   BV
+82 AfterBV Double 4   BV
+83 BeforeIsInduceDialysisPr boolean 
+escription 
+84
+AfterIsInduceDialysisPre
+scription
+boolean 
+
+85 BeforeHeparinType Int 
+86 AfterHeparinType Int 
+87
+BeforeMaterial Json 
+88
+AfterMaterial Json 
+28.  Plan_PatientPrescription
+
+
+   
+1 Id Long ID 
+2 TenantId Long  ID
+3 PatientId Long    
+  ID
+
+4 TreatmentId Long    
+ID   
+   
+   
+ ID
+5 PatientPlanId Long    
+ID
+6 CreatorId Long  ID
+7 CreateTime DateTime 
+8 ConfirmUserId Long    
+ID
+9 ConfirmTime DateTime 
+10 Status Int    
+/
+
+11 CaseStatus String 64    
+/
+
+12 DialysisMethod String 256 
+13 DialysisDuration Double 4  
+14 DryWeight Double 4  
+15 ExtraWeight Double 4  
+16 AdjustQuantity Double 4  
+17 BF Double 4     
+
+18 BV Double 4  BV
+19 FirstAnticoagulant Long    
+
+20 FirstDosage Double 4  
+21 MaintainAnticoagulant Long    
+
+22 DilutionProportion Double 4  
+23 InjectionRate Double 4  
+24 InjectionDuration Double 4  
+25 InjectionVolume Double 4  
+26 VascularAccessId Long    
+
+27 Dialysate String 64  
+
+28 DialysateFlow Double 4  
+29 DialysateVolume Double 4  
+30 NaIonCon Double 4  Na 
+
+31 CaIonCon Double 4  Ca 
+
+32 KIonCon Double 4  K 
+33 HCO3IonCon Double 4     
+
+34 GlucoseCon Double 4     
+
+35 Conductivity Double 4  
+36 DialysateTmp Double 4     
+
+37 SubstituateVolume Double 4  
+38 DilutionMnt String 64    
+/
+
+39 SalineQuantity Double 4  
+40 SealQuantity Double 4     
+  
+Hepar
+inQuantit
+y
+41 ArterialQuantity Double 4  
+42 VenousQuantity Double 4  
+43 SealType String 64   
+
+44 UFQuantity Double 4  
+45 LastModifyTime DateTime    
+
+46 DialysateGroupId Long    
+ ID
+47 IsInduceDialysisPresc
+ription
+boolean    
+   
+  
+false
+48 HeparinType Int    
+   
+-10
+   
+-20 
+ 0
+   
+ 0
+   
+   
+   
+   
+ ,  
+   
+   
+
+49
+29.  Plan_PatientPrescriptionMaterial
+    
+Id Long ID 
+TenantId Long  ID
+PatientPrescriptionId Long  ID,
+MaterialId Long  ID
+MaterialGroup Int 
+Num Double 4 
+Note String 512 
+ChargeItemId Long  Id
+LastModifyTime DateTime 
+
+30.  Schedule_Ward
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+Sort Int 
+PatientType String 64      
+   10/  
+20
+InfectionType String 64 
+//
+IsDisabled Bool      
+/
+Note String 512 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+ResponsibleUsers String  ID 
+31.  Schedule_Bed
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+Sort Int 
+WardId Long  ID,
+IsDisabled Bool      
+/
+Note String 512 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+FEPId Long 
+AcquisiteConnectId Long  ID
+32.  Schedule_BedEquipmentRel
+    
+Id Long 
+TenantId Long  ID
+EquipmentId Long  ID
+Sort Int 
+BedId Long  ID
+IsDefault Bool 
+IsDisabled Bool      
+/
+LastModifyTime DateTime 
+Type Int 
+'1 
+ 2:
+ 3   
+...';
+ParameterS Jsonb
+33.  Schedule_BedEquipmentRelChange
+    
+Id Long 
+TenantId Long  ID
+EquipmentId Long  ID
+Sort Int 
+BedId Long  ID
+IsDefault Bool 
+IsDisabled Bool      
+/
+Type Int 
+'1 
+ 2:
+ 3   
+...';
+ParameterS Jsonb
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+34.  Schedule_BedFEPChange
+    
+Id Long 
+TenantId Long  ID
+BedId Long  ID
+BeforeFEPId Long  Id
+AfterFEPId Long  Id
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+35.  Schedule_Shift
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+Sort Int 
+StartTime DateTime 
+EndTime DateTime 
+Type Int 
+10/ 20
+Note String 512 
+IsDisabled Bool      
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+36.  Schedule_PatientShift
+    
+Id Long 
+TenantId Long  ID
+PatientId Long  ID,
+TreatmentTime DateTime 
+ShiftId Long  ID
+WardId Long  ID
+BedId Long  ID
+PatientPlanId Long  ID
+ShiftTiming Int 
+10/ 20
+Status Int  10/
+ 20/
+30     
+40     
+50
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+37.  Schedule_PatientShiftTPL
+
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+PatientId Long  ID
+TreatmentTime Int 
+
+0-N  
+
+ShiftId Long  ID
+WardId Long  ID
+BedId Long  ID
+PatientPlanId Long  ID
+IsDisabled Bool      
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+38.  Schedule_CheckIn
+    
+Id Long 
+TenantId Long  ID
+BatchNo Long 
+LastHandoverIds String 64  Ids
+ShiftId Long  ID
+WardId Long  ID
+ClockInTime DateTime 
+OperatorId Long  ID
+OperatorType Int ( 10
+ 20)
+Type Int  10 20
+Note text 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+39.  Schedule_Handover
+    
+Id Long 
+TenantId Long  ID
+ShiftId Long  ID
+TreatmentTime DateTime 
+WardId Long  ID
+CheckInId
+Long  ID
+ClockInTime DateTime 
+OperatorType Int ( 10
+ 20)
+OperatorId Long  ID
+Content string 1024 
+Note text 
+AcceptContent String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+
+40.  Order_OrderTPL
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+OrderGroup Int 
+IsDisabled Bool      
+/
+Classification String 64 ,,
+
+DrugId Long  ID
+0
+Content String 256 
+Dosage String 64 
+UseOpportunity String 128 
+UseMethod String 128 
+UseWay String 128 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+UseNum Double 
+AllDosage Double 
+ChargeItemId Long  id
+41.  Order_PatientOrder
+    
+Id Long 
+TenantId Long  ID
+PatientId Long  ID
+PatientPlanId Long  ID
+0
+OrderTPLId Long  ID
+0
+OrderGroup Int 
+Type Int      
+
+DrugId Long  ID
+0
+Classification String 64 
+Content String 256 
+Dosage String 64 
+UseOpportunity String 128 
+UseMethod String 128 
+UseWay String 128 
+Note String 1024 
+OperatorId Long  ID
+StartTime DateTime 
+EndTime DateTime 
+
+CreateDept String 64 
+
+
+DealDept String 64 
+IsDisabled Bool      
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+UseNum Double 
+ChargeItemId Long  Id
+AllDosage Double 
+42.  Order_PatientDayOrder
+    
+Id Long 
+TenantId Long  ID
+PatientId Long  ID
+TreatmentTime DateTime 
+PatientOrderId Long  ID
+0
+OrderGroup Int 
+Status Int /
+//
+/
+ 10
+CaseStatus String 64 /
+
+Classification String 64 
+DrugId Long  ID
+0
+Content String 256 
+Dosage String 64 
+UseOpportunity String 128 
+UseMethod String 128 
+UseWay String 128 
+Note String 1024 
+OperatorId Long  ID
+CreateDept String 64 
+
+
+DealDept String 64 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+UseNum Double 
+DealOpportunity String 64 
+   10/  
+20
+ChargeItemId Long  Id
+AllDosage Double 
+43.  Order_PatientDayOrderDeal
+    
+Id Long 
+TenantId Long  ID
+TreatmentId Long  ID,
+PatientDayOrderId Long      
+ID
+OperatorId Long  ID
+OperateTime DateTime 
+Status Int /
+//
+/
+CaseStatus String 64 /
+
+Note String 1024 
+
+44.  Treatment_Treatment
+
+
+   
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long  Id
+4 ScheduleId Long  Id
+5 ReceptionDrId Long  Id
+6 SignInTime Datetime 
+7 QueueNo String 32 
+8 ReceptionTime Datetime 
+9 DayProgrammeId Long  Id
+10 ShiftId Long  ID
+11 ShiftName String 256 
+12 WardId Long  Id
+13 WardName String 256 
+14 BedId Long  Id
+15 BedName String 256 
+16 EquipmentId String  Id 
+17 EquipmentName String 512 
+18 StartTime datetime 
+19 EndTime datetime 
+20 RealDuration float 
+4 
+     
+()
+21 RealUFQuantity float 
+4 
+
+22 RealSubstituateVolume float 
+4 
+
+23 NurseSummary String 1024 
+24 TreatmentSummary String 1024 
+25 Status String 64      
+10
+20 30
+ 40
+ 50
+60
+26 CaseStatus String 64      
+
+27 CreatorId Long  ID
+28 CreateTime DateTime 
+29 LastModifyTime DateTime 
+30 TreatmentCount Int 
+31 TmrPath String 1024 
+(24.10.24)
+32 TmrTime Datetime 
+(24.10.24)
+33 TmrPages Int 
+(24.10.24)
+45.  Treatment_Puncture
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 Point String 64  A 
+5  V 
+6 Method String 64 
+
+7 Needle String 64     V 
+A V 
+A 
+8 A 
+
+9      
+/
+10      
+
+11 OperatorId Long 
+12 OperateTime Datetime 
+13 Note String 1024 
+14 PictureId Long  Id
+15 CreatorId Long  ID
+16 CreateTime DateTime 
+17 LastModifyTime DateTime 
+46.  Treatment_Action
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 Name String 64      
+     
+
+5 OperatorId Long 
+
+6 OperateTime Datetime 
+
+7 CreatorId Long 
+8 CreateTime datetime 
+9 LastModifyTime DateTime 
+10 Code String 32 
+47.  Treatment_DiseaseCourse
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long  Id
+4 TreatmentId Long  Id
+5 DiseaseCourseTPLId Long  Id
+6 Content String 10000 
+7 Type String 64 /
+//
+
+8 Note String 1024 
+9 OperatorId Long 
+10 OperateTime datetime 
+11 CreatorId Long 32 
+12 CreateTime datetime 
+13 LastModifyTime DateTime 
+48.  Treatment_DiseaseCourseTPL
+
+    
+1 Id Long 
+2 TenantId Long  ID
+3 Name String 256 
+4 Content String 10000 
+5 Type String 64 
+6 CreatorId Long 
+7 CreateTime datetime 
+8 IsDeleted bool 
+9 IsDisabled bool 
+10 LastModifyTime DateTime 
+49.  Treatment_ Nursing
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 Content String 2048 
+5 OperatorId Long  Id
+6 OperateTime datetime 
+7 CreatorId Long 
+8 CreateTime datetime 
+9 Note String 1024 
+10 LastModifyTime DateTime 
+50.  Treatment_FeedBack
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 Content String 2048 
+5 OperatorId Long  Id
+HandleDrId Long 
+1 HandleContent String 1024 
+2 HandleResult String 1024 
+6 OperateTime datetime 
+7 CreatorId Long 
+8 CreateTime datetime 
+9 Note String 1024 
+10 LastModifyTime DateTime 
+51.  Treatment_ShiftHandover
+    
+1 Id Long 
+2 TenantId Long  ID
+3 Content String 2048 
+4 CurrentNurseId Long  Id
+5 NextNurseId  Id
+6 CreateTime datetime 
+7 CreatorId Long  Id
+8 Note String 1024 
+9 LastModifyTime DateTime 
+52.  Treatment_BeforeSigns
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Weight Float 4 
+7 ExtraWeight Float 4 
+8 NetWeight Float 4 
+9 DryWeight Float 4 
+10 ExtraDehydration Float 4 
+11 BodyTemp Float 4 
+12 SBP Float 4 
+13 DBP Float 4 
+14 PressurePoint String 64 (
+///
+)
+15 HeartRate Float 4 
+16 Respiration Float 4 
+17 CreatorId Long 
+18 CreateTime datetime 
+19 LastModifyTime DateTime 
+20 Note String 1024 
+53.  Treatment_BeforeSymptom  JsonData 
+2023  3  6 
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Code String 64      
+Code
+7 Value String 1024 
+8 CreatorId Long 32 
+9 CreateTime datetime 
+10 LastModifyTime DateTime 
+54.  Treatment_BeforeCheck 
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 BeforeSignsId Long  ID
+5 BeforeSymptomId Long  Id
+6 OperatorId Long  Id
+7 OperateTime datetime 
+8 MaterialsResult Bool 
+
+9 MaterialsMistake String 1024 
+
+10 ParamResult Bool 
+
+11 ParamMistake String 1024 
+
+12 VascularAccessResult Bool 
+
+13 VascularAccessMistake String 1024 
+
+14 PipelineResult Bool 
+15 PipelineMistake String 1024 
+
+16 CreatorId Long 
+17 CreateTime datetime 
+18 LastModifyTime DateTime 
+55.  Treatment_DuringParam
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime Datetime 
+6 TMP numeric 
+7 UFQuantity numeric 
+UFQuantitye
+8 MachineTmp numeric 
+9 VenousPressure numeric 
+VenousPrressure
+10 ArterialPressure numeric 
+11 BF numeric 
+12 Conductivity numeric 
+13 CreatorId Long 
+14 CreateTime DateTime 
+15 LastModifyTime DateTime 
+16 SubstituateSpeed numeric 
+17 HeparinPumpFlow numeric 
+56.  Treatment_DuringSymptom
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Symptom String 1024 
+7 SymptomType String 1024 , Code
+8 HandleDrId Long 1024 
+9 HandleContent String 1024 
+10 HandleResult String 1024 
+11 CreatorId Long 
+12 CreateTime datetime 
+13 LastModifyTime DateTime 
+57.  Treatment_DuringSigns
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 DBP Float 4 
+7 SBP Float 4 
+8 HeartRate Float 4 
+9 BodyTemp Float 4 
+10 Respiration Float 4 
+11 CreatorId Long 
+12 CreateTime datetime 
+13 LastModifyTime DateTime 
+14 SpO2 Float 4 
+58.  Treatment_DuringOther  JsonData 
+2023  3  6 
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Code String 64      
+Code
+7 Value String 1024 
+8 CreatorId Long 32 
+9 CreateTime datetime 
+10 LastModifyTime DateTime 
+59.  Treatment_AfterSigns
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Weight Float 4 
+7 ExtraWeight Float 4 
+
+8 NetWeight Float 4  =-
+
+9 LossWeight Float 4 
+/ =
+-
+10 RealIntake Float 4 
+
+11 BodyTemp Float 4 
+12 SBP Float 4 
+13 DBP Float 4 
+14 PressurePoint String 64 
+15 HeartRate Float 4 
+16 Respiration Float 4 
+17 CreatorId Long 
+18 CreateTime datetime 
+19 LastModifyTime DateTime 
+20 Note String 1024 
+60.  Treatment_AfterSymptom JsonData 
+2023  3  6 
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 OperatorId Long  Id
+5 OperateTime datetime 
+6 Code String 64      
+Code
+7 Value String 1024 
+8 CreatorId Long 32 
+9 CreateTime datetime 
+10 LastModifyTime DateTime 
+61.  Treatment_TreatmentMonthSummarySheet
+    
+11 Id Long 
+12 TenantId Long  ID
+13 PatientId Long  Id
+14 Gender String 64 
+15 Age Int 
+16 TreatmentTime Datetime 
+
+17 Year Int 
+18 Month Int 
+19 DigitalSignature String 32 
+20 ImageBase64String text      
+base64
+21 CreatorId Long 
+22 CreateTime datetime 
+23 LastModifyTime DateTime 
+24 ContentJsonb jsonb 
+62.  Treatment_Alarm
+    
+1 Id Long 
+2 TenantId Long  ID
+3 TreatmentId Long  Id
+4 Source Int  1
+ 3....
+5 Code Int 
+6 Content String 
+7 Levle Int 
+ 10 20
+30  1000
+8 CreateTime datetime 
+9 EndTime datetime      
+
+10 HandleTime datetime 32 
+11 HandleId Long 
+12 HandleContent String 
+13 LastModifyTime DateTime 
+14 BedId Long 
+
+63.  Auxiliary_DrugInfomation
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+Classification String 64 ,
+Spell String 256 
+Code String 128 
+Brand String 64 
+Specification String 64 
+Package String 64 
+Manufacturer String 128 
+Note String 1024 
+IsDisabled Bool      
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+BasicUnit String 64 
+SpecificationUnit String 64 
+Sort Int 
+StdCat String 256 
+ShortName String 128 
+MinUnitDosage Float 
+UseTips String 1024 
+UseOpportunity String 64      
+     
+
+64.  Auxiliary_MaterialInfomation
+
+
+   
+1 Id Long 
+2 TenantId Long  ID
+3 Name String 256 
+4 Spell String 256 
+5 Classification String 64 
+
+6 Code String 128 
+7 Brand String 64 
+8 Specification String 64 
+9 Package String 64 
+10 Manufacturer String 128 
+11 Note String 512 
+12 Type String 64 
+ V 
+ A 
+
+
+13 IsDisabled Bool      
+/
+14 CreatorId Long  ID
+15 CreateTime DateTime 
+16 LastModifyTime DateTime 
+17 StdCat String 256 
+18 Unit String 64 
+19 ShortName String 128 
+65.  Auxiliary_VascularAccessMaterial
+    
+Id Long ID
+TenantId Long  ID
+VascularAccessId Long  ID
+MaterialId Long  ID
+Num Double 2 
+IsDisabled Bool 
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+66.  Auxiliary_EquipmentInfomation
+    
+Id Long 
+TenantId Long  ID
+Name String 256 
+IDNo String 128 
+SerialNo String 128 ,
+Brand String 128 
+ModelNo String 128 
+DialysisMethod String 512      HD/
+HDF
+
+Type String 
+
+,
+ManufactureDate DateTime 
+Manufacturer String 128 
+InstallDate DateTime 
+Maintenance Long     ?
+Common 
+MaintenanceCycle String 64 
+Note String 1024 
+IsDisabled Bool      
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+Flux String 64      
+
+67.  Auxiliary_EquipmentDisinfection
+    
+Id Long 
+TenantId Long  ID
+EquipmentId Long      
+ID
+DisinfectUserId Long  ID
+DisinfectWay String 256 
+StartTime DateTime 
+
+ DisinfectTime
+ StartTime
+Description String 1024 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+TreatmentId Long  ID
+Status Int      
+10 20
+EndTime DateTime 
+Type String 64 
+ 10
+ 20
+ 30
+Disinfectant String 64 ,
+68.  Auxiliary_EquipmentUsageLog
+    
+Id Long 
+TenantId Long  ID
+EquipmentId Long      
+ID
+UseUserId Long  ID
+UseStartTime Datetime 
+UseDuration Double 2 ,
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+69.  Auxiliary_EquipmentMaintenance
+    
+Id Long 
+TenantId Long  ID
+EquipmentId Long  ID
+Type String 64 
+
+Mode String 256 
+OperatorId Long  ID
+OperateTime Datetime 
+Description String 1024 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+70. 
+    
+Id Long 
+TenantId Long  ID
+ ID
+ ID
+
+
+ ID
+
+71.  Auxiliary_
+    
+Id Long 
+TenantId Long  ID
+72.  Auxiliary_
+    
+Id Long 
+TenantId Long  ID
+73.  Auxiliary_HealthEducation
+
+
+   
+Id Long ID,
+TenantId Long  ID
+Name String 256 
+Description Text 
+Sort Int 
+AttachmentIds String       
+ IDs
+Type Int /
+
+IsDisabled Bool 
+/
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+Classify String 64 
+74.  Auxiliary_PatientHealthEducation
+    
+Id Long ID
+TenantId Long  ID
+PatientId Long  ID
+HealthEducationId Long  ID
+
+OperatorId Long 
+EducationTime DateTime 
+EducationType String 256 
+EducationResult String 512 
+NurseSign String 32 
+PatientSign String 32 
+FinishTime DateTime 
+Note String 1024 
+CreatorId Long  ID
+CreateTime DateTime 
+LastModifyTime DateTime 
+75.  Auxiliary_
+    
+Id Long ID
+TenantId Long  ID
+Name String 256 
+/
+
+
+     
+
+
+
+Sort Int 
+
+Note String 1024 
+IsDisabled Bool      
+/
+76.  Auxiliary_DialysateGroup
+    
+Id Long ID
+TenantId Long  ID
+Name String 256 
+NaIonCon Double 4  Na 
+CaIonCon Double 4  Ca 
+KIonCon Double 4  K 
+HCO3IonCon Double 4  
+
+GlucoseCon Double 4  
+Sort Int 
+Note String 1024 
+IsDisabled Bool      
+/
+77.  Auxiliary_DataTPL
+    
+1 Id Long 
+2 TenantId Long  ID
+3 UserId Long  ID
+     
+ 0
+4 Name String 256 
+5 Content Text 
+6 Type String 64 
+ 10
+ 20
+
+7 ContentType String 64 
+
+8 CreatorId Long 
+9 CreateTime datetime 
+10 IsDeleted bool 
+11 IsDisabled bool 
+12 LastModifyTime DateTime 
+78.  Json  Auxiliary_JsonData
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long  ID
+4 TreatmentId Long  Id
+5 Code String 64      
+Code
+6 Value Jsonb 1024 Json 
+
+/
+7 CreatorId Long 32 
+8 CreateTime datetime 
+9 LastModifyTime DateTime 
+79.  Auxiliary_HdGoods
+    
+Id Long ID
+TenantId Long  ID
+Name String 256 
+Code String 256
+Spell String 64 
+BasieUnit String 32 
+Type Int      
+10 20
+ChargeItemId Long  Id
+Sort Int 
+80.  Report_Reports
+    
+10 Id Long 
+11 TenantId Long  ID
+12 Name String 256 
+13 No Long  no
+14 MenuName String 256 
+15 Sort Jsonb 1024 
+16 FixedColumns jsonb 
+DynamicColumns jsonb 
+Individuation jsonb 
+Table String 256 
+Template String 256 
+17 CreatorId Long 32 
+18 CreateTime datetime 
+19 LastModifyTime DateTime 
+HISLIS 
+81.  LIS_ExaminationApply
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 TestNO String 64 
+5 Priority Int 
+  0-   1-  
+10----
+6
+TestCase String 64
+    --   
+
+7 ClinicalDiagnosisDesc String 1024 --
+8
+Specimen String 64
+  --     
+
+9
+SpecimenDesc String 64
+--
+       
+
+
+
+10
+SpecimenReceivedTime DateTime
+       
+--
+11
+SpecimenSampleTime DateTime
+       
+--
+
+12
+ApplyTime DateTime
+--
+
+13
+ApplyDept String 64
+    --   
+
+
+
+
+14 ApplyUserName String 64 --
+15
+DealDept String 64
+--
+
+16
+ResultStatus Int
+--
+
+
+       
+
+
+
+       
+
+3.7 
+17
+ResultRPTTime DateTime
+--
+
+
+18
+ResultRPTUser String 64
+--
+
+19 ResultVerifyUser String 64 --
+20
+PrintCount Int
+--0-
+ 1-
+
+
+21
+ContainerCode String 64
+--
+
+22 LastModifyTime DateTime 
+82.  LIS_Examination
+    
+23 Id Long 
+24 TestNO String 64
+ExaminationApply
+
+25 TenantId Long  ID
+26 PatientId Long - Id
+27 Name String 128 
+28 ApplyUserName String 64 
+29 ApplyDept String 64 
+30 ApplyTime DateTime 
+31 Type String 64 
+32 ResultTime DateTime 
+33 ResultDesc String 1024 
+34 SyncUserId Long  ID
+35 SyncTime DateTime 
+36 LIS 
+37 LIS 
+83.  LIS_ExaminationItem
+    
+Id Long 
+TenantId Long  ID
+ExaminationId Long - Id
+ItemName String 64 
+ItemCode String 64 
+Result String 64 
+Unit String 32 
+Reference String 64 
+ResultSign String 16 /
+84.  LIS_ExaminationItem_Ret
+    
+Id Long 
+TenantId Long  ID
+ItemName String 64 
+ItemCode String 64 
+ExaminationName String 256 
+ExaminationType String 64 
+20 RetItemName String 64 
+21 RetExaminationName String 256 
+22 ItemSort int
+23 Sort int
+24 CreatorId Long 32 
+25 CreateTime datetime 
+26 LastModifyTime DateTime 
+85.  LIS_ExaminationItem_Tr
+    
+1. Id int8 
+2. ItemId int8  Id
+3. LastTreatmentId int8  ID
+4. NextTreatmentId int8  ID
+5. LastInterval int8 
+6. NextInterval int8 
+7. TenantId int8  ID
+8. CreatorId int8  ID
+9. CreateTime datetime 
+10.LastModifyTime DateTime 
+86.  Treatment_Others
+    
+Id Long ID
+TenantId Long  ID
+PatientId Long - Id
+TreatmentId Long  ID
+PredictWeight Float 
+PredictUFQ Float 
+CreatorId Long 32 
+CreateTime datetime 
+LastModifyTime DateTime 
+87.  QualityEvaluation_Record
+    
+1 Id Long 
+2 TenantId Long  ID
+3 PatientId Long - Id
+4 IndexName String 64 
+5 IndexCode String 64 
+6 Type Int 
+7 Result String 64 
+8 Unit String 32 
+9 Reference String 64 
+10 ResultSign String 16 /
+
+11 TestTime DateTime 
+12 EvaluationResult String 16 
+13 ItemScore Long 
+14 EvaluationClass String 64 
+15 CreatorId Long 32 
+16 CreateTime DateTime 
+17 LastModifyTime DateTime 
+88.  LIS_ExaminationItem_Config
+    
+Id Long 
+TenantId Long  ID
+RetItemName String 64 
+RetExaminationName String 128 
+Spell String 256 
+Unit String 32 
+Reference String 64 
+CreatorId Long 32 
+CreateTime datetime 
+LastModifyTime DateTime 
+
+89.  User_JsonData
+
+
+   
+1 Id Long 
+2 TenantId Long  ID
+3 UserId Long  Id
+4 Type Int 0
+1
+
+5 ContentJsonb jsonb      
+{ '',
+'',
+'',
+'',
+'',
+'',
+'',
+'',
+'', }
+
+{
+"",
+"",
+"",
+"",
+}
+6 Remark String 512 
+7 OperateTime Datetime 
+8 CreatorId Long  ID
+9 CreateTime DateTime 
+10 LastModifyTime DateTime 
+90.  Notify_Data
+    
+Id Long 
+TenantId Long  ID
+Title String 512 
+Content Jsonb 
+AppCode int 256 1, # 1  2
+ 3 
+BizObjId String 32  id
+CreateUserId Long 32 
+
+[""]
+CreateTime datetime 
+HandleUserId Long 
+HandleTime datetime 
+HandleResult Text 
+IsCompleted Boolean 
+Scene String 1024 
+SessionId String 32 
+
+LastModifyTime DateTime 
+

@@ -2,27 +2,10 @@ package services
 
 import "gorm.io/gorm"
 
-func ensureTables(db *gorm.DB, entities ...interface{}) error {
-	if db == nil {
-		return nil
-	}
+// ensureTables 历史兼容占位函数。
+// 老血透生产库禁止执行任何 DDL，此函数永远不执行建表/改表操作。
+func ensureTables(_ *gorm.DB, _ ...interface{}) error { return nil }
 
-	for _, entity := range entities {
-		if db.Migrator().HasTable(entity) {
-			continue
-		}
-		if err := db.AutoMigrate(entity); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ensureSchema(db *gorm.DB, entities ...interface{}) error {
-	if db == nil {
-		return nil
-	}
-
-	return db.AutoMigrate(entities...)
-}
+// ensureSchema 历史兼容占位函数。
+// 老血透生产库禁止执行任何 DDL，此函数永远不执行建表/改表操作。
+func ensureSchema(_ *gorm.DB, _ ...interface{}) error { return nil }

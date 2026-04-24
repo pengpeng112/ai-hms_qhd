@@ -1,7 +1,6 @@
-﻿import { NavLink } from 'react-router-dom'
+import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { UserRoleLabel } from '@/types/original'
-import { getSelectedRoleUser, getMenusByRole } from '@/services/role'
+import { getSelectedRoleUser, getMenusByRole, getRoleLabel } from '@/services/role'
 import {
   LayoutDashboard,
   Users,
@@ -132,7 +131,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
           <div className="bg-slate-800/50 rounded-lg p-3">
             <p className="text-[10px] text-slate-500 uppercase font-bold tracking-wider">{t('role:label.current')}</p>
             <p className="text-sm text-white mt-1 font-medium">{roleUser.name}</p>
-            <p className="text-xs text-blue-400 mt-0.5">{String(roleUser.role) === 'ADMIN' ? '系统管理员' : (UserRoleLabel[roleUser.role] || roleUser.role)}</p>
+            <p className="text-xs text-blue-400 mt-0.5">{getRoleLabel(roleUser.role)}</p>
           </div>
         </div>
       )}

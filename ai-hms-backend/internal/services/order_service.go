@@ -4,12 +4,15 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -42,6 +45,62 @@ type OrderService struct {
 	db *gorm.DB
 }
 
+type legacyPatientOrder struct {
+	ID             int64               `gorm:"column:Id"`
+	TenantID       int64               `gorm:"column:TenantId"`
+	PatientID      modeltypes.LegacyID `gorm:"column:PatientId"`
+	OrderTPLID     int64               `gorm:"column:OrderTPLId"`
+	OrderGroup     int64               `gorm:"column:OrderGroup"`
+	Type           int                 `gorm:"column:Type"`
+	DrugID         int64               `gorm:"column:DrugId"`
+	Classification string              `gorm:"column:Classification"`
+	Content        string              `gorm:"column:Content"`
+	Dosage         string              `gorm:"column:Dosage"`
+	UseOpportunity string              `gorm:"column:UseOpportunity"`
+	UseMethod      string              `gorm:"column:UseMethod"`
+	UseWay         string              `gorm:"column:UseWay"`
+	Note           string              `gorm:"column:Note"`
+	OperatorID     int64               `gorm:"column:OperatorId"`
+	StartTime      *time.Time          `gorm:"column:StartTime"`
+	EndTime        *time.Time          `gorm:"column:EndTime"`
+	IsDisabled     bool                `gorm:"column:IsDisabled"`
+	CreatorID      int64               `gorm:"column:CreatorId"`
+	CreateTime     time.Time           `gorm:"column:CreateTime"`
+	LastModifyTime time.Time           `gorm:"column:LastModifyTime"`
+	PatientPlanID  int64               `gorm:"column:PatientPlanId"`
+	UseNum         float64             `gorm:"column:UseNum"`
+	ChargeItemID   int64               `gorm:"column:ChargeItemId"`
+	AllDosage      float64             `gorm:"column:AllDosage"`
+}
+
+func (legacyPatientOrder) TableName() string { return "Order_PatientOrder" }
+
+type legacyPatientDayOrder struct {
+	ID             int64      `gorm:"column:Id"`
+	PatientOrderID int64      `gorm:"column:PatientOrderId"`
+	Status         int        `gorm:"column:Status"`
+	TreatmentTime  *time.Time `gorm:"column:TreatmentTime"`
+	LastModifyTime time.Time  `gorm:"column:LastModifyTime"`
+	CreateTime     time.Time  `gorm:"column:CreateTime"`
+}
+
+func (legacyPatientDayOrder) TableName() string { return "Order_PatientDayOrder" }
+
+type legacyCodeDictionary struct {
+	Code       string `gorm:"column:Code"`
+	Type       string `gorm:"column:Type"`
+	Name       string `gorm:"column:Name"`
+	IsDisabled bool   `gorm:"column:IsDisabled"`
+}
+
+func isLegacySchemaCompatError(err error) bool {
+	var pgErr *pgconn.PgError
+	if !errors.As(err, &pgErr) {
+		return false
+	}
+	return pgErr.Code == "42P01" || pgErr.Code == "42703"
+}
+
 // NewOrderService 创建医嘱服务
 func NewOrderService() *OrderService {
 	return &OrderService{db: database.GetDB()}
@@ -50,6 +109,7 @@ func NewOrderService() *OrderService {
 // OrderListRequest 医嘱列表请求
 type OrderListRequest struct {
 	PatientID      string `form:"-"`
+	TenantID       int64  `form:"-"`
 	Type           string `form:"type"`
 	Statuses       string `form:"statuses"`
 	IncludeExpired bool   `form:"includeExpired"`
@@ -157,47 +217,261 @@ func (s *OrderService) List(req OrderListRequest) ([]models.Order, error) {
 		return nil, errors.New("database not available")
 	}
 
-	query := s.db.Where("patient_id = ?", req.PatientID)
-	if req.Type != "" {
-		query = query.Where("type = ?", req.Type)
-	}
-
-	if req.Statuses != "" {
-		validStatuses := map[string]bool{
-			models.OrderStatusPending:   true,
-			models.OrderStatusExecuting: true,
-			models.OrderStatusExecuted:  true,
-			models.OrderStatusStopped:   true,
-		}
-		raw := strings.Split(req.Statuses, ",")
-		statusList := make([]string, 0, len(raw))
-		for _, candidate := range raw {
-			candidate = strings.TrimSpace(candidate)
-			if candidate != "" && validStatuses[candidate] {
-				statusList = append(statusList, candidate)
-			}
-		}
-		if len(statusList) == 0 {
-			query = query.Where("1 = 0")
-		} else {
-			query = query.Where("status IN ?", statusList)
-		}
-	} else if !req.IncludeExpired {
-		query = query.Where(
-			"NOT (end_time IS NOT NULL AND end_time < ? AND status IN ?)",
-			time.Now(),
-			activeOrderStatuses,
-		)
-	}
-
-	var orders []models.Order
-	if err := query.Order("created_at DESC").Find(&orders).Error; err != nil {
-		return nil, err
-	}
-	return orders, nil
+	return s.listLegacyOrders(req)
 }
 
-func (s *OrderService) Create(patientID, doctorID, doctorName string, req OrderCreateRequest) (*models.Order, error) {
+func mapLegacyOrderType(raw int, endTime *time.Time) string {
+	switch raw {
+	case 20, 2:
+		return models.OrderTypeTemporary
+	case 10, 1:
+		return models.OrderTypeLongTerm
+	default:
+		if endTime != nil {
+			return models.OrderTypeTemporary
+		}
+		return models.OrderTypeLongTerm
+	}
+}
+
+func mapLegacyDayOrderStatus(raw int, dict map[int]string) string {
+	if name := strings.TrimSpace(dict[raw]); name != "" {
+		if strings.Contains(name, "不执行") {
+			return models.OrderStatusStopped
+		}
+		if strings.Contains(name, "确定") {
+			return models.OrderStatusPending
+		}
+		switch {
+		case strings.Contains(name, "作废"), strings.Contains(name, "停"), strings.Contains(name, "取消"):
+			return models.OrderStatusStopped
+		case strings.Contains(name, "执行"):
+			return models.OrderStatusExecuted
+		case strings.Contains(name, "确认"), strings.Contains(name, "核对"), strings.Contains(name, "提交"), strings.Contains(name, "草稿"):
+			return models.OrderStatusPending
+		}
+	}
+	switch {
+	case raw <= 10:
+		return models.OrderStatusPending
+	case raw >= 50:
+		return models.OrderStatusStopped
+	case raw >= 40:
+		return models.OrderStatusExecuted
+	case raw >= 20:
+		return models.OrderStatusExecuting
+	default:
+		return models.OrderStatusPending
+	}
+}
+
+func mapLegacyOrderStatus(item legacyPatientOrder, now time.Time, dayStatus *int, dayStatusDict map[int]string) string {
+	if dayStatus != nil {
+		return mapLegacyDayOrderStatus(*dayStatus, dayStatusDict)
+	}
+	if item.IsDisabled || (item.EndTime != nil && item.EndTime.Before(now)) {
+		return models.OrderStatusStopped
+	}
+	if item.StartTime != nil && item.StartTime.After(now) {
+		return models.OrderStatusPending
+	}
+	return models.OrderStatusExecuting
+}
+
+func (s *OrderService) loadLatestLegacyDayOrderStatus(orderIDs []int64) (map[int64]int, error) {
+	result := make(map[int64]int, len(orderIDs))
+	if len(orderIDs) == 0 {
+		return result, nil
+	}
+	var rows []legacyPatientDayOrder
+	err := s.db.Table(`"Order_PatientDayOrder"`).
+		Select(`"Id", "PatientOrderId", "Status", "TreatmentTime", "LastModifyTime", "CreateTime"`).
+		Where(`"TenantId" = ? AND "PatientOrderId" IN ?`, legacyTenantID, orderIDs).
+		Order(`"TreatmentTime" DESC NULLS LAST`).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"Id" DESC`).
+		Find(&rows).Error
+	if err != nil {
+		if isLegacySchemaCompatError(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+	for _, row := range rows {
+		if row.PatientOrderID <= 0 {
+			continue
+		}
+		if _, ok := result[row.PatientOrderID]; ok {
+			continue
+		}
+		result[row.PatientOrderID] = row.Status
+	}
+	return result, nil
+}
+
+func (s *OrderService) loadLegacyDayOrderStatusDict() (map[int]string, error) {
+	result := make(map[int]string)
+	var rows []legacyCodeDictionary
+	err := s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Select(`"Code", "Type", "Name", "IsDisabled"`).
+		Where(`"Type" = ? AND COALESCE("IsDisabled", false) = false`, "PatientDayOrderStatus").
+		Find(&rows).Error
+	if err != nil {
+		if isLegacySchemaCompatError(err) {
+			return result, nil
+		}
+		return nil, err
+	}
+	for _, row := range rows {
+		code, parseErr := strconv.Atoi(strings.TrimSpace(row.Code))
+		if parseErr != nil {
+			continue
+		}
+		result[code] = strings.TrimSpace(row.Name)
+	}
+	return result, nil
+}
+
+func buildLegacyOrderGroupID(group int64) *string {
+	if group <= 0 {
+		return nil
+	}
+	value := strconv.FormatInt(group, 10)
+	return &value
+}
+
+func (s *OrderService) listLegacyOrders(req OrderListRequest) ([]models.Order, error) {
+	legacyPatientID, err := parseLegacyID(req.PatientID)
+	if err != nil {
+		return nil, badOrderRequest("患者ID格式错误")
+	}
+
+	tenantID := req.TenantID
+	if tenantID <= 0 {
+		tenantID = legacyTenantID
+	}
+
+	var rows []legacyPatientOrder
+	query := s.db.Table(`"Order_PatientOrder"`).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, tenantID)
+	if !req.IncludeExpired {
+		query = query.Where(`COALESCE("IsDisabled", false) = false`)
+	}
+	if err := query.
+		Order(`"StartTime" DESC NULLS LAST`).
+		Order(`"CreateTime" DESC`).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	drugIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.DrugID > 0 {
+			drugIDs = append(drugIDs, row.DrugID)
+		}
+	}
+	drugCatalogMap := make(map[int64]legacyDrugCatalog)
+	if len(drugIDs) > 0 {
+		var drugs []legacyDrugCatalog
+		if err := s.db.Where(`"Id" IN ?`, drugIDs).Find(&drugs).Error; err != nil {
+			return nil, err
+		}
+		for _, drug := range drugs {
+			drugCatalogMap[drug.ID] = drug
+		}
+	}
+
+	orderIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row.ID > 0 {
+			orderIDs = append(orderIDs, row.ID)
+		}
+	}
+	dayStatusMap, err := s.loadLatestLegacyDayOrderStatus(orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	dayStatusDict, err := s.loadLegacyDayOrderStatusDict()
+	if err != nil {
+		return nil, err
+	}
+
+	statusFilter := make(map[string]struct{})
+	if strings.TrimSpace(req.Statuses) != "" {
+		for _, raw := range strings.Split(req.Statuses, ",") {
+			status := strings.TrimSpace(raw)
+			if status != "" {
+				statusFilter[status] = struct{}{}
+			}
+		}
+	}
+
+	now := time.Now()
+	result := make([]models.Order, 0, len(rows))
+	for _, row := range rows {
+		orderType := mapLegacyOrderType(row.Type, row.EndTime)
+		if strings.TrimSpace(req.Type) != "" && orderType != strings.TrimSpace(req.Type) {
+			continue
+		}
+
+		var dayStatus *int
+		if v, ok := dayStatusMap[row.ID]; ok {
+			dayStatus = &v
+		}
+		status := mapLegacyOrderStatus(row, now, dayStatus, dayStatusDict)
+		if len(statusFilter) > 0 {
+			if _, ok := statusFilter[status]; !ok {
+				continue
+			}
+		}
+
+		drug := drugCatalogMap[row.DrugID]
+		operatorName, lookupErr := (&PrescriptionService{db: s.db}).lookupLegacyUserDisplayName(row.OperatorID)
+		if lookupErr != nil {
+			return nil, lookupErr
+		}
+
+		startTime := row.CreateTime
+		if row.StartTime != nil && !row.StartTime.IsZero() {
+			startTime = *row.StartTime
+		}
+		var endTime *time.Time
+		if row.EndTime != nil && !row.EndTime.IsZero() {
+			endTime = row.EndTime
+		}
+
+		result = append(result, models.Order{
+			ID:         strconv.FormatInt(row.ID, 10),
+			TenantID:   row.TenantID,
+			PatientID:  row.PatientID,
+			Type:       orderType,
+			Category:   strings.TrimSpace(row.Classification),
+			Name:       firstNonEmptyText(strings.TrimSpace(drug.Name), strings.TrimSpace(row.Content)),
+			Content:    strings.TrimSpace(row.Content),
+			Dose:       strings.TrimSpace(row.Dosage),
+			Unit:       strings.TrimSpace(drug.BasicUnit),
+			Route:      firstNonEmptyText(strings.TrimSpace(row.UseWay), strings.TrimSpace(row.UseMethod)),
+			Timing:     strings.TrimSpace(row.UseOpportunity),
+			ExecTiming: "",
+			Spec:       strings.TrimSpace(drug.Specification),
+			GroupID:    buildLegacyOrderGroupID(row.OrderGroup),
+			DoctorID:   strconv.FormatInt(row.OperatorID, 10),
+			DoctorName: operatorName,
+			Status:     status,
+			StartTime:  startTime,
+			EndTime:    endTime,
+			Frequency:  nil,
+			Priority:   models.OrderPriorityNormal,
+			Notes:      strings.TrimSpace(row.Note),
+			CreatedAt:  row.CreateTime,
+			UpdatedAt:  row.LastModifyTime,
+		})
+	}
+
+	return result, nil
+}
+
+func (s *OrderService) Create(patientID string, tenantID int64, doctorID, doctorName string, req OrderCreateRequest) (*models.Order, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -213,38 +487,157 @@ func (s *OrderService) Create(patientID, doctorID, doctorName string, req OrderC
 	if err != nil {
 		return nil, badOrderRequest("停用日期格式错误，请使用 YYYY-MM-DD")
 	}
-
-	order := models.Order{
-		ID:         uuid.New().String(),
-		PatientID:  patientID,
-		Type:       req.Type,
-		Category:   req.Category,
-		Name:       strings.TrimSpace(req.Name),
-		Content:    resolveContent(req.Name, req.Content),
-		Dose:       strings.TrimSpace(req.Dose),
-		Unit:       strings.TrimSpace(req.Unit),
-		Route:      strings.TrimSpace(req.Route),
-		Timing:     strings.TrimSpace(req.Timing),
-		ExecTiming: strings.TrimSpace(req.ExecTiming),
-		DrugID:     req.DrugID,
-		Spec:       strings.TrimSpace(req.Spec),
-		GroupID:    req.GroupID,
-		DoctorID:   doctorID,
-		DoctorName: doctorName,
-		Status:     models.OrderStatusPending,
-		StartTime:  startAt,
-		EndTime:    endAt,
-		Frequency:  trimStringPtr(req.Frequency),
-		Priority:   defaultOrderPriority(req.Priority),
-		Notes:      strings.TrimSpace(req.Notes),
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, badOrderRequest("患者ID格式错误")
 	}
 
-	sanitizeOrderByType(&order)
+	if tenantID <= 0 {
+		tenantID = legacyTenantID
+	}
+	operatorID, _, resolveErr := (&PrescriptionService{db: s.db}).resolveLegacyUserID(doctorID, doctorName)
+	if resolveErr != nil {
+		return nil, resolveErr
+	}
+	legacyType := mapOrderTypeToLegacy(req.Type)
+	orderGroup := int64(0)
+	if req.GroupID != nil && strings.TrimSpace(*req.GroupID) != "" {
+		if parsed, parseErr := strconv.ParseInt(strings.TrimSpace(*req.GroupID), 10, 64); parseErr == nil && parsed > 0 {
+			orderGroup = parsed
+		}
+	}
+	patientPlanID, planErr := s.resolveLatestPatientPlanID(int64(legacyPatientID), tenantID)
+	if planErr != nil {
+		return nil, planErr
+	}
+	content := resolveContent(req.Name, req.Content)
+	now := time.Now()
 
-	if err := s.db.Create(&order).Error; err != nil {
+	orderID, idErr := nextLegacyID()
+	if idErr != nil {
+		return nil, idErr
+	}
+	createRow := map[string]any{
+		"Id":             orderID,
+		"TenantId":       tenantID,
+		"PatientId":      legacyPatientID,
+		"OrderTPLId":     int64(0),
+		"OrderGroup":     orderGroup,
+		"Type":           legacyType,
+		"DrugId":         int64(0),
+		"Classification": strings.TrimSpace(req.Category),
+		"Content":        strings.TrimSpace(content),
+		"Dosage":         strings.TrimSpace(req.Dose),
+		"UseOpportunity": strings.TrimSpace(req.Timing),
+		"UseMethod":      strings.TrimSpace(req.Route),
+		"UseWay":         strings.TrimSpace(req.Route),
+		"Note":           strings.TrimSpace(req.Notes),
+		"OperatorId":     operatorID,
+		"StartTime":      startAt,
+		"EndTime":        endAt,
+		"IsDisabled":     false,
+		"CreatorId":      operatorID,
+		"CreateTime":     now,
+		"LastModifyTime": now,
+		"PatientPlanId":  patientPlanID,
+		"UseNum":         1.0,
+		"ChargeItemId":   int64(0),
+	}
+	if err := s.db.Table(`"Order_PatientOrder"`).Create(createRow).Error; err != nil {
 		return nil, err
 	}
-	return &order, nil
+
+	dayOrderID, dayIDErr := nextLegacyID()
+	if dayIDErr != nil {
+		return nil, dayIDErr
+	}
+	dayRow := map[string]any{
+		"Id":              dayOrderID,
+		"TenantId":        tenantID,
+		"PatientId":       legacyPatientID,
+		"TreatmentTime":   startAt,
+		"PatientOrderId":  orderID,
+		"OrderGroup":      orderGroup,
+		"Status":          20,
+		"CaseStatus":      "",
+		"Classification":  strings.TrimSpace(req.Category),
+		"DrugId":          int64(0),
+		"Content":         strings.TrimSpace(content),
+		"Dosage":          strings.TrimSpace(req.Dose),
+		"UseOpportunity":  strings.TrimSpace(req.Timing),
+		"UseMethod":       strings.TrimSpace(req.Route),
+		"UseWay":          strings.TrimSpace(req.Route),
+		"Note":            strings.TrimSpace(req.Notes),
+		"OperatorId":      operatorID,
+		"CreatorId":       operatorID,
+		"CreateTime":      now,
+		"LastModifyTime":  now,
+		"UseNum":          1.0,
+		"DealOpportunity": mapDealOpportunityCode(req.ExecTiming, req.Type),
+		"ChargeItemId":    int64(0),
+	}
+	if err := s.db.Table(`"Order_PatientDayOrder"`).Create(dayRow).Error; err != nil {
+		return nil, err
+	}
+
+	created, listErr := s.listLegacyOrders(OrderListRequest{
+		PatientID:      patientID,
+		TenantID:       tenantID,
+		IncludeExpired: true,
+	})
+	if listErr != nil {
+		return nil, listErr
+	}
+	orderIDText := strconv.FormatInt(orderID.Int64(), 10)
+	for i := range created {
+		if created[i].ID == orderIDText {
+			return &created[i], nil
+		}
+	}
+	return nil, errors.New("order created but not found")
+}
+
+func mapOrderTypeToLegacy(value string) int {
+	switch strings.TrimSpace(value) {
+	case models.OrderTypeTemporary, "20", "2":
+		return 20
+	default:
+		return 10
+	}
+}
+
+func mapDealOpportunityCode(execTiming string, orderType string) string {
+	text := strings.TrimSpace(execTiming)
+	if strings.Contains(text, "立即") || strings.EqualFold(text, "immediate") {
+		return "10"
+	}
+	if strings.Contains(text, "普通") || strings.EqualFold(text, "normal") {
+		return "20"
+	}
+	if strings.TrimSpace(orderType) == models.OrderTypeTemporary {
+		return "10"
+	}
+	return "20"
+}
+
+func (s *OrderService) resolveLatestPatientPlanID(patientID, tenantID int64) (int64, error) {
+	var row struct {
+		ID int64 `gorm:"column:Id"`
+	}
+	err := s.db.Table(`"Plan_PatientPlan"`).
+		Select(`"Id"`).
+		Where(`"TenantId" = ? AND "PatientId" = ?`, tenantID, patientID).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"CreateTime" DESC`).
+		Order(`"Id" DESC`).
+		Take(&row).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	return row.ID, nil
 }
 
 // Update 保留基础更新能力，不承载医生侧“停旧建新”语义
@@ -414,7 +807,7 @@ func (s *OrderService) Ungroup(patientID string, orderIDs []string) ([]models.Or
 }
 
 // Revise 承载医生侧“修改在用医嘱”语义
-func (s *OrderService) Revise(patientID, orderID, doctorID, doctorName string, req OrderReviseRequest) (*models.Order, error) {
+func (s *OrderService) Revise(patientID, orderID string, tenantID int64, doctorID, doctorName string, req OrderReviseRequest) (*models.Order, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -434,13 +827,13 @@ func (s *OrderService) Revise(patientID, orderID, doctorID, doctorName string, r
 	}
 
 	if hasNonLinked {
-		return s.reviseWithReplacement(patientID, order, doctorID, doctorName, req)
+		return s.reviseWithReplacement(patientID, order, tenantID, doctorID, doctorName, req)
 	}
 	return s.reviseLinkedOnly(patientID, order, req)
 }
 
 // Copy 复制已停用医嘱
-func (s *OrderService) Copy(patientID, orderID, doctorID, doctorName string) (*models.Order, error) {
+func (s *OrderService) Copy(patientID, orderID string, tenantID int64, doctorID, doctorName string) (*models.Order, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -455,6 +848,7 @@ func (s *OrderService) Copy(patientID, orderID, doctorID, doctorName string) (*m
 
 	copied := *order
 	copied.ID = uuid.New().String()
+	copied.TenantID = tenantID
 	copied.DoctorID = doctorID
 	copied.DoctorName = doctorName
 	copied.Status = models.OrderStatusPending
@@ -516,7 +910,7 @@ func (s *OrderService) Stop(patientID, orderID string, stopReason string, stopDa
 }
 
 // CreateFromTemplate 从模板创建医嘱，支持逐条覆写
-func (s *OrderService) CreateFromTemplate(patientID, doctorID, doctorName string, req CreateFromTemplateRequest) ([]models.Order, error) {
+func (s *OrderService) CreateFromTemplate(patientID string, tenantID int64, doctorID, doctorName string, req CreateFromTemplateRequest) ([]models.Order, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -554,6 +948,10 @@ func (s *OrderService) CreateFromTemplate(patientID, doctorID, doctorName string
 	groupIDMap := make(map[string]string)
 	now := time.Now()
 	orders := make([]models.Order, 0, len(req.Items))
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, badOrderRequest("患者ID格式错误")
+	}
 
 	for _, itemReq := range req.Items {
 		itemID := strings.TrimSpace(itemReq.TemplateItemID)
@@ -576,13 +974,14 @@ func (s *OrderService) CreateFromTemplate(patientID, doctorID, doctorName string
 			return nil, err
 		}
 
-			order := models.Order{
-				ID:         uuid.New().String(),
-				PatientID:  patientID,
-				Type:       orderType,
-				Category:   template.Category,
-				Name:       name,
-				Content:    resolveContent(name, content),
+		order := models.Order{
+			ID:         uuid.New().String(),
+			TenantID:   tenantID,
+			PatientID:  legacyPatientID,
+			Type:       orderType,
+			Category:   template.Category,
+			Name:       name,
+			Content:    resolveContent(name, content),
 			Dose:       firstNonEmptyString(itemReq.Dose, item.Dosage),
 			Unit:       firstNonEmptyString(itemReq.Unit, item.Unit),
 			Route:      firstNonEmptyString(itemReq.Route, item.Route),
@@ -605,10 +1004,10 @@ func (s *OrderService) CreateFromTemplate(patientID, doctorID, doctorName string
 			order.GroupID = &newID
 		}
 
-			if orderType == models.OrderTypeLongTerm {
-				frequency := firstNonEmptyString(itemReq.Frequency, item.Frequency)
-				order.Frequency = trimStringPtr(&frequency)
-			}
+		if orderType == models.OrderTypeLongTerm {
+			frequency := firstNonEmptyString(itemReq.Frequency, item.Frequency)
+			order.Frequency = trimStringPtr(&frequency)
+		}
 
 		sanitizeOrderByType(&order)
 		orders = append(orders, order)
@@ -664,7 +1063,7 @@ func (s *OrderService) reviseLinkedOnly(patientID string, order *models.Order, r
 	return &refreshed, nil
 }
 
-func (s *OrderService) reviseWithReplacement(patientID string, order *models.Order, doctorID, doctorName string, req OrderReviseRequest) (*models.Order, error) {
+func (s *OrderService) reviseWithReplacement(patientID string, order *models.Order, tenantID int64, doctorID, doctorName string, req OrderReviseRequest) (*models.Order, error) {
 	tx := s.db.Begin()
 	if tx.Error != nil {
 		return nil, tx.Error
@@ -691,6 +1090,7 @@ func (s *OrderService) reviseWithReplacement(patientID string, order *models.Ord
 
 	replacement := *order
 	replacement.ID = uuid.New().String()
+	replacement.TenantID = tenantID
 	replacement.DoctorID = doctorID
 	replacement.DoctorName = doctorName
 	replacement.Status = models.OrderStatusPending

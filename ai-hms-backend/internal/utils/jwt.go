@@ -10,9 +10,11 @@ import (
 
 // JWTClaims JWT 声明
 type JWTClaims struct {
-	UserID   string   `json:"user_id"`
-	Username string   `json:"username"`
-	Roles    []string `json:"roles"`
+	UserID       string   `json:"user_id"`
+	Username     string   `json:"username"`
+	EmployeeName string   `json:"employee_name,omitempty"`
+	Roles        []string `json:"roles"`
+	TenantID     int64    `json:"tenant_id"`
 	jwt.RegisteredClaims
 }
 
@@ -31,11 +33,13 @@ func NewJWTManager(cfg *config.JWTConfig) *JWTManager {
 }
 
 // GenerateToken 生成 JWT Token
-func (j *JWTManager) GenerateToken(userID, username string, roles []string) (string, error) {
+func (j *JWTManager) GenerateToken(userID, username, employeeName string, roles []string, tenantID int64) (string, error) {
 	claims := JWTClaims{
-		UserID:   userID,
-		Username: username,
-		Roles:    roles,
+		UserID:       userID,
+		Username:     username,
+		EmployeeName: employeeName,
+		Roles:        roles,
+		TenantID:     tenantID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(time.Duration(j.expirationHours) * time.Hour)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

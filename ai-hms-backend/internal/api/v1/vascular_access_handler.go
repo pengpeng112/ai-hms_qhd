@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -41,7 +42,7 @@ func (h *VascularAccessHandler) Create(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Create(patientID, &req)
+	result, err := h.service.Create(patientID, &req, middleware.GetCreatorID(c))
 	if err != nil {
 		if err.Error() == "patient not found" {
 			response.NotFound(c, "患者不存在")
@@ -65,7 +66,7 @@ func (h *VascularAccessHandler) Update(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.Update(patientID, accessID, &req)
+	result, err := h.service.Update(patientID, accessID, &req, middleware.GetCreatorID(c))
 	if err != nil {
 		if err.Error() == "vascular access not found" {
 			response.NotFound(c, "血管通路记录不存在")

@@ -81,13 +81,13 @@ export default function MasterData() {
                 id: String(d.id), name: d.name, spec: d.spec, unit: d.baseUnit, price: '0.00',
             }))
             setData(prev => ({ ...prev, DRUG: items }))
-        }).catch(() => {})
+        }).catch((err) => console.error('[MasterData] 药品目录加载失败', err))
         materialCatalogApi.list({ page: 1, pageSize: 200 }).then(res => {
             const items: CatalogItem[] = res.items.map(m => ({
                 id: String(m.id), name: m.name, spec: m.spec, unit: m.unit, price: '0.00',
             }))
             setData(prev => ({ ...prev, MATERIAL: items }))
-        }).catch(() => {})
+        }).catch((err) => console.error('[MasterData] 耗材目录加载失败', err))
     }, [])
     const [modalState, setModalState] = useState<ModalState>({
         visible: false,

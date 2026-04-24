@@ -312,6 +312,24 @@ export interface EquipmentInfo extends PaginatedItem {
   Brand?: string
   ModelNo?: string
   DialysisMethod?: string
+  DeviceType?: string
+  Manufacturer?: string
+  BedNumber?: string
+  BedId?: number | null
+  WardId?: number | null
+  WardName?: string
+  Status?: string
+  InstallDate?: string
+  ManufactureDate?: string
+  LastMaintained?: string
+  Maintenance?: number | null
+  MaintenanceCycle?: string
+  Flux?: string
+  Notes?: string
+  IsDisabled?: boolean
+  CreatorId?: number
+  CreatedAt?: string
+  UpdatedAt?: string
 }
 
 /** 4.3.30 设备消毒记录 EquipmentDisinfection */
@@ -324,6 +342,34 @@ export interface EquipmentDisinfection extends PaginatedItem {
   StartTime?: string
   Description?: string
   Note?: string
+}
+
+export interface EquipmentUsageLog extends PaginatedItem {
+  Id: number
+  TenantId?: number
+  EquipmentId: number
+  UseUserId?: number
+  UseStartTime?: string
+  UseDuration?: number
+  Note?: string
+  CreatorId?: number
+  CreateTime?: string
+  LastModifyTime?: string
+}
+
+export interface EquipmentMaintenanceRecord extends PaginatedItem {
+  Id: number
+  TenantId?: number
+  EquipmentId: number
+  Type?: string
+  Mode?: string
+  OperatorId?: number
+  OperateTime?: string
+  Description?: string
+  Note?: string
+  CreatorId?: number
+  CreateTime?: string
+  LastModifyTime?: string
 }
 
 // ============ 兼容旧代码的别名 ============

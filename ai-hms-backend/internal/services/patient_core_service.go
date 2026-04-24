@@ -1,14 +1,80 @@
 package services
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"gorm.io/gorm"
 )
+
+type legacyCoreInfection struct {
+	PatientID      modeltypes.LegacyID `gorm:"column:PatientId"`
+	InfectionDesc  string              `gorm:"column:InfectionDesc"`
+	OtherDesc      string              `gorm:"column:OtherDesc"`
+	Note           string              `gorm:"column:Note"`
+	LastModifyTime time.Time           `gorm:"column:LastModifyTime"`
+}
+
+func (legacyCoreInfection) TableName() string { return "Register_Infection" }
+
+type legacyCorePlan struct {
+	ID                    int64               `gorm:"column:Id"`
+	TenantID              int64               `gorm:"column:TenantId"`
+	PatientID             modeltypes.LegacyID `gorm:"column:PatientId"`
+	Name                  string              `gorm:"column:Name"`
+	CreateTime            time.Time           `gorm:"column:CreateTime"`
+	LastModifyTime        time.Time           `gorm:"column:LastModifyTime"`
+	OddWeekFrequency      int                 `gorm:"column:OddWeekFrequency"`
+	EvenWeekFrequency     int                 `gorm:"column:EvenWeekFrequency"`
+	DialysisMethod        string              `gorm:"column:DialysisMethod"`
+	DialysisDuration      int                 `gorm:"column:DialysisDuration"`
+	DryWeight             float64             `gorm:"column:DryWeight"`
+	BF                    int                 `gorm:"column:BF"`
+	FirstAnticoagulant    int64               `gorm:"column:FirstAnticoagulant"`
+	MaintainAnticoagulant int64               `gorm:"column:MaintainAnticoagulant"`
+	IsDisabled            bool                `gorm:"column:IsDisabled"`
+	Note                  string              `gorm:"column:Note"`
+}
+
+func (legacyCorePlan) TableName() string { return "Plan_PatientPlan" }
+
+type legacyCoreOrder struct {
+	ID             int64               `gorm:"column:Id"`
+	TenantID       int64               `gorm:"column:TenantId"`
+	PatientID      modeltypes.LegacyID `gorm:"column:PatientId"`
+	Type           string              `gorm:"column:Type"`
+	Classification string              `gorm:"column:Classification"`
+	Content        string              `gorm:"column:Content"`
+	Dosage         string              `gorm:"column:Dosage"`
+	UseMethod      string              `gorm:"column:UseMethod"`
+	UseWay         string              `gorm:"column:UseWay"`
+	Note           string              `gorm:"column:Note"`
+	OperatorID     int64               `gorm:"column:OperatorId"`
+	StartTime      time.Time           `gorm:"column:StartTime"`
+	EndTime        *time.Time          `gorm:"column:EndTime"`
+	IsDisabled     bool                `gorm:"column:IsDisabled"`
+	CreateTime     time.Time           `gorm:"column:CreateTime"`
+	LastModifyTime time.Time           `gorm:"column:LastModifyTime"`
+}
+
+func (legacyCoreOrder) TableName() string { return "Order_PatientOrder" }
+
+type legacyCoreLabRow struct {
+	ItemCode       string     `gorm:"column:item_code"`
+	ItemName       string     `gorm:"column:item_name"`
+	ResultValue    string     `gorm:"column:result_value"`
+	Unit           string     `gorm:"column:unit"`
+	ReferenceRange string     `gorm:"column:reference_range"`
+	ResultSign     string     `gorm:"column:result_sign"`
+	TestedAt       *time.Time `gorm:"column:tested_at"`
+}
 
 // PatientCoreService 患者核心信息服务
 type PatientCoreService struct {
@@ -28,8 +94,13 @@ func (s *PatientCoreService) GetCore(patientID string) (*PatientCoreResponse, er
 		return nil, errors.New("database not available")
 	}
 
+	legacyPatientID, err := parseLegacyID(patientID)
+	if err != nil {
+		return nil, errors.New("invalid patient id")
+	}
+
 	var patient models.Patient
-	err := s.db.First(&patient, "id = ?", patientID).Error
+	err = s.db.First(&patient, `"Id" = ?`, legacyPatientID).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("patient not found")
@@ -44,7 +115,10 @@ func (s *PatientCoreService) GetCore(patientID string) (*PatientCoreResponse, er
 		return nil, err
 	}
 	clinicalFocus := s.buildClinicalFocus(patient)
-	navigation, _ := s.buildNavigation(patientID)
+	navigation := &PatientCoreNavigation{Total: 1, CurrentIndex: 0}
+	if nav, navErr := s.buildNavigation(legacyPatientID); navErr == nil && nav != nil {
+		navigation = nav
+	}
 
 	return &PatientCoreResponse{
 		Header:        header,
@@ -75,8 +149,9 @@ func (s *PatientCoreService) buildHeader(patient models.Patient) PatientCoreHead
 	}
 
 	return PatientCoreHeader{
-		ID:            patient.ID,
+		ID:            legacyIDString(patient.ID),
 		Name:          patient.Name,
+		Avatar:        normalizeLegacyPatientAvatar(patient.ImageBase64String),
 		Gender:        patient.Gender,
 		Age:           patient.Age,
 		BedNumber:     patient.BedNumber,
@@ -89,9 +164,54 @@ func (s *PatientCoreService) buildHeader(patient models.Patient) PatientCoreHead
 	}
 }
 
+func normalizeLegacyPatientAvatar(raw string) string {
+	payload := strings.TrimSpace(raw)
+	if payload == "" {
+		return ""
+	}
+	if strings.HasPrefix(strings.ToLower(payload), "data:image/") {
+		return payload
+	}
+
+	data, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		data, err = base64.RawStdEncoding.DecodeString(payload)
+		if err != nil {
+			return ""
+		}
+	}
+
+	mime := detectImageMIME(data)
+	if mime == "" {
+		mime = "image/jpeg"
+	}
+	return fmt.Sprintf("data:%s;base64,%s", mime, payload)
+}
+
+func detectImageMIME(data []byte) string {
+	switch {
+	case len(data) >= 8 && bytes.Equal(data[:8], []byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}):
+		return "image/png"
+	case len(data) >= 3 && bytes.Equal(data[:3], []byte{0xFF, 0xD8, 0xFF}):
+		return "image/jpeg"
+	case len(data) >= 6 && (string(data[:6]) == "GIF87a" || string(data[:6]) == "GIF89a"):
+		return "image/gif"
+	case len(data) >= 2 && bytes.Equal(data[:2], []byte{0x42, 0x4D}):
+		return "image/bmp"
+	case len(data) >= 12 && string(data[:4]) == "RIFF" && string(data[8:12]) == "WEBP":
+		return "image/webp"
+	default:
+		return ""
+	}
+}
+
 // buildOverview 构建 Overview Tab 数据
 func (s *PatientCoreService) buildOverview(patient models.Patient) (*PatientCoreOverview, error) {
-	infection, _ := s.buildInfection(patient.ID)
+	infection, err := s.buildInfection(patient.ID)
+	if err != nil {
+		// 感染信息属于可选区块，legacy 环境下读失败时降级为 nil，避免影响核心页可用性
+		infection = nil
+	}
 	currentPlan := s.buildCurrentPlan(patient)
 	activeOrders, _ := s.buildActiveOrders(patient.ID)
 	labTrends, _ := s.buildLabTrends(patient.ID)
@@ -105,9 +225,9 @@ func (s *PatientCoreService) buildOverview(patient models.Patient) (*PatientCore
 }
 
 // buildInfection 构建感染信息
-func (s *PatientCoreService) buildInfection(patientID string) (*PatientCoreInfection, error) {
-	var infection models.InfectionInfo
-	err := s.db.Where("patient_id = ?", patientID).First(&infection).Error
+func (s *PatientCoreService) buildInfection(patientID modeltypes.LegacyID) (*PatientCoreInfection, error) {
+	var infection legacyCoreInfection
+	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).First(&infection).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 没有感染记录时，返回 nil
@@ -116,21 +236,23 @@ func (s *PatientCoreService) buildInfection(patientID string) (*PatientCoreInfec
 		return nil, err
 	}
 
+	combined := strings.Join(nonEmptyStrings(infection.InfectionDesc, infection.OtherDesc, infection.Note), "；")
+
 	return &PatientCoreInfection{
-		HbsAg:      s.stringOrDefault(infection.HbsAg, "阴性"),
-		HcvAb:      s.stringOrDefault(infection.HcvAb, "阴性"),
-		HivAb:      s.stringOrDefault(infection.HivAb, "阴性"),
-		TpAb:       s.stringOrDefault(infection.TpaB, "阴性"),
-		UpdateDate: infection.UpdateDate,
+		HbsAg:      detectLegacyInfectionValue(combined, []string{"hbsag", "hbv", "乙肝", "乙型"}),
+		HcvAb:      detectLegacyInfectionValue(combined, []string{"hcv", "丙肝", "丙型"}),
+		HivAb:      detectLegacyInfectionValue(combined, []string{"hiv", "艾滋"}),
+		TpAb:       detectLegacyInfectionValue(combined, []string{"tp", "梅毒"}),
+		UpdateDate: infection.LastModifyTime,
 	}, nil
 }
 
 // buildCurrentPlan 构建当前治疗方案，如果没有治疗方案返回 nil
 func (s *PatientCoreService) buildCurrentPlan(patient models.Patient) *PatientCoreCurrentPlan {
-	// 获取治疗方案
-	var treatmentPlan models.TreatmentPlan
-	err := s.db.Where("patient_id = ?", patient.ID).
-		Order("created_at DESC").
+	var treatmentPlan legacyCorePlan
+	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patient.ID, legacyTenantID).
+		Order("\"LastModifyTime\" DESC").
+		Order("\"CreateTime\" DESC").
 		First(&treatmentPlan).Error
 
 	if err != nil {
@@ -142,41 +264,36 @@ func (s *PatientCoreService) buildCurrentPlan(patient models.Patient) *PatientCo
 	}
 
 	// 判断方案是否启用
-	status := s.stringOrDefault(treatmentPlan.Status, "启用")
-	if status != "启用" {
-		// 方案未启用，返回 nil
+	if treatmentPlan.IsDisabled {
 		return nil
 	}
 
-	// 从 JSON 字段提取数据
-	dialysisMode := "HD"
-	bloodFlow := 200
-
-	// 如果有 dialysis_mode JSON，从中提取
-	if treatmentPlan.DialysisMode.Mode != "" {
-		dialysisMode = treatmentPlan.DialysisMode.Mode
-		bloodFlow = treatmentPlan.DialysisMode.BloodFlow
+	weeklyFrequency := maxInt(treatmentPlan.OddWeekFrequency, treatmentPlan.EvenWeekFrequency)
+	if weeklyFrequency <= 0 {
+		weeklyFrequency = 3
+	}
+	dialysisMode := s.stringOrDefault(strings.TrimSpace(treatmentPlan.DialysisMethod), "HD")
+	bloodFlow := treatmentPlan.BF
+	if bloodFlow <= 0 {
+		bloodFlow = 200
 	}
 
 	return &PatientCoreCurrentPlan{
 		DialysisMode:  dialysisMode,
-		Frequency:     s.buildFrequency(int64(treatmentPlan.WeeklyFrequency)),
-		Duration:      int(treatmentPlan.Duration),
+		Frequency:     s.buildFrequency(int64(weeklyFrequency)),
+		Duration:      treatmentPlan.DialysisDuration,
 		DryWeight:     treatmentPlan.DryWeight,
 		BloodFlow:     bloodFlow,
-		Anticoagulant: "肝素钠",
-		LastNote:      s.stringOrEmpty(treatmentPlan.Notes),
+		Anticoagulant: legacyAnticoagulantName(treatmentPlan),
+		LastNote:      s.stringOrEmpty(treatmentPlan.Note),
 	}
 }
 
 // buildActiveOrders 构建活跃医嘱列表
-func (s *PatientCoreService) buildActiveOrders(patientID string) ([]PatientCoreOrder, error) {
-	var orders []models.Order
-	err := s.db.Where("patient_id = ? AND status IN ?", patientID, []string{
-		models.OrderStatusPending,
-		models.OrderStatusExecuting,
-	}).
-		Order("start_time DESC").
+func (s *PatientCoreService) buildActiveOrders(patientID modeltypes.LegacyID) ([]PatientCoreOrder, error) {
+	var orders []legacyCoreOrder
+	err := s.db.Where("\"PatientId\" = ? AND \"TenantId\" = ? AND COALESCE(\"IsDisabled\", false) = false", patientID, legacyTenantID).
+		Order("\"StartTime\" DESC").
 		Limit(10).
 		Find(&orders).Error
 	if err != nil {
@@ -185,29 +302,34 @@ func (s *PatientCoreService) buildActiveOrders(patientID string) ([]PatientCoreO
 
 	result := make([]PatientCoreOrder, 0, len(orders))
 	for _, o := range orders {
+		orderType := strings.TrimSpace(o.Classification)
+		if orderType == "" {
+			orderType = strings.TrimSpace(o.Type)
+		}
 		result = append(result, PatientCoreOrder{
-			ID:        o.ID,
+			ID:        fmt.Sprintf("%d", o.ID),
 			Content:   o.Content,
-			Type:      o.Type,
+			Type:      orderType,
 			StartTime: o.StartTime,
-			Doctor:    o.DoctorName,
+			Doctor:    legacyOperatorName(o.OperatorID),
 		})
 	}
 	return result, nil
 }
 
 // buildLabTrends 构建检验指标趋势
-func (s *PatientCoreService) buildLabTrends(patientID string) ([]PatientCoreLabTrend, error) {
+func (s *PatientCoreService) buildLabTrends(patientID modeltypes.LegacyID) ([]PatientCoreLabTrend, error) {
 	// 定义关键指标：血红蛋白、钙、磷
 	indicators := []struct {
-		code   string
+		codes  []string
+		names  []string
 		name   string
 		unit   string
 		normal string
 	}{
-		{"HGB", "血红蛋白", "g/L", "120-160"},
-		{"Ca", "钙", "mmol/L", "2.12-2.75"},
-		{"P", "磷", "mmol/L", "0.87-1.45"},
+		{[]string{"HGB", "HB", "血红蛋白"}, []string{"血红蛋白", "Hb", "HGB"}, "血红蛋白", "g/L", "120-160"},
+		{[]string{"Ca", "CA", "钙"}, []string{"钙", "总钙", "血钙"}, "钙", "mmol/L", "2.12-2.75"},
+		{[]string{"P", "PHOS", "磷"}, []string{"磷", "血磷"}, "磷", "mmol/L", "0.87-1.45"},
 	}
 
 	// 查询近6个月的检验报告明细
@@ -216,22 +338,22 @@ func (s *PatientCoreService) buildLabTrends(patientID string) ([]PatientCoreLabT
 	var trends []PatientCoreLabTrend
 
 	for _, indicator := range indicators {
-		var items []models.LabReportItem
+		var items []legacyCoreLabRow
 
-		// 联表查询：通过 lab_reports 关联 lab_report_items
-		err := s.db.Table("lab_report_items").
-			Joins("JOIN lab_reports ON lab_reports.id = lab_report_items.lab_report_id").
-			Where("lab_reports.patient_id = ? AND lab_report_items.item_code = ? AND lab_reports.reported_at >= ?",
-				patientID, indicator.code, sixMonthsAgo).
-			Order("lab_report_items.tested_at ASC").
-			Limit(12). // 最多12个数据点（约6个月，每月2次）
+		err := s.db.Table(`"LIS_ExaminationItem" AS i`).
+			Select(`i."ItemCode" AS item_code, i."ItemName" AS item_name, i."Result" AS result_value, i."Unit" AS unit, i."Reference" AS reference_range, i."ResultSign" AS result_sign, COALESCE(e."ResultTime", i."LastModifyTime") AS tested_at`).
+			Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
+			Where(`e."PatientId" = ? AND e."TenantId" = ? AND e."ResultTime" >= ? AND (i."ItemCode" IN ? OR i."ItemName" IN ?)`,
+				patientID, legacyTenantID, sixMonthsAgo, indicator.codes, indicator.names).
+			Order(`COALESCE(e."ResultTime", i."LastModifyTime") ASC`).
+			Limit(12).
 			Find(&items).Error
 
 		var data []PatientCoreLabData
 		if err == nil {
 			for _, item := range items {
 				var val float64
-				if _, err2 := fmt.Sscanf(item.ResultValue, "%f", &val); err2 == nil {
+				if _, err2 := fmt.Sscanf(strings.TrimSpace(item.ResultValue), "%f", &val); err2 == nil {
 					dateStr := ""
 					if item.TestedAt != nil {
 						dateStr = item.TestedAt.Format("2006-01-02")
@@ -239,7 +361,7 @@ func (s *PatientCoreService) buildLabTrends(patientID string) ([]PatientCoreLabT
 					data = append(data, PatientCoreLabData{
 						Date:       dateStr,
 						Value:      val,
-						IsAbnormal: item.AbnormalFlag == "H" || item.AbnormalFlag == "L",
+						IsAbnormal: isLegacyLabAbnormal(item.ResultSign),
 					})
 				}
 			}
@@ -250,7 +372,7 @@ func (s *PatientCoreService) buildLabTrends(patientID string) ([]PatientCoreLabT
 		}
 
 		trends = append(trends, PatientCoreLabTrend{
-			Code:        indicator.code,
+			Code:        indicator.codes[0],
 			Name:        indicator.name,
 			Unit:        indicator.unit,
 			NormalRange: indicator.normal,
@@ -268,19 +390,20 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 	// 查询近30天异常检验项目（AbnormalFlag = H 或 L）
 	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
 
-	var abnormalItems []models.LabReportItem
-	err := s.db.Table("lab_report_items").
-		Joins("JOIN lab_reports ON lab_reports.id = lab_report_items.lab_report_id").
-		Where("lab_reports.patient_id = ? AND lab_report_items.abnormal_flag IN ? AND lab_report_items.tested_at >= ?",
-			patient.ID, []string{"H", "L"}, thirtyDaysAgo).
-		Order("lab_report_items.tested_at DESC").
+	var abnormalItems []legacyCoreLabRow
+	err := s.db.Table(`"LIS_ExaminationItem" AS i`).
+		Select(`i."ItemCode" AS item_code, i."ItemName" AS item_name, i."Result" AS result_value, i."Unit" AS unit, i."Reference" AS reference_range, i."ResultSign" AS result_sign, COALESCE(e."ResultTime", i."LastModifyTime") AS tested_at`).
+		Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
+		Where(`e."PatientId" = ? AND e."TenantId" = ? AND COALESCE(e."ResultTime", i."LastModifyTime") >= ? AND COALESCE(i."ResultSign", '') <> ''`,
+			patient.ID, legacyTenantID, thirtyDaysAgo).
+		Order(`COALESCE(e."ResultTime", i."LastModifyTime") DESC`).
 		Limit(5).
 		Find(&abnormalItems).Error
 
 	if err == nil {
 		for _, item := range abnormalItems {
 			var val float64
-			fmt.Sscanf(item.ResultValue, "%f", &val)
+			fmt.Sscanf(strings.TrimSpace(item.ResultValue), "%f", &val)
 
 			severity := "warning"
 			thresholds := GetLabThresholds(item.ItemCode)
@@ -290,12 +413,12 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 				severity = "critical"
 			}
 
-			measuredAt := item.CreatedAt
+			measuredAt := time.Now()
 			if item.TestedAt != nil {
 				measuredAt = *item.TestedAt
 			}
 
-			alertID := fmt.Sprintf("lab_%s_%s", item.ItemCode, item.ID)
+			alertID := fmt.Sprintf("lab_%s_%s", item.ItemCode, measuredAt.Format(time.RFC3339))
 			alerts = append(alerts, PatientCoreAlert{
 				ID:             alertID,
 				Type:           "lab",
@@ -321,12 +444,15 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 }
 
 // buildNavigation 构建患者导航信息
-func (s *PatientCoreService) buildNavigation(patientID string) (*PatientCoreNavigation, error) {
-	// 简单实现：获取所有活跃患者，找到当前患者的位置
+func (s *PatientCoreService) buildNavigation(patientID modeltypes.LegacyID) (*PatientCoreNavigation, error) {
+	// legacy 患者主表没有 bed_number / active 状态语义，按患者主键稳定排序即可
 	var patients []models.Patient
-	err := s.db.Where("status = ?", "active").Order("bed_number ASC").Find(&patients).Error
+	err := s.db.Where("\"TenantId\" = ?", legacyTenantID).Order("\"Id\" ASC").Find(&patients).Error
 	if err != nil {
-		return nil, err
+		// 某些 legacy 库可能缺少 TenantId 过滤语义，回退到全量患者排序
+		if fallbackErr := s.db.Order("\"Id\" ASC").Find(&patients).Error; fallbackErr != nil {
+			return &PatientCoreNavigation{Total: 1, CurrentIndex: 0}, nil
+		}
 	}
 
 	total := len(patients)
@@ -346,7 +472,7 @@ func (s *PatientCoreService) buildNavigation(patientID string) (*PatientCoreNavi
 	if currentIndex > 0 {
 		p := patients[currentIndex-1]
 		prev = &PatientCoreNavPatient{
-			ID:        p.ID,
+			ID:        legacyIDString(p.ID),
 			Name:      p.Name,
 			BedNumber: p.BedNumber,
 		}
@@ -354,7 +480,7 @@ func (s *PatientCoreService) buildNavigation(patientID string) (*PatientCoreNavi
 	if currentIndex < total-1 {
 		p := patients[currentIndex+1]
 		next = &PatientCoreNavPatient{
-			ID:        p.ID,
+			ID:        legacyIDString(p.ID),
 			Name:      p.Name,
 			BedNumber: p.BedNumber,
 		}
@@ -366,6 +492,59 @@ func (s *PatientCoreService) buildNavigation(patientID string) (*PatientCoreNavi
 		Total:        total,
 		CurrentIndex: currentIndex,
 	}, nil
+}
+
+func detectLegacyInfectionValue(source string, keywords []string) string {
+	normalized := strings.ToLower(strings.TrimSpace(source))
+	if normalized == "" {
+		return "阴性"
+	}
+	for _, keyword := range keywords {
+		if strings.Contains(normalized, strings.ToLower(keyword)) {
+			return strings.TrimSpace(source)
+		}
+	}
+	return "阴性"
+}
+
+func nonEmptyStrings(values ...string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+func maxInt(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func legacyAnticoagulantName(plan legacyCorePlan) string {
+	if plan.FirstAnticoagulant > 0 || plan.MaintainAnticoagulant > 0 {
+		return "已配置"
+	}
+	return "未记录"
+}
+
+func legacyOperatorName(operatorID int64) string {
+	if operatorID <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("%d", operatorID)
+}
+
+func isLegacyLabAbnormal(sign string) bool {
+	normalized := strings.ToUpper(strings.TrimSpace(sign))
+	if normalized == "" {
+		return false
+	}
+	return strings.Contains(normalized, "H") || strings.Contains(normalized, "L") || strings.Contains(sign, "↑") || strings.Contains(sign, "↓") || strings.Contains(sign, "高") || strings.Contains(sign, "低")
 }
 
 // ============ 辅助方法 ============

@@ -5,11 +5,7 @@
 import axios from 'axios'
 
 // API 閰嶇疆
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim()
-
-if (!API_BASE_URL) {
-  throw new Error('缂哄皯蹇呭～鐜鍙橀噺 VITE_API_BASE_URL')
-}
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || ''
 
 const API_CONFIG = {
   baseURL: API_BASE_URL,
@@ -194,6 +190,11 @@ export interface RestDuringParam {
   treatmentId: number
   recordTime: string
   code: string
+  sbp?: number
+  dbp?: number
+  heartRate?: number
+  respiration?: number
+  spO2?: number
   bloodFlow?: number
   dialysateFlow?: number
   ufVolume?: number
@@ -212,13 +213,95 @@ export interface RestDuringParam {
 export interface RestTreatment {
   id: number
   tenantId: number
-  patientId: number
+  patientId: string
   treatmentDate: string
   shiftId?: number
   treatmentType: string
-  status: number       // 0-寰呭紑濮?1-杩涜涓?2-宸插畬鎴?3-宸插彇娑?  startTime?: string
+  status: number       // 0-寰呭紑濮?1-杩涜涓?2-宸插畬鎴?3-宸插彇娑?
+  startTime?: string
   endTime?: string
   notes?: string
+  doctorSummary?: string
+  treatmentSummary?: string
+  timeRange?: string
+  durationMinutes?: number
+  weightLossKg?: number
+  shiftName?: string
+  queueNo?: string
+  caseStatus?: string
+  tmrPath?: string
+  tmrTime?: string
+  tmrPages?: number
+  doctorName?: string
+  startBp?: string
+  endBp?: string
+  complications?: string
+  beforeSigns?: {
+    weight?: number
+    extraWeight?: number
+    sbp?: number
+    dbp?: number
+    heartRate?: number
+    respiration?: number
+    temperature?: number
+    pressurePoint?: string
+    symptoms?: string
+    notes?: string
+    operateTime?: string
+  }
+  firstCheck?: {
+    id: number
+    treatmentId: number
+    beforeSignsId?: number
+    beforeSymptomId?: number
+    operatorId?: number
+    operateTime?: string
+    materialsResult?: boolean
+    materialsMistake?: string
+    paramResult?: boolean
+    paramMistake?: string
+    vascularAccessResult?: boolean
+    vascularAccessMistake?: string
+    pipelineResult?: boolean
+    pipelineMistake?: string
+    creatorId: number
+    createTime?: string
+    lastModifyTime?: string
+  }
+  secondCheck?: {
+    actionId: number
+    treatmentId: number
+    operatorId?: number
+    recheckNurseId?: number
+    qcNurseId?: number
+    operateTime?: string
+    paramResult?: boolean
+    paramMistake?: string
+    vascularAccessResult?: boolean
+    vascularAccessMistake?: string
+    pipelineResult?: boolean
+    pipelineMistake?: string
+    dialysisModeResult?: boolean
+    dialysisModeMistake?: string
+    prescriptionResult?: boolean
+    prescriptionMistake?: string
+    anticoagulantResult?: boolean
+    anticoagulantMistake?: string
+    lineConnectionResult?: boolean
+    lineConnectionMistake?: string
+    createTime?: string
+    lastModifyTime?: string
+  }
+  beforeSymptomItems?: Array<{ code: string; value: string }>
+  afterSymptomItems?: Array<{ code: string; value: string }>
+  actions?: Array<{
+    id: number
+    name: string
+    operatorId: number
+    operateTime: string
+    code?: string
+    operator?: string
+  }>
   creatorId: number
   createTime: string
   lastModifyTime: string
@@ -228,7 +311,7 @@ export interface RestTreatment {
 }
 
 export interface CreateTreatmentRequest {
-  patientId: number
+  patientId: string
   treatmentDate: string
   type: number
   status?: number
@@ -238,6 +321,96 @@ export interface CreateTreatmentRequest {
 export interface UpdateTreatmentRequest {
   status?: number
   notes?: string
+}
+
+export interface TreatmentDuringParamRequest {
+  recordTime?: string
+  code?: string
+  sbp?: number
+  dbp?: number
+  heartRate?: number
+  respiration?: number
+  spO2?: number
+  bloodFlow?: number
+  dialysateFlow?: number
+  ufVolume?: number
+  venousPressure?: number
+  arterialPressure?: number
+  tmp?: number
+  temperature?: number
+  conductivity?: number
+  ufRate?: number
+  notes?: string
+}
+
+export interface TreatmentBeforeSignsRequest {
+  weight?: number
+  extraWeight?: number
+  sbp?: number
+  dbp?: number
+  heartRate?: number
+  respiration?: number
+  temperature?: number
+  pressurePoint?: string
+  notes?: string
+  symptomItems?: Array<{ code: string; value: string }>
+}
+
+export interface TreatmentAfterSignsRequest {
+  startTime?: string
+  endTime?: string
+  realUfVolume?: number
+  realSubstituteVolume?: number
+  weight?: number
+  extraWeight?: number
+  lossWeight?: number
+  sbp?: number
+  dbp?: number
+  heartRate?: number
+  respiration?: number
+  temperature?: number
+  realIntake?: number
+  pressurePoint?: string
+  complication?: string
+  symptoms?: string
+  notes?: string
+  symptomItems?: Array<{ code: string; value: string }>
+}
+
+export interface TreatmentFirstCheckRequest {
+  beforeSignsId?: number
+  beforeSymptomId?: number
+  operatorId?: number
+  operateTime?: string
+  materialsResult?: boolean
+  materialsMistake?: string
+  paramResult?: boolean
+  paramMistake?: string
+  vascularAccessResult?: boolean
+  vascularAccessMistake?: string
+  pipelineResult?: boolean
+  pipelineMistake?: string
+}
+
+export interface TreatmentSecondCheckRequest {
+  operatorId?: number
+  recheckNurseId?: number
+  qcNurseId?: number
+  operateTime?: string
+  paramResult?: boolean
+  paramMistake?: string
+  vascularAccessResult?: boolean
+  vascularAccessMistake?: string
+  pipelineResult?: boolean
+  pipelineMistake?: string
+  dialysisModeResult?: boolean
+  dialysisModeMistake?: string
+  prescriptionResult?: boolean
+  prescriptionMistake?: string
+  anticoagulantResult?: boolean
+  anticoagulantMistake?: string
+  lineConnectionResult?: boolean
+  lineConnectionMistake?: string
 }
 
 export interface RestClinicalTask {
@@ -251,6 +424,17 @@ export interface RestClinicalTask {
   severity: string
   status: string
   createdAt: string
+}
+
+export interface RestPatientOrder {
+  id: string
+  type: string
+  content: string
+  frequency?: string | null
+  doctorName?: string
+  status: string
+  startTime?: string
+  createdAt?: string
 }
 
 export interface RestQualityStatItem {
@@ -312,6 +496,7 @@ export interface PatientCoreResponse {
 export interface PatientCoreHeader {
   id: string
   name: string
+  avatar?: string
   age: number
   gender: 'M' | 'F'
   bedNumber: string
@@ -1034,6 +1219,23 @@ class RestApiService {
     return convertRestPatientToUI(patientData as RestPatient)
   }
 
+  async getPatientOrders(patientId: string, params?: { type?: 'LONG' | 'TEMP'; status?: string }): Promise<ApiSuccessResponse<RestPatientOrder[]>> {
+    const mappedParams = {
+      type: params?.type === 'LONG' ? '长期' : params?.type === 'TEMP' ? '临时' : undefined,
+      statuses: params?.status,
+    }
+    const response = await apiClient.get<ApiSuccessResponse<RestPatientOrder[]>>(
+      `/api/v1/patients/${patientId}/orders`,
+      { params: mappedParams }
+    )
+
+    if (!response.data.success) {
+      throw new Error('获取患者医嘱失败')
+    }
+
+    return response.data
+  }
+
   /**
    * 鍒犻櫎鎮ｈ€?   */
   async deletePatient(id: string) {
@@ -1440,6 +1642,9 @@ class RestApiService {
    * 鑾峰彇鐪嬫澘缁熻姹囨€?   */
   async getDashboardStats(): Promise<{
     activePatients: number
+    shiftCount: number
+    equipmentCount: number
+    todaySchedules: number
     todayTreatments: number
     alertItems: number
     treatmentsByHour: { name: string; value: number }[]
@@ -1447,6 +1652,9 @@ class RestApiService {
   }> {
     const response = await apiClient.get<ApiSuccessResponse<{
       activePatients: number
+      shiftCount: number
+      equipmentCount: number
+      todaySchedules: number
       todayTreatments: number
       alertItems: number
       treatmentsByHour: { name: string; value: number }[]
@@ -1583,7 +1791,7 @@ class RestApiService {
   async getTreatments(params?: {
     page?: number
     pageSize?: number
-    patientId?: number
+    patientId?: string
     status?: number
     treatmentDate?: string
     treatmentDateStart?: string
@@ -1643,6 +1851,70 @@ class RestApiService {
     )
     if (!response.data.success) {
       throw new Error('鑾峰彇娌荤枟璁板綍澶辫触')
+    }
+    return response.data
+  }
+
+  async createTreatmentDuringParam(treatmentId: number, data: TreatmentDuringParamRequest): Promise<ApiSuccessResponse<RestDuringParam>> {
+    const response = await apiClient.post<ApiSuccessResponse<RestDuringParam>>(
+      `/api/v1/treatments/${treatmentId}/during-params`,
+      data
+    )
+    if (!response.data.success) {
+      throw new Error('创建透中监测记录失败')
+    }
+    return response.data
+  }
+
+  async updateTreatmentDuringParam(treatmentId: number, paramId: number, data: TreatmentDuringParamRequest): Promise<ApiSuccessResponse<RestDuringParam>> {
+    const response = await apiClient.put<ApiSuccessResponse<RestDuringParam>>(
+      `/api/v1/treatments/${treatmentId}/during-params/${paramId}`,
+      data
+    )
+    if (!response.data.success) {
+      throw new Error('更新透中监测记录失败')
+    }
+    return response.data
+  }
+
+  async deleteTreatmentDuringParam(treatmentId: number, paramId: number): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.delete<ApiSuccessResponse<unknown>>(
+      `/api/v1/treatments/${treatmentId}/during-params/${paramId}`
+    )
+    if (!response.data.success) {
+      throw new Error('删除透中监测记录失败')
+    }
+    return response.data
+  }
+
+  async saveTreatmentBeforeSigns(treatmentId: number, data: TreatmentBeforeSignsRequest): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${treatmentId}/before-signs`, data)
+    if (!response.data.success) {
+      throw new Error('保存透前评估失败')
+    }
+    return response.data
+  }
+
+  async saveTreatmentAfterSigns(treatmentId: number, data: TreatmentAfterSignsRequest): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${treatmentId}/after-signs`, data)
+    if (!response.data.success) {
+      throw new Error('保存透后评估失败')
+    }
+    return response.data
+  }
+
+  async saveTreatmentFirstCheck(treatmentId: number, data: TreatmentFirstCheckRequest): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${treatmentId}/first-check`, data)
+    if (!response.data.success) {
+      throw new Error('保存首次核对失败')
+    }
+    return response.data
+  }
+
+  async saveTreatmentSecondCheck(treatmentId: number, data: TreatmentSecondCheckRequest): Promise<ApiSuccessResponse<unknown>> {
+    const response = await apiClient.put<ApiSuccessResponse<unknown>>(`/api/v1/treatments/${treatmentId}/second-check`, data)
+    if (!response.data.success) {
+      throw new Error('保存二次核对失败')
     }
     return response.data
   }
@@ -1843,6 +2115,7 @@ export function convertCoreResponseToPatient(coreData: PatientCoreResponse): Par
   return {
     id: header.id,
     name: header.name,
+    avatar: header.avatar,
     age: header.age,
     gender,
     bedNumber: header.bedNumber,
@@ -1907,5 +2180,3 @@ function parseFrequency(frequency: string): number {
   if (frequency.includes('1次/周')) return 1
   return 3
 }
-
-

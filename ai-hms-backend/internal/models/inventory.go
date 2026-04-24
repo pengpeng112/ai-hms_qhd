@@ -1,3 +1,4 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import "time"
@@ -7,14 +8,14 @@ type InventoryItem struct {
 	ID         string    `gorm:"type:varchar(36);primaryKey" json:"id"`
 	TenantId   int64     `gorm:"type:bigint;index" json:"tenantId"`
 	Name       string    `gorm:"type:varchar(100);not null" json:"name"`
-	Spec       string    `gorm:"type:varchar(100)" json:"spec"`         // 规格
+	Spec       string    `gorm:"type:varchar(100)" json:"spec"`          // 规格
 	Category   string    `gorm:"type:varchar(50);index" json:"category"` // 类别
-	Stock      int       `gorm:"default:0" json:"stock"`                // 当前库存
+	Stock      int       `gorm:"default:0" json:"stock"`                 // 当前库存
 	Unit       string    `gorm:"type:varchar(20)" json:"unit"`           // 单位
-	MinStock   int       `gorm:"default:0" json:"minStock"`             // 最低库存告警阈值
-	MaxStock   int       `gorm:"default:0" json:"maxStock"`             // 最高库存
-	Location   string    `gorm:"type:varchar(100)" json:"location"`     // 存放位置
-	Supplier   string    `gorm:"type:varchar(100)" json:"supplier"`     // 供应商
+	MinStock   int       `gorm:"default:0" json:"minStock"`              // 最低库存告警阈值
+	MaxStock   int       `gorm:"default:0" json:"maxStock"`              // 最高库存
+	Location   string    `gorm:"type:varchar(100)" json:"location"`      // 存放位置
+	Supplier   string    `gorm:"type:varchar(100)" json:"supplier"`      // 供应商
 	IsDisabled bool      `gorm:"default:false" json:"isDisabled"`
 	CreatorId  int64     `gorm:"type:bigint" json:"creatorId"`
 	CreatedAt  time.Time `json:"createdAt"`

@@ -48,6 +48,7 @@ type PaginationMeta struct {
 
 // Success 成功响应（标准格式）
 func Success(c *gin.Context, data interface{}) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.JSON(http.StatusOK, SuccessResponse{
 		Success:   true,
 		Data:      data,
@@ -57,6 +58,7 @@ func Success(c *gin.Context, data interface{}) {
 
 // SuccessCreated 创建成功响应（标准格式，HTTP 201）
 func SuccessCreated(c *gin.Context, data interface{}) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.JSON(http.StatusCreated, SuccessResponse{
 		Success:   true,
 		Data:      data,
@@ -84,6 +86,7 @@ func Paginated(c *gin.Context, items interface{}, page, pageSize int, total int6
 
 // Error 错误响应（标准格式）
 func Error(c *gin.Context, code int, errCode string, message string) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.JSON(code, ErrorResponse{
 		Success: false,
 		Error: ErrorInfo{
@@ -96,6 +99,7 @@ func Error(c *gin.Context, code int, errCode string, message string) {
 
 // ErrorWithDetails 带详情的错误响应
 func ErrorWithDetails(c *gin.Context, code int, errCode string, message string, details interface{}) {
+	c.Header("Content-Type", "application/json; charset=utf-8")
 	c.JSON(code, ErrorResponse{
 		Success: false,
 		Error: ErrorInfo{

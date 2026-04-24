@@ -57,7 +57,7 @@ export async function getTodayTreatments(): Promise<Treatment[]> {
 }
 
 export async function getPatientTreatments(
-  patientId: number,
+  patientId: string,
   page: number = 1,
   pageSize: number = 20
 ): Promise<PaginatedResponse<Treatment>> {
@@ -91,7 +91,7 @@ export async function getOngoingTreatments(): Promise<Treatment[]> {
 export async function getTreatmentsByDateRange(
   startDate: string,
   endDate: string,
-  patientId?: number
+  patientId?: string
 ): Promise<Treatment[]> {
   const filters: Record<string, string | number> = {}
   if (patientId) filters.PatientId = patientId
@@ -113,7 +113,7 @@ export async function getTreatmentsByDateRange(
 // ============ 透析处方服务 ============
 
 export async function getPatientPrescriptions(
-  patientId: number,
+  patientId: string,
   page: number = 1,
   pageSize: number = 20
 ): Promise<PaginatedResponse<PatientPrescription>> {
@@ -156,7 +156,7 @@ export async function getPrescriptionByTreatment(
 // ============ 透析方案服务 ============
 
 export async function getPatientPlans(
-  patientId: number
+  patientId: string
 ): Promise<PatientPlan[]> {
   const result = await fetchFilteredData<PatientPlan>(
     'PatientPlan',
@@ -169,7 +169,7 @@ export async function getPatientPlans(
 }
 
 export async function getCurrentPlan(
-  patientId: number
+  patientId: string
 ): Promise<PatientPlan | null> {
   const plans = await getPatientPlans(patientId)
   return plans.find(p =>

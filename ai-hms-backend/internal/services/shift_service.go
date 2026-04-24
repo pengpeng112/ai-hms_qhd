@@ -25,11 +25,12 @@ func (s *ShiftService) List(tenantId int64) ([]models.Shift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
-
-	query := s.db.Model(&models.Shift{})
-	if tenantId > 0 {
-		query = query.Where("\"TenantId\" = ?", tenantId)
+	if tenantId <= 0 {
+		return nil, errors.New("invalid tenant")
 	}
+
+	query := s.db.Model(&models.Shift{}).
+		Where("\"TenantId\" = ?", tenantId)
 
 	var shifts []models.Shift
 	err := query.

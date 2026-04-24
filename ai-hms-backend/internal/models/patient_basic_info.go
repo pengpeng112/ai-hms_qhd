@@ -1,13 +1,16 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import (
 	"time"
+
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 )
 
 // PatientBasicInfo 患者基本信息档案扩展表
 type PatientBasicInfo struct {
-	ID        string `gorm:"type:varchar(36);primaryKey" json:"id"`
-	PatientID string `gorm:"type:varchar(36);not null;uniqueIndex" json:"patientId"`
+	ID        string              `gorm:"type:varchar(36);primaryKey" json:"id"`
+	PatientID modeltypes.LegacyID `gorm:"type:bigint;not null;uniqueIndex" json:"patientId"`
 
 	// 身份核心信息
 	Pinyin    *string    `gorm:"type:varchar(100)" json:"pinyin"`            // 姓名拼音

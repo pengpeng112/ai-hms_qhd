@@ -13,6 +13,7 @@ import (
 type Config struct {
 	Server    ServerConfig
 	Database  DatabaseConfig
+	Logging   LoggingConfig
 	JWT       JWTConfig
 	CORS      CORSConfig
 	Hdis      HdisConfig
@@ -34,6 +35,14 @@ type DatabaseConfig struct {
 	Password string
 	DBName   string
 	SSLMode  string
+	TimeZone string
+}
+
+// LoggingConfig 日志配置
+type LoggingConfig struct {
+	RequestEnabled   bool
+	SQLMode          string
+	SlowSQLThreshold int
 }
 
 // JWTConfig JWT 配置
@@ -75,12 +84,18 @@ func Load() (*Config, error) {
 			Mode: getEnv("GIN_MODE", "debug"),
 		},
 		Database: DatabaseConfig{
-			Host:     mustGetEnv("DB_HOST"),
-			Port:     mustGetEnv("DB_PORT"),
-			User:     mustGetEnv("DB_USER"),
-			Password: mustGetEnv("DB_PASSWORD"),
-			DBName:   mustGetEnv("DB_NAME"),
-			SSLMode:  getEnv("DB_SSL_MODE", "disable"),
+			Host:     mustGetEnvAny("LEGACY_DB_HOST", "DB_HOST"),
+			Port:     mustGetEnvAny("LEGACY_DB_PORT", "DB_PORT"),
+			User:     mustGetEnvAny("LEGACY_DB_USER", "DB_USER"),
+			Password: mustGetEnvAny("LEGACY_DB_PASSWORD", "DB_PASSWORD"),
+			DBName:   mustGetEnvAny("LEGACY_DB_NAME", "DB_NAME"),
+			SSLMode:  getEnvAny("disable", "LEGACY_DB_SSLMODE", "DB_SSLMODE", "DB_SSL_MODE"),
+			TimeZone: getEnvAny("Asia/Shanghai", "LEGACY_DB_TIMEZONE", "DB_TIMEZONE"),
+		},
+		Logging: LoggingConfig{
+			RequestEnabled:   getEnvBool("LOG_REQUESTS", false),
+			SQLMode:          strings.ToLower(getEnv("LOG_SQL_MODE", "silent")),
+			SlowSQLThreshold: getEnvInt("LOG_SLOW_SQL_MS", 1000),
 		},
 		JWT: JWTConfig{
 			Secret:          mustGetEnv("JWT_SECRET"),
@@ -129,6 +144,27 @@ func mustGetEnv(key string) string {
 	}
 	log.Fatalf("missing required environment variable: %s", key)
 	return ""
+}
+
+// mustGetEnvAny 获取多个候选环境变量中的第一个非空值，缺失时直接失败。
+func mustGetEnvAny(keys ...string) string {
+	for _, key := range keys {
+		if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+			return val
+		}
+	}
+	log.Fatalf("missing required environment variables: %s", strings.Join(keys, ", "))
+	return ""
+}
+
+// getEnvAny 获取多个候选环境变量中的第一个非空值，否则返回默认值。
+func getEnvAny(defaultVal string, keys ...string) string {
+	for _, key := range keys {
+		if val := strings.TrimSpace(os.Getenv(key)); val != "" {
+			return val
+		}
+	}
+	return defaultVal
 }
 
 // getEnvInt 获取整数类型环境变量

@@ -1,7 +1,7 @@
-﻿import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
+import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '../types/original'
-import { restApi, type RestDevice, type RestPatientShift } from '../services/restClient'
+import { restApi, type RestDevice, type RestPatient, type RestPatientOrder } from '../services/restClient'
 import {
   Monitor,
   Search,
@@ -292,9 +292,9 @@ const PrescriptionEditModal = ({
   const ufVolume = device.vitals.ufGoal > 0 ? (device.vitals.ufGoal / 1000).toFixed(1) : ''
   const [materials] = useState([
     // TODO: 从 MaterialCatalog API 加载
-    { id: 1, name: 'JRHLL-025', category: '琛€璺', count: 1, code: '', brand: '', spec: '', note: '' },
-    { id: 2, name: '10ML娉ㄥ皠鍣?10ML', category: '鍏朵粬', count: 2, code: '', brand: '', spec: '10ML', note: '' },
-    { id: 3, name: '15G', category: '閫忔瀽銆佽婊ゅ櫒', count: 1, code: '', brand: 'NIPRO', spec: '', note: '' },
+    { id: 1, name: 'JRHLL-025', category: '血路', count: 1, code: '', brand: '', spec: '', note: '' },
+    { id: 2, name: '10ML注射器-10ML', category: '其他', count: 2, code: '', brand: '', spec: '10ML', note: '' },
+    { id: 3, name: '15G', category: '透析器', count: 1, code: '', brand: 'NIPRO', spec: '', note: '' },
     { id: 4, name: '内瘘区', category: '护理区', count: 1, code: '1102011534', brand: '', spec: '', note: '' },
     { id: 5, name: '锐针-16G', category: '穿刺针', count: 2, code: '', brand: 'NIPRO', spec: '', note: '' }
   ])
@@ -379,7 +379,7 @@ const PrescriptionEditModal = ({
             <label className="text-sm text-gray-600">{t('monitoring:prescription.initialDrug')}:</label>
             <div className="relative">
               <select className="h-8 w-44 border rounded text-xs px-2 bg-white appearance-none outline-none focus:ring-1 focus:ring-blue-500">
-                <option>閭ｅ眻鑲濈礌閽欐敞灏?..</option>
+                <option>那屈肝素钙注射液</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -388,7 +388,7 @@ const PrescriptionEditModal = ({
             </div>
           </div>
 
-          <PrescriptionInput label={t('monitoring:prescription.initialDose')} defaultValue="307.5" suffix="axiau" width="w-28" />
+          <PrescriptionInput label={t('monitoring:prescription.initialDose')} defaultValue="307.5" suffix="IU" width="w-28" />
         </div>
 
         {/* 绗笁鎺掔淮鎸佷笌鎬婚噺 */}
@@ -408,7 +408,7 @@ const PrescriptionEditModal = ({
           <PrescriptionInput label={t('monitoring:prescription.infusionTime')} suffix="h" width="w-24" />
           <PrescriptionInput label={t('monitoring:prescription.infusionRate')} width="w-24" />
           <PrescriptionInput label={t('monitoring:prescription.maintenanceDose')} width="w-24" />
-          <PrescriptionInput label={t('monitoring:prescription.totalDose')} defaultValue="307.5" suffix="axiau" width="w-28" readOnly />
+          <PrescriptionInput label={t('monitoring:prescription.totalDose')} defaultValue="307.5" suffix="IU" width="w-28" readOnly />
         </div>
 
         {/* 绗洓鎺掗€氳矾涓庡垎绫?*/}
@@ -419,7 +419,7 @@ const PrescriptionEditModal = ({
             </label>
             <div className="relative">
               <select className="h-8 w-40 border rounded text-xs px-2 bg-white appearance-none outline-none font-bold focus:ring-1 focus:ring-blue-500">
-                <option>AVG-涓婅噦</option>
+                <option>AVG-上臂</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -434,7 +434,7 @@ const PrescriptionEditModal = ({
             <label className="text-sm text-gray-600">{t('monitoring:prescription.dialysateCat')}:</label>
             <div className="relative">
               <select className="h-8 w-40 border rounded text-xs px-2 bg-white appearance-none outline-none focus:ring-1 focus:ring-blue-500">
-                <option>A娑?B娑</option>
+                <option>A液+B液</option>
               </select>
               <ChevronDown
                 className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
@@ -549,7 +549,7 @@ const PrescriptionEditModal = ({
 
 // --- 3. 鍖诲槺绠＄悊寮圭獥 ---
 interface OrderItem {
-  id: number
+  id: string
   content: string
   frequency: string
   doctor: string
@@ -566,13 +566,47 @@ const OrderListModal = ({
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
   const [activeTab, setActiveTab] = useState<'LONG' | 'TEMP'>('LONG')
-  // TODO: 从 /api/v1/patients/:id/orders?type=LONG 加载长期医嘱
-  const [longOrders] = useState<OrderItem[]>([])
-
-  // TODO: 从 /api/v1/patients/:id/orders?type=TEMP 加载临时医嘱
-  const [tempOrders] = useState<OrderItem[]>([])
+  const [longOrders, setLongOrders] = useState<OrderItem[]>([])
+  const [tempOrders, setTempOrders] = useState<OrderItem[]>([])
+  const [ordersLoading, setOrdersLoading] = useState(false)
 
   const currentOrders = activeTab === 'LONG' ? longOrders : tempOrders
+
+  useEffect(() => {
+    if (!device.patientId) {
+      setLongOrders([])
+      setTempOrders([])
+      return
+    }
+
+    const toOrderItems = (items: RestPatientOrder[]): OrderItem[] =>
+      items.map((item) => ({
+        id: item.id,
+        content: item.content || '--',
+        frequency: item.frequency || '--',
+        doctor: item.doctorName || '--',
+        time: item.startTime || item.createdAt || '--',
+        status:
+          item.status === '停止' || item.status === '停用'
+            ? 'STOPPED'
+            : item.status === '已执行'
+            ? 'EXECUTED'
+            : item.status === '执行中'
+            ? 'ACTIVE'
+            : 'PENDING',
+      }))
+
+    setOrdersLoading(true)
+    Promise.all([
+      restApi.getPatientOrders(String(device.patientId), { type: 'LONG' }).catch(() => null),
+      restApi.getPatientOrders(String(device.patientId), { type: 'TEMP' }).catch(() => null),
+    ])
+      .then(([longRes, tempRes]) => {
+        setLongOrders(toOrderItems(longRes?.data ?? []))
+        setTempOrders(toOrderItems(tempRes?.data ?? []))
+      })
+      .finally(() => setOrdersLoading(false))
+  }, [device.patientId])
 
   return (
     <ModalOverlay onClose={onClose} maxWidth="max-w-[1100px]">
@@ -620,6 +654,13 @@ const OrderListModal = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
+                {ordersLoading ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
+                      {t('common:status.loading')}
+                    </td>
+                  </tr>
+                ) : null}
                 {currentOrders.map((order) => (
                   <tr
                     key={order.id}
@@ -669,6 +710,13 @@ const OrderListModal = ({
                     </td>
                   </tr>
                 ))}
+                {!ordersLoading && currentOrders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="px-6 py-10 text-center text-sm text-gray-400">
+                      {t('common:empty.default')}
+                    </td>
+                  </tr>
+                ) : null}
               </tbody>
             </table>
           </div>
@@ -788,6 +836,7 @@ const cachedGraphData = new Map<string, MiniGraphPoint[]>()
 const cachedHistoryData = new Map<string, HistoryPoint[]>()
 
 type DeviceAssignment = {
+  patientId: string
   patientName: string
   mode: string
 }
@@ -801,29 +850,25 @@ function ensureDeviceCache(device: MonitorDevice) {
   }
 }
 
-function formatDateOnly(value: Date): string {
-  const year = value.getFullYear()
-  const month = `${value.getMonth() + 1}`.padStart(2, '0')
-  const day = `${value.getDate()}`.padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
-
-function buildDeviceAssignments(items: RestPatientShift[]): Map<string, DeviceAssignment> {
+function buildDeviceAssignments(items: RestPatient[]): Map<string, DeviceAssignment> {
   const assignments = new Map<string, DeviceAssignment>()
 
   items.forEach((item) => {
-    const patientName = item.patient?.name?.trim()
-    if (!patientName) {
+    const patientName = item.name?.trim()
+    const bedNumber = item.bedNumber?.trim()
+    if (!patientName || !bedNumber) {
       return
     }
 
-    const mode = item.patient?.defaultMode?.trim() || 'HD'
-    const keys = [item.patient?.bedNumber?.trim(), item.bed?.name?.trim()].filter(
-      (value): value is string => !!value,
-    )
+    const normalizedStatus = item.status?.trim().toLowerCase()
+    if (normalizedStatus === 'discharged') {
+      return
+    }
 
-    keys.forEach((key) => {
-      assignments.set(key, { patientName, mode })
+    assignments.set(bedNumber, {
+      patientId: item.id,
+      patientName,
+      mode: item.defaultMode?.trim() || 'HD',
     })
   })
 
@@ -844,6 +889,7 @@ function toMonitorDevice(d: RestDevice, assignment?: DeviceAssignment): MonitorD
     id: d.id,
     bedNumber: d.bedNumber || d.name,
     patientName: assignment?.patientName || '',
+    patientId: assignment?.patientId,
     status,
     mode: assignment?.mode || 'HD',
     timeRemaining: '--',
@@ -927,35 +973,41 @@ export default function Monitoring() {
   const [activeZone, setActiveZone] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
   const [devices, setDevices] = useState<MonitorDevice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     const loadMonitoringData = async () => {
-      const today = formatDateOnly(new Date())
-      const [devicesResult, shiftsResult] = await Promise.allSettled([
-        restApi.getDeviceList({ pageSize: 200 }),
-        restApi.getPatientShifts({
-          startDate: today,
-          endDate: today,
-          page: 1,
-          pageSize: 500,
-        }),
-      ])
+      setLoading(true)
+      setLoadError(null)
+      try {
+        const [devicesResult, patientsResult] = await Promise.allSettled([
+          restApi.getDeviceList({ pageSize: 200 }),
+          restApi.getPatientList({ page: 1, pageSize: 500 }),
+        ])
 
-      if (devicesResult.status !== 'fulfilled') {
-        setDevices([])
-        return
+        if (devicesResult.status !== 'fulfilled') {
+          setLoadError('设备列表加载失败，请检查网络连接或联系管理员')
+          setDevices([])
+          return
+        }
+
+        const assignments =
+          patientsResult.status === 'fulfilled'
+            ? buildDeviceAssignments(patientsResult.value.data.items || [])
+            : new Map<string, DeviceAssignment>()
+
+        const mapped = devicesResult.value.map((item) =>
+          toMonitorDevice(item, assignments.get(item.bedNumber || item.name)),
+        )
+        mapped.forEach(ensureDeviceCache)
+        setDevices(mapped)
+      } catch (err) {
+        setLoadError('数据加载异常，请刷新页面重试')
+        console.error('[Monitoring] 加载失败', err)
+      } finally {
+        setLoading(false)
       }
-
-      const assignments =
-        shiftsResult.status === 'fulfilled'
-          ? buildDeviceAssignments(shiftsResult.value.data.items || [])
-          : new Map<string, DeviceAssignment>()
-
-      const mapped = devicesResult.value.map((item) =>
-        toMonitorDevice(item, assignments.get(item.bedNumber || item.name)),
-      )
-      mapped.forEach(ensureDeviceCache)
-      setDevices(mapped)
     }
 
     void loadMonitoringData()
@@ -997,7 +1049,7 @@ export default function Monitoring() {
             <Monitor className="mr-3 text-blue-600" /> {t('monitoring:title')}
           </h2>
           <p className="text-gray-500 text-sm mt-1">
-            {t('monitoring:subtitle.treating', { count: devices.filter((d) => d.status !== 'offline').length })}
+            {t('monitoring:subtitle.treating', { count: devices.filter((d) => !!d.patientName).length })}
           </p>
         </div>
         <div className="flex items-center space-x-3">
@@ -1028,11 +1080,63 @@ export default function Monitoring() {
       </div>
 
       <div className="flex-1 overflow-y-auto pr-2 pb-10">
+        {/* 加载骨架 */}
+        {loading && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="rounded-xl border-2 border-gray-200 bg-gray-50 p-3 h-48 animate-pulse">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-gray-200 rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="h-3 bg-gray-200 rounded w-3/4" />
+                    <div className="h-2 bg-gray-200 rounded w-1/2" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-3 gap-1 py-2 border-t border-b border-gray-200 mb-3">
+                  {[1,2,3].map(j => <div key={j} className="h-8 bg-gray-200 rounded" />)}
+                </div>
+                <div className="h-16 bg-gray-200 rounded-lg" />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 错误提示 */}
+        {!loading && loadError && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+              <AlertOctagon size={32} className="text-red-400" />
+            </div>
+            <p className="text-base font-bold text-gray-700 mb-1">{loadError}</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
+            >
+              刷新页面
+            </button>
+          </div>
+        )}
+
+        {/* 空状态 */}
+        {!loading && !loadError && filteredDevices.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 text-center">
+            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+              <Monitor size={32} className="text-gray-400" />
+            </div>
+            <p className="text-base font-bold text-gray-600 mb-1">
+              {searchTerm || activeZone !== 'ALL' ? '未找到匹配的设备' : '暂无设备数据'}
+            </p>
+            <p className="text-sm text-gray-400">
+              {searchTerm || activeZone !== 'ALL' ? '请调整筛选条件' : '请先在设备管理中录入透析机信息'}
+            </p>
+          </div>
+        )}
+
         <div
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"
           style={{ contain: 'layout style' }}
         >
-          {filteredDevices.map((device, i) => {
+          {!loading && !loadError && filteredDevices.map((device, i) => {
             const gender = i % 2 === 0 ? t('monitoring:label.male') : t('monitoring:label.female')
             const age = 45 + (i % 30)
             const dryWeight = 65.5 + (i % 10)

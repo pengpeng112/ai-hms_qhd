@@ -81,6 +81,12 @@ export interface TreatmentHistoryItem {
   date: string
   timeRange: string
   mode: string
+  duration?: string
+  weightLoss?: number
+  startBP?: string
+  endBP?: string
+  complications?: string
+  doctor?: string
   doctorSummary: string
   treatmentSummary: string
 }

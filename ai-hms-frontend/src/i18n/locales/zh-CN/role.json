@@ -11,6 +11,7 @@
 
   "label.current": "当前登录身份",
 
+  "desc.admin": "系统配置、权限管理与运营监控",
   "desc.doctor": "临床诊疗与处方管理",
   "desc.nurse": "护理任务与患者监护",
   "desc.engineer": "设备运行与维护中心",

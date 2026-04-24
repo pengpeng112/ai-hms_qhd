@@ -294,7 +294,7 @@ export default function Schedule() {
           setQuickSourceStaffId(mapped[0].id)
         }
       })
-      .catch(() => {})
+      .catch((err) => console.error('[Schedule] 患者搜索加载失败', err))
   }, [])
 
   // 患者搜索防抖：输入 300ms 后查询后端

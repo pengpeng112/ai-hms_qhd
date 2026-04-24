@@ -3,42 +3,54 @@ package database
 import (
 	"fmt"
 	"log"
-	"os"
+	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/config"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+	"gorm.io/gorm/schema"
 )
 
 var DB *gorm.DB
 
-// Initialize 初始化数据库连接
-func Initialize(cfg *config.DatabaseConfig) error {
-	// 构建 DSN，注意空密码的处理
+// Initialize initializes the database connection.
+func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig) error {
 	var dsn string
 	if cfg.Password != "" {
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
-			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode,
+			"host=%s port=%s user=%s password=%s dbname=%s sslmode=%s TimeZone=%s options='-c client_encoding=UTF8'",
+			cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName, cfg.SSLMode, cfg.TimeZone,
 		)
 	} else {
 		dsn = fmt.Sprintf(
-			"host=%s port=%s user=%s dbname=%s sslmode=%s",
-			cfg.Host, cfg.Port, cfg.User, cfg.DBName, cfg.SSLMode,
+			"host=%s port=%s user=%s dbname=%s sslmode=%s TimeZone=%s options='-c client_encoding=UTF8'",
+			cfg.Host, cfg.Port, cfg.User, cfg.DBName, cfg.SSLMode, cfg.TimeZone,
 		)
 	}
 
-	// 配置 GORM - 根据环境设置日志级别
-	logMode := logger.Silent // 生产环境默认静默
-	if os.Getenv("GIN_MODE") == "debug" {
-		logMode = logger.Info // 开发环境显示详细日志
+	slowThreshold := time.Second
+	if logCfg != nil && logCfg.SlowSQLThreshold > 0 {
+		slowThreshold = time.Duration(logCfg.SlowSQLThreshold) * time.Millisecond
 	}
 
 	gormConfig := &gorm.Config{
-		Logger: logger.Default.LogMode(logMode),
-		// 禁用外键约束
+		Logger: logger.New(
+			log.New(log.Writer(), "[gorm] ", log.LstdFlags),
+			logger.Config{
+				SlowThreshold:             slowThreshold,
+				LogLevel:                  parseGormLogMode(logCfg),
+				IgnoreRecordNotFoundError: true,
+				ParameterizedQueries:      false,
+				Colorful:                  false,
+			},
+		),
+		NamingStrategy: schema.NamingStrategy{
+			SingularTable: true,
+			NoLowerCase:   true,
+		},
+		PrepareStmt:                              true,
 		DisableForeignKeyConstraintWhenMigrating: true,
 	}
 
@@ -48,27 +60,52 @@ func Initialize(cfg *config.DatabaseConfig) error {
 		return fmt.Errorf("failed to connect to database: %w", err)
 	}
 
-	// 获取底层 sql.DB 实例
 	sqlDB, err := DB.DB()
 	if err != nil {
 		return fmt.Errorf("failed to get database instance: %w", err)
 	}
 
-	// 设置连接池
 	sqlDB.SetMaxIdleConns(10)
 	sqlDB.SetMaxOpenConns(100)
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
-	// 测试连接
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	log.Println("Database connected successfully")
+	if err := DB.Exec("SELECT 1").Error; err != nil {
+		return fmt.Errorf("failed to verify database with SELECT 1: %w", err)
+	}
+
+	if err := DB.Exec("SET client_encoding = 'UTF8'").Error; err != nil {
+		return fmt.Errorf("failed to set client_encoding to UTF8: %w", err)
+	}
+
+	log.Printf("[LEGACY-DB] connected to legacy hemodialysis database (%s:%s/%s), AutoMigrate permanently disabled", cfg.Host, cfg.Port, cfg.DBName)
 	return nil
 }
 
-// Close 关闭数据库连接
+func parseGormLogMode(logCfg *config.LoggingConfig) logger.LogLevel {
+	if logCfg == nil {
+		return logger.Silent
+	}
+
+	switch strings.ToLower(strings.TrimSpace(logCfg.SQLMode)) {
+	case "", "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "warn", "warning":
+		return logger.Warn
+	case "info", "debug":
+		return logger.Info
+	default:
+		log.Printf("Warning: invalid LOG_SQL_MODE=%q, fallback to silent", logCfg.SQLMode)
+		return logger.Silent
+	}
+}
+
+// Close closes the database connection.
 func Close() error {
 	sqlDB, err := DB.DB()
 	if err != nil {
@@ -77,7 +114,7 @@ func Close() error {
 	return sqlDB.Close()
 }
 
-// GetDB 获取数据库实例
+// GetDB returns the shared database handle.
 func GetDB() *gorm.DB {
 	return DB
 }

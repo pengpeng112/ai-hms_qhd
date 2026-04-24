@@ -309,7 +309,7 @@ function OrderTabComponent({ dictOptions, onRefreshDict }: OrderTabProps) {
           } catch { /* 查询失败不阻塞加载 */ }
         }
         setModalOrders(detail.items.map(item => ({
-          id: item.id || `O${Date.now()}-${Math.random()}`,
+          id: item.id || `O_${crypto.randomUUID()}`,
           drugId: item.drugId,
           drugName: item.drugName,
           spec: item.spec || '',

@@ -43,7 +43,7 @@ func (h *PlanTemplateHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.List(req)
+	result, err := h.service.LegacyList(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -67,7 +67,7 @@ func (h *PlanTemplateHandler) Get(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Get(id)
+	template, err := h.service.LegacyGet(id)
 	if err != nil {
 		if err.Error() == "plan template not found" {
 			response.NotFound(c, "方案模板不存在")
@@ -95,7 +95,7 @@ func (h *PlanTemplateHandler) Create(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Create(req)
+	template, err := h.service.LegacyCreate(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -126,7 +126,7 @@ func (h *PlanTemplateHandler) Update(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Update(id, req)
+	template, err := h.service.LegacyUpdate(id, req)
 	if err != nil {
 		if err.Error() == "plan template not found" {
 			response.NotFound(c, "方案模板不存在")
@@ -154,7 +154,7 @@ func (h *PlanTemplateHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	if err := h.service.LegacyDelete(id); err != nil {
 		if err.Error() == "plan template not found" {
 			response.NotFound(c, "方案模板不存在")
 			return
@@ -181,7 +181,7 @@ func (h *PlanTemplateHandler) ToggleEnabled(c *gin.Context) {
 		return
 	}
 
-	isEnabled, err := h.service.ToggleEnabled(id)
+	isEnabled, err := h.service.LegacyToggleEnabled(id)
 	if err != nil {
 		if err.Error() == "plan template not found" {
 			response.NotFound(c, "方案模板不存在")
@@ -212,7 +212,7 @@ func (h *PlanTemplateHandler) SetDefault(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.SetDefault(id); err != nil {
+	if err := h.service.LegacySetDefault(id); err != nil {
 		if err.Error() == "plan template not found" {
 			response.NotFound(c, "方案模板不存在")
 			return
@@ -260,7 +260,7 @@ func (h *MaterialCatalogHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.List(req)
+	result, err := h.service.LegacyList(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -284,7 +284,7 @@ func (h *MaterialCatalogHandler) Get(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Get(id)
+	catalog, err := h.service.LegacyGet(id)
 	if err != nil {
 		if err.Error() == "material catalog not found" {
 			response.NotFound(c, "材料目录不存在")
@@ -316,7 +316,7 @@ func (h *MaterialCatalogHandler) Create(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Create(req)
+	catalog, err := h.service.LegacyCreate(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -353,7 +353,7 @@ func (h *MaterialCatalogHandler) Update(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Update(uint(id), req)
+	catalog, err := h.service.LegacyUpdate(uint(id), req)
 	if err != nil {
 		if err.Error() == "material catalog not found" {
 			response.NotFound(c, "材料目录不存在")
@@ -387,7 +387,7 @@ func (h *MaterialCatalogHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(uint(id)); err != nil {
+	if err := h.service.LegacyDelete(uint(id)); err != nil {
 		if err.Error() == "material catalog not found" {
 			response.NotFound(c, "材料目录不存在")
 			return
@@ -420,7 +420,7 @@ func (h *MaterialCatalogHandler) ToggleEnabled(c *gin.Context) {
 		return
 	}
 
-	isEnabled, err := h.service.ToggleEnabled(uint(id))
+	isEnabled, err := h.service.LegacyToggleEnabled(uint(id))
 	if err != nil {
 		if err.Error() == "material catalog not found" {
 			response.NotFound(c, "材料目录不存在")
@@ -444,7 +444,7 @@ func (h *MaterialCatalogHandler) ToggleEnabled(c *gin.Context) {
 // @Success 200 {object} response.SuccessResponse
 // @Router /api/v1/materials/categories [get]
 func (h *MaterialCatalogHandler) GetCategories(c *gin.Context) {
-	categories, err := h.service.GetCategories()
+	categories, err := h.service.LegacyGetCategories()
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -486,7 +486,7 @@ func (h *DrugCatalogHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.List(req)
+	result, err := h.service.LegacyList(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -510,7 +510,7 @@ func (h *DrugCatalogHandler) Get(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Get(id)
+	catalog, err := h.service.LegacyGet(id)
 	if err != nil {
 		if err.Error() == "drug catalog not found" {
 			response.NotFound(c, "药品目录不存在")
@@ -538,7 +538,7 @@ func (h *DrugCatalogHandler) Create(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Create(req)
+	catalog, err := h.service.LegacyCreate(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -575,7 +575,7 @@ func (h *DrugCatalogHandler) Update(c *gin.Context) {
 		return
 	}
 
-	catalog, err := h.service.Update(uint(id), req)
+	catalog, err := h.service.LegacyUpdate(uint(id), req)
 	if err != nil {
 		if err.Error() == "drug catalog not found" {
 			response.NotFound(c, "药品目录不存在")
@@ -609,7 +609,7 @@ func (h *DrugCatalogHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(uint(id)); err != nil {
+	if err := h.service.LegacyDelete(uint(id)); err != nil {
 		if err.Error() == "drug catalog not found" {
 			response.NotFound(c, "药品目录不存在")
 			return
@@ -642,7 +642,7 @@ func (h *DrugCatalogHandler) ToggleEnabled(c *gin.Context) {
 		return
 	}
 
-	isEnabled, err := h.service.ToggleEnabled(uint(id))
+	isEnabled, err := h.service.LegacyToggleEnabled(uint(id))
 	if err != nil {
 		if err.Error() == "drug catalog not found" {
 			response.NotFound(c, "药品目录不存在")
@@ -666,7 +666,7 @@ func (h *DrugCatalogHandler) ToggleEnabled(c *gin.Context) {
 // @Success 200 {object} response.SuccessResponse
 // @Router /api/v1/drugs/categories [get]
 func (h *DrugCatalogHandler) GetCategories(c *gin.Context) {
-	categories, err := h.service.GetCategories()
+	categories, err := h.service.LegacyGetCategories()
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -709,7 +709,7 @@ func (h *OrderTemplateHandler) List(c *gin.Context) {
 		return
 	}
 
-	result, err := h.service.List(req)
+	result, err := h.service.LegacyList(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -733,7 +733,7 @@ func (h *OrderTemplateHandler) Get(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Get(id)
+	template, err := h.service.LegacyGet(id)
 	if err != nil {
 		if err.Error() == "order template not found" {
 			response.NotFound(c, "医嘱模板不存在")
@@ -761,7 +761,7 @@ func (h *OrderTemplateHandler) Create(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Create(req)
+	template, err := h.service.LegacyCreate(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -792,7 +792,7 @@ func (h *OrderTemplateHandler) Update(c *gin.Context) {
 		return
 	}
 
-	template, err := h.service.Update(id, req)
+	template, err := h.service.LegacyUpdate(id, req)
 	if err != nil {
 		if err.Error() == "order template not found" {
 			response.NotFound(c, "医嘱模板不存在")
@@ -820,7 +820,7 @@ func (h *OrderTemplateHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	if err := h.service.LegacyDelete(id); err != nil {
 		if err.Error() == "order template not found" {
 			response.NotFound(c, "医嘱模板不存在")
 			return
@@ -847,7 +847,7 @@ func (h *OrderTemplateHandler) ToggleEnabled(c *gin.Context) {
 		return
 	}
 
-	isEnabled, err := h.service.ToggleEnabled(id)
+	isEnabled, err := h.service.LegacyToggleEnabled(id)
 	if err != nil {
 		if err.Error() == "order template not found" {
 			response.NotFound(c, "医嘱模板不存在")
@@ -878,7 +878,7 @@ func (h *OrderTemplateHandler) SetDefault(c *gin.Context) {
 		return
 	}
 
-	if err := h.service.SetDefault(id); err != nil {
+	if err := h.service.LegacySetDefault(id); err != nil {
 		if err.Error() == "order template not found" {
 			response.NotFound(c, "医嘱模板不存在")
 			return

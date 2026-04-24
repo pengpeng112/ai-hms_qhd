@@ -1,3 +1,5 @@
+//go:build cgo
+
 package services
 
 import (
@@ -5,15 +7,19 @@ import (
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/models"
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
+const testPatientID = "1"
+
 func newTestOrderService(t *testing.T) *OrderService {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	// 每个测试使用独立内存数据库，防止并行测试数据污染，且永远不会连接生产库
+	db, err := gorm.Open(sqlite.Open("file::memory:?mode=memory&cache=private"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
@@ -34,8 +40,8 @@ func mustCreateOrder(t *testing.T, db *gorm.DB, order models.Order) models.Order
 	if order.ID == "" {
 		order.ID = uuid.New().String()
 	}
-	if order.PatientID == "" {
-		order.PatientID = "P1"
+	if order.PatientID == 0 {
+		order.PatientID = modeltypes.LegacyID(1)
 	}
 	if order.Type == "" {
 		order.Type = models.OrderTypeLongTerm
@@ -137,14 +143,14 @@ func TestCreateFromTemplateAppliesOverridesAndRemapsGroupIDPerImport(t *testing.
 		},
 	}
 
-	firstBatch, err := svc.CreateFromTemplate("P1", "D1", "医生A", CreateFromTemplateRequest{
+	firstBatch, err := svc.CreateFromTemplate(testPatientID, 3, "D1", "医生A", CreateFromTemplateRequest{
 		TemplateID: template.ID,
 		Items:      items,
 	})
 	if err != nil {
 		t.Fatalf("CreateFromTemplate returned error: %v", err)
 	}
-	secondBatch, err := svc.CreateFromTemplate("P1", "D1", "医生A", CreateFromTemplateRequest{
+	secondBatch, err := svc.CreateFromTemplate(testPatientID, 3, "D1", "医生A", CreateFromTemplateRequest{
 		TemplateID: template.ID,
 		Items:      items,
 	})
@@ -190,7 +196,7 @@ func TestCreateFromTemplateUsesRequestedOrderTypeInsteadOfTemplateType(t *testin
 		Timing:    strPtr("透析开始"),
 	})
 
-	orders, err := svc.CreateFromTemplate("P1", "D1", "医生A", CreateFromTemplateRequest{
+	orders, err := svc.CreateFromTemplate(testPatientID, 3, "D1", "医生A", CreateFromTemplateRequest{
 		TemplateID: template.ID,
 		Type:       models.OrderTypeTemporary,
 		Items: []CreateFromTemplateItemRequest{
@@ -236,16 +242,16 @@ func TestStopAffectsOnlyCurrentImportedBatchWhenTemplateHasGroupedItems(t *testi
 		},
 	}
 
-	firstBatch, err := svc.CreateFromTemplate("P1", "D1", "医生A", req)
+	firstBatch, err := svc.CreateFromTemplate(testPatientID, 3, "D1", "医生A", req)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate first batch returned error: %v", err)
 	}
-	secondBatch, err := svc.CreateFromTemplate("P1", "D1", "医生A", req)
+	secondBatch, err := svc.CreateFromTemplate(testPatientID, 3, "D1", "医生A", req)
 	if err != nil {
 		t.Fatalf("CreateFromTemplate second batch returned error: %v", err)
 	}
 
-	if _, err := svc.Stop("P1", secondBatch[0].ID, "测试停用", nil); err != nil {
+	if _, err := svc.Stop(testPatientID, secondBatch[0].ID, "测试停用", nil); err != nil {
 		t.Fatalf("Stop returned error: %v", err)
 	}
 
@@ -274,7 +280,7 @@ func TestGroupAndUngroupPersistGroupID(t *testing.T) {
 	a := mustCreateOrder(t, svc.db, models.Order{Name: "A"})
 	b := mustCreateOrder(t, svc.db, models.Order{Name: "B"})
 
-	grouped, err := svc.Group("P1", []string{a.ID, b.ID})
+	grouped, err := svc.Group(testPatientID, []string{a.ID, b.ID})
 	if err != nil {
 		t.Fatalf("Group returned error: %v", err)
 	}
@@ -285,7 +291,7 @@ func TestGroupAndUngroupPersistGroupID(t *testing.T) {
 		t.Fatalf("expected same group id, got %+v %+v", grouped[0].GroupID, grouped[1].GroupID)
 	}
 
-	ungrouped, err := svc.Ungroup("P1", []string{a.ID, b.ID})
+	ungrouped, err := svc.Ungroup(testPatientID, []string{a.ID, b.ID})
 	if err != nil {
 		t.Fatalf("Ungroup returned error: %v", err)
 	}
@@ -301,12 +307,12 @@ func TestGroupRejectsMixedTypeAndStoppedOrders(t *testing.T) {
 	longTerm := mustCreateOrder(t, svc.db, models.Order{Name: "长期A", Type: models.OrderTypeLongTerm})
 	temporary := mustCreateOrder(t, svc.db, models.Order{Name: "临时B", Type: models.OrderTypeTemporary})
 
-	if _, err := svc.Group("P1", []string{longTerm.ID, temporary.ID}); err == nil {
+	if _, err := svc.Group(testPatientID, []string{longTerm.ID, temporary.ID}); err == nil {
 		t.Fatalf("expected mixed-type group to fail")
 	}
 
 	stopped := mustCreateOrder(t, svc.db, models.Order{Name: "已停用", Status: models.OrderStatusStopped})
-	if _, err := svc.Group("P1", []string{longTerm.ID, stopped.ID}); err == nil {
+	if _, err := svc.Group(testPatientID, []string{longTerm.ID, stopped.ID}); err == nil {
 		t.Fatalf("expected stopped-order group to fail")
 	}
 }
@@ -323,7 +329,7 @@ func TestReviseCreatesReplacementForNonLinkedFieldsAndKeepsGroupID(t *testing.T)
 	})
 
 	stopDate := "2026-03-07"
-	revised, err := svc.Revise("P1", origin.ID, "D2", "医生B", OrderReviseRequest{
+	revised, err := svc.Revise(testPatientID, origin.ID, 3, "D2", "医生B", OrderReviseRequest{
 		Name:     strPtr("新医嘱"),
 		Dose:     strPtr("20"),
 		StopDate: &stopDate,
@@ -357,7 +363,7 @@ func TestStopNormalizesStopDateAndStopsWholeGroup(t *testing.T) {
 	b := mustCreateOrder(t, svc.db, models.Order{Name: "B", GroupID: &groupID})
 	stopDate := "2026-03-09"
 
-	affected, err := svc.Stop("P1", a.ID, "医生停用", &stopDate)
+	affected, err := svc.Stop(testPatientID, a.ID, "医生停用", &stopDate)
 	if err != nil {
 		t.Fatalf("Stop returned error: %v", err)
 	}

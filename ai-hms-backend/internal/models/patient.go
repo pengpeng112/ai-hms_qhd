@@ -1,3 +1,4 @@
+// DEPRECATED: legacy new-db model, will be rewritten to map legacy hemodialysis DB in Phase 1~5.
 package models
 
 import (
@@ -5,6 +6,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
 )
 
 // StringSlice JSON 数组类型，用于存储字符串数组到数据库
@@ -38,36 +41,43 @@ func (s *StringSlice) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, s)
 }
 
-// Patient 患者基本信息
+// Patient 患者基本信息 — 映射老血透库 Register_PatientInfomation
 type Patient struct {
-	ID             string         `gorm:"type:varchar(36);primaryKey" json:"id"`
-	Name           string         `gorm:"type:varchar(50);not null" json:"name"`
-	Age            int            `gorm:"not null" json:"age"`
-	Gender         string         `gorm:"type:varchar(10);not null" json:"gender"` // M, F (ISO 5218)
-	BedNumber      string         `gorm:"type:varchar(20)" json:"bedNumber"`
-	Diagnosis      string         `gorm:"type:text" json:"diagnosis"`
-	RiskLevel      string         `gorm:"type:varchar(20);default:低危" json:"riskLevel"` // 高危, 中危, 低危
-	Status         string         `gorm:"type:varchar(20);default:active" json:"status"` // active, inactive, discharged
-	PatientType    string         `gorm:"type:varchar(50)" json:"patientType"`           // 门诊, 住院
-	InsuranceType  string         `gorm:"type:varchar(50)" json:"insuranceType"`
-	DryWeight      float64        `gorm:"type:decimal(5,2)" json:"dryWeight"`
-	DefaultMode    string         `gorm:"type:varchar(50)" json:"defaultMode"`
-	DoctorID      *string    `gorm:"type:varchar(36)" json:"doctorId"`
-	DoctorName    string     `gorm:"type:varchar(50)" json:"doctorName"`
-	AdmissionDate *time.Time `json:"admissionDate"`
-	DischargeDate *time.Time `json:"dischargeDate"`
-	CreatedAt     time.Time  `json:"createdAt"`
-	UpdatedAt     time.Time  `json:"updatedAt"`
+	ID                 modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID           int64               `gorm:"column:TenantId" json:"-"`
+	Name               string              `gorm:"column:Name" json:"name"`
+	Gender             string              `gorm:"column:Gender" json:"gender"`
+	BirthDate          *time.Time          `gorm:"column:BirthDate" json:"birthDate"`
+	PatientType        string              `gorm:"column:PatientType" json:"patientType"`
+	InsuranceType      string              `gorm:"column:ExpenseType" json:"insuranceType"`
+	Status             string              `gorm:"column:TreatmentStatus" json:"status"`
+	DialysisNo         string              `gorm:"column:DialysisNo" json:"dialysisNo"`
+	PhoneNo            string              `gorm:"column:PhoneNo" json:"phoneNo"`
+	ImageBase64String  string              `gorm:"column:ImageBase64String" json:"-"`
+	DoctorID      *string    `gorm:"-" json:"doctorId"` // 老库为 bigint，由服务层从 ResponsibilityDrId 转换
+	AdmissionDate *time.Time `gorm:"column:FirstDialysisDate" json:"admissionDate"`
+	CreatedAt     time.Time  `gorm:"column:CreateTime" json:"createdAt"`
+	UpdatedAt     time.Time  `gorm:"column:LastModifyTime" json:"updatedAt"`
+	Diagnosis          string              `gorm:"column:Note" json:"diagnosis"`
+	DryWeight          float64             `gorm:"column:Weight" json:"dryWeight"`
 
-	// 关联
+	// 以下字段老库无直接对应列，由服务层计算/联查后填充
+	Age           int        `gorm:"-" json:"age"`
+	BedNumber     string     `gorm:"-" json:"bedNumber"`
+	RiskLevel     string     `gorm:"-" json:"riskLevel"`
+	DoctorName    string     `gorm:"-" json:"doctorName"`
+	DefaultMode   string     `gorm:"-" json:"defaultMode"`
+	DischargeDate *time.Time `gorm:"-" json:"dischargeDate"`
+
+	// 关联（保留接口兼容）
 	VascularAccesses []VascularAccess `gorm:"foreignKey:PatientID" json:"vascularAccesses,omitempty"`
 	MedicalHistory   *MedicalHistory  `gorm:"foreignKey:PatientID" json:"medicalHistory,omitempty"`
 	TreatmentPlan    *TreatmentPlan   `gorm:"foreignKey:PatientID" json:"treatmentPlan,omitempty"`
 }
 
-// TableName 指定表名
+// TableName 指定表名 — 老血透库
 func (Patient) TableName() string {
-	return "patients"
+	return "Register_PatientInfomation"
 }
 
 // Gender 常量
@@ -96,62 +106,86 @@ const (
 	PatientTypeInpatient  = "住院"
 )
 
-// VascularAccess 血管通路（一个患者多条记录）
+// VascularAccess 血管通路 — 映射老血透库 Register_VascularAccess
 type VascularAccess struct {
-	ID                string      `gorm:"type:varchar(36);primaryKey" json:"id"`
-	PatientID         string      `gorm:"type:varchar(36);not null;index" json:"patientId"`
-	AccessType        string      `gorm:"type:varchar(50);not null" json:"accessType"`         // AVF/AVG/TCC/NCC
-	Site              string      `gorm:"type:varchar(100)" json:"site"`                       // 通路部位
-	Artery            StringSlice `gorm:"type:text" json:"artery"`                             // 动脉（JSON 数组）
-	Vein              StringSlice `gorm:"type:text" json:"vein"`                               // 静脉（JSON 数组）
-	Side              string      `gorm:"type:varchar(10)" json:"side"`                        // L/R
-	Hospital          string      `gorm:"type:varchar(200)" json:"hospital"`                   // 手术医院
-	Surgeon           string      `gorm:"type:varchar(100)" json:"surgeon"`                    // 手术医生
-	SurgeryDate       *time.Time  `json:"surgeryDate"`                                         // 手术时间
-	FirstUseDate      *time.Time  `json:"firstUseDate"`                                        // 首次使用时间
-	AccessNumber      int         `gorm:"default:1" json:"accessNumber"`                       // 第几次血管通路
-	InterventionCount int         `gorm:"default:0" json:"interventionCount"`                  // 干预次数
-	InterventionDate  *time.Time  `json:"interventionDate"`                                    // 干预日期
-	CatheterMethod    *string     `gorm:"type:varchar(50)" json:"catheterMethod"`              // 置管方法（导管）
-	CatheterDepth     *string     `gorm:"type:varchar(20)" json:"catheterDepth"`               // 导管深度
-	VPuncturePosition StringSlice `gorm:"type:text" json:"vPuncturePosition"`                  // V侧穿刺位置
-	APuncturePosition StringSlice `gorm:"type:text" json:"aPuncturePosition"`                  // A侧穿刺位置
-	Notes             string      `gorm:"type:text" json:"notes"`                              // 备注
-	Images            StringSlice `gorm:"type:text" json:"images"`                             // 图片URLs（JSON 数组）
-	IsDefault         bool                       `gorm:"default:false" json:"isDefault"`                      // 是否默认
-	IsDisabled        bool                       `gorm:"default:false" json:"isDisabled"`                     // 是否禁用
-	CreatedAt         time.Time                  `json:"createdAt"`
-	UpdatedAt         time.Time                  `json:"updatedAt"`
+	ID                modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID          int64               `gorm:"column:TenantId" json:"-"`
+	PatientID         modeltypes.LegacyID `gorm:"column:PatientId;not null;index" json:"patientId"`
+	AccessType        string              `gorm:"column:AccessType" json:"accessType"`
+	Site              string              `gorm:"column:AccessPosition" json:"site"`
+	Artery            string              `gorm:"column:Artery" json:"artery"`
+	Vein              string              `gorm:"column:Venous" json:"vein"`
+	Side              string              `gorm:"column:LeftAndRight" json:"side"`
+	Hospital          string              `gorm:"column:OperationHospital" json:"hospital"`
+	Surgeon           string              `gorm:"column:OperationDr" json:"surgeon"`
+	SurgeryDate       *time.Time          `gorm:"column:OperationTime" json:"surgeryDate"`
+	FirstUseDate      *time.Time          `gorm:"column:FirstUseTime" json:"firstUseDate"`
+	AccessNumber      int64               `gorm:"column:AccessCount" json:"accessNumber"`
+	InterventionCount int64               `gorm:"column:InterveneCount" json:"interventionCount"`
+	InterventionDate  *time.Time          `gorm:"column:InterveneTime" json:"interventionDate"`
+	CatheterMethod    string              `gorm:"column:CatheterizeMethod" json:"catheterMethod"`
+	CatheterDepth     float64             `gorm:"column:CatheterDepth" json:"catheterDepth"`
+	VPuncturePosition string              `gorm:"column:VSidePointCount" json:"vPuncturePosition"`
+	APuncturePosition string              `gorm:"column:ASidePointCount" json:"aPuncturePosition"`
+	Notes             string              `gorm:"column:Note" json:"notes"`
+	PictureID         *modeltypes.LegacyID `gorm:"column:PictureIds" json:"-"`
+	IsDefault         bool                `gorm:"column:IsDefault" json:"isDefault"`
+	IsDisabled        bool                `gorm:"column:IsDisabled" json:"isDisabled"`
+	CreatorID         int64               `gorm:"column:CreatorId" json:"-"`
+	CreatedAt      time.Time `gorm:"column:CreateTime" json:"createdAt"`
+	UpdatedAt      time.Time `gorm:"column:LastModifyTime" json:"updatedAt"`
 }
 
-// TableName 指定表名
+// TableName 指定表名 — 老血透库
 func (VascularAccess) TableName() string {
-	return "vascular_accesses"
+	return "Register_VascularAccess"
 }
 
-// VascularAccessIntervention 血管通路干预记录（一条血管通路有多条干预记录）
+// VascularAccessImage 血管通路图片 — 映射老血透库 Register_VascularAccessImage
+type VascularAccessImage struct {
+	ID                modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID          int64               `gorm:"column:TenantId" json:"-"`
+	VascularAccessID  modeltypes.LegacyID `gorm:"column:VascularAccessId;not null;index" json:"vascularAccessId"`
+	ImageName         string              `gorm:"column:ImageName" json:"imageName"`
+	ImageBase64String string              `gorm:"column:ImageBase64String" json:"imageBase64String"`
+	Note              string              `gorm:"column:Note" json:"note"`
+	Sort              int                 `gorm:"column:Sort" json:"sort"`
+	CreatorID         int64               `gorm:"column:CreatorId" json:"-"`
+	CreatedAt         time.Time           `gorm:"column:CreateTime" json:"createdAt"`
+	UpdatedAt         time.Time           `gorm:"column:LastModifyTime" json:"updatedAt"`
+}
+
+// TableName 指定表名 — 老血透库
+func (VascularAccessImage) TableName() string {
+	return "Register_VascularAccessImage"
+}
+
+// VascularAccessIntervention 血管通路干预 — 映射老血透库 Register_VascularAccessChange
 type VascularAccessIntervention struct {
-	ID                 string     `gorm:"type:varchar(36);primaryKey" json:"id"`
-	VascularAccessID   string     `gorm:"type:varchar(36);not null;index" json:"vascularAccessId"` // 关联的血管通路ID
-	PatientID          string     `gorm:"type:varchar(36);not null;index" json:"patientId"`         // 冗余患者ID便于查询
-	AccessType         string     `gorm:"type:varchar(50)" json:"accessType"`                        // 通路类型（冗余方便显示）
-	AvgBloodFlow       int        `gorm:"default:0" json:"avgBloodFlow"`                             // 平均血流量
-	UsageDays          int        `gorm:"default:0" json:"usageDays"`                                // 使用时间（天）
-	SurgeryType        string     `gorm:"type:varchar(50);not null" json:"surgeryType"`             // 手术类型（必填）
-	InterventionReason string     `gorm:"type:text;not null" json:"interventionReason"`             // 干预原因（必填）
-	Doctor             string     `gorm:"type:varchar(50)" json:"doctor"`                            // 干预医生
-	InterventionDate   time.Time  `gorm:"not null" json:"interventionDate"`                          // 干预时间
-	Description        string     `gorm:"type:text" json:"description"`                              // 干预描述
-	CreatedAt          time.Time  `json:"createdAt"`
-	UpdatedAt          time.Time  `json:"updatedAt"`
+	ID               modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID         int64               `gorm:"column:TenantId" json:"-"`
+	PatientID        modeltypes.LegacyID `gorm:"column:PatientId;not null;index" json:"patientId"`
+	VascularAccessID modeltypes.LegacyID `gorm:"column:VascularAccessId;not null;index" json:"vascularAccessId"`
+	UsageDays        int                 `gorm:"column:UseDuration" json:"usageDays"`
+	SurgeryType      string              `gorm:"column:ChangeDesc" json:"surgeryType"`
+	InterventionReason string            `gorm:"column:ChangeReason" json:"interventionReason"`
+	AvgBloodFlow     float64             `gorm:"column:AvgBF" json:"avgBloodFlow"`
+	InterventionDate time.Time           `gorm:"column:ChangeTime" json:"interventionDate"`
+	Description      string              `gorm:"-" json:"description"`
+	CreatedAt        time.Time           `gorm:"column:CreateTime" json:"createdAt"`
+	UpdatedAt        time.Time           `gorm:"column:LastModifyTime" json:"updatedAt"`
+
+	// 老库无对应列，保留兼容
+	AccessType string `gorm:"-" json:"accessType"`
+	Doctor     string `gorm:"-" json:"doctor"`
 
 	// 关联
 	VascularAccess *VascularAccess `gorm:"foreignKey:VascularAccessID" json:"vascularAccess,omitempty"`
 }
 
-// TableName 指定表名
+// TableName 指定表名 — 老血透库
 func (VascularAccessIntervention) TableName() string {
-	return "vascular_access_interventions"
+	return "Register_VascularAccessChange"
 }
 
 // VascularAccessType 常量
@@ -164,16 +198,16 @@ const (
 
 // VascularAccessStatus 常量
 const (
-	VascularAccessStatusNormal   = "正常"
-	VascularAccessStatusThrombus = "血栓"
-	VascularAccessStatusStenosis = "狭窄"
+	VascularAccessStatusNormal    = "正常"
+	VascularAccessStatusThrombus  = "血栓"
+	VascularAccessStatusStenosis  = "狭窄"
 	VascularAccessStatusInfection = "感染"
 )
 
 // MedicalHistory 临床病史档案（一个患者一条记录）
 type MedicalHistory struct {
-	ID        string `gorm:"type:varchar(36);primaryKey" json:"id"`
-	PatientID string `gorm:"type:varchar(36);not null;uniqueIndex" json:"patientId"`
+	ID        modeltypes.LegacyID `gorm:"type:bigint;primaryKey" json:"id"`
+	PatientID modeltypes.LegacyID `gorm:"type:bigint;not null;uniqueIndex" json:"patientId"`
 
 	// 基础临床病史
 	CurrentIllness     string `gorm:"type:text" json:"currentIllness"`     // 现病史
@@ -184,31 +218,31 @@ type MedicalHistory struct {
 	DiseaseDiagnosis   string `gorm:"type:text" json:"diseaseDiagnosis"`   // 疾病诊断
 
 	// 专科记录
-	PrimaryDiseaseName      string `gorm:"type:varchar(255)" json:"primaryDiseaseName"`      // 原发病名称
-	PrimaryDiseaseContent   string `gorm:"type:text" json:"primaryDiseaseContent"`           // 原发病详情
-	PrimaryDiseaseType      string `gorm:"type:varchar(255)" json:"primaryDiseaseType"`      // 原发病分类
-	PrimaryDiseaseCheckTime string `gorm:"type:varchar(32)" json:"primaryDiseaseCheckTime"`  // 原发病检查时间
-	PrimaryDiseaseCheckDoc  string `gorm:"type:varchar(100)" json:"primaryDiseaseCheckDoc"`  // 原发病检查医生
-	PathologyName           string `gorm:"type:varchar(255)" json:"pathologyName"`           // 病理诊断名称
-	PathologyContent        string `gorm:"type:text" json:"pathologyContent"`                // 病理诊断详情
-	PathologyType           string `gorm:"type:varchar(255)" json:"pathologyType"`           // 病理诊断分类
-	PathologyCheckTime      string `gorm:"type:varchar(32)" json:"pathologyCheckTime"`       // 病理检查时间
-	PathologyCheckDoc       string `gorm:"type:varchar(100)" json:"pathologyCheckDoc"`       // 病理检查医生
-	AllergenName            string `gorm:"type:varchar(255)" json:"allergenName"`            // 过敏信息名称
-	AllergenContent         string `gorm:"type:text" json:"allergenContent"`                 // 过敏信息详情
-	AllergenType            string `gorm:"type:varchar(255)" json:"allergenType"`            // 过敏原分类
-	AllergenCheckTime       string `gorm:"type:varchar(32)" json:"allergenCheckTime"`        // 过敏检查时间
-	AllergenCheckDoc        string `gorm:"type:varchar(100)" json:"allergenCheckDoc"`        // 过敏检查医生
-	TumorHistoryName        string `gorm:"type:varchar(255)" json:"tumorHistoryName"`        // 肿瘤病史名称
-	TumorHistoryContent     string `gorm:"type:text" json:"tumorHistoryContent"`             // 肿瘤病史详情
-	TumorHistoryType        string `gorm:"type:varchar(255)" json:"tumorHistoryType"`        // 肿瘤分类
-	TumorHistoryCheckTime   string `gorm:"type:varchar(32)" json:"tumorHistoryCheckTime"`    // 肿瘤检查时间
-	TumorHistoryCheckDoc    string `gorm:"type:varchar(100)" json:"tumorHistoryCheckDoc"`    // 肿瘤检查医生
-	ComplicationName        string `gorm:"type:varchar(255)" json:"complicationName"`        // 并发症名称
-	ComplicationContent     string `gorm:"type:text" json:"complicationContent"`             // 并发症详情
-	ComplicationType        string `gorm:"type:varchar(255)" json:"complicationType"`        // 并发症分类
-	ComplicationCheckTime   string `gorm:"type:varchar(32)" json:"complicationCheckTime"`    // 并发症检查时间
-	ComplicationCheckDoc    string `gorm:"type:varchar(100)" json:"complicationCheckDoc"`    // 并发症检查医生
+	PrimaryDiseaseName      string `gorm:"type:varchar(255)" json:"primaryDiseaseName"`     // 原发病名称
+	PrimaryDiseaseContent   string `gorm:"type:text" json:"primaryDiseaseContent"`          // 原发病详情
+	PrimaryDiseaseType      string `gorm:"type:varchar(255)" json:"primaryDiseaseType"`     // 原发病分类
+	PrimaryDiseaseCheckTime string `gorm:"type:varchar(32)" json:"primaryDiseaseCheckTime"` // 原发病检查时间
+	PrimaryDiseaseCheckDoc  string `gorm:"type:varchar(100)" json:"primaryDiseaseCheckDoc"` // 原发病检查医生
+	PathologyName           string `gorm:"type:varchar(255)" json:"pathologyName"`          // 病理诊断名称
+	PathologyContent        string `gorm:"type:text" json:"pathologyContent"`               // 病理诊断详情
+	PathologyType           string `gorm:"type:varchar(255)" json:"pathologyType"`          // 病理诊断分类
+	PathologyCheckTime      string `gorm:"type:varchar(32)" json:"pathologyCheckTime"`      // 病理检查时间
+	PathologyCheckDoc       string `gorm:"type:varchar(100)" json:"pathologyCheckDoc"`      // 病理检查医生
+	AllergenName            string `gorm:"type:varchar(255)" json:"allergenName"`           // 过敏信息名称
+	AllergenContent         string `gorm:"type:text" json:"allergenContent"`                // 过敏信息详情
+	AllergenType            string `gorm:"type:varchar(255)" json:"allergenType"`           // 过敏原分类
+	AllergenCheckTime       string `gorm:"type:varchar(32)" json:"allergenCheckTime"`       // 过敏检查时间
+	AllergenCheckDoc        string `gorm:"type:varchar(100)" json:"allergenCheckDoc"`       // 过敏检查医生
+	TumorHistoryName        string `gorm:"type:varchar(255)" json:"tumorHistoryName"`       // 肿瘤病史名称
+	TumorHistoryContent     string `gorm:"type:text" json:"tumorHistoryContent"`            // 肿瘤病史详情
+	TumorHistoryType        string `gorm:"type:varchar(255)" json:"tumorHistoryType"`       // 肿瘤分类
+	TumorHistoryCheckTime   string `gorm:"type:varchar(32)" json:"tumorHistoryCheckTime"`   // 肿瘤检查时间
+	TumorHistoryCheckDoc    string `gorm:"type:varchar(100)" json:"tumorHistoryCheckDoc"`   // 肿瘤检查医生
+	ComplicationName        string `gorm:"type:varchar(255)" json:"complicationName"`       // 并发症名称
+	ComplicationContent     string `gorm:"type:text" json:"complicationContent"`            // 并发症详情
+	ComplicationType        string `gorm:"type:varchar(255)" json:"complicationType"`       // 并发症分类
+	ComplicationCheckTime   string `gorm:"type:varchar(32)" json:"complicationCheckTime"`   // 并发症检查时间
+	ComplicationCheckDoc    string `gorm:"type:varchar(100)" json:"complicationCheckDoc"`   // 并发症检查医生
 
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
@@ -219,25 +253,27 @@ func (MedicalHistory) TableName() string {
 	return "medical_histories"
 }
 
-// OutcomeRecord 治疗转归记录（一个患者多条记录）
+// OutcomeRecord 治疗转归 — 映射老血透库 Register_OutCome
 type OutcomeRecord struct {
-	ID               string    `gorm:"type:varchar(36);primaryKey" json:"id"`
-	PatientID        string    `gorm:"type:varchar(36);not null;index" json:"patientId"`
-	Type             string    `gorm:"type:varchar(20);not null" json:"type"` // 转入/转出
-	Reason           string    `gorm:"type:varchar(255)" json:"reason"`       // 原因
-	Time             time.Time `json:"time"`                                  // 转归时间
-	Remarks          string    `gorm:"type:text" json:"remarks"`              // 备注
-	Registrar        string    `gorm:"type:varchar(50)" json:"registrar"`     // 登记人
-	RegistrationTime time.Time `json:"registrationTime"`                      // 登记时间
-	IsDoorRule       bool      `gorm:"type:boolean;default:false" json:"isDoorRule"` // 门规
+	ID             modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID       int64               `gorm:"column:TenantId" json:"-"`
+	PatientID      modeltypes.LegacyID `gorm:"column:PatientId;not null;index" json:"patientId"`
+	Type           string              `gorm:"column:Type" json:"type"`
+	Reason         string              `gorm:"column:Reason" json:"reason"`
+	Time           time.Time           `gorm:"column:OutComeTime" json:"time"`
+	Remarks        string              `gorm:"column:Note" json:"remarks"`
+	CreatedAt  time.Time `gorm:"column:CreateTime" json:"createdAt"`
+	UpdatedAt  time.Time `gorm:"column:LastModifyTime" json:"updatedAt"`
 
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	// 老库无以下字段，保留供服务层使用（不写入 DB）
+	Registrar        string    `gorm:"-" json:"registrar"`
+	RegistrationTime time.Time `gorm:"-" json:"registrationTime"`
+	IsDoorRule       bool      `gorm:"-" json:"isDoorRule"`
 }
 
-// TableName 指定表名
+// TableName 指定表名 — 老血透库
 func (OutcomeRecord) TableName() string {
-	return "outcome_records"
+	return "Register_OutCome"
 }
 
 // OutcomeType 转归类型常量
@@ -246,23 +282,29 @@ const (
 	OutcomeTypeOut = "转出"
 )
 
-// InfectionInfo 传染病信息 (作为患者的一部分或单独的表)
+// InfectionInfo 传染病筛查 — 映射老血透库 Register_Infection
+// 注意：老库 InfectionDesc 字段存储感染描述文本，无独立 HbsAg/HcvAb 等字段
 type InfectionInfo struct {
-	ID        string         `gorm:"type:varchar(36);primaryKey" json:"id"`
-	PatientID string         `gorm:"type:varchar(36);not null;uniqueIndex" json:"patientId"`
-	HbsAg     string         `gorm:"type:varchar(10);default:阴性" json:"hbsag"` // 乙肝
-	HcvAb     string         `gorm:"type:varchar(10);default:阴性" json:"hcvab"` // 丙肝
-	HivAb     string         `gorm:"type:varchar(10);default:阴性" json:"hivab"` // 艾滋
-	TpaB      string         `gorm:"type:varchar(10);default:阴性" json:"tpab"`  // 梅毒
-	Tb        *string        `gorm:"type:varchar(10)" json:"tb"`                // 结核
-	UpdateDate time.Time `json:"updateDate"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID             modeltypes.LegacyID `gorm:"column:Id;primaryKey" json:"id"`
+	TenantID       int64               `gorm:"column:TenantId" json:"-"`
+	PatientID      modeltypes.LegacyID `gorm:"column:PatientId;not null;uniqueIndex" json:"patientId"`
+	InfectionDesc  string              `gorm:"column:InfectionDesc" json:"infectionDesc"`
+	OtherDesc      string              `gorm:"column:OtherDesc" json:"otherDesc"`
+	Note           string              `gorm:"column:Note" json:"note"`
+	CreateTime     time.Time           `gorm:"column:CreateTime" json:"createdAt"`
+	LastModifyTime time.Time           `gorm:"column:LastModifyTime" json:"updatedAt"`
+
+	// 以下字段由 InfectionDesc 解析或来自其他表，暂以空值兼容前端
+	HbsAg      string    `gorm:"-" json:"hbsag"`
+	HcvAb      string    `gorm:"-" json:"hcvab"`
+	HivAb      string    `gorm:"-" json:"hivab"`
+	TpaB       string    `gorm:"-" json:"tpab"`
+	UpdateDate time.Time `gorm:"-" json:"updateDate"`
 }
 
-// TableName 指定表名
+// TableName 指定表名 — 老血透库
 func (InfectionInfo) TableName() string {
-	return "infection_infos"
+	return "Register_Infection"
 }
 
 // InfectionStatus 常量

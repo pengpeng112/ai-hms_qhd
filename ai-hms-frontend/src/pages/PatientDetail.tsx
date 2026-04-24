@@ -39,6 +39,7 @@ export default function PatientDetail() {
   const [activeTab, setActiveTab] = useState<TabID>('overview')
   const [focusBarOpen, setFocusBarOpen] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
   const [patient, setPatient] = useState<Patient | null>(null)
 
   // Load patient data
@@ -46,6 +47,7 @@ export default function PatientDetail() {
     const loadPatient = async () => {
       if (!id) return
       setLoading(true)
+      setAvatarLoadFailed(false)
       try {
         // 使用 /core 接口获取患者核心数据
         const coreData = await restApi.getPatientCore(id)
@@ -54,6 +56,7 @@ export default function PatientDetail() {
         // 确保数据符合 Patient 类型（添加必要的默认值）
         setPatient({
           id: partialPatient.id || id,
+          avatar: partialPatient.avatar,
           name: partialPatient.name || '未知患者',
           age: partialPatient.age || 0,
           gender: partialPatient.gender || '男',
@@ -189,9 +192,18 @@ export default function PatientDetail() {
           </button>
           <div className="flex items-center">
             <div className="relative">
-              <div className="w-16 h-16 rounded-3xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
-                <User size={32} strokeWidth={2.5}/>
-              </div>
+              {patient.avatar && !avatarLoadFailed ? (
+                <img
+                  src={patient.avatar}
+                  alt={`${patient.name} avatar`}
+                  className="w-16 h-16 rounded-3xl object-cover bg-slate-100 shadow-xl shadow-blue-100"
+                  onError={() => setAvatarLoadFailed(true)}
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-3xl bg-blue-600 flex items-center justify-center text-white shadow-xl shadow-blue-100">
+                  <User size={32} strokeWidth={2.5}/>
+                </div>
+              )}
               {patient.riskLevel === '高危' && (
                 <div className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 border-2 border-white rounded-full flex items-center justify-center animate-bounce shadow-md">
                   <AlertTriangle size={12} className="text-white"/>

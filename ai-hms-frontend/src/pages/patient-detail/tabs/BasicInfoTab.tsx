@@ -21,11 +21,6 @@ const formatValue = (value: string | undefined | null, suffix = ''): string => {
   return suffix ? `${value}${suffix}` : value
 }
 
-const formatNumberValue = (value: number | undefined | null): string => {
-  if (value === null || value === undefined) return '-'
-  return String(value)
-}
-
 // 家属联系人类型
 interface FamilyContact {
   id: string
@@ -79,6 +74,16 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
   const [dictOptions, setDictOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({})
   // 医保类型树形选项（用于 Cascader）
   const [insuranceOptions, setInsuranceOptions] = useState<CascaderOption[]>([])
+
+  // 统一字典选项解析：优先使用字典；若字典暂不可用，仅回退当前值避免硬编码枚举
+  const resolveDictSelectOptions = useCallback((dictType: string, currentValue?: string | null) => {
+    const options = dictOptions[dictType] || []
+    if (options.length > 0) {
+      return options
+    }
+    const fallback = (currentValue || '').trim()
+    return fallback ? [{ value: fallback, label: fallback }] : []
+  }, [dictOptions])
 
   // 家属联系人列表（本地状态）
   const [familyContacts, setFamilyContacts] = useState<FamilyContact[]>([])
@@ -181,15 +186,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
         return cleaned || null
       }
 
-      const parseNullableInt = (value: string | null, fieldName: string): number | null => {
-        if (!value) return null
-        if (value === '-') return null
-        const parsed = Number(value)
-        if (!Number.isInteger(parsed) || parsed <= 0) {
-          throw new Error(`${fieldName} 必须为正整数`)
-        }
-        return parsed
-      }
+      const emergencyContact = familyContacts.find(contact => contact.type === 'emergency') ?? familyContacts[0] ?? null
 
       // 构建请求数据，使用 DOM 中输入框的实际值
       const requestData = {
@@ -209,7 +206,6 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
           visitNo: getInputValue('input[data-field="visitNo"]'),
           medicalRecordNo: getInputValue('input[data-field="medicalRecordNo"]'),
           insuranceNo: getInputValue('input[data-field="insuranceNo"]'),
-          hdisPatientId: parseNullableInt(getInputValue('input[data-field="hdisPatientId"]'), 'HDIS患者ID'),
           insuranceType: getInputValue('input[data-field="insuranceType"]'),
           dialysisNo: getInputValue('input[data-field="dialysisNo"]'),
           doctorName: getInputValue('input[data-field="doctorName"]'),
@@ -234,8 +230,8 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
           landline: getInputValue('input[data-field="landline"]'),
           address: getInputValue('input[data-field="address"]'),
           district: getInputValue('input[data-field="district"]'),
-          contactName: basicInfo.contactInfo.contactName || null,
-          contactPhone: basicInfo.contactInfo.contactPhone || null,
+          contactName: emergencyContact?.name || null,
+          contactPhone: emergencyContact?.phone || null,
         },
       }
 
@@ -365,7 +361,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
               />
               <FormField
                 label={t('basicInfo.field.currentAge')}
-                defaultValue={`${info?.personalInfo.age || patient.age} ${t('basicInfo.unit.yearsOld')}`}
+                defaultValue={`${info?.personalInfo.age ?? patient.age} ${t('basicInfo.unit.yearsOld')}`}
                 readOnly={true}
               />
               <FormField
@@ -385,7 +381,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                   label={t('basicInfo.field.idType')}
                   defaultValue={info?.personalInfo.idType || t('basicInfo.value.idCard')}
                   required
-                  options={dictOptions[DICT_TYPES.ID_TYPE] || [{ value: 'ID_CARD', label: '身份证' }]}
+                  options={resolveDictSelectOptions(DICT_TYPES.ID_TYPE, info?.personalInfo.idType)}
                   dataField="idType"
                   readOnly={!editing}
                 />
@@ -410,15 +406,15 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
               {editing ? (
                 <SelectFormField
                   label={t('basicInfo.field.patientType')}
-                  defaultValue={info?.personalInfo.patientType || patient.patientType}
-                  options={dictOptions[DICT_TYPES.PATIENT_TYPE] || [{ value: 'OUTPATIENT', label: '门诊' }, { value: 'INPATIENT', label: '住院' }]}
+                  defaultValue={info?.personalInfo.patientType || patient.patientType || ''}
+                  options={resolveDictSelectOptions(DICT_TYPES.PATIENT_TYPE, info?.personalInfo.patientType || patient.patientType)}
                   dataField="patientType"
                   readOnly={!editing}
                 />
               ) : (
                 <FormField
                   label={t('basicInfo.field.patientType')}
-                  defaultValue={getNameFromMap(dictNameMaps[DICT_TYPES.PATIENT_TYPE] || new Map(), info?.personalInfo.patientType || patient.patientType)}
+                  defaultValue={formatValue(getNameFromMap(dictNameMaps[DICT_TYPES.PATIENT_TYPE] || new Map(), info?.personalInfo.patientType || patient.patientType))}
                   dataField="patientType"
                   readOnly={true}
                 />
@@ -438,16 +434,16 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
               {editing ? (
                 <SelectFormField
                   label={t('basicInfo.field.visitCategory')}
-                  defaultValue={formatValue(info?.medicalInfo.visitCategory) || t('type.outpatient')}
+                  defaultValue={info?.medicalInfo.visitCategory || ''}
                   required
-                  options={dictOptions[DICT_TYPES.VISIT_CATEGORY] || [{ value: 'OUTPATIENT', label: '门诊' }, { value: 'INPATIENT', label: '住院' }]}
+                  options={resolveDictSelectOptions(DICT_TYPES.VISIT_CATEGORY, info?.medicalInfo.visitCategory)}
                   dataField="visitCategory"
                   readOnly={!editing}
                 />
               ) : (
                 <FormField
                   label={t('basicInfo.field.visitCategory')}
-                  defaultValue={getNameFromMap(dictNameMaps[DICT_TYPES.VISIT_CATEGORY] || new Map(), info?.medicalInfo.visitCategory) || t('type.outpatient')}
+                  defaultValue={formatValue(getNameFromMap(dictNameMaps[DICT_TYPES.VISIT_CATEGORY] || new Map(), info?.medicalInfo.visitCategory))}
                   required
                   dataField="visitCategory"
                   readOnly={true}
@@ -479,22 +475,12 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                 dataField="insuranceNo"
                 readOnly={!editing}
               />
-              <FormField
-                label="HDIS患者ID"
-                defaultValue={editing
-                  ? (info?.medicalInfo.hdisPatientId !== undefined && info?.medicalInfo.hdisPatientId !== null
-                    ? String(info.medicalInfo.hdisPatientId)
-                    : '')
-                  : formatNumberValue(info?.medicalInfo.hdisPatientId)}
-                dataField="hdisPatientId"
-                readOnly={!editing}
-              />
               {editing ? (
                 <CascaderFormField
                   label={t('basicInfo.field.insuranceType')}
                   defaultValue={info?.medicalInfo.insuranceType || patient.insuranceType}
                   required
-                  options={insuranceOptions.length > 0 ? insuranceOptions : [{ value: '自费', label: '自费' }]}
+                  options={insuranceOptions}
                   dataField="insuranceType"
                   readOnly={!editing}
                 />
@@ -571,7 +557,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
               />
               <FormField
                 label={t('info.dryWeight')}
-                defaultValue={`${info?.vitalSocialInfo.dryWeight || patient.dryWeight} kg`}
+                defaultValue={`${info?.vitalSocialInfo.dryWeight ?? patient.dryWeight} kg`}
                 required
                 readOnly={true}
               />
@@ -579,7 +565,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                 <SelectFormField
                   label={t('basicInfo.field.aboBloodType')}
                   defaultValue={formatValue(info?.vitalSocialInfo.aboBloodType)}
-                  options={dictOptions[DICT_TYPES.BLOOD_TYPE_ABO] || [{ value: 'A', label: 'A型' }, { value: 'B', label: 'B型' }, { value: 'AB', label: 'AB型' }, { value: 'O', label: 'O型' }]}
+                  options={resolveDictSelectOptions(DICT_TYPES.BLOOD_TYPE_ABO, info?.vitalSocialInfo.aboBloodType)}
                   dataField="aboBloodType"
                   readOnly={!editing}
                 />
@@ -595,7 +581,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                 <SelectFormField
                   label={t('basicInfo.field.rhBloodType')}
                   defaultValue={formatValue(info?.vitalSocialInfo.rhBloodType)}
-                  options={dictOptions[DICT_TYPES.BLOOD_TYPE_RH] || [{ value: 'POSITIVE', label: 'Rh阳性' }, { value: 'NEGATIVE', label: 'Rh阴性' }, { value: 'UNKNOWN', label: 'Rh未知' }]}
+                  options={resolveDictSelectOptions(DICT_TYPES.BLOOD_TYPE_RH, info?.vitalSocialInfo.rhBloodType)}
                   dataField="rhBloodType"
                   readOnly={!editing}
                 />
@@ -611,16 +597,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                 <SelectFormField
                   label={t('basicInfo.field.educationLevel')}
                   defaultValue={formatValue(info?.vitalSocialInfo.educationLevel)}
-                  options={dictOptions[DICT_TYPES.EDUCATION_LEVEL] || [
-                    { value: 'PRIMARY', label: '小学' },
-                    { value: 'JUNIOR_HIGH', label: '初中' },
-                    { value: 'HIGH_SCHOOL', label: '高中' },
-                    { value: 'VOCATIONAL', label: '中专' },
-                    { value: 'COLLEGE', label: '大专' },
-                    { value: 'UNDERGRADUATE', label: '本科' },
-                    { value: 'POSTGRADUATE', label: '研究生' },
-                    { value: 'OTHER', label: '其他' }
-                  ]}
+                  options={resolveDictSelectOptions(DICT_TYPES.EDUCATION_LEVEL, info?.vitalSocialInfo.educationLevel)}
                   dataField="educationLevel"
                   readOnly={!editing}
                 />
@@ -642,12 +619,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
                 <SelectFormField
                   label={t('basicInfo.field.maritalStatus')}
                   defaultValue={formatValue(info?.vitalSocialInfo.maritalStatus)}
-                  options={dictOptions[DICT_TYPES.MARITAL_STATUS] || [
-                    { value: 'UNMARRIED', label: '未婚' },
-                    { value: 'MARRIED', label: '已婚' },
-                    { value: 'DIVORCED', label: '离异' },
-                    { value: 'WIDOWED', label: '丧偶' }
-                  ]}
+                  options={resolveDictSelectOptions(DICT_TYPES.MARITAL_STATUS, info?.vitalSocialInfo.maritalStatus)}
                   dataField="maritalStatus"
                   readOnly={!editing}
                 />

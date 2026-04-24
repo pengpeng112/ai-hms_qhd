@@ -5,6 +5,19 @@
 
 import { restApi } from './restClient'
 import * as tokenStorage from '@/utils/token'
+import { saveSelectedRoleUser, type RoleUser } from './role'
+
+function normalizeRole(role: string | undefined): RoleUser['role'] {
+  if (!role) {
+    return 'ADMIN' as RoleUser['role']
+  }
+
+  if (role.toLowerCase() === 'admin') {
+    return 'ADMIN' as RoleUser['role']
+  }
+
+  return role as RoleUser['role']
+}
 
 /**
  * 执行登录
@@ -13,6 +26,13 @@ export async function performLogin(credentials: { username: string; password: st
   try {
     // 调用后端登录接口
     const loginResult = await restApi.login(credentials)
+    const normalizedRole = normalizeRole(loginResult.role)
+    const selectedRoleUser: RoleUser = {
+      id: loginResult.userId,
+      name: loginResult.realName || loginResult.username,
+      role: normalizedRole,
+      subLabelKey: normalizedRole === 'ADMIN' ? '系统管理员' : 'role:subLabel.doctorSupervisor',
+    }
 
     // 保存 token
     tokenStorage.saveToken({
@@ -22,11 +42,13 @@ export async function performLogin(credentials: { username: string; password: st
         id: loginResult.userId,
         name: loginResult.realName || loginResult.username,
         nickname: loginResult.username,
-        role: loginResult.role,
+        role: normalizedRole,
         organId: '',
         tenantAddress: '',
       },
     })
+
+    saveSelectedRoleUser(selectedRoleUser)
 
     return loginResult
   } catch (error) {
@@ -63,6 +85,8 @@ export function performLogout(): void {
   localStorage.removeItem('hdis_access_token')
   localStorage.removeItem('hdis_user_info')
   localStorage.removeItem('hdis_token_expiry')
+  localStorage.removeItem('selected_role')
+  localStorage.removeItem('selected_role_user')
 
   // 清除会话存储
   sessionStorage.removeItem('oauth_state')

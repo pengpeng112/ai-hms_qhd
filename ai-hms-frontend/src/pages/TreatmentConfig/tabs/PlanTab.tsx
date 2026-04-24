@@ -471,7 +471,7 @@ function PlanTabComponent({ dictOptions, onRefreshDict }: PlanTabProps) {
       })
 
       setModalMaterials(planDetail.templateContent.materials.map(m => ({
-        id: m.id || `M${Date.now()}_${Math.random()}`,
+        id: m.id || `M_${crypto.randomUUID()}`,
         name: m.name,
         category: m.category,
         count: m.count,

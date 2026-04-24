@@ -2,7 +2,6 @@ package models
 
 import "time"
 
-// DeviceStatus 设备状态
 const (
 	DeviceStatusNormal      = "normal"
 	DeviceStatusWarning     = "warning"
@@ -11,27 +10,33 @@ const (
 	DeviceStatusMaintenance = "maintenance"
 )
 
-// Device 透析设备
+// Device is a DTO assembled from legacy equipment archive + bed binding tables.
 type Device struct {
-	ID             string    `gorm:"type:varchar(36);primaryKey" json:"id"`
-	TenantId       int64     `gorm:"type:bigint;index" json:"tenantId"`
-	Name           string    `gorm:"type:varchar(100);not null" json:"name"`         // 设备名称
-	SerialNo       string    `gorm:"type:varchar(100)" json:"serialNo"`              // 序列号
-	Model          string    `gorm:"type:varchar(100)" json:"model"`                 // 型号
-	Manufacturer   string    `gorm:"type:varchar(100)" json:"manufacturer"`          // 厂商
-	BedNumber      string    `gorm:"type:varchar(20);index" json:"bedNumber"`        // 对应床号
-	WardId         *int64    `gorm:"type:bigint;index" json:"wardId"`                // 所属病区
-	Status         string    `gorm:"type:varchar(20);default:offline" json:"status"` // 设备状态
-	PurchaseDate   *time.Time `gorm:"type:date" json:"purchaseDate"`                 // 购入日期
-	LastMaintained *time.Time `gorm:"type:date" json:"lastMaintained"`               // 最近维保日期
-	Notes          string    `gorm:"type:text" json:"notes"`
-	IsDisabled     bool      `gorm:"default:false" json:"isDisabled"`
-	CreatorId      int64     `gorm:"type:bigint" json:"creatorId"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
-}
-
-// TableName 指定表名
-func (Device) TableName() string {
-	return "devices"
+	ID               string     `json:"id"`
+	TenantId         int64      `json:"tenantId"`
+	Name             string     `json:"name"`
+	IDNo             string     `json:"idNo"`
+	SerialNo         string     `json:"serialNo"`
+	Brand            string     `json:"brand"`
+	Model            string     `json:"model"`
+	DialysisMethod   string     `json:"dialysisMethod"`
+	DeviceType       string     `json:"deviceType"`
+	Manufacturer     string     `json:"manufacturer"`
+	BedNumber        string     `json:"bedNumber"`
+	BedId            *int64     `json:"bedId"`
+	WardId           *int64     `json:"wardId"`
+	WardName         string     `json:"wardName"`
+	Status           string     `json:"status"`
+	PurchaseDate     *time.Time `json:"purchaseDate"`
+	ManufactureDate  *time.Time `json:"manufactureDate"`
+	InstallDate      *time.Time `json:"installDate"`
+	LastMaintained   *time.Time `json:"lastMaintained"`
+	Maintenance      *int64     `json:"maintenance"`
+	MaintenanceCycle string     `json:"maintenanceCycle"`
+	Flux             string     `json:"flux"`
+	Notes            string     `json:"notes"`
+	IsDisabled       bool       `json:"isDisabled"`
+	CreatorId        int64      `json:"creatorId"`
+	CreatedAt        time.Time  `json:"createdAt"`
+	UpdatedAt        time.Time  `json:"updatedAt"`
 }

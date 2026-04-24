@@ -68,13 +68,13 @@ export default function Inventory() {
     useEffect(() => {
         restApi.getInventoryItems({ pageSize: 200 }).then(res => {
             setInventoryItems(res.items as unknown as InventoryItem[])
-        }).catch(() => {})
+        }).catch((err) => console.error('[Inventory] 库存列表加载失败', err))
         restApi.getStockLogs({ pageSize: 200 }).then(res => {
             setStockLogs(res.items as unknown as StockLog[])
-        }).catch(() => {})
+        }).catch((err) => console.error('[Inventory] 出入库记录加载失败', err))
         restApi.getLabelTasks({ pageSize: 200 }).then(res => {
             setLabelTasks(res.items as unknown as LabelTask[])
-        }).catch(() => {})
+        }).catch((err) => console.error('[Inventory] 标签任务加载失败', err))
     }, [])
 
     // 过滤库存数据

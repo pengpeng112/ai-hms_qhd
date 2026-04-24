@@ -1,0 +1,4178 @@
+
+
+ Register_Diagnosis
+Register_Complication
+Register_Allergen
+0..1
+Register_PatientInfomation
+ Id                                                         bigint
+Id                                                                     bigint
+Id                                                    bigint
+  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+1
+
+  *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+
+
+
+
+
+
+
+
+
+        timestamp
+  LastModifyTime
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+Id                                                                      bigint
+ *
+TenantId                                                     bigint
+TenantId                                     bigint
+TenantId                                                         bigint
+*
+TenantId                                                          bigint
+ PatientId                                     bigint
+PatientId                                                     bigint
+PatientId                                                         bigint
+Name                               character varying(256)
+ Type                  character varying(64)
+Type                        character varying(64)
+DiagnosisDate                                               timestamp
+Spell                                         character varying(256)
+ Name                            character varying(512)
+Complaints                              character varying(512)
+Name                    character varying(1024)
+Type                                           character varying(64)
+ ExamineTime                         timestamp
+DiagnosisDesc                      character varying(1024)
+Description               character varying(1024)
+TreatmentStatus                      character varying(64)
+ ExamineTime                                     timestamp
+ComplicationDesc                character varying(1024)
+ExamineDr               character varying(64)
+OutComeStatus                        character varying(64)
+ ExamineDr                     character varying(64)
+Note                      character varying(1024)
+Note                                      character varying(1024)
+Gender                                      character varying(64)
+ CreatorId                                                                bigint
+Note                            character varying(1024)
+CreatorId                                            bigint
+BirthDate                                                           timestamp
+ CreateTime
+CreatorId                                                    bigint
+CreateTime                                            timestamp
+Nation                                       character varying(64)
+ CreateTime                                   timestamp
+      timestamp
+LastModifyTime                                    timestamp
+ABOType                                     character varying(64)
+ LastModifyTime                         timestamp
+RHType                                        character varying(64)
+ Register_FamilyMember
+
+
+
+
+
+
+
+
+      timestamp
+LastModifyTime
+Register_IDInfomation
+ 
+        
+        
+
+
+        
+
+        
+        
+Height                                                                     numeric
+ Id                                               bigint
+Register_Hospitalization
+Id                                                 bigint
+Weight                                                                    numeric
+ Id                                                                 bigint
+TenantId                                  bigint
+TenantId                                   bigint
+Occupation                             character varying(128)
+ TenantId                                                     bigint
+PatientId                                   bigint
+PatientId                                  bigint
+*
+MaritalStatus                            character varying(64)
+ Name                     character varying(64)
+PatientId                                                     bigint
+IDType                  character varying(64)
+*
+EducationLevel                         character varying(64)
+ CaseNo                                 character varying(64)
+Kinship                  character varying(64)
+IDNo                     character varying(64)
+Province                                    character varying(64)
+ PhoneNo               character varying(32)
+IsDisabled                             boolean
+HospNo                                character varying(64)
+City                                             character varying(64)
+ CreatorId                                       bigint
+BarCode                               character varying(64)
+IsDisabled                                boolean
+County                                         character varying(64)
+ HospPatientType                 character varying(64)
+CreatorId                                         bigint
+CreateTime
+Address                                   character varying(256)
+ HospReceiveDept                character varying(64)
+      timestamp
+CreateTime                         timestamp
+PhoneNo                                   character varying(32)
+ LastModifyTime                  timestamp
+HospWard                             character varying(64)
+ExpenseType                             character varying(64)
+ HospBed                              character varying(64)
+Type                       character varying(64)
+SSN                                             character varying(64)
+ Register_OrderSheet
+ 
+
+  
+        
+        
+        
+
+
+        
+        
+        
+AttendDr                                character varying(64)
+DialysisNo                                 character varying(64)
+ Id                                               bigint
+ReceptionDr                          character varying(64)
+ResponsibilityDrId                                                  bigint
+ Register_Infection
+TenantId                                        bigint
+CreatorId                                                            bigint
+ResponsibilityNurseId                                            bigint
+                                       PatientId                                        bigint
+Id                                                             bigint
+FirstDialysisDate                                            timestamp
+CreateTime                                        timestamp
+*
+               
+ OrderTime                        timestamp
+TenantId                                                 bigint
+LastModifyTime                                timestamp
+FirstDialysisHospital                 character varying(64)
+ Status                                      integer
+PatientId                                                 bigint
+MedicalRecordNo                 character varying(64)
+Note                                       character varying(1024)
+ InfectionDesc                character varying(1024)
+Age                                          integer
+WeChatNo                               character varying(128)
+ OtherDesc                      character varying(1024)
+ImageBase64String                           text
+ImportInfo                            character varying(1024)
+ Note                              character varying(1024)
+DigitalSignature                                   text
+Register_MedicalHistory
+CreatorId                                                                 bigint
+ Id                                                    bigint
+CreatorId                                  bigint
+CreatorId                                                        bigint
+CreateTime                                             timestamp
+ CreateTime                                       timestamp
+TenantId                                     bigint
+CreateTime                         timestamp
+LastModifyTime                                     timestamp
+ LastModifyTime                             timestamp
+PatientId                                     bigint
+LastModifyTime                timestamp
+*
+IDName                                   character varying(256)
+ Complaints                                                text
+ContentJsonb                                   jsonb
+HomePhoneNo                          character varying(32)
+ PresentIllnessHistory                            text
+Register_Pathology
+ImageBase64String                                                 text
+ PastIllnessHistory                                  text
+Id                                                         bigint
+Register_Tumor
+PatientType                               character varying(64)
+ PersonalHistory                                        text
+Id                                                                bigint
+TenantId                                                     bigint
+Workunit                                 character varying(256)
+ MaritalReproductiveHistory                   text
+TenantId                                                             bigint
+PatientId                                                     bigint
+PredictWeight                                                        numeric
+                 
+                                       FamilyHistory                                            text
+PatientId                                                            bigint
+Type                        character varying(64)
+OurHospitalFirstDialysisDate                          timestamp
+*
+                       DiagnosisDesc                                        text
+
+character varying(64) 
+                                                        character varying(1024)
+                                                         character varying(512)
+                                                                     timestamp 
+                                                          character varying(64)
+                                                        character varying(1024)
+   bigint timestamp 
+                                                                     timestamp 
+Type
+TreatmentDesc
+Name
+ExamineTime
+ExamineDr
+Note
+CreatorId
+CreateTime
+LastModifyTime
+PhysicalExamination                               text
+Name                            character varying(512)
+Register_ElectronicDocument
+ExamineTime                               timestamp
+SpecialistExamination                           text
+
+Id                                                     bigint
+ExamineDr                     character varying(64)
+AncillaryExamination                            text
+TenantId                                      bigint
+Note                            character varying(1024)
+Note                       character varying(1024)
+PatientId                                      bigint
+CreatorId                                                    bigint
+CreatorId                                            bigint
+Type                            character varying(64)
+CreateTime                                   timestamp
+CreateTime                            timestamp
+Name                        character varying(256)
+LastModifyTime                         timestamp
+LastModifyTime                      timestamp
+AttachmentIds                  character varying
+Description               character varying(1024)
+Narrator                    character varying(64)
+PatientSign                character varying(64)
+SignTime                                   timestamp
+Register_VascularAccessChange
+Note                        character varying(1024)
+Register_Protopathy
+Id                                                             bigint
+CreatorId                                             bigint
+Id                                                    bigint
+TenantId                                                 bigint
+CreateTime
+TenantId                                             bigint
+PatientId                                                 bigint
+      timestamp
+timestamp
+PatientId                                             bigint
+*
+VascularAccessId                                 bigint
+*
+LastModifyTime
+                        character varying(64) 
+                                                         character varying(512)
+                                                                     timestamp 
+                                                          character varying(64)
+                                                        character varying(1024)
+    bigint
+                                                                     timestamp 
+Type
+Name
+ExamineTime
+ExamineDr
+Note
+CreatorId
+CreateTime
+UseDuration                                      integer
+
+                        
+ AvgBF                                                   numeric
+Register_Image
+ ChangeTime                                   timestamp
+Id                                                       bigint
+ ChangeReason               character varying(512)
+TenantId                                         bigint
+ ChangeDesc                     character varying(512)
+PatientId                                         bigint
+ SketchMap                                                  bigint
+ImageName               character varying(128)
+                           PhysicalMap                                                bigint
+      timestamp
+ImageBase64String                                    text
+FeatureCode                                               text
+CreatorId                                                        bigint
+LastModifyTime CreateTime                                       timestamp
+Type                               character varying(64)
+ LastModifyTime
+timestamp 
+Register_VascularAccessImage
+Note                           character varying(1024)
+ Id 
+TenantId
+bigint 
+bigint 
+CreatorId                                                bigint
+ *
+CreateTime                                timestamp
+ VascularAccessId                              bigint
+LastModifyTime                          timestamp
+ ImageName               character varying(128)
+Sort                                                   numeric
+ ImageBase64String                                    text
+BizId                                                            bigint
+                          Sort                                                   numeric
+Note                           character varying(1024)
+ CreatorId                                                bigint
+Register_OutCome
+ CreateTime                                timestamp
+Id                                               bigint
+ LastModifyTime                          timestamp
+TenantId                                        bigint
+ PatientId                                        bigint
+ Type                     character varying(64)
+ Reason                 character varying(64)
+ OutComeTime                  timestamp 
+ Note                 character varying(1024)
+ CreatorId                                       bigint
+ CreateTime                         timestamp 
+       timestamp
+LastModifyTime
+ 1
+Register_VascularAccess
+ Id                                                                      bigint
+ TenantId                                                          bigint
+ PatientId                                                          bigint
+        AccessType
+character varying(64)
+ character varying(128)
+character varying(128)
+character varying(128)
+character varying(128)
+timestamp character varying(1024)
+   bigint boolean 
+    boolean  bigint
+                                                                     timestamp 
+                                                                     timestamp 
+character varying(256)
+character varying(128)
+character varying(256)
+                                character varying(128)	numeric timestamp bigint
+   bigint timestamp
+    text
+AccessPosition Artery Venous
+ LeftAndRight
+ OperationTime Note
+ PictureIds IsDefault
+ IsDisabled CreatorId
+ CreateTime
+ LastModifyTime
+ ASidePointCount
+ OperationHospital VSidePointCount
+ CatheterizeMethod CatheterDepth
+ FirstUseTime
+ InterveneCount AccessCount
+ InterveneTime OperationDr
+
+
+Register_PatientInfomation
+Id s                                       bigint NN
+ Schedule_BedFEPChange
+ Schedule_Shift
+
+Schedule_PatientShift
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                   timestamp NN
+                                                                   timestamp NN
+1
+1
+
+Id 
+    bigint NN
+TenantId
+    bigint NN
+BedId
+    bigint NN
+BeforeFEPId
+                                                                         bigint
+AfterFEPId
+                                                                         bigint
+CreatorId
+    bigint NN
+CreateTime
+  timestamp(6) NN
+LastModifyTime
+  timestamp(6) NN
+
+Id 
+Id 
+bigint
+bigint
+NN
+NN
+
+
+
+
+
+
+*
+
+ TenantId                                 bigint NN
+ TenantId                                        bigint
+
+ Name                 character varying(256)
+*
+PatientId 
+
+NN
+bigint
+Schedule_Bed
+Id s                                                bigint NN
+ TreatmentTime                 timestamp NN
+ Sort                                                integer
+
+1
+ StartTime                            timestamp NN
+
+ShiftId 
+NN
+bigint
+TenantId
+Name
+Sort
+WardId
+IsDisabled
+Note
+CreatorId
+
+                                                                         bigint
+                                       character varying(256) NN integer bigint
+ boolean character varying(512)
+     bigint NN
+*
+EndTime                             timestamp NN
+Type                                               integer
+Note                   character varying(512)
+IsDisabled                                     boolean
+CreatorId                                       bigint
+CreateTime                        timestamp NN
+LastModifyTime                timestamp NN
+WardId 
+NN
+bigint
+
+*
+BedId 
+NN
+bigint
+
+ PatientPlanId                           bigint NN
+
+ ShiftTiming                             integer NN
+ Schedule_BedEquipmentRelChange
+
+ Status                                      integer NN
+
+Id 
+TenantId
+EquipmentId
+Sort
+BedId
+IsDefault
+IsDisabled
+Type
+ParameterS
+CreatorId
+CreateTime
+LastModifyTime
+  bigint NN
+  bigint NN
+                                                                         bigint
+                                                                        integer
+                                                                         bigint
+                                                                        boolean
+                                                       boolean integer NN jsonb
+  bigint NN
+timestamp(6) NN
+timestamp(6) NN
+ CreatorId                                bigint NN
+
+ CreateTime
+CreateTime                             timestamp NN
+LastModifyTime                     timestamp NN
+ LastModifyTime
+
+                                                       Schedule BedEquipmentRel
+_
+             Schedule_Ward
+Id 
+TenantId
+EquipmentId
+Sort
+BedId
+bigint NN
+                                                                         bigint
+                                                                         bigint
+                                                                        integer
+                                                                         bigint
+FEPId                                                      bigint                                            
+
+
+
+
+
+
+
+
+
+
+
+
+
+    1
+ Id 
+AcquisiteConnectId                            bigint
+
+TenantId
+     bigint NN
+Name
+                                                         character varying(256)
+Sort
+     integer NN
+PatientType
+                                                          character varying(64)
+InfectionType
+                                                          character varying(64)
+IsDisabled
+     boolean NN
+Note
+                                                         character varying(512)
+CreatorId
+     bigint NN
+CreateTime
+    timestamp NN
+LastModifyTime
+    timestamp NN
+ResponsibleUsers
+                                                         character varying(512)
+
+ IsDefault                                                boolean
+IsDisabled                                              boolean
+LastModifyTime                    timestamp(6) NN
+Type                                                  integer NN
+ParameterS
+             jsonb
+
+ Schedule_CheckIn
+ Id 
+     bigint NN
+ TenantId
+     bigint NN
+ LastHandoverIds
+ character varying(64)
+ ShiftId
+      bigint
+ WardId
+      bigint
+ ClockInTime
+    timestamp NN
+ OperatorType
+      bigint
+ Type
+      bigint
+ Note
+       text
+ OperatorId
+      bigint
+ CreatorId
+      bigint
+
+CreateTime
+LastModifyTime
+timestamp NN
+timestamp NN
+bigint NN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Schedule_Handover
+ Id 
+     bigint NN
+ TenantId
+     bigint NN
+ ShiftId
+       bigint
+ TreatmentTime
+    timestamp NN
+ WardId
+       bigint
+ ClockInTime
+    timestamp NN
+ OperatorType
+       bigint
+ OperatorId
+       bigint
+ CheckInId
+       bigint
+ Note
+        text
+ Content
+ character varying(1024)
+ AcceptContent
+ character varying(1024)
+ CreatorId
+       bigint
+ CreateTime
+timestamp NN
+ LastModifyTime
+    timestamp NN
+
+
+
+
+
+
+
+
+
+
+
+Order_OrderTPL
+Id 
+TenantId
+Name
+OrderGroup
+IsDisabled 
+                                                                        bigint 
+                                                                        bigint 
+                                         character varying(256)	bigint boolean 
+
+
+
+
+            
+Classification
+DrugId
+Content
+Dosage
+UseOpportunity
+UseMethod
+UseWay
+Note
+CreatorId
+CreateTime
+LastModifyTime
+UseNum
+AllDosage
+                                                          character varying(64)
+                                                                        bigint 
+                                                         character varying(256)
+                                                          character varying(64)
+                                                         character varying(128)
+                                                         character varying(128)
+                                                         character varying(128)
+ character varying(1024) bigint
+                                                                     timestamp 
+  timestamp  numeric
+                                                                        numeric
+
+Plan_PlanTPL
+1
+Id 
+bigint 
+
+TenantId
+Name
+CreatorId
+CreateTime
+IsDisabled
+DialysisMethod DialysisDuration AdjustQuantity BF
+BV
+FirstAnticoagulant
+FirstDosage
+MaintainAnticoagulant DilutionProportion
+InjectionRate
+InjectionDuration InjectionVolume VascularAccessId Dialysate
+DialysateFlow
+DialysateVolume NaIonCon
+CaIonCon
+KIonCon
+Conductivity
+DialysateTmp
+SubstituateVolume DilutionMnt
+LastModifyTime HCO3IonCon
+GlucoseCon
+DialysateGroupId Note
+SubstituateFlow
+                                                                        bigint 
+                                character varying(256)	bigint timestamp boolean
+                                                character varying(256)  numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+   bigint numeric
+   bigint numeric
+                                                                        numeric
+                                                                        numeric
+                                                                 numeric bigint
+                                                  character varying(64) numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+ numeric character varying(64)
+   timestamp numeric
+                                                                        numeric
+                                                                         bigint
+                                                                           text
+                                                                        numeric
+
+Plan_PatientPlanPrescriptionAdjustment
+
+Id 
+TenantId
+Type
+PatientPlanPrescriptionId AdjustUserId
+AdjustTime
+AdjustReason
+BeforeOddWeekFrequency AfterOddWeekFrequency
+BeforeEvenWeekFrequency AfterEvenWeekFrequency  BeforeDialysisMethod
+AfterDialysisMethod
+BeforeDialysisDuration AfterDialysisDuration BeforeDryWeight
+AfterDryWeight
+BeforeExtraWeight
+AfterExtraWeight
+BeforeAdjustQuantity AfterAdjustQuantity  BeforeBF
+AfterBF
+BeforeFirstAnticoagulant
+AfterFirstAnticoagulant
+BeforeFirstDosage
+AfterFirstDosage
+BeforeMaintainAnticoagulant AfterMaintainAnticoagulant BeforeDilutionProportion
+AfterDilutionProportion
+BeforeInjectionRate
+AfterInjectionRate
+BeforeInjectionDuration AfterInjectionDuration
+BeforeInjectionVolume
+AfterInjectionVolume
+BeforeVascularAccessId
+AfterVascularAccessId
+BeforeDialysate
+AfterDialysate
+BeforeDialysateFlow
+AfterDialysateFlow
+BeforeDialysateVolume
+AfterDialysateVolume
+BeforeNaIonCon
+AfterNaIonCon
+BeforeCaIonCon
+AfterCaIonCon
+BeforeKIonCon
+AfterKIonCon
+BeforeHCO3IonCon
+AfterHCO3IonCon
+BeforeConductivity
+AfterConductivity
+BeforeDialysateTmp
+AfterDialysateTmp
+BeforeSubstituateVolume AfterSubstituateVolume
+BeforeDilutionMnt
+AfterDilutionMnt
+BeforeSalineQuantity AfterSalineQuantity
+BeforeSealType
+AfterSealType
+BeforeSealQuantity
+AfterSealQuantity
+BeforeArterialQuantity AfterArterialQuantity  BeforeVenousQuantity AfterVenousQuantity  BeforeUFQuantity
+AfterUFQuantity Status
+DealUserId
+DealTime
+DealContent CreatorId
+CreateTime
+LastModifyTime BeforeBV
+AfterBV
+BeforeFrequency AfterFrequency
+  bigint 
+  bigint  integer  bigint 
+                                   bigint   	timestamp   character varying(512)
+                                                                        integer
+                                                                        integer
+                                                                        integer
+                                                                        integer
+                                                         character varying(512)
+character varying(512) numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                         bigint
+   bigint numeric
+                                                                        numeric
+                                                                         bigint
+   bigint numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                         bigint
+                                                                         bigint
+                                                          character varying(64)
+character varying(64) numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+numeric character varying(64)
+character varying(64) numeric
+numeric character varying(64)
+character varying(64) numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                numeric integer
+                                                               bigint timestamp
+                                     character varying(512)	bigint   timestamp 
+  timestamp   numeric
+numeric character varying(128)
+                                                         character varying(128)
+
+BeforeGlucoseCon                                                     numeric
+AfterGlucoseCon                                                        numeric
+BeforeSubstituateFlow                                             numeric
+AfterSubstituateFlow                                                 numeric
+BeforeIsInduceDialysisPrescription                      boolean
+AfterIsInduceDialysisPrescription                           boolean
+BeforeHeparinType                                                   integer
+AfterHeparinType                                                      integer
+BeforeMaterial                                                               jsonb
+AfterMaterial                                                                  jsonb
+*
+0..1
+Id                                  bigint
+
+Treatment_Treatment
+1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+   *
+Id                                                       
+Register_PatientInfomation
+0..1
+    bigint
+1
+               
+
+
+
+
+    *
+1
+
+0..1
+
+
+*
+Order_PatientOrder
+
+
+       
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       
+Id                                                                bigint
+
+
+
+
+
+character varying(512) LastModifyTime
+Plan_PatientPlanMaterial
+TenantId                                                    bigint
+Id                                                   bigint
+PatientId                                                    bigint
+Plan_PatientPlan
+0..1
+TenantId                                    bigint
+OrderTPLId                                                        bigint
+Id                                                                                    bigint
+1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+       *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+        *
+PatientPlanId                             bigint
+OrderGroup                                                      bigint
+TenantId                                                                        bigint
+MaterialId                                     bigint
+Type                                                               integer
+PatientId                                                                                bigint
+MaterialGroup                          bigint
+DrugId                                                                bigint
+Name                                              character varying(256)
+Num                                            numeric
+Classification                        character varying(64)
+CreatorId                                                                               bigint
+Note
+Content                             character varying(256)
+CreateTime                                                                      timestamp
+    timestamp
+Dosage                                  character varying(64)
+PlanTPLId                                                                            bigint
+UseOpportunity                 character varying(128)
+OddWeekFrequency                                                          integer
+UseMethod                       character varying(128)
+EvenWeekFrequency                                                      integer
+UseWay                               character varying(128)
+DialysisMethod                           character varying(256)
+Note                                 character varying(1024)
+DialysisDuration                                                                 numeric
+OperatorId                                                bigint
+DryWeight                                                                            numeric
+StartTime                                                     timestamp
+ExtraWeight                                                                         numeric
+EndTime                                                    timestamp
+AdjustQuantity                                                                   numeric
+CreateDept                       character varying(1024)
+BF                                                                                         numeric
+DealDept                         character varying(1024)
+BV                                                                                        numeric
+IsDisabled                                             boolean
+FirstAnticoagulant                                                                bigint
+CreatorId                                                           bigint
+FirstDosage                                                                         numeric
+CreateTime                                       timestamp
+MaintainAnticoagulant                                                        bigint
+LastModifyTime                               timestamp
+DilutionProportion                                                             numeric
+PatientPlanId                                         bigint
+InjectionRate                                                                       numeric
+UseNum                                                           numeric
+InjectionDuration                                                               numeric
+ChargeItemId                                                    bigint
+InjectionVolume                                                                 numeric
+AllDosage                                                         numeric
+VascularAccessId                                                      bigint
+Dialysate                                                character varying(64)
+DialysateFlow                                                                      numeric
+DialysateVolume                                                                numeric
+NaIonCon                                                                            numeric
+CaIonCon                                                                             numeric
+KIonCon                                                                               numeric
+HCO3IonCon                                                                       numeric
+
+
+      
+      
+      
+
+
+
+   character varying(1024)
+Order_PatientDayOrderDeal
+Conductivity                                                                        numeric
+Id                                                          bigint
+DialysateTmp                                                                      numeric
+TenantId                                          bigint
+SubstituateVolume                                                            numeric
+TreatmentId                                       bigint
+DilutionMnt                                              character varying(64)
+PatientDayOrderId                            bigint
+*
+
+
+
+
+
+
+
+
+
+
+
+1
+
+
+
+
+
+
+      1
+IsDisabled                                                                   boolean
+OperatorId                                         bigint
+LastModifyTime                                                              timestamp
+OperateTime                                timestamp
+SalineQuantity                                                                    numeric
+Status                                              integer
+SealQuantity                                                                       numeric
+CaseStatus                    character varying(64)
+ArterialQuantity                                                                  numeric
+LastModifyTime                    timestamp(6)
+VenousQuantity                                                                 numeric
+	Plan_PlanTPLMaterial                                     
+Id                                                bigint 
+TenantId                                    bigint 
+	PlanTPLId                                  bigint  MaterialId                                     bigint 
+MaterialGroup                          bigint 
+Num                                            numeric 
+Note               character varying(512)  LastModifyTime
+Note
+SealType                                                 character varying(64)
+Frequency                                            character varying(128)
+GlucoseCon                                                                         numeric
+Plan_PatientPrescription
+*
+0..1
+Id                                                                       bigint
+DialysateGroupId                                                                 bigint
+TenantId                                                           bigint
+AutoConfirmPrescription                       character varying(64)
+PatientId                                                                   bigint
+*
+Note                                                                                           text
+TreatmentId                                                             bigint
+SubstituateFlow                                                                  numeric
+PatientPlanId                                                            bigint
+    timestamp
+Order_PatientDayOrder
+CreatorId                                                                   bigint
+Id                                                                bigint
+CreateTime                                                         timestamp
+TenantId                                                    bigint
+ConfirmUserId                                                         bigint
+PatientId                                                    bigint
+*
+ConfirmTime                                                      timestamp
+TreatmentTime                                   timestamp
+Status                                                                       integer
+PatientOrderId                                                  bigint
+*
+CaseStatus                                 character varying(64)
+DialysisMethod                 character varying(256)
+OrderGroup
+Status
+CaseStatus
+Classification
+DrugId
+Content
+Dosage
+UseOpportunity
+UseMethod
+UseWay
+Note
+OperatorId
+CreateDept
+DealDept
+CreatorId
+CreateTime
+LastModifyTime
+UseNum
+DealOpportunity
+ChargeItemId
+AllDosage
+  bigint integer 
+character varying(64)
+   character varying(64) bigint
+character varying(256)
+character varying(64)
+character varying(128)
+character varying(128)
+character varying(128)
+character varying(1024)
+  bigint 
+character varying(64)
+character varying(64)
+  bigint 
+  timestamp 
+  timestamp 
+numeric character varying(64)
+   bigint numeric
+DialysisDuration                                                    numeric
+DryWeight                                                               numeric
+AdjustQuantity                                                       numeric
+BF                                                                             numeric
+BV                                                                            numeric
+FirstAnticoagulant                                                   bigint
+FirstDosage                                                             numeric
+MaintainAnticoagulant                                           bigint
+DilutionProportion                                                numeric
+InjectionRate                                                          numeric
+InjectionDuration                                                  numeric
+InjectionVolume                                                    numeric
+VascularAccessId                                          bigint
+Dialysate                                    character varying(64)
+DialysateFlow                                                         numeric
+DialysateVolume                                                    numeric
+NaIonCon                                                                numeric
+CaIonCon                                                             numeric
+KIonCon                                                               numeric
+HCO3IonCon                                                       numeric
+Conductivity                                                           numeric
+DialysateTmp                                                         numeric
+SubstituateVolume                                               numeric
+Plan_PatientPrescriptionMaterial
+DilutionMnt                                 character varying(64)
+Id                                                       bigint
+LastModifyTime                                                 timestamp
+TenantId                                           bigint
+SalineQuantity                                                       numeric
+PatientPrescriptionId                   bigint
+  bigint 
+  bigint 
+  numeric 
+character varying(512)
+ timestamp 
+   bigint
+SealQuantity
+ArterialQuantity VenousQuantity UFQuantity
+SealType
+GlucoseCon
+DialysateGroupId Note
+SubstituateFlow
+IsInduceDialysisPrescription HeparinType
+  numeric
+  numeric
+  numeric
+  numeric 
+             character varying(64) numeric	bigint		text numeric boolean integer
+MaterialId
+MaterialGroup
+Num
+Note
+LastModifyTime
+ChargeItemId
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+        *
+
+
+
+
+
+
+
+
+
+
+                 Register_PatientInfomation
+Treatment_AfterSigns
+Treatment_Action
+0..1
+0..1
+0..1
+Treatment_Treatment
+                 Id                                          bigint
+Id                                                  bigint
+Id                                                       bigint
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                    *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  TenantId                                          bigint
+   LastModifyTime                                  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+         timestamp
+   LastModifyTime
+1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+      *
+
+  *
+
+                    *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+Id                                                                              bigint
+                 TenantId                                               bigint
+TenantId                                            bigint
+TenantId                                                                 bigint
+                 TreatmentId                                 bigint
+TreatmentId                                    bigint
+
+
+
+
+
+
+
+
+
+
+
+
+       timestamp
+LastModifyTime
+Treatment_AfterSymptom
+PatientId                                                                           bigint
+                 Name               character varying(256)
+OperatorId                                        bigint
+Id                                             bigint
+ScheduleId                                                                      bigint
+                 OperatorId                                   bigint
+OperateTime                               timestamp
+TenantId                                        bigint
+ReceptionDrId                                                                 bigint
+                 OperateTime                          timestamp
+Weight                                                    numeric
+TreatmentId                                   bigint
+SignInTime                                                                 timestamp
+                 CreatorId                                     bigint
+ExtraWeight                                            numeric
+OperatorId                                    bigint
+QueueNo                                             character varying(32)
+                 CreateTime                             timestamp
+LossWeight                                              numeric
+OperateTime                     timestamp
+ReceptionTime                                                          timestamp
+                 LastModifyTime                     timestamp
+RealIntake                                               numeric
+Code                    character varying(64)
+DayProgrammeId                                                          bigint
+                 Code                          character varying(32)
+BodyTemp                                              numeric
+Value                character varying(1024)
+WardId                                                                           bigint
+                 SBP                                                           numeric
+CreatorId                                       bigint
+WardName                                        character varying(256)
+                 DBP                                                            numeric
+CreateTime
+Treatment_BeforeCheck
+BedId                                                                                bigint
+                 PressurePoint                character varying(64)
+Id                                                                            bigint
+       timestamp
+BedName                                           character varying(256)
+                 HeartRate                                                numeric
+TenantId                                                                      bigint
+EquipmentId                                                character varying
+                 Respiration                                             numeric
+TreatmentId                                                               bigint
+EquipmentName                               character varying(512)
+                 CreatorId                                           bigint
+Treatment_BeforeSymptom
+
+
+
+
+
+
+
+
+
+
+
+
+       timestamp
+LastModifyTime
+BeforeSignsId                                                               bigint
+StartTime                                                                  timestamp
+                 CreateTime                                  timestamp
+Id                                             bigint
+BeforeSymptomId                                                      bigint
+EndTime                                                                     timestamp
+                 LastModifyTime                          timestamp
+TenantId                                        bigint
+OperatorId                                                                 bigint
+RealDuration                                                                numeric
+                 Note                           character varying(1024)
+TreatmentId                                   bigint
+OperateTime                                                  timestamp
+RealUFQuantity                                                             numeric
+                 OperatorId                                    bigint
+MaterialsResult                                                           boolean
+NurseSummary                        character varying(1024)
+                 OperateTime                     timestamp
+Treatment_BeforeSigns
+MaterialsMistake                           character varying(1024)
+TreatmentSummary                character varying(1024)
+                 Code                    character varying(64)
+ParamResult                                                               boolean
+Id                                                               bigint
+Status                                            character varying(64)
+                 Value                character varying(1024)
+TenantId                                                          bigint
+ParamMistake                               character varying(1024)
+CaseStatus                                    character varying(64)
+                 CreatorId                                       bigint
+VascularAccessResult                                                 boolean
+TreatmentId                                                   bigint
+CreatorId                                                                       bigint
+                 CreateTime
+OperatorId                                                     bigint
+VascularAccessMistake                 character varying(1024)
+CreateTime                                                                timestamp
+                        timestamp
+OperateTime                                      timestamp
+PipelineResult                                                            boolean
+LastModifyTime                                                        timestamp
+                 PipelineMistake                             character varying(1024)
+Weight                                                            numeric
+ShiftId                                                                             bigint
+                 CreatorId                                                                     bigint
+ExtraWeight                                                    numeric
+Treatment_DuringSigns
+ShiftName                                          character varying(256)
+                 BodyTemp                                              numeric
+CreateTime                                                      timestamp
+Id                                             bigint
+RealSubstituateVolume                                               numeric
+                 SBP                                                           numeric
+LastModifyTime                                               timestamp
+TenantId                                        bigint
+TreatmentCount                                                         integer
+                 DBP                                                            numeric
+TreatmentId                                   bigint
+HospPatientType                                 character varying(64)
+                 PressurePoint                character varying(64)
+TmrTime                                                                   timestamp
+Treatment_DuringOther
+HeartRate                                                numeric
+TmrPages                                                                       integer
+Id                                             bigint
+Respiration                                             numeric
+TenantId                                        bigint
+CreatorId                                                         bigint
+TreatmentId                                   bigint
+CreateTime                                         timestamp
+Treatment_Alarm
+OperatorId                                    bigint
+LastModifyTime                                  timestamp
+Id                                                 bigint
+OperateTime                     timestamp
+TreatmentId                              bigint
+Note                                   character varying(1024)
+Code                    character varying(64)
+                                                                       integer 
+                                                    character varying(64)  text
+                                                  integer  timestamp  timestamp
+     timestamp
+                                                                        bigint 
+Source
+Code
+Content
+Levle
+Value                character varying(1024)
+CreatorId                                       bigint
+Treatment_DuringParam
+CreateTime
+Id                                             bigint
+TenantId                                 bigint
+       timestamp
+TmrPath                                           character varying(1024)
+
+OperatorId
+                                                                         bigint
+OperateTime
+ timestamp 
+SBP
+                                                                        numeric
+DBP
+                                                                        numeric
+HeartRate
+                                                                        numeric
+BodyTemp
+                                                                        numeric
+Respiration
+                                                                        numeric
+CreatorId
+                                                                         bigint
+CreateTime
+ timestamp 
+LastModifyTime
+ timestamp 
+SpO2
+                                                                        numeric
+                  *
+CreateTime                                                     EndTime
+HandleTime
+HandleId
+TreatmentId                                   bigint
+OperatorId                                    bigint
+Treatment_MaterialTrace
+Id 
+TenantId
+PatientId
+Gender
+Age
+TreatmentTime Year
+Month
+ImageBase64String DigitalSignature
+CreatorId
+CreateTime
+LastModifyTime
+ContentJsonb
+                                                                        bigint 
+                                                                         bigint
+                                                                         bigint
+character varying(64)
+                                                                       integer 
+                                                                     timestamp 
+                                                                       integer 
+                                                                       integer 
+     text
+OperateTime                     timestamp
+Treatment_TreatmentMonthSummarySheet
+                                   TMP                                                numeric
+Id                                             bigint
+                  *
+ChargeItemId                         bigint
+HandleContent                                     text                  UFQuantity                                   numeric
+TreatmentId                            bigint
+TenantId                                      bigint 
+                  MachineTmp                                numeric
+Num                                              numeric
+VenousPressure                           numeric
+LastModifyTime                    timestamp 
+                                   BF                                                     numeric
+Batch                    character varying(64)
+Unit                        character varying(8)
+                 Conductivity                                  numeric
+SerialNo               character varying(64)
+Treatment_DiseaseCourse
+                 CreatorId                                       bigint
+Note                   character varying(512)
+Id                                                  bigint
+                 CreateTime                        timestamp
+CreatorId                                         bigint
+TenantId                                       bigint
+                 LastModifyTime                timestamp
+                                                        text	bigint  timestamp 
+timestamp 
+  jsonb
+CreateTime                        timestamp
+PatientId                                              bigint
+                 ArterialPressure                          numeric
+TreatmentId                                         bigint
+                  SubstituateSpeed                        numeric
+       timestamp
+DiseaseCourseTPLId                           bigint                  HeparinPumpFlow                       numeric
+Content                                            text 
+                  RelativeBloodVolume                  numeric
+Type                  character varying(64) 
+                  RealBloodVolume                        numeric
+RealClearanceRate                       numeric
+Note              character varying(1024)  OperatorId                                         bigint
+                  ArterialBloodTemp                       numeric
+OperateTime                          timestamp 
+                  VenousBloodTemp                      numeric
+CreatorId                                              bigint                  CreateTime                             timestamp 
+                          timestamp
+Treatment_Others
+LastModifyTime
+                                                     Id                                              bigint
+                 TenantId                                        bigint
+Treatment_DuringSymptom
+                 PatientId                                        bigint
+Id                                                             bigint
+                 TreatmentId                                   bigint
+TenantId                                                bigint
+                 PredictWeight CreatorId
+CreateTime
+LastModifyTime PredictUFQ
+  numeric
+bigint timestamp 
+timestamp 
+  numeric
+TreatmentId                                                 bigint
+                  bigint
+OperatorId                           OperateTime
+Symptom
+SymptomType
+HandleDrId
+HandleContent
+HandleResult
+CreatorId
+CreateTime
+LastModifyTime
+timestamp 
+                           character
+character
+varying(1024)
+                           varying(1024)
+                             bigint
+                           character
+character
+varying(1024)
+                           varying(1024)
+                             bigint
+                           timestamp 
+                           timestamp 
+
+
+
+ Register_PatientInfomation
+
+          bigint NN
+0..1
+ Id 
+1
+
+
+
+
+
+
+
+ Cost_PatientBillFlowDetail
+ Cost_PatientBalance
+ Cost_PatientBillFlow
+ Stock_ChargeItem
+
+
+
+
+
+
+
+
+
+         timestamp NN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+           bigint NN
+
+0..1
+0..1
+1
+Id 
+Id 
+Id 
+Id 
+bigint
+bigint
+bigint
+bigint
+NN
+NN
+NN
+NN
+                   
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+                               timestamp NN
+ BillNo                   character varying(64)
+ PatientBillFlowId                             bigint
+ Name               character varying(64) NN
+*
+PatientId 
+NN
+bigint
+ ChargeItemId                                   bigint
+ CatalogId                                              bigint
+ BillType                                             bigint
+ Balance                                           numeric
+ SourceBillId                                    bigint
+ TenantId                                        bigint
+ Num                                                numeric
+ HisItemId                                             bigint
+ Price                                                    numeric
+ Price                                               numeric
+ LastModifyTime
+ PatientId                                        bigint
+ CreatorId                                       bigint
+ CatalogType                               integer NN
+ Sum                                                 numeric
+ LastBalance                                    numeric
+ CreateTime                       timestamp NN
+ Note                                                       text
+ Stock_ChargeItemDetail
+
+           bigint NN
+ LastModifyTime
+ Balance                                           numeric
+ CreatorId                                              bigint
+ Id 
+ CreateTime                            timestamp NN
+ TenantId
+ Note                   character varying(128)
+ ChargeItemId                                   bigint
+ SettleStatus                                      bigint
+ IsDisabled                                boolean NN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                bigint NN
+
+ LastModifyTime                   timestamp NN
+SettleTime                                  timestamp
+CreatorId                                       bigint
+CreateTime                       timestamp NN
+LastModifyTime                 timestamp NN
+
+ChargeItemDetailId
+                                                                         bigint
+Num
+                                                                        numeric
+CreatorId
+                                                                         bigint
+CreateTime
+ timestamp NN
+LastModifyTime
+ timestamp NN
+TenantId
+  bigint NN
+
+
+ TenantId                                      bigint NN
+ Stock_InOutStorageDetail
+ Unit                         character varying(64)
+
+Id 
+ Spell                       character varying(256)
+bigint
+NN
+
+ InOutStorageId                                     bigint
+*
+ TenantId
+ Sort                                                     bigint
+
+
+
+
+
+0..1
+
+ ChargeItemId                                          bigint
+ Num                                                     numeric
+
+ Stock_InOutStorage
+ BeginNum                                           numeric
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+         timestamp NN
+ Stock_Storage
+Id 
+bigint
+0..1
+ Batch                   character varying(64) NN
+NN
+1
+
+
+
+
+
+
+
+
+                     *
+Id 
+bigint
+NN
+ BillNo                   character varying(64)
+                    
+
+
+
+
+
+
+                                  bigint NN
+ SerialNo                                                       text
+ Position                 character varying(256)
+ BillType                                             bigint
+ CreatorId                                              bigint
+ Contacts                  character varying(64)
+ CategoryNum                                bigint
+ CreateTime                              timestamp NN
+ Stock_Stock
+ Telephone               character varying(64)
+ TotalNum                                      bigint
+ LastModifyTime                        timestamp NN
+ Sort                                                     bigint
+Id 
+bigint
+NN
+ Note                   character varying(128)
+ TenantId
+ ChargeItemId s                            bigint NN
+*
+ Note                        character varying(256)
+ HandlerId                                         bigint
+ StorageId                                               bigint
+ Batch                   character varying(64) NN
+ CreatorId                                           bigint
+ Status                                                bigint
+ Price                                             numeric NN
+ CreateTime                           timestamp NN
+ CreatorId                                       bigint
+ Num                                                     numeric
+ IsDisabled                                  boolean NN
+ CreateTime                       timestamp NN
+ LastModifyTime                     timestamp NN
+StorageId 
+NN
+bigint
+ LastModifyTime
+
+TenantId
+     bigint NN
+Name
+                                                              character varying
+
+TenantId                                bigint NN
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                  *
+
+LastModifyTime
+  timestamp NN
+TenantId
+    bigint NN
+
+
+
+
+ LIS_ExaminationItem_Config
+
+
+ Id
+ TenantId
+ RetItemName
+ Spell
+ RetExaminationName Unit
+ Reference
+ CreatorId
+ CreateTime
+ LastModifyTime
+
+
+    bigint NN
+      bigint
+character varying(64)
+character varying(256)
+character varying(128)
+character varying(32)
+character varying(64)
+   bigint timestamp NN
+   timestamp NN
+
+
+
+
+
+
+LIS_ExaminationItem
+Id P                                                    bigint NN
+ LIS_Examination
+TenantId                                         bigint NN
+1                                                            *
+ ExaminationId s                             bigint NN
+Id 
+bigint
+NN
+ ItemName                  character varying(64)
+ ItemCode                   character varying(64)
+*
+TenantId
+PatientId
+NN
+
+NN
+bigint
+bigint
+*
+*
+*
+character varying(128)
+                           character varying(64)	timestamp		bigint timestamp NN
+  timestamp(6) NN
+character varying(64)
+character varying(32)
+character varying(64)
+character varying(16)
+  timestamp(6) NN
+Name 
+Type 
+ResultTime
+SyncUserId
+SyncTime
+LastModifyTime
+Result
+Unit
+Reference
+ResultSign
+LastModifyTime
+        character varying(64)
+*
+TestNO
+LastModifyTime                                           timestamp NN
+Register_PatientInfomation
+Id                                           bigint
+1
+LIS_ExaminationItem_Ret Id
+TenantId  ItemName
+ItemCode
+ExaminationName
+ExaminationType
+RetItemName
+RetExaminationName CreatorId
+CreateTime
+LastModifyTime Sort
+ItemSort
+    bigint
+                                                                         bigint
+character varying(64)
+character varying(64)
+character varying(128)
+character varying(64)
+character varying(64)
+character varying(128)
+   bigint timestamp
+   timestamp
+                                                                        integer
+                                                                        integer
+LIS_ExaminationApply
+Id
+TenantId PatientId TestNO
+Priority TestCase
+ClinicalDiagnosisDesc Specimen
+SpecimenDesc
+SpecimenReceivedTime SpecimenSampleTime ApplyTime
+ApplyDept
+ApplyUserName DealDept
+ResultStatus
+ResultRPTTime
+ResultRPTUser ResultVerifyUser PrintCount
+ContainerCode
+      bigint
+      bigint
+bigint character varying(64)
+  integer character varying(64)
+                                                        character varying(1024)
+                                                          character varying(64)
+      character varying(64) timestamp
+                                                                      timestamp
+  timestamp character varying(64)
+                                                          character varying(64)
+                                                  character varying(64) integer
+                                                timestamp character varying(64)
+       character varying(64) integer
+                                                          character varying(64)
+0..1
+0..1
+0..1
+0..1
+*
+0..1
+
+
+
+
+
+
+
+
+
+
+
+Auxiliary_DialysateGroup
+
+Id 
+    bigint 
+TenantId
+    bigint 
+Name
+                                                         character varying(256)
+NaIonCon
+                                                                        numeric
+CaIonCon
+                                                                        numeric
+KIonCon
+                                                                        numeric
+HCO3IonCon
+                                                                        numeric
+GlucoseCon
+                                                                        numeric
+Note
+                                                        character varying(1024)
+Sort
+                                                                        numeric
+IsDisabled
+                                                                        boolean
+LastModifyTime
+   timestamp(6) 
+
+                Auxiliary_PatientHealthEducation
+                Id 
+                TenantId                                                     bigint 
+
+
+
+              1
+ TenantId                                                bigint 
+ Sort                                                               numeric
+ Name                    character varying(1024) 
+ Description                                                        text
+ Type                                 character varying(64)
+ AttachmentIds                character varying(64)
+ Note                             character varying(1024)
+ CreatorId                                                       bigint
+ CreateTime                                   timestamp 
+ LastModifyTime                              timestamp 
+ IsDisabled                                                 boolean
+ Classify                              character varying(64)
+                   *
+  User_Image
+  Id 
+  TenantId
+                  Auxiliary_DrugInfomation
+         Id                                                             bigint 
+                  TenantId                                                             bigint
+           bigint
+                    Name                                 character varying(256)
+                    Classification                        character varying(64)
+                 Code                                    character varying(128)
+                Brand                                     character varying(64)
+QualityEvaluation_Record
+Id                                                             bigint 
+TenantId                                                          numeric
+              *
+PatientId                                                       numeric
+IndexName                         character varying(64)
+IndexCode                          character varying(64)
+Type                                                                    bigint
+Result                                  character varying(64)
+Unit                                     character varying(32)
+Reference                             character varying(64)
+ResultSign                           character varying(16)
+TestTime                                           timestamp 
+EvaluationResult                character varying(16)
+ItemScore                                                          bigint
+EvaluationClass                  character varying(16)
+CreatorId                                              numeric(32,0)
+CreateTime                                       timestamp 
+LastModifyTime                               timestamp 
+                                                                         bigint
+   timestamp 
+character varying(256)
+                                                          character varying(64)
+                                                          character varying(64)
+                                                                        integer
+character varying(256)
+   timestamp 
+character varying(128)
+character varying(1024)
+                                                                         bigint
+                                                          character varying(64)
+CreatorId
+CreateTime
+Spell
+BasicUnit
+SpecificationUnit
+Sort
+StdCat
+LastModifyTime
+ShortName
+UseTips
+MinUnitDosage
+UseOpportunity
+Specification                       character varying(64)
+Package                                 character varying(64)
+Manufacturer                     character varying(128)
+Note                                   character varying(512)
+                                                                      timestamp
+character varying(256)
+character varying(512)
+character varying(32)
+character varying(32)
+                                                                      timestamp
+CreatorId                                                            bigint
+CreateTime                                          timestamp 
+LastModifyTime                                  timestamp 
+UserId
+ImageBase64String CreatorId
+CreateTime
+LastModifyTime
+Type
+EducationTime
+EducationType
+EducationResult
+NurseSign
+PatientSign
+FinishTime
+bigint 
+bigint 
+bigint 
+  text
+timestamp 
+timestamp 
+                                                                        integer
+Note                                 character varying(1024)
+HealthEducationId                                bigint 
+OperatorId                                                         bigint
+IsDisabled                                                     boolean
+Register PatientInfomation
+Auxiliary_HealthEducation
+_ Id
+bigint 
+bigint 
+bigint 
+PatientId 
+Id 
+bigint
+0..1
+1
+1
+*
+*
+
+Auxiliary_HdGoods
+Id 
+    bigint 
+ChargeItemId
+     bigint
+Type
+     bigint
+Sort
+     bigint
+ Name
+ character varying(256)
+Code
+ character varying(256)
+Spell
+ character varying(64)
+ BasicUnit
+ character varying(32)
+TenantId
+    bigint 
+ LastModifyTime
+  timestamp(6) 
+MessageBoard_MessageAndReply
+Id 
+bigint 
+CreateTime                                     timestamp 
+LastModifyTime                           timestamp 
+TenantId                                               bigint 
+UserId                                                    bigint 
+Content                                                     text 
+ProcessRole                                        integer 
+MessageId                                          bigint 
+ThreadId                                               bigint 
+ReadStatus                                       boolean 
+Auxiliary_FepServiceConfig
+Id                                                     bigint 
+TenantId                                             bigint 
+ServiceName                character varying(32)
+Device                            character varying(32)
+Interval                                          integer 
+UploadRowCount                           integer 
+Version                 character varying(16) 
+CreatorId                                            bigint 
+CreateTime                                timestamp 
+LastModifyTime                          timestamp 
+
+Treatment_Treatment
+Id
+
+
+
+Auxiliary_EquipmentDisinfection
+
+
+
+
+
+
+
+
+       timestamp
+ LastModifyTime
+Auxiliary_AcquisiteConnect
+Id                                                           bigint
+Id 
+bigint 
+TenantId                                               bigint
+TenantId                                 bigint
+ EquipmentId                                    bigint
+                   bigint
+1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+*              Name                    character varying(32)
+ DisinfectUserId                                   bigint
+ Devices               character varying(128)
+ DisinfectWay                 character varying(256)
+CreatorId                                bigint
+StartTime                                       timestamp
+CreateTime
+ Description                character varying(1024)
+       timestamp
+ Note                             character varying(1024)
+CreatorId                                          bigint
+CreateTime                                  timestamp
+Auxiliary_EquipmentInfomation
+ LastModifyTime                          timestamp
+Id                                                                   bigint
+
+
+
+
+
+
+
+
+
+
+    1
+TreatmentId                                        bigint
+                                                                        bigint 
+character varying(256) 
+                                                         character varying(128)
+                                                         character varying(128)
+                                                         character varying(128)
+                                                         character varying(128)
+                                       character varying(512) character varying
+                                     timestamp character varying(128) timestamp
+                                                  bigint  character varying(64)
+      character varying(1024) boolean	bigint
+                                                                     timestamp 
+                                                                     timestamp 
+                                                          character varying(64)
+TenantId
+Name
+IDNo
+SerialNo
+Brand
+ModelNo
+DialysisMethod
+Type
+ManufactureDate
+Manufacturer InstallDate
+Maintenance
+MaintenanceCycle
+Note
+IsDisabled CreatorId
+CreateTime
+LastModifyTime
+Flux
+
+Status                                                       integer
+EndTime                                               timestamp
+Type                                 character varying(64)
+Disinfectant                   character varying(64)
+
+
+
+
+
+
+Applications_PromptConfigure
+
+character varying(128) 
+                                                                        bigint 
+character varying(32) 
+character varying(32) 
+character varying(64) 
+       text
+                                                                       boolean 
+                                                                        bigint 
+                                                          character varying(32)
+                                                                        bigint 
+                                                                          text 
+character varying(32) 
+                                                        character varying(1024)
+                                                        character varying(1024)
+                                                          character varying(64)
+                                                                       integer 
+                                                                        bigint 
+                                                                      timestamp
+AppCode
+OrganId
+PromptClass
+Code
+Name
+Scenes
+EnableTimedTask TaskInterval
+SendWay
+SendInterval
+Execute
+ExecuteType
+PermissionCodes RoleIds
+Form
+Sort
+Id 
+LastModifyTime
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+CodeDictionary_CodeDictionarys
+
+Code 
+ character
+varying(64)
+
+Type 
+ character
+varying(64)
+
+Name
+ character
+varying(64)
+
+OrganId
+
+  bigint
+
+IsDisabled
+
+ boolean
+
+Sort
+
+ integer
+
+Builtin
+
+ boolean
+
+
+
+
+
+
+
+
+
+
+
+TenantConfig
+Id 
+      integer
+
+TenantId
+      bigint
+
+ InternetAddress
+ character varying(2048)
+
+ InternetPort
+      integer
+
+ IntranetAddress
+ character varying(2048)
+
+ IntranetPort
+      integer
+
+ClientId
+      bigint
+
+TenantName
+  character varying(512)
+
+ Longitude
+      numeric
+
+ Latitude
+      numeric
+
+ Enable2faTime
+     timestamp
+
+ LoginTypes
+  character varying(64)
+
+
+
+Log_Logs
+
+Id 
+    bigint 
+LogName
+                                                         character varying(128)
+Level
+                                                          character varying(64)
+TraceId
+                                                          character varying(64)
+OperationTime
+   timestamp 
+Duration
+                                                          character varying(64)
+Ip
+                                                          character varying(64)
+Host
+                                                          character varying(64)
+ThreadId
+                                                          character varying(64)
+Browser
+                                                        character varying(4096)
+Url
+                                                        character varying(4096)
+UserId
+    bigint 
+Content
+                                                                          jsonb
+Exception
+                                                                          jsonb
+Signature
+                                                                           text
+AreaId
+    bigint 
+OrganId
+    bigint 
+
+Sort
+Auxiliary_MaterialInfomation
+Id                                                         bigint 
+TenantId                                                        bigint
+ Name                             character varying(256)
+Spell                               character varying(256)
+Classification                    character varying(64)
+Code                                character varying(128)
+ Brand                                character varying(64)
+Specification                   character varying(64)
+ Package                             character varying(64)
+ Manufacturer                 character varying(128)
+ Note                               character varying(512)
+Type                                 character varying(64)
+ IsDisabled                                                    boolean
+CreatorId                                                       bigint
+CreateTime                                   timestamp 
+ LastModifyTime                              timestamp 
+StdCat                            character varying(256)
+Unit                          character varying(64) 
+ShortName                     character varying(128)
+           numeric
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ Device_BODYLog
+ Device_BPLog
+ Device_DMLog
+ Device_BPHRLog
+
+Id                                                             bigint 
+TenantId                                                     bigint 
+FEPId                                                             bigint 
+PatientId                                                     bigint 
+Id                                                 bigint 
+TenantId                                       bigint 
+FEPId                                               bigint 
+PatientId                                       bigint 
+Id                                           bigint 
+TenantId                                   bigint 
+FEPId                                         bigint 
+PatientId                                   bigint 
+Id                                                               bigint 
+DeviceSerialNo                character varying(64) 
+MDC_PRESS_BLD_ART_ABP_SYS                        numeric
+MDC_PRESS_BLD_ART_ABP_MEAN                   numeric
+
+
+
+
+
+                                                   TreatmentId                                            bigint
+TreatmentId                                 bigint
+TreatmentId                           bigint
+ MDC_PRESS_BLD_ART_ABP_DIA                        numeric
+*
+*
+*            1
+CreateTime                                           timestamp
+ MDC_ECG_CARD_BEAT_RATE                             numeric
+CreateTime                              timestamp
+CreateTime                         timestamp
+ LastModifyTime                       timestamp
+ LastModifyTime                                  timestamp
+ FactoryNo                                character varying(64)
+ LastModifyTime                 timestamp
+ DeviceType                              character varying(64)
+ LogTime                                               timestamp
+ LogTime                              timestamp
+ LogTime                                    timestamp
+ DeviceModel                           character varying(64)
+TMP                                                 numeric
+ MDC_LEN_BODY_ACTUAL                   numeric
+ MDC_PRESS_BLD_ART_ABP_SYS                      numeric
+SIMCardNO                             character varying(64)
+ MDC_PRESS_BLD_ART_ABP_MEAN                 numeric
+ UFVolume                                      numeric
+ MDC_MASS_BODY_ACTUAL                numeric
+ DeviceId                                        integer
+VenousPressure                            numeric
+ MDC_PRESS_BLD_ART_ABP_DIA                      numeric
+ PacketType                                                        integer
+ArterialPressure                           numeric
+ DeviceId                                                   integer
+ RawData                                                  jsonb
+CreateTime                                           timestamp
+ BP_Location                           character varying(32)
+ BF                                                      numeric
+ LastModifyTime                                     timestamp
+ LogTime                                                 timestamp
+Conductivity                                   numeric
+
+ Device_HRLog
+ Id 
+    bigint
+
+TenantId
+    bigint
+
+ FEPId
+    bigint
+
+ PatientId
+    bigint
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ MDC_ECG_CARD_BEAT_RATE               numeric
+ DeviceId
+APumpSpeedDeviation                numeric
+ DeviceId                                                     integer
+ BPumpSpeedDeviation                numeric
+ HeparinPumpFlow                        numeric
+ DialysateInFlow                             numeric
+ DialysateOutFlow                          numeric
+TreatmentId                                     bigint
+*
+AConductivity                               numeric
+CreateTime                                timestamp
+ DialysateTemp                              numeric
+Treatment_Treatment
+ LastModifyTime                         timestamp
+TreatmentTime                            numeric
+ Id                                bigint
+
+
+
+
+
+
+
+
+
+
+*
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ *
+
+
+
+
+
+
+
+
+
+
+
+
+
+     *
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+ *
+1
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+*
+
+ LogTime                                      timestamp
+UFSetVolume
+UFQuantity
+BConductivity
+DeviceId
+SubstituateVolume
+HeparinVolume
+SubstituateSpeed
+RelativeBloodVolume RealBloodVolume
+RealClearanceRate ArterialBloodTemp VenousBloodTemp
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+integer 
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+                                                                        numeric
+
+ Device_PULSLog
+          integer
+
+ Id                                                         bigint
+ Device_TEMPLog
+TenantId                                           bigint
+
+ Id                                                          bigint
+ FEPId                                                     bigint
+TenantId                                            bigint
+ PatientId                                             bigint
+
+ FEPId                                                      bigint
+TreatmentId                                     bigint
+ PatientId                                            bigint
+timestamp 
+timestamp 
+timestamp 
+                                                                        numeric
+CreateTime
+LastModifyTime LogTime
+MDC_PULS_OXIM_PULS_RATE DeviceId
+
+TreatmentId                                        bigint
+CreateTime                                   timestamp
+
+
+LastModifyTime LogTime
+  timestamp 
+  timestamp 
+MDC_TEMP
+                                                                        numeric
+DeviceId
+   integer 
+
+          integer
+
+Device_UREALog
+
+
+
+
+
+
+
+
+
+
+
+
+
+          
+
+
+
+
+
+
+
+
+
+
+
+
+
+Concentration                               numeric
+ DeviceId
+ Id                                              bigint
+ Device_SPO2HLog
+TEMP_Location
+character varying(32)
+TenantId                                  bigint
+ Id                                                  bigint
+ FEPId                                        bigint
+TenantId                                     bigint
+
+ PatientId                                  bigint
+ FEPId                                              bigint
+TreatmentId                            bigint
+ PatientId                                     bigint
+
+CreateTime                        timestamp
+TreatmentId                                bigint
+ LastModifyTime                timestamp
+timestamp 
+timestamp 
+timestamp 
+                                                                        numeric
+CreateTime
+LastModifyTime
+ LogTime                             timestamp
+
+
+                  LogTime
+MDC_PULS_OXIM_SAT_O2 DeviceId
+        integer
+                          integer
+                                     Device_RESPLog
+                                     Id                                                    bigint
+                                    TenantId                                      bigint
+                                     FEPId                                              bigint
+                                     PatientId                                        bigint
+                                    TreatmentId                                bigint
+
+CreateTime
+LastModifyTime LogTime
+timestamp 
+                                                                     timestamp 
+timestamp 
+MNDRY_BOA_RESP_SCORE
+                                                                        numeric
+         integer
+DeviceId
+
+
