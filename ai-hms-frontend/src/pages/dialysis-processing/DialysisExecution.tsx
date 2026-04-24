@@ -1,8 +1,9 @@
 import { message } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { restApi } from '@/services'
 import type { RestPatient, RestTreatment } from '@/services'
+import { getRequestErrorKind, getTreatmentLoadErrorMessage } from '@/services/restClient'
 import type {
   TreatmentBeforeSignsRequest,
   TreatmentAfterSignsRequest,
@@ -24,6 +25,8 @@ import { ExecutionTab } from './types'
 import type { ExecutionTab as ExecutionTabValue, Patient } from './types'
 
 const getTodayDateParam = () => new Date().toISOString().slice(0, 10)
+
+type TreatmentLoadState = 'idle' | 'loading' | 'ready' | 'missing' | 'server-error' | 'network-error'
 
 function mapRestPatientToExecutionPatient(patient: RestPatient): Patient {
   const statusMap: Record<string, string> = {
@@ -55,11 +58,23 @@ export default function DialysisExecution() {
   const [loadingPatients, setLoadingPatients] = useState(true)
   const [loadingTreatment, setLoadingTreatment] = useState(false)
   const [currentTreatment, setCurrentTreatment] = useState<RestTreatment | null>(null)
+  const [treatmentLoadState, setTreatmentLoadState] = useState<TreatmentLoadState>('idle')
+  const treatmentRequestIdRef = useRef(0)
 
   const selectedPatient = useMemo(
     () => patients.find((item) => item.id === selectedPatientId) ?? null,
     [patients, selectedPatientId]
   )
+
+  const handleSelectPatient = (patientId: string) => {
+    if (patientId === selectedPatientId) return
+
+    treatmentRequestIdRef.current += 1
+    setLoadingTreatment(true)
+    setCurrentTreatment(null)
+    setTreatmentLoadState('loading')
+    setSelectedPatientId(patientId)
+  }
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -83,19 +98,50 @@ export default function DialysisExecution() {
   useEffect(() => {
     if (!selectedPatientId) {
       setCurrentTreatment(null)
+      setLoadingTreatment(false)
+      setTreatmentLoadState('idle')
       return
     }
 
+    const requestId = ++treatmentRequestIdRef.current
+    setCurrentTreatment(null)
+    setLoadingTreatment(true)
+    setTreatmentLoadState('loading')
+
     const loadTodayTreatment = async () => {
-      setLoadingTreatment(true)
+      let shouldClearLoading = true
+
       try {
         const res = await restApi.getPatientTreatmentByDate(selectedPatientId, getTodayDateParam())
+        if (treatmentRequestIdRef.current !== requestId) {
+          shouldClearLoading = false
+          return
+        }
         setCurrentTreatment(res.data ?? null)
+        setTreatmentLoadState(res.data ? 'ready' : 'missing')
       } catch (error) {
+        if (treatmentRequestIdRef.current !== requestId) {
+          shouldClearLoading = false
+          return
+        }
         console.error('[DialysisExecution] load treatment failed', error)
+        const errorKind = getRequestErrorKind(error)
+        if (errorKind === 'auth' || errorKind === 'forbidden') {
+          setTreatmentLoadState('idle')
+          return
+        }
+        if (errorKind === 'not_found') {
+          setCurrentTreatment(null)
+          setTreatmentLoadState('missing')
+          return
+        }
         setCurrentTreatment(null)
+        setTreatmentLoadState(errorKind === 'network' ? 'network-error' : 'server-error')
+        message.error(getTreatmentLoadErrorMessage(error))
       } finally {
-        setLoadingTreatment(false)
+        if (shouldClearLoading) {
+          setLoadingTreatment(false)
+        }
       }
     }
 
@@ -105,11 +151,47 @@ export default function DialysisExecution() {
   const reloadTodayTreatment = async () => {
     if (!selectedPatientId) {
       setCurrentTreatment(null)
+      setLoadingTreatment(false)
       return null
     }
-    const refreshed = await restApi.getPatientTreatmentByDate(selectedPatientId, getTodayDateParam())
-    setCurrentTreatment(refreshed.data ?? null)
-    return refreshed.data ?? null
+
+    const requestId = ++treatmentRequestIdRef.current
+    setLoadingTreatment(true)
+    setTreatmentLoadState('loading')
+    let shouldClearLoading = true
+
+    try {
+      const refreshed = await restApi.getPatientTreatmentByDate(selectedPatientId, getTodayDateParam())
+      if (treatmentRequestIdRef.current !== requestId) {
+        shouldClearLoading = false
+        return null
+      }
+      setCurrentTreatment(refreshed.data ?? null)
+      setTreatmentLoadState(refreshed.data ? 'ready' : 'missing')
+      return refreshed.data ?? null
+    } catch (error) {
+      if (treatmentRequestIdRef.current !== requestId) {
+        shouldClearLoading = false
+        return null
+      }
+      const errorKind = getRequestErrorKind(error)
+      if (errorKind === 'auth' || errorKind === 'forbidden') {
+        setTreatmentLoadState('idle')
+        return null
+      }
+      if (errorKind === 'not_found') {
+        setCurrentTreatment(null)
+        setTreatmentLoadState('missing')
+        return null
+      }
+      setTreatmentLoadState(errorKind === 'network' ? 'network-error' : 'server-error')
+      message.error(getTreatmentLoadErrorMessage(error))
+      return null
+    } finally {
+      if (shouldClearLoading) {
+        setLoadingTreatment(false)
+      }
+    }
   }
 
   const ensureTodayTreatment = async (status: number) => {
@@ -123,7 +205,13 @@ export default function DialysisExecution() {
         notes: currentTreatment.notes ?? '',
       })
       setCurrentTreatment(updated.data)
+      setTreatmentLoadState('ready')
       return updated.data
+    }
+
+    if (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') {
+      message.error(treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试')
+      return null
     }
 
     const created = await restApi.createTreatment({
@@ -134,7 +222,15 @@ export default function DialysisExecution() {
       notes: '// TODO: 补充治疗子表 API',
     })
     setCurrentTreatment(created.data)
+    setTreatmentLoadState('ready')
     return created.data
+  }
+
+  const handleCreateTodayTreatment = async () => {
+    const treatment = await ensureTodayTreatment(0)
+    if (!treatment) return
+    message.success('治疗记录已创建')
+    await reloadTodayTreatment()
   }
 
   const handleSavePreAssessment = async (payload: TreatmentBeforeSignsRequest) => {
@@ -198,26 +294,37 @@ export default function DialysisExecution() {
 
   const tabs = useMemo(() => Object.values(ExecutionTab), [])
 
-  const content = useMemo(() => {
+  const content = (() => {
     if (!selectedPatient) return null
 
     switch (activeTab) {
       case ExecutionTab.PRE_ASSESSMENT:
         return (
           <PreAssessment
+            key={`${activeTab}-${selectedPatientId}`}
             patient={selectedPatient}
             treatment={currentTreatment}
             saving={loadingTreatment}
+            treatmentLoading={loadingTreatment}
             onSave={handleSavePreAssessment}
           />
         )
       case ExecutionTab.TODAY_PRESCRIPTION:
-        return <TodayPrescription patient={selectedPatient} treatment={currentTreatment} />
+        return (
+          <TodayPrescription
+            key={`${activeTab}-${selectedPatientId}`}
+            patient={selectedPatient}
+            treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
+          />
+        )
       case ExecutionTab.DUAL_CHECK:
         return (
           <Verification
+            key={`${activeTab}-${selectedPatientId}`}
             patient={selectedPatient}
             treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
             onSaveFirstCheck={handleSaveFirstCheck}
             onSaveSecondCheck={handleSaveSecondCheck}
           />
@@ -227,8 +334,10 @@ export default function DialysisExecution() {
       case ExecutionTab.MID_MONITORING:
         return (
           <MidMonitoring
+            key={`${activeTab}-${selectedPatientId}`}
             patient={selectedPatient}
             treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
             onCreate={handleCreateDuringParam}
             onUpdate={handleUpdateDuringParam}
             onDelete={handleDeleteDuringParam}
@@ -237,27 +346,45 @@ export default function DialysisExecution() {
       case ExecutionTab.POST_ASSESSMENT:
         return (
           <PostAssessment
+            key={`${activeTab}-${selectedPatientId}`}
             patient={selectedPatient}
             treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
             onSave={handleSavePostAssessment}
             onSubmit={handleSubmitPostAssessment}
           />
         )
       case ExecutionTab.EDUCATION:
-        return <HealthEducation patient={selectedPatient} treatment={currentTreatment} />
+        return (
+          <HealthEducation
+            key={`${activeTab}-${selectedPatientId}`}
+            patient={selectedPatient}
+            treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
+          />
+        )
       case ExecutionTab.SUMMARY:
-        return <DialysisSummary patient={selectedPatient} treatment={currentTreatment} />
+        return (
+          <DialysisSummary
+            key={`${activeTab}-${selectedPatientId}`}
+            patient={selectedPatient}
+            treatment={currentTreatment}
+            treatmentLoading={loadingTreatment}
+          />
+        )
       default:
         return (
           <PreAssessment
+            key={`${activeTab}-${selectedPatientId}`}
             patient={selectedPatient}
             treatment={currentTreatment}
             saving={loadingTreatment}
+            treatmentLoading={loadingTreatment}
             onSave={handleSavePreAssessment}
           />
         )
     }
-  }, [activeTab, currentTreatment, loadingTreatment, selectedPatient])
+  })()
 
   return (
     <div className="relative flex h-full overflow-hidden bg-slate-100">
@@ -269,7 +396,7 @@ export default function DialysisExecution() {
         <PatientListSidebar
           patients={patients}
           selectedId={selectedPatientId}
-          onSelect={(patient) => setSelectedPatientId(patient.id)}
+          onSelect={(patient) => handleSelectPatient(patient.id)}
           isVisible={isPatientListVisible}
         />
       </div>
@@ -312,7 +439,38 @@ export default function DialysisExecution() {
               正在加载患者列表...
             </div>
           ) : selectedPatient ? (
-            content
+            <>
+              {!loadingTreatment && treatmentLoadState === 'missing' ? (
+                <div className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
+                  <div className="text-base font-semibold">暂无治疗记录</div>
+                  <div className="mt-1 text-sm text-emerald-700">可先创建今日治疗记录，再继续录入和查看。</div>
+                  <button
+                    type="button"
+                    onClick={handleCreateTodayTreatment}
+                    className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                  >
+                    创建治疗记录
+                  </button>
+                </div>
+              ) : null}
+
+              {!loadingTreatment && (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') ? (
+                <div className="mb-4 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-900">
+                  <div className="text-base font-semibold">
+                    {treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void reloadTodayTreatment()}
+                    className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                  >
+                    重试加载
+                  </button>
+                </div>
+              ) : null}
+
+              {content}
+            </>
           ) : (
             <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
               暂无可用患者

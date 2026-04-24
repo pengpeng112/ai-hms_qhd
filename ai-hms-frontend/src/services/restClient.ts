@@ -249,6 +249,24 @@ export interface RestTreatment {
     notes?: string
     operateTime?: string
   }
+  afterSigns?: {
+    realUfVolume?: number
+    realSubstituteVolume?: number
+    weight?: number
+    extraWeight?: number
+    lossWeight?: number
+    sbp?: number
+    dbp?: number
+    heartRate?: number
+    respiration?: number
+    temperature?: number
+    realIntake?: number
+    pressurePoint?: string
+    complication?: string
+    symptoms?: string
+    notes?: string
+    operateTime?: string
+  }
   firstCheck?: {
     id: number
     treatmentId: number
@@ -1048,8 +1066,8 @@ const createAxiosInstance = () => {
       return response
     },
     (error) => {
-      // Token 过期或无效
-      if (error.response?.status === 401) {
+      // Token 过期、无效或无权限时，直接跳转登录
+      if (error.response?.status === 401 || error.response?.status === 403) {
         // 清除本地存储的认证信息
         localStorage.removeItem('hdis_access_token')
         localStorage.removeItem('hdis_user_info')
@@ -1971,8 +1989,58 @@ class RestApiService {
 // 瀵煎嚭鍗曚緥
 export const restApi = new RestApiService()
 
+export type RequestErrorKind = 'auth' | 'forbidden' | 'not_found' | 'server' | 'network' | 'unknown'
+
+export function getRequestErrorKind(error: unknown): RequestErrorKind {
+  if (axios.isAxiosError(error)) {
+    const status = error.response?.status
+    if (status === 401) return 'auth'
+    if (status === 403) return 'forbidden'
+    if (status === 404) return 'not_found'
+    if (typeof status === 'number' && status >= 500) return 'server'
+    if (!error.response) return 'network'
+  }
+
+  if (error instanceof TypeError) {
+    return 'network'
+  }
+
+  return 'unknown'
+}
+
+export function getTreatmentLoadErrorMessage(error: unknown): string {
+  switch (getRequestErrorKind(error)) {
+    case 'not_found':
+      return '暂无治疗记录'
+    case 'auth':
+      return '登录已失效，请重新登录'
+    case 'forbidden':
+      return '无权限访问，请重新登录'
+    case 'server':
+      return '治疗记录加载失败，请重试'
+    case 'network':
+      return '网络异常，请检查连接'
+    default:
+      return getErrorMessage(error)
+  }
+}
+
 // 閿欒澶勭悊杈呭姪鍑芥暟
 export function getErrorMessage(error: unknown): string {
+  const kind = getRequestErrorKind(error)
+  if (kind === 'auth') {
+    return '登录已失效，请重新登录'
+  }
+  if (kind === 'forbidden') {
+    return '无权限访问，请重新登录'
+  }
+  if (kind === 'network') {
+    return '网络异常，请检查连接'
+  }
+  if (kind === 'server') {
+    return '请求失败，请重试'
+  }
+
   if (axios.isAxiosError(error)) {
     const data = error.response?.data as ApiErrorResponse | undefined
     if (data?.error) {

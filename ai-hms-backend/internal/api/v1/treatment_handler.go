@@ -193,7 +193,7 @@ func (h *TreatmentHandler) GetByPatientAndDate(c *gin.Context) {
 	}
 
 	if treatment == nil {
-		response.NotFound(c, "treatment not found")
+		response.NotFound(c, "暂无治疗记录")
 		return
 	}
 
