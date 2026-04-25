@@ -12,6 +12,7 @@ import { message } from 'antd'
 import { useDictNameMaps, getNameFromMap } from '@/hooks/useDictName'
 import { DICT_TYPES } from '@/services/dictApi'
 import { useAuth } from '@/contexts/AuthContext'
+import { getErrorMessage } from '@/services/restClient'
 
 type FilterType = 'all' | 'today' | 'active' | 'mine'
 
@@ -79,7 +80,7 @@ export default function PatientList() {
       setTotal(result.data.pagination.total)
     } catch (error) {
       console.error('加载患者数据失败:', error)
-      setApiError('加载失败，请稍后重试')
+      setApiError(getErrorMessage(error))
       setPatients([])
       setTotal(0)
     } finally {
@@ -153,7 +154,7 @@ export default function PatientList() {
       loadPatients()
     } catch (error) {
       console.error('删除患者失败:', error)
-      message.error('删除失败，请稍后重试')
+      message.error(getErrorMessage(error))
     }
   }
 

@@ -11,6 +11,7 @@ import {
   ShieldAlert, AlertCircle, Clock, ClipboardList
 } from 'lucide-react'
 import { restApi, convertCoreResponseToPatient } from '@/services/restClient'
+import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
 import { LoadingState } from '@/components/ui'
 
@@ -109,7 +110,7 @@ export default function PatientDetail() {
         } as Patient)
       } catch (error) {
         console.error('Load patient detail failed:', error)
-        message.error(t('apiLoadFailed'))
+        message.error(getErrorMessage(error))
         setPatient(null)
       } finally {
         setLoading(false)
