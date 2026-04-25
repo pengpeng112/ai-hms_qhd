@@ -13,6 +13,7 @@ import { OrderModal } from '@/components/patient/modals'
 import type { Patient } from '@/types/original'
 import { orderApi, prescriptionApi } from '@/services/orderApi'
 import type { Order, Prescription, PrescriptionOrderItem } from '@/services/orderApi'
+import { getErrorMessage } from '@/services/restClient'
 
 interface SchemeOrderTabProps {
   patient: Patient
@@ -117,7 +118,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       const enriched = (data || []).map(toEnrichedOrder)
       setOrders(enriched.filter(o => o.status === '在用'))
     } catch (err) {
-      message.error('加载医嘱失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     } finally {
       setLoading(false)
     }
@@ -130,7 +131,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       const data = await orderApi.list(patient.id, { statuses: '已停止,已执行' })
       setHistoryOrders((data || []).map(toEnrichedOrder))
     } catch (err) {
-      message.error('加载历史医嘱失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     }
   }, [patient.id])
 
@@ -166,7 +167,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
         setSelectedPrescription(null)
       }
     } catch (err) {
-      message.error('加载医嘱单失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     } finally {
       setSheetLoading(false)
     }
@@ -191,7 +192,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
         const detail = await prescriptionApi.get(patient.id, id)
         setSelectedPrescription(detail)
       } catch (err) {
-        message.error('加载处方详情失败')
+        message.error(getErrorMessage(err))
       }
     }
   }, [prescriptions, patient.id])
@@ -220,7 +221,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       setSelectedPrescriptionId(p.id)
       setSelectedPrescription(p)
     } catch (err) {
-      message.error('提取长嘱失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     }
   }
 
@@ -237,7 +238,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       message.success('草稿已保存')
       loadPrescriptions()
     } catch (err) {
-      message.error('保存失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     }
   }
 
@@ -257,7 +258,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       setIsEditingSheet(false)
       loadPrescriptions()
     } catch (err) {
-      message.error('发布失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     }
   }
 
@@ -281,7 +282,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       setEditOrderItems(p.orderItems || [])
       setIsEditingSheet(true)
     } catch (err) {
-      message.error('新增失败: ' + (err instanceof Error ? err.message : '未知错误'))
+      message.error(getErrorMessage(err))
     }
   }
 
@@ -318,7 +319,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       clearSelection(type)
       await refreshOrderViews()
     } catch (error) {
-      message.error('组合失败: ' + (error instanceof Error ? error.message : '未知错误'))
+      message.error(getErrorMessage(error))
     }
   }
 
@@ -335,7 +336,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       clearSelection(type)
       await refreshOrderViews()
     } catch (error) {
-      message.error('取消组合失败: ' + (error instanceof Error ? error.message : '未知错误'))
+      message.error(getErrorMessage(error))
     }
   }
 
@@ -359,7 +360,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       message.success('已复制为新医嘱')
       await refreshOrderViews()
     } catch (error) {
-      message.error('复制失败: ' + (error instanceof Error ? error.message : '未知错误'))
+      message.error(getErrorMessage(error))
     }
   }
 
@@ -370,7 +371,7 @@ export default function SchemeOrderTab({ patient }: SchemeOrderTabProps) {
       message.success('医嘱已停用')
       await refreshOrderViews()
     } catch (error) {
-      message.error('停用失败: ' + (error instanceof Error ? error.message : '未知错误'))
+      message.error(getErrorMessage(error))
     }
   }
 

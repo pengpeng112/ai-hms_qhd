@@ -7,6 +7,7 @@ import { message, Modal } from 'antd'
 import { SectionHeader, DetailCard, LabelValue } from '@/components/ui'
 import { VascularAccessModal, VascularInterventionModal, type InterventionFormData } from '@/components/patient/modals'
 import { restApi, type VascularAccessApi, type VascularAccessInterventionApi, type VascularAccessInterventionCreateRequest } from '@/services/restClient'
+import { getErrorMessage } from '@/services/restClient'
 import { dictCache, DICT_TYPES } from '@/services/dictApi'
 import type { VascularFormData } from '@/components/patient/modals/VascularAccessModal'
 import type { Patient } from '@/types/original'
@@ -124,7 +125,7 @@ export default function VascularTab({ patient }: VascularTabProps) {
       setVascularHistory(data.map(convertApiToRecord))
     } catch (error) {
       console.error('加载血管通路数据失败:', error)
-      message.error('加载血管通路数据失败')
+      message.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -221,7 +222,7 @@ export default function VascularTab({ patient }: VascularTabProps) {
       setIsVascularModalOpen(false)
     } catch (error) {
       console.error('保存血管通路失败:', error)
-      message.error('保存失败')
+      message.error(getErrorMessage(error))
       throw error
     } finally {
       setSaving(false)
@@ -243,7 +244,7 @@ export default function VascularTab({ patient }: VascularTabProps) {
           await loadVascularAccesses()
         } catch (error) {
           console.error('删除血管通路失败:', error)
-          message.error('删除失败')
+          message.error(getErrorMessage(error))
         }
       },
     })
@@ -296,7 +297,7 @@ export default function VascularTab({ patient }: VascularTabProps) {
       await loadVascularAccesses() // 刷新以更新干预次数
     } catch (error) {
       console.error('保存干预记录失败:', error)
-      message.error('保存失败')
+      message.error(getErrorMessage(error))
       throw error
     } finally {
       setSaving(false)
@@ -325,7 +326,7 @@ export default function VascularTab({ patient }: VascularTabProps) {
           await loadVascularAccesses() // 刷新以更新干预次数
         } catch (error) {
           console.error('删除干预记录失败:', error)
-          message.error('删除失败')
+          message.error(getErrorMessage(error))
         }
       },
     })

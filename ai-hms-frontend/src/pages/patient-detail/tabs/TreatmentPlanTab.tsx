@@ -2,6 +2,7 @@
 // 基于 UI 设计稿 v1.3 重构
 
 import { useState, useRef, useEffect } from 'react'
+import { message } from 'antd'
 import {
   ClipboardList, PlusCircle, RotateCcw,
   Save, Search, Sparkles, X, Check
@@ -25,6 +26,7 @@ import {
 } from '@/services/treatmentConfigApi'
 import { patientApi, type TreatmentPlan as ApiTreatmentPlan, type AdjustmentRecord } from '@/services/patientApi'
 import { restApi, type VascularAccessApi } from '@/services/restClient'
+import { getErrorMessage } from '@/services/restClient'
 import { dictCache, DICT_TYPES } from '@/services/dictApi'
 
 // 类型定义
@@ -1536,9 +1538,7 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
       alert('治疗方案保存成功！')
     } catch (error) {
       console.error('保存治疗方案失败:', error)
-      const err = error as Error & { response?: { data?: { error?: { message?: string } } } }
-      const errorMsg = err.response?.data?.error?.message || err.message || '保存失败，请稍后重试'
-      alert(errorMsg)
+      message.error(getErrorMessage(error))
     }
   }
 
@@ -1633,9 +1633,7 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
       alert('治疗方案创建成功！')
     } catch (error) {
       console.error('创建治疗方案失败:', error)
-      const err = error as Error & { response?: { data?: { error?: { message?: string } } } }
-      const errorMsg = err.response?.data?.error?.message || err.message || '创建失败，请稍后重试'
-      alert(errorMsg)
+      message.error(getErrorMessage(error))
       throw error // 重新抛出错误，让调用方知道保存失败
     }
   }

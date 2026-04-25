@@ -7,6 +7,7 @@ import { message } from 'antd'
 import { SectionHeader, DetailCard } from '@/components/ui'
 import { LabTrendModal, LabHistoryModal } from '@/components/patient/modals'
 import { restApi, type LabReportApi, type ExamReportApi, type KeyIndicatorApi, type LabReportSyncResult } from '@/services/restClient'
+import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
 import type { LabResultItem } from '../types'
 
@@ -121,7 +122,7 @@ export default function LabsExamsTab({ patient }: LabsExamsTabProps) {
       setLabReports(result.items || [])
     } catch (error) {
       console.error('加载检验报告失败:', error)
-      message.error('加载检验报告失败')
+      message.error(getErrorMessage(error))
       setLabReports([])
     } finally {
       setLabReportLoading(false)
@@ -152,7 +153,7 @@ export default function LabsExamsTab({ patient }: LabsExamsTabProps) {
       setExamReports(result.items || [])
     } catch (error) {
       console.error('加载检查报告失败:', error)
-      message.error('加载检查报告失败')
+      message.error(getErrorMessage(error))
       setExamReports([])
     } finally {
       setExamLoading(false)

@@ -7,6 +7,7 @@ import { message, Spin, Cascader } from 'antd'
 import { SectionHeader, DetailCard, FormField } from '@/components/ui'
 import { ElectronicDocumentModal } from '@/components/patient/modals'
 import { restApi, type PatientBasicInfoResponse } from '@/services/restClient'
+import { getErrorMessage } from '@/services/restClient'
 import { dictCache, DICT_TYPES, type CascaderOption } from '@/services/dictApi'
 import { useDictNameMaps, getNameFromMap } from '@/hooks/useDictName'
 import type { Patient } from '@/types/original'
@@ -157,7 +158,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
       setFamilyContacts(contacts)
     } catch (error) {
       console.error('获取基本信息失败:', error)
-      message.warning('获取基本信息失败，显示部分数据')
+      message.warning(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -244,13 +245,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
       await fetchBasicInfo() // 刷新数据
     } catch (error) {
       console.error('保存失败:', error)
-      // 打印错误详情
-      if (error instanceof Error) {
-        console.error('错误信息:', error.message)
-        message.error(error.message)
-        return
-      }
-      message.error('保存失败，请稍后重试')
+      message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
