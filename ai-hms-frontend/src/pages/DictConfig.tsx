@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { message } from 'antd'
 import {
   BookOpen,
   ChevronDown,
@@ -12,6 +13,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { dictApi, dictCache, type DictItem, type DictType } from '@/services/dictApi'
+import { getErrorMessage } from '@/services/restClient'
 
 type CategoryKey =
   | 'dialysis'
@@ -24,6 +26,27 @@ type CategoryKey =
 
 type FlatDictItem = DictItem & {
   level: number
+}
+
+function isLegacySource(source?: string) {
+  return source === 'legacy'
+}
+
+function SourceTag({ source }: { source?: string }) {
+  if (isLegacySource(source)) {
+    return (
+      <span
+        title="老库来源，当前仅支持只读查看"
+        className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700"
+      >
+        老库来源
+      </span>
+    )
+  }
+
+  return (
+    <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">本地维护</span>
+  )
 }
 
 type ItemFormState = {
@@ -54,27 +77,12 @@ const TYPE_CATEGORY_MAP: Record<string, CategoryKey> = {
   DIALYSATE_GROUP: 'dialysis',
   DIALYSATE_FLOW: 'dialysis',
   GLUCOSE: 'dialysis',
-  DialysisMethod: 'dialysis',
-  HeparinType: 'dialysis',
-  Dialysate: 'dialysis',
-  DialysateFlow: 'dialysis',
-  GlucoseConOptions: 'dialysis',
-  DilutionMnt: 'dialysis',
-  FrequencyType: 'dialysis',
 
   VASCULAR_ACCESS: 'vascular',
   VASCULAR_SITE: 'vascular',
   VEIN_TYPE: 'vascular',
   ARTERY_TYPE: 'vascular',
   SURGERY_TYPE: 'vascular',
-  VascularAccessChange_Type: 'vascular',
-  AccessType: 'vascular',
-  AccessPosition: 'vascular',
-  VenousType: 'vascular',
-  ArteryType: 'vascular',
-  CatheterizeMethodType: 'vascular',
-  SealType: 'vascular',
-  PressurePointOptions: 'vascular',
 
   ORDER_TYPE: 'order',
   ORDER_CATEGORY: 'order',
@@ -83,14 +91,6 @@ const TYPE_CATEGORY_MAP: Record<string, CategoryKey> = {
   ORDER_TIMING: 'order',
   MATERIAL_CATEGORY: 'order',
   DRUG_CATEGORY: 'order',
-  UseMethodType: 'order',
-  CatalogType: 'order',
-  UseWayType: 'order',
-  UseOpportunityType: 'order',
-  MaterialType: 'order',
-  DrugType: 'order',
-  BasicUnitOptions: 'order',
-  SpecificationUnitOptions: 'order',
 
   DOCTOR: 'staff',
   DOCTOR_LIST: 'staff',
@@ -98,10 +98,6 @@ const TYPE_CATEGORY_MAP: Record<string, CategoryKey> = {
   Doctor: 'staff',
   HOSPITAL: 'staff',
   Hospital: 'staff',
-  EquipmentInfomationType: 'staff',
-  EquipmentInfomationMaintenance: 'staff',
-  FamilyType: 'staff',
-  RelationshipOptions: 'staff',
 
   PRIMARY_DISEASE: 'clinical',
   COMPLICATION: 'clinical',
@@ -116,26 +112,8 @@ const TYPE_CATEGORY_MAP: Record<string, CategoryKey> = {
   BLOOD_TYPE_RH: 'clinical',
   EDUCATION_LEVEL: 'clinical',
   MARITAL_STATUS: 'clinical',
-  ExpenseType: 'clinical',
-  PatientType: 'clinical',
-  IDType: 'clinical',
-  HospPatientType: 'clinical',
-  ABOType: 'clinical',
-  RHType: 'clinical',
-  EducationLevel: 'clinical',
-  MaritalStatus: 'clinical',
-  InfectionType: 'clinical',
-  InfectionDay: 'clinical',
-  InfectionIntervalDay: 'clinical',
-  DiseaseCourseType: 'clinical',
-  DuringSymptomType: 'clinical',
-  ElectronicDocumentType: 'clinical',
-  HealthEducationType: 'clinical',
 
   OUTCOME: 'outcome',
-  OutComeType: 'outcome',
-  OutComeReason: 'outcome',
-  OutComeStatus: 'outcome',
 }
 
 const EMPTY_ITEM_FORM: ItemFormState = {
@@ -235,6 +213,7 @@ function TypeValueTable({
             <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
               {type.code}
             </span>
+            <SourceTag source={type.source} />
             <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-600">
               {flatItems.length} 项
             </span>
@@ -260,6 +239,7 @@ function TypeValueTable({
               <th className="px-5 py-3 font-bold">描述</th>
               <th className="px-5 py-3 font-bold">上级编码</th>
               <th className="px-5 py-3 font-bold">排序</th>
+              <th className="px-5 py-3 font-bold">来源</th>
               <th className="px-5 py-3 font-bold">状态</th>
               <th className="px-5 py-3 font-bold text-right">操作</th>
             </tr>
@@ -267,7 +247,7 @@ function TypeValueTable({
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-500">
+                <td colSpan={8} className="px-5 py-10 text-center text-slate-500">
                   <span className="inline-flex items-center gap-2">
                     <Loader2 size={16} className="animate-spin" />
                     加载中
@@ -276,13 +256,13 @@ function TypeValueTable({
               </tr>
             ) : flatItems.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-5 py-10 text-center text-slate-400">
+                <td colSpan={8} className="px-5 py-10 text-center text-slate-400">
                   暂无字典值
                 </td>
               </tr>
             ) : (
               flatItems.map((item) => (
-                <tr key={item.id} className="border-t border-slate-100">
+                <tr key={item.id} className={`border-t border-slate-100 ${isLegacySource(item.source) ? 'bg-amber-50/30' : ''}`}>
                   <td className="px-5 py-3 font-mono text-xs font-bold text-slate-700">
                     <span style={{ paddingLeft: `${item.level * 20}px` }} className="inline-flex items-center gap-2">
                       {item.level > 0 ? <span className="text-slate-300">└</span> : null}
@@ -293,6 +273,9 @@ function TypeValueTable({
                   <td className="px-5 py-3 text-slate-500">{item.description || '-'}</td>
                   <td className="px-5 py-3 text-slate-500">{item.parentCode || '-'}</td>
                   <td className="px-5 py-3 text-slate-500">{item.sortOrder ?? '-'}</td>
+                  <td className="px-5 py-3">
+                    <SourceTag source={item.source} />
+                  </td>
                   <td className="px-5 py-3">
                     <span
                       className={`rounded-full px-2 py-1 text-xs font-bold ${
@@ -307,24 +290,27 @@ function TypeValueTable({
                       <button
                         type="button"
                         onClick={() => onEdit(type.code, item.id)}
-                        className="rounded-xl p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600"
-                        title="编辑"
+                        disabled={isLegacySource(item.source)}
+                        className="rounded-xl p-2 text-slate-500 transition hover:bg-blue-50 hover:text-blue-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
+                        title={isLegacySource(item.source) ? '老库字典暂不支持直接维护' : '编辑'}
                       >
                         <Edit3 size={15} />
                       </button>
                       <button
                         type="button"
                         onClick={() => onToggle(type.code, item.id)}
-                        className="rounded-xl p-2 text-slate-500 transition hover:bg-amber-50 hover:text-amber-600"
-                        title="启用/停用"
+                        disabled={isLegacySource(item.source)}
+                        className="rounded-xl p-2 text-slate-500 transition hover:bg-amber-50 hover:text-amber-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
+                        title={isLegacySource(item.source) ? '老库字典暂不支持直接维护' : '启用/停用'}
                       >
                         {item.isEnabled ? <ToggleRight size={17} /> : <ToggleLeft size={17} />}
                       </button>
                       <button
                         type="button"
                         onClick={() => onDelete(type.code, item.id)}
-                        className="rounded-xl p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600"
-                        title="删除"
+                        disabled={isLegacySource(item.source)}
+                        className="rounded-xl p-2 text-slate-500 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-slate-500"
+                        title={isLegacySource(item.source) ? '老库字典暂不支持直接维护' : '删除'}
                       >
                         <Trash2 size={15} />
                       </button>
@@ -399,7 +385,7 @@ export default function DictConfig() {
       setDictTypes(Array.isArray(types) ? types : [])
     } catch (error) {
       console.error('加载字典类型失败:', error)
-      alert('加载字典类型失败')
+      message.error(getErrorMessage(error))
     } finally {
       setLoadingTypes(false)
     }
@@ -416,7 +402,7 @@ export default function DictConfig() {
     } catch (error) {
       console.error(`加载字典项失败: ${typeCode}`, error)
       setItemsByType((prev) => ({ ...prev, [typeCode]: [] }))
-      alert(`加载字典项失败: ${typeCode}`)
+      message.error(getErrorMessage(error))
     } finally {
       setLoadingTypeCodes((prev) => {
         const next = new Set(prev)
@@ -494,7 +480,7 @@ export default function DictConfig() {
 
   const handleSaveItem = async () => {
     if (!itemForm.typeCode || !itemForm.code.trim() || !itemForm.name.trim()) {
-      alert('请填写字典编码和名称')
+      message.error('请填写字典编码和名称')
       return
     }
 
@@ -527,7 +513,7 @@ export default function DictConfig() {
       setItemForm(EMPTY_ITEM_FORM)
     } catch (error) {
       console.error('保存字典项失败:', error)
-      alert('保存字典项失败')
+      message.error(getErrorMessage(error))
     } finally {
       setItemSaving(false)
     }
@@ -540,12 +526,12 @@ export default function DictConfig() {
 
     const descendants = getDescendantIds(items, itemId)
     const descendantCount = Math.max(descendants.size - 1, 0)
-    const message =
+    const confirmMessage =
       descendantCount > 0
         ? `确定删除“${item.name}”吗？该项下还有 ${descendantCount} 个子项会一起删除。`
         : `确定删除“${item.name}”吗？`
 
-    if (!window.confirm(message)) return
+    if (!window.confirm(confirmMessage)) return
 
     try {
       await dictApi.deleteItem(itemId)
@@ -553,7 +539,7 @@ export default function DictConfig() {
       await loadItems(typeCode, true)
     } catch (error) {
       console.error('删除字典项失败:', error)
-      alert('删除字典项失败')
+      message.error(getErrorMessage(error))
     }
   }
 
@@ -564,7 +550,7 @@ export default function DictConfig() {
       await loadItems(typeCode, true)
     } catch (error) {
       console.error('切换字典项状态失败:', error)
-      alert('切换字典项状态失败')
+      message.error(getErrorMessage(error))
     }
   }
 
