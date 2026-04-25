@@ -2,6 +2,7 @@ import { message } from 'antd'
 import { Droplets, Package, Settings } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { RestTreatment } from '@/services'
+import { getErrorMessage } from '@/services/restClient'
 import { prescriptionApi } from '@/services/orderApi'
 import type {
   Prescription,
@@ -13,6 +14,7 @@ import type { Patient } from '../types'
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
 }
 
 interface PrescriptionFormState {
@@ -156,7 +158,7 @@ function EditableField({
   )
 }
 
-export default function TodayPrescription({ patient, treatment }: Props) {
+export default function TodayPrescription({ patient, treatment, treatmentLoading = false }: Props) {
   const [editing, setEditing] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -177,7 +179,7 @@ export default function TodayPrescription({ patient, treatment }: Props) {
         setForm(mapPrescriptionToForm(active))
       } catch (error) {
         console.error('[TodayPrescription] load failed', error)
-        message.error('处方加载失败')
+        message.error(getErrorMessage(error))
       } finally {
         setLoading(false)
       }
@@ -229,7 +231,7 @@ export default function TodayPrescription({ patient, treatment }: Props) {
       message.success('已提取今日处方')
     } catch (error) {
       console.error('[TodayPrescription] extract failed', error)
-      message.error('提取今日处方失败')
+      message.error(getErrorMessage(error))
     } finally {
       setLoading(false)
     }
@@ -284,7 +286,7 @@ export default function TodayPrescription({ patient, treatment }: Props) {
       message.success('处方已保存')
     } catch (error) {
       console.error('[TodayPrescription] save failed', error)
-      message.error('处方保存失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -292,6 +294,12 @@ export default function TodayPrescription({ patient, treatment }: Props) {
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗上下文，处方概览已清空旧治疗数据。
+        </section>
+      ) : null}
+
       <div className="flex justify-between items-center rounded-3xl border border-slate-200 bg-white px-6 py-4 shadow-sm">
         <div>
           <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">当前患者</div>

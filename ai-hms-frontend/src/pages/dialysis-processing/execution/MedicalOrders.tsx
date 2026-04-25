@@ -2,6 +2,7 @@ import { message } from 'antd'
 import { Edit3, PauseCircle, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { orderApi } from '@/services/orderApi'
+import { getErrorMessage } from '@/services/restClient'
 import type {
   Order,
   OrderCreateRequest,
@@ -162,12 +163,12 @@ export default function MedicalOrders({ patient }: Props) {
       try {
         const data = await orderApi.list(patient.id, { includeExpired: false })
         setOrders(data)
-      } catch (error) {
-        console.error('[MedicalOrders] load failed', error)
-        message.error('透析医嘱加载失败')
-      } finally {
-        setLoading(false)
-      }
+    } catch (error) {
+      console.error('[MedicalOrders] load failed', error)
+      message.error(getErrorMessage(error))
+    } finally {
+      setLoading(false)
+    }
     }
     void loadOrders()
   }, [patient.id])
@@ -234,7 +235,7 @@ export default function MedicalOrders({ patient }: Props) {
       setForm(EMPTY_FORM)
     } catch (error) {
       console.error('[MedicalOrders] save failed', error)
-      message.error(editingOrder ? '医嘱更新失败' : '医嘱新增失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -247,7 +248,7 @@ export default function MedicalOrders({ patient }: Props) {
       message.success('医嘱已停用')
     } catch (error) {
       console.error('[MedicalOrders] stop failed', error)
-      message.error('医嘱停用失败')
+      message.error(getErrorMessage(error))
     }
   }
 

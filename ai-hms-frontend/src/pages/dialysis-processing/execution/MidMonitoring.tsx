@@ -2,12 +2,14 @@ import { message } from 'antd'
 import { Activity, Clock, Droplets, Edit3, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { restApi } from '@/services'
+import { getErrorMessage } from '@/services/restClient'
 import type { RestTreatment, TreatmentDuringParamRequest, RestDuringParam } from '@/services/restClient'
 import type { Patient } from '../types'
 
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
   onCreate: (payload: TreatmentDuringParamRequest) => Promise<void>
   onUpdate: (paramId: number, payload: TreatmentDuringParamRequest) => Promise<void>
   onDelete: (paramId: number) => Promise<void>
@@ -162,6 +164,7 @@ function NumericField({
 export default function MidMonitoring({
   patient,
   treatment,
+  treatmentLoading = false,
   onCreate,
   onUpdate,
   onDelete,
@@ -240,9 +243,9 @@ export default function MidMonitoring({
       setModalOpen(false)
       setEditingParam(null)
       setForm(mapParamToForm(null))
-    } catch (error) {
+      } catch (error) {
       console.error('[MidMonitoring] save failed', error)
-      message.error(editingParam ? '透中监测更新失败' : '透中监测新增失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -254,12 +257,18 @@ export default function MidMonitoring({
       message.success('透中监测已删除')
     } catch (error) {
       console.error('[MidMonitoring] delete failed', error)
-      message.error('透中监测删除失败')
+      message.error(getErrorMessage(error))
     }
   }
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗数据，透中监测列表已隐藏旧记录。
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
         {[
           ['当前患者', patient.name, ''],
@@ -287,6 +296,7 @@ export default function MidMonitoring({
           <button
             type="button"
             onClick={openCreate}
+            disabled={treatmentLoading}
             className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white"
           >
             <Plus size={16} />
@@ -449,10 +459,10 @@ export default function MidMonitoring({
               <button
                 type="button"
                 onClick={() => void handleSave()}
-                disabled={saving}
+                disabled={treatmentLoading || saving}
                 className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {saving ? '保存中...' : editingParam ? '保存修改' : '保存监测'}
+                {treatmentLoading ? '治疗加载中...' : saving ? '保存中...' : editingParam ? '保存修改' : '保存监测'}
               </button>
             </div>
           </div>

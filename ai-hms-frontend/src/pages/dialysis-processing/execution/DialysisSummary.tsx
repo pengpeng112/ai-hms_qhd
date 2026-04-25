@@ -5,6 +5,7 @@ import type { Patient } from '../types'
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
 }
 
 function toText(value?: string | number | null) {
@@ -30,13 +31,19 @@ function getLatestSymptom(treatment: RestTreatment | null) {
   return latest.notes
 }
 
-export default function DialysisSummary({ patient, treatment }: Props) {
+export default function DialysisSummary({ patient, treatment, treatmentLoading = false }: Props) {
   const monitoringRows = [...(treatment?.duringParams || [])].sort(
     (a, b) => new Date(b.recordTime).getTime() - new Date(a.recordTime).getTime()
   )
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗数据，治疗小结与监测摘要已清空旧患者内容。
+        </section>
+      ) : null}
+
       <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
         {[
           ['患者', patient.name, ''],

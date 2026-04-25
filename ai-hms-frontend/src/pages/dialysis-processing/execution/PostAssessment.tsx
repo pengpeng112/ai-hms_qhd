@@ -2,12 +2,14 @@ import { message } from 'antd'
 import { AlertTriangle, Heart, Scale, Thermometer } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { RestTreatment } from '@/services'
+import { getErrorMessage } from '@/services/restClient'
 import type { TreatmentAfterSignsRequest } from '@/services/restClient'
 import type { Patient } from '../types'
 
 interface Props {
   patient: Patient
   treatment: RestTreatment | null
+  treatmentLoading?: boolean
   onSave: (payload: TreatmentAfterSignsRequest) => Promise<void>
   onSubmit: (payload: TreatmentAfterSignsRequest) => Promise<void>
 }
@@ -100,25 +102,29 @@ function mapTreatmentToForm(treatment: RestTreatment | null): PostAssessmentForm
   }
 
   const endBp = parseBp(treatment.endBp)
+  const after = treatment.afterSigns
+  const sbp = toText(after?.sbp ?? endBp.sbp)
+  const dbp = toText(after?.dbp ?? endBp.dbp)
 
   return {
     startTime: toDateTimeLocal(treatment.startTime),
     endTime: toDateTimeLocal(treatment.endTime || new Date().toISOString()),
-    realUfVolume: '',
-    realSubstituteVolume: '',
-    weight: '',
-    extraWeight: '',
-    lossWeight: toText(treatment.weightLossKg),
-    sbp: endBp.sbp,
-    dbp: endBp.dbp,
-    heartRate: getSymptomItemValue(treatment.afterSymptomItems, 'heart_rate'),
-    respiration: getSymptomItemValue(treatment.afterSymptomItems, 'respiration'),
-    temperature: getSymptomItemValue(treatment.afterSymptomItems, 'temperature'),
-    realIntake: getSymptomItemValue(treatment.afterSymptomItems, 'real_intake'),
-    pressurePoint: getSymptomItemValue(treatment.afterSymptomItems, 'bp_site'),
-    complication: getSymptomItemValue(treatment.afterSymptomItems, 'complication') || treatment.complications || '',
-    symptoms: getSymptomItemValue(treatment.afterSymptomItems, 'symptoms'),
+    realUfVolume: toText(after?.realUfVolume),
+    realSubstituteVolume: toText(after?.realSubstituteVolume),
+    weight: toText(after?.weight),
+    extraWeight: toText(after?.extraWeight),
+    lossWeight: toText(after?.lossWeight ?? treatment.weightLossKg),
+    sbp,
+    dbp,
+    heartRate: toText(after?.heartRate ?? getSymptomItemValue(treatment.afterSymptomItems, 'heart_rate')),
+    respiration: toText(after?.respiration ?? getSymptomItemValue(treatment.afterSymptomItems, 'respiration')),
+    temperature: toText(after?.temperature ?? getSymptomItemValue(treatment.afterSymptomItems, 'temperature')),
+    realIntake: toText(after?.realIntake ?? getSymptomItemValue(treatment.afterSymptomItems, 'real_intake')),
+    pressurePoint: toText(after?.pressurePoint || getSymptomItemValue(treatment.afterSymptomItems, 'bp_site')),
+    complication: after?.complication || getSymptomItemValue(treatment.afterSymptomItems, 'complication') || treatment.complications || '',
+    symptoms: after?.symptoms || getSymptomItemValue(treatment.afterSymptomItems, 'symptoms'),
     notes:
+      after?.notes ||
       getSymptomItemValue(treatment.afterSymptomItems, 'notes') ||
       treatment.treatmentSummary ||
       treatment.notes ||
@@ -190,7 +196,13 @@ function Field({
   )
 }
 
-export default function PostAssessment({ patient, treatment, onSave, onSubmit }: Props) {
+export default function PostAssessment({
+  patient,
+  treatment,
+  treatmentLoading = false,
+  onSave,
+  onSubmit,
+}: Props) {
   const [saving, setSaving] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState<PostAssessmentFormState>(mapTreatmentToForm(treatment))
@@ -215,7 +227,7 @@ export default function PostAssessment({ patient, treatment, onSave, onSubmit }:
       message.success('透后评估已保存')
     } catch (error) {
       console.error('[PostAssessment] save failed', error)
-      message.error('透后评估保存失败')
+      message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
     }
@@ -228,7 +240,7 @@ export default function PostAssessment({ patient, treatment, onSave, onSubmit }:
       message.success('透后评估已提交')
     } catch (error) {
       console.error('[PostAssessment] submit failed', error)
-      message.error('透后评估提交失败')
+      message.error('透后评估提交失败，治疗未结束，请重试')
     } finally {
       setSubmitting(false)
     }
@@ -236,6 +248,12 @@ export default function PostAssessment({ patient, treatment, onSave, onSubmit }:
 
   return (
     <div className="space-y-6 pb-8">
+      {treatmentLoading ? (
+        <section className="rounded-3xl border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+          正在加载新患者治疗数据，透后评估表单已重置为空状态。
+        </section>
+      ) : null}
+
       <section className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="flex items-center gap-2 border-b border-slate-200 px-6 py-4">
           <Scale size={16} className="text-blue-600" />
@@ -322,18 +340,18 @@ export default function PostAssessment({ patient, treatment, onSave, onSubmit }:
             <button
               type="button"
               onClick={() => void handleSave()}
-              disabled={saving || submitting}
+              disabled={treatmentLoading || saving || submitting}
               className="rounded-2xl border border-slate-700 bg-slate-800 px-5 py-3 text-sm font-semibold disabled:opacity-60"
             >
-              {saving ? '保存中...' : '暂存'}
+              {treatmentLoading ? '治疗加载中...' : saving ? '保存中...' : '暂存'}
             </button>
             <button
               type="button"
               onClick={() => void handleSubmit()}
-              disabled={saving || submitting}
+              disabled={treatmentLoading || saving || submitting}
               className="rounded-2xl bg-blue-600 px-5 py-3 text-sm font-semibold disabled:opacity-60"
             >
-              {submitting ? '提交中...' : '提交透后评估'}
+              {treatmentLoading ? '治疗加载中...' : submitting ? '提交中...' : '提交透后评估'}
             </button>
           </div>
         </div>
