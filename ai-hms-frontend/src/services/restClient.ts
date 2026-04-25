@@ -1924,7 +1924,7 @@ class RestApiService {
   async submitTreatmentPostAssessment(treatmentId: number, data: TreatmentAfterSignsRequest): Promise<ApiSuccessResponse<RestTreatment>> {
     const response = await apiClient.put<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${treatmentId}/post-assessment-submit`, data)
     if (!response.data.success) {
-      throw new Error('????????')
+      throw new Error('提交透后评估失败')
     }
     return response.data
   }
@@ -2035,31 +2035,45 @@ export function getTreatmentLoadErrorMessage(error: unknown): string {
 
 // 閿欒澶勭悊杈呭姪鍑芥暟
 export function getErrorMessage(error: unknown): string {
+  const data = axios.isAxiosError(error) ? (error.response?.data as ApiErrorResponse | undefined) : undefined
+  const apiMessage = data?.error?.message?.trim() || ''
+  const status = axios.isAxiosError(error) ? error.response?.status : undefined
   const kind = getRequestErrorKind(error)
-  if (kind === 'auth') {
+
+  if (status === 401) {
     return '登录已失效，请重新登录'
   }
-  if (kind === 'forbidden') {
-    return '无权限访问，请重新登录'
+  if (status === 403) {
+    return '无权限访问，请联系管理员'
   }
+  if (status === 404) {
+    return apiMessage || '资源不存在，请刷新后重试'
+  }
+  if (status === 400) {
+    return apiMessage || '请求参数有误，请检查后重试'
+  }
+  if (status === 409) {
+    return apiMessage || '数据已发生冲突，请刷新后重试'
+  }
+  if (typeof status === 'number' && status >= 500) {
+    return apiMessage || '服务器异常，请稍后重试'
+  }
+
   if (kind === 'network') {
     return '网络异常，请检查连接'
   }
-  if (kind === 'server') {
-    return '请求失败，请重试'
+
+  if (apiMessage) {
+    return apiMessage
   }
 
   if (axios.isAxiosError(error)) {
-    const data = error.response?.data as ApiErrorResponse | undefined
-    if (data?.error) {
-      return data.error.message
-    }
-    return error.message
+    return error.message || '请求失败，请重试'
   }
   if (error instanceof Error) {
     return error.message
   }
-  return '鏈煡閿欒'
+  return '未知错误'
 }
 
 // ============ Data Converters ============

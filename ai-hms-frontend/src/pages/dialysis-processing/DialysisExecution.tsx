@@ -3,7 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { restApi } from '@/services'
 import type { RestPatient, RestTreatment } from '@/services'
-import { getRequestErrorKind, getTreatmentLoadErrorMessage } from '@/services/restClient'
+import { getErrorMessage, getRequestErrorKind, getTreatmentLoadErrorMessage } from '@/services/restClient'
 import type {
   TreatmentBeforeSignsRequest,
   TreatmentAfterSignsRequest,
@@ -86,7 +86,7 @@ export default function DialysisExecution() {
         setSelectedPatientId((prev) => prev || items[0]?.id || '')
       } catch (error) {
         console.error('[DialysisExecution] load patients failed', error)
-        message.error('患者列表加载失败')
+        message.error(getErrorMessage(error))
       } finally {
         setLoadingPatients(false)
       }
@@ -128,6 +128,7 @@ export default function DialysisExecution() {
         const errorKind = getRequestErrorKind(error)
         if (errorKind === 'auth' || errorKind === 'forbidden') {
           setTreatmentLoadState('idle')
+          message.error(getErrorMessage(error))
           return
         }
         if (errorKind === 'not_found') {
@@ -169,19 +170,20 @@ export default function DialysisExecution() {
       setCurrentTreatment(refreshed.data ?? null)
       setTreatmentLoadState(refreshed.data ? 'ready' : 'missing')
       return refreshed.data ?? null
-    } catch (error) {
-      if (treatmentRequestIdRef.current !== requestId) {
-        shouldClearLoading = false
-        return null
-      }
-      const errorKind = getRequestErrorKind(error)
-      if (errorKind === 'auth' || errorKind === 'forbidden') {
-        setTreatmentLoadState('idle')
-        return null
-      }
-      if (errorKind === 'not_found') {
-        setCurrentTreatment(null)
-        setTreatmentLoadState('missing')
+      } catch (error) {
+        if (treatmentRequestIdRef.current !== requestId) {
+          shouldClearLoading = false
+          return null
+        }
+        const errorKind = getRequestErrorKind(error)
+        if (errorKind === 'auth' || errorKind === 'forbidden') {
+          setTreatmentLoadState('idle')
+          message.error(getErrorMessage(error))
+          return null
+        }
+        if (errorKind === 'not_found') {
+          setCurrentTreatment(null)
+          setTreatmentLoadState('missing')
         return null
       }
       setTreatmentLoadState(errorKind === 'network' ? 'network-error' : 'server-error')
