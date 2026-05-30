@@ -10,6 +10,11 @@ const THEME_STORAGE_KEY = 'hms_theme'
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<ThemeType>(() => {
     const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored === 'dark') {
+      // 老用户残留的 dark 主题已下线，回落到 light
+      localStorage.setItem(THEME_STORAGE_KEY, 'light')
+      return 'light'
+    }
     return (stored as ThemeType) || 'light'
   })
 
@@ -22,7 +27,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     const root = document.documentElement
 
     // Remove all theme classes
-    root.classList.remove('theme-light', 'theme-dark', 'theme-high-contrast')
+    root.classList.remove('theme-light', 'theme-high-contrast')
 
     // Add current theme class
     root.classList.add(`theme-${theme}`)

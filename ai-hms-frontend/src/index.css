@@ -65,18 +65,6 @@
   --theme-border-light: #f3f4f6;
 }
 
-/* Dark Theme */
-.theme-dark {
-  --theme-bg: #0f172a;
-  --theme-bg-card: #1e293b;
-  --theme-bg-sidebar: #020617;
-  --theme-text: #f1f5f9;
-  --theme-text-secondary: #cbd5e1;
-  --theme-text-muted: #94a3b8;
-  --theme-border: #334155;
-  --theme-border-light: #1e293b;
-}
-
 /* High Contrast Theme */
 .theme-high-contrast {
   --theme-bg: #ffffff;
@@ -98,51 +86,6 @@
   color: var(--theme-text);
   background-color: var(--theme-bg);
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Dark theme specific overrides */
-.theme-dark .bg-white {
-  background-color: var(--theme-bg-card) !important;
-}
-
-.theme-dark .bg-gray-50,
-.theme-dark .bg-gray-100 {
-  background-color: #0f172a !important;
-}
-
-.theme-dark .text-gray-800,
-.theme-dark .text-gray-900 {
-  color: var(--theme-text) !important;
-}
-
-.theme-dark .text-gray-600,
-.theme-dark .text-gray-700 {
-  color: var(--theme-text-secondary) !important;
-}
-
-.theme-dark .text-gray-400,
-.theme-dark .text-gray-500 {
-  color: var(--theme-text-muted) !important;
-}
-
-.theme-dark .border-gray-100,
-.theme-dark .border-gray-200,
-.theme-dark .border-gray-300 {
-  border-color: var(--theme-border) !important;
-}
-
-.theme-dark input,
-.theme-dark textarea,
-.theme-dark select {
-  background-color: #1e293b !important;
-  border-color: #475569 !important;
-  color: #f1f5f9 !important;
-}
-
-.theme-dark input:disabled,
-.theme-dark textarea:disabled {
-  background-color: #0f172a !important;
-  color: #94a3b8 !important;
 }
 
 /* High contrast specific overrides */

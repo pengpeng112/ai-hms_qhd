@@ -20,11 +20,12 @@ import {
 interface ToggleProps {
   checked: boolean
   onChange: () => void
+  disabled?: boolean
 }
 
-const Toggle = ({ checked, onChange }: ToggleProps) => (
-  <label className="relative inline-flex items-center cursor-pointer">
-    <input type="checkbox" className="sr-only peer" checked={checked} onChange={onChange} />
+const Toggle = ({ checked, onChange, disabled }: ToggleProps) => (
+  <label className={`relative inline-flex items-center ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+    <input type="checkbox" className="sr-only peer" checked={checked} onChange={onChange} disabled={disabled} />
     <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
   </label>
 )
@@ -113,10 +114,6 @@ export default function Settings() {
 
   const toggleNotification = (key: keyof typeof notifications) => {
     setNotifications(prev => ({ ...prev, [key]: !prev[key] }))
-  }
-
-  const handleSave = () => {
-    alert(t('common:message.settingsSaved'))
   }
 
   const handleLogout = () => {
@@ -317,16 +314,16 @@ export default function Settings() {
           {activeTab === 'account' && (
             <div className="max-w-xl">
               <h3 className="text-lg font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">{t('settings:account.title')}</h3>
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                个人资料保存接口暂未开放，当前页面仅展示配置入口。
+              </div>
               <div className="space-y-6">
                 <div className="flex items-center gap-6">
-                  <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 border-2 border-white shadow-sm overflow-hidden relative group cursor-pointer">
+                  <div className="w-20 h-20 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 border-2 border-white shadow-sm overflow-hidden relative">
                     <UserIcon size={28} className="text-gray-500" />
-                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <span className="text-white text-xs">{t('settings:action.changeAvatar')}</span>
-                    </div>
                   </div>
                   <div>
-                    <button className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-50 text-gray-700">
+                    <button disabled className="px-4 py-2 cursor-not-allowed bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium text-gray-400">
                       {t('settings:account.avatar')}
                     </button>
                     <p className="text-xs text-gray-500 mt-2">{t('settings:account.avatarHint')}</p>
@@ -338,15 +335,16 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:account.name')}</label>
                     <input
                       type="text"
-                      defaultValue="王医生"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      placeholder="暂未接入个人资料接口"
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm"
                     />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:account.employeeId')}</label>
                     <input
                       type="text"
-                      defaultValue="DOC-8821"
+                      placeholder="暂未接入"
                       disabled
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm"
                     />
@@ -355,16 +353,18 @@ export default function Settings() {
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:account.email')}</label>
                     <input
                       type="email"
-                      defaultValue="doctor.wang@hospital.com"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      placeholder="暂未接入个人资料接口"
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm"
                     />
                   </div>
                   <div className="col-span-2">
                     <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:account.signature')}</label>
                     <textarea
                       rows={3}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                      defaultValue="肾内科主治医师，专注于透析并发症管理。"
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500 text-sm"
+                      placeholder="签名维护暂未开放"
                     ></textarea>
                   </div>
                 </div>
@@ -375,6 +375,9 @@ export default function Settings() {
           {activeTab === 'notifications' && (
             <div className="max-w-xl">
               <h3 className="text-lg font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">{t('settings:notifications.title')}</h3>
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+                通知偏好保存接口暂未开放，开关已临时禁用。
+              </div>
               <div className="space-y-4">
                 <div className="flex items-center justify-between py-3 border-b border-gray-50">
                   <div className="flex items-start">
@@ -384,7 +387,7 @@ export default function Settings() {
                       <p className="text-sm text-gray-500">{t('settings:notifications.emailDesc')}</p>
                     </div>
                   </div>
-                  <Toggle checked={notifications.email} onChange={() => toggleNotification('email')} />
+                  <Toggle checked={notifications.email} onChange={() => toggleNotification('email')} disabled />
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-b border-gray-50">
@@ -395,7 +398,7 @@ export default function Settings() {
                       <p className="text-sm text-gray-500">{t('settings:notifications.smsDesc')}</p>
                     </div>
                   </div>
-                  <Toggle checked={notifications.sms} onChange={() => toggleNotification('sms')} />
+                  <Toggle checked={notifications.sms} onChange={() => toggleNotification('sms')} disabled />
                 </div>
 
                 <div className="flex items-center justify-between py-3 border-b border-gray-50">
@@ -406,7 +409,7 @@ export default function Settings() {
                       <p className="text-sm text-gray-500">{t('settings:notifications.appDesc')}</p>
                     </div>
                   </div>
-                  <Toggle checked={notifications.app} onChange={() => toggleNotification('app')} />
+                  <Toggle checked={notifications.app} onChange={() => toggleNotification('app')} disabled />
                 </div>
               </div>
             </div>
@@ -418,7 +421,7 @@ export default function Settings() {
               <div className="space-y-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-3">{t('settings:display.theme')}</label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => setTheme('light')}
                       className={`relative rounded-lg p-3 bg-white text-left transition-all ${
@@ -435,24 +438,6 @@ export default function Settings() {
                       <div className="w-full h-8 bg-gray-100 mb-2 rounded border border-gray-200"></div>
                       <span className={`text-sm font-medium ${theme === 'light' ? 'text-blue-600' : 'text-gray-600'}`}>
                         {t('settings:theme.light')}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => setTheme('dark')}
-                      className={`relative rounded-lg p-3 bg-slate-900 text-left transition-all ${
-                        theme === 'dark'
-                          ? 'border-2 border-blue-500 shadow-md'
-                          : 'border border-slate-700 hover:opacity-90'
-                      }`}
-                    >
-                      {theme === 'dark' && (
-                        <div className="absolute top-2 right-2 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
-                          <Check size={12} className="text-white" />
-                        </div>
-                      )}
-                      <div className="w-full h-8 bg-slate-700 mb-2 rounded border border-slate-600"></div>
-                      <span className={`text-sm font-medium ${theme === 'dark' ? 'text-blue-400' : 'text-white'}`}>
-                        {t('settings:theme.dark')}
                       </span>
                     </button>
                     <button
@@ -500,8 +485,8 @@ export default function Settings() {
                     <div>
                       <p className="font-bold text-yellow-800">{t('settings:security.changePassword')}</p>
                       <p className="text-sm text-yellow-700 mt-1">{t('settings:security.passwordHint')}</p>
-                      <button className="mt-3 px-4 py-2 bg-white border border-yellow-200 text-yellow-700 rounded-lg text-sm font-medium hover:bg-yellow-50">
-                        {t('settings:security.changePassword')}
+                      <button disabled className="mt-3 cursor-not-allowed px-4 py-2 bg-white border border-yellow-100 text-yellow-300 rounded-lg text-sm font-medium">
+                        修改密码暂未开放
                       </button>
                     </div>
                   </div>
@@ -509,9 +494,7 @@ export default function Settings() {
                 <div>
                   <h4 className="font-medium text-gray-800 mb-2">{t('settings:security.loginActivity')}</h4>
                   <div className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
-                    <p>{t('settings:security.lastLogin')}: <span className="font-mono">2023-10-27 08:30:15</span></p>
-                    <p>{t('settings:security.ipAddress')}: <span className="font-mono">192.168.1.105</span></p>
-                    <p>{t('settings:security.device')}: <span className="font-mono">Chrome / Windows 10</span></p>
+                    <p>登录活动审计暂未接入，暂不展示模拟 IP、设备和时间。</p>
                   </div>
                 </div>
               </div>
@@ -786,17 +769,9 @@ export default function Settings() {
           )}
 
           {/* Sticky Footer */}
-          {activeTab !== 'integration' && activeTab !== 'logs' && (
-            <div className="mt-10 pt-6 border-t border-gray-100 flex justify-end">
-              <button className="px-6 py-2 bg-white border border-gray-300 rounded-lg text-gray-600 font-medium mr-3 hover:bg-gray-50">
-                {t('common:action.cancel')}
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 shadow-sm flex items-center"
-              >
-                <Save size={18} className="mr-2" /> {t('common:action.saveChanges')}
-              </button>
+          {activeTab === 'display' && (
+            <div className="mt-10 pt-6 border-t border-gray-100 text-right text-sm font-semibold text-gray-400">
+              显示设置会立即应用，无需保存。
             </div>
           )}
         </div>
