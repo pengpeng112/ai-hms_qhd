@@ -42,7 +42,7 @@ export default function Header({
             <div className="flex items-center">
                 <button
                     onClick={onSidebarToggle}
-                    className={`p-2.5 rounded-xl border transition-all mr-4 ${
+                    className={`p-2.5 rounded-lg border transition-all mr-4 ${
                         sidebarOpen
                             ? 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
                             : 'bg-blue-600 border-blue-600 text-white hover:bg-blue-700'
@@ -66,7 +66,7 @@ export default function Header({
                 >
                     <ClipboardList size={20} />
                     {taskCount > 0 && !taskbarOpen && (
-                        // density:strict 故意小字
+                        // eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（红点角标）
                         <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white animate-bounce">
                             {taskCount}
                         </span>
@@ -84,12 +84,12 @@ export default function Header({
                         {!avatarFailed && userAvatar ? (
                             <img
                                 src={userAvatar}
-                                className="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-100 cursor-pointer"
+                                className="w-10 h-10 rounded-lg border-2 border-white shadow-sm ring-1 ring-gray-100 cursor-pointer"
                                 alt="avatar"
                                 onError={() => setAvatarFailed(true)}
                             />
                         ) : (
-                            <div className="w-10 h-10 rounded-xl border-2 border-white shadow-sm ring-1 ring-gray-100 bg-slate-700 text-white flex items-center justify-center font-bold cursor-default">
+                            <div className="w-10 h-10 rounded-lg border-2 border-white shadow-sm ring-1 ring-gray-100 bg-slate-700 text-white flex items-center justify-center font-bold cursor-default">
                                 {avatarText}
                             </div>
                         )}

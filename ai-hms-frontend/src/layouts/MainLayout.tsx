@@ -196,7 +196,7 @@ export default function MainLayout() {
                         <div className="flex-1 p-4 space-y-3 overflow-y-auto no-scrollbar bg-slate-50/50">
                             {taskLoading ? (
                                 Array.from({ length: 3 }).map((_, idx) => (
-                                    <div key={idx} className="p-4 rounded-2xl border border-gray-200 bg-white animate-pulse h-24" />
+                                    <div key={idx} className="p-4 rounded-lg border border-gray-200 bg-white animate-pulse h-24" />
                                 ))
                             ) : visibleTasks.length > 0 ? (
                                 visibleTasks.map(task => {
@@ -205,14 +205,14 @@ export default function MainLayout() {
                                     <div
                                         key={task.id}
                                         onClick={canHandle ? () => handleTaskClick(task) : undefined}
-                                        className={`group p-4 rounded-2xl border-l-4 shadow-sm transition-all ${canHandle ? 'cursor-pointer active:scale-[0.98]' : 'cursor-not-allowed opacity-70'} ${getSeverityStyles(task.severity)} border-l-current`}
+                                        className={`group p-4 rounded-lg border-l-4 shadow-sm transition-all ${canHandle ? 'cursor-pointer active:scale-[0.98]' : 'cursor-not-allowed opacity-70'} ${getSeverityStyles(task.severity)} border-l-current`}
                                     >
                                         <div className="flex justify-between items-start mb-2">
                                             <div className="flex items-center font-bold text-sm whitespace-nowrap">
                                                 <span className="mr-2 p-1.5 bg-white/50 rounded-lg shrink-0">{getTaskIcon(task.type)}</span>
                                                 {task.title}
                                             </div>
-                                            {/* density:strict 故意小字 */}
+                                            {/* eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（床号角标） */}
                                             <span className="text-[10px] font-bold opacity-60 bg-white/30 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
                                                 {t('taskbar.bed', { bed: task.bedNumber || '--' })}
                                             </span>
@@ -234,7 +234,7 @@ export default function MainLayout() {
                         </div>
 
                         <div className="p-4 border-t border-gray-100 bg-gray-50/80 shrink-0">
-                            <button className="w-full py-2.5 text-xs font-bold text-blue-600 bg-white border border-blue-100 rounded-xl hover:bg-blue-50 transition-colors shadow-sm whitespace-nowrap">
+                            <button className="w-full py-2.5 text-xs font-bold text-blue-600 bg-white border border-blue-100 rounded-lg hover:bg-blue-50 transition-colors shadow-sm whitespace-nowrap">
                                 {t('taskbar.viewHistory')}
                             </button>
                         </div>

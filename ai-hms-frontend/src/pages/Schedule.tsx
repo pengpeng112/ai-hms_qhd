@@ -301,7 +301,7 @@ export default function Schedule() {
   return (
     <div className="h-full bg-slate-50 p-2 flex flex-col gap-2">
       {/* ── 顶部工具栏 ── */}
-      <div className="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 flex items-center justify-between gap-3 shadow-sm">
+      <div className="shrink-0 rounded-lg border border-slate-200 bg-white px-4 py-2 flex items-center justify-between gap-3 shadow-sm">
         <div className="flex items-center gap-3">
           <div className="rounded-lg bg-blue-600 p-1.5 text-white shadow"><CalendarIcon size={16}/></div>
           <div>
@@ -354,7 +354,7 @@ export default function Schedule() {
       {/* ── 主体 ── */}
       <div className="flex-1 min-h-0 flex gap-2">
         {/* 排班表格 */}
-        <div className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
+        <div className="flex-1 min-w-0 rounded-lg border border-slate-200 bg-white shadow-sm overflow-auto">
           <Spin spinning={loading}>
             <table
               className="w-full border-collapse"
@@ -517,11 +517,11 @@ export default function Schedule() {
 
         {/* ── 右侧面板：待排班队列（可隐藏） ── */}
         {queueVisible && (
-          <aside className="w-[220px] shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
+          <aside className="w-[220px] shrink-0 rounded-lg border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
             <div className="border-b border-slate-100 px-2 py-1.5">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-meta font-black uppercase tracking-widest text-slate-400">待排班</p>
-                {/* density:strict 故意小字 */}
+                {/* eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（待排班数角标） */}
                 <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-black text-blue-600">{filteredPending.length}</span>
               </div>
               <div className="relative">
@@ -585,7 +585,7 @@ export default function Schedule() {
       {/* ── 快速排班弹窗 ── */}
       {modal.open && modal.bed && modal.shift && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={closeModal}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-md overflow-hidden" onClick={e=>e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-slate-800">{modal.existing ? '修改排班' : '新建排班'}</h3>
@@ -627,7 +627,7 @@ export default function Schedule() {
       {actionMenu.visible && actionMenu.item && (
         <div
           ref={actionMenuRef}
-          className="fixed z-[60] bg-white rounded-xl shadow-2xl border border-slate-200 py-1 min-w-[140px] overflow-hidden"
+          className="fixed z-[60] bg-white rounded-lg shadow-2xl border border-slate-200 py-1 min-w-[140px] overflow-hidden"
           style={{ left: actionMenu.x, top: actionMenu.y }}
         >
           <div className="px-3 py-1.5 border-b border-slate-100">
@@ -667,7 +667,7 @@ export default function Schedule() {
       {/* ── 换床弹窗 ── */}
       {moveModal.open && moveModal.item && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setMoveModal({open:false,item:null,targetBedId:undefined})}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-sm overflow-hidden" onClick={e=>e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-black text-slate-800">换床</h3>
@@ -708,7 +708,7 @@ export default function Schedule() {
       {/* ── 治疗记录弹窗 ── */}
       {treatModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setTreatModal({open:false,patientId:undefined,patientName:''})}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-sm font-black text-slate-800">治疗记录</h3>
@@ -747,7 +747,7 @@ export default function Schedule() {
       {/* ── 换床记录弹窗 ── */}
       {historyModal.open && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setHistoryModal({open:false,patientId:undefined,patientName:''})}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
                 <h3 className="text-sm font-black text-slate-800">排班 / 换床记录</h3>

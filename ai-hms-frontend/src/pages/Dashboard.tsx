@@ -262,7 +262,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
     const CardWrapper: React.FC<{ config: LocalCardConfig; children: React.ReactNode }> = ({ config, children }) => (
         <div
             className={`
-                bg-white rounded-xl shadow-sm border border-gray-100 flex flex-col overflow-hidden group relative
+                bg-white rounded-lg shadow-sm border border-gray-100 flex flex-col overflow-hidden group relative
                 col-span-1 ${getColSpanClass(config.colSpan)}
                 ${isCustomizing ? 'ring-2 ring-blue-400 border-blue-400 z-10' : 'hover:shadow-md transition-shadow duration-200 cursor-pointer hover:border-blue-200'}
             `}
@@ -428,7 +428,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                                 <div key={eq.Id} className={`p-2 rounded border flex flex-col items-center text-center relative ${isAlarm ? 'bg-red-50 border-red-200' :
                                         isOffline ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-100'
                                     }`}>
-                                    {/* density:strict 故意小字 */}
+                                    {/* eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（设备序号） */}
                                     <span className="text-[10px] font-bold text-gray-500 absolute top-1 left-1">{i + 1}</span>
                                     <div className={`mt-3 mb-1 ${isAlarm ? 'text-red-500' : isOffline ? 'text-gray-400' : 'text-green-500'}`}>
                                         <Monitor size={16} />
@@ -440,7 +440,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                             // 无数据时显示占位
                             Array.from({ length: 12 }).map((_, i) => (
                                 <div key={i} className="p-2 rounded border border-gray-100 bg-gray-50 flex flex-col items-center text-center relative">
-                                    {/* density:strict 故意小字 */}
+                                    {/* eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（设备序号） */}
                                     <span className="text-[10px] font-bold text-gray-300 absolute top-1 left-1">{i + 1}</span>
                                     <div className="mt-3 mb-1 text-gray-300">
                                         <Monitor size={16} />
@@ -589,7 +589,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                             <div
                                 key={card.id}
                                 onClick={() => toggleVisibility(card.id, true)}
-                                className="p-3 border border-gray-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all group"
+                                className="p-3 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all group"
                             >
                                 <div className="flex items-center justify-between mb-2">
                                     <span className="font-bold text-gray-700 group-hover:text-blue-700 text-sm">{getCardTitle(card.id)}</span>

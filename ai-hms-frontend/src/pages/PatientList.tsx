@@ -224,7 +224,7 @@ export default function PatientList() {
       </div>
 
       {/* Main Content Area */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden">
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden">
         {/* Filter Tabs */}
         <div className="p-4 border-b border-gray-100 flex items-center space-x-2 overflow-x-auto">
           <button
@@ -318,7 +318,9 @@ export default function PatientList() {
                         </div>
                         <div className="h-6 w-px bg-gray-200"></div>
                         <div>
-                          <div className="font-bold text-gray-800">{Math.round(patient.dryWeight ?? 0)} {/* density:strict 故意小字 */}<span className="text-[10px] font-normal text-gray-400">kg</span></div>
+                          {/* eslint-disable no-restricted-syntax -- density:strict 故意小字（单位后缀） */}
+                          <div className="font-bold text-gray-800">{Math.round(patient.dryWeight ?? 0)} <span className="text-[10px] font-normal text-gray-400">kg</span></div>
+                          {/* eslint-enable no-restricted-syntax */}
                         </div>
                       </div>
                     </td>

@@ -215,7 +215,7 @@ export default function PatientDetail() {
       {/* 顶部全局信息条 */}
       <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-20 shrink-0">
         <div className="flex items-center gap-8">
-          <button onClick={handleBack} className="text-slate-400 hover:text-slate-900 transition-colors p-2.5 rounded-2xl hover:bg-slate-100 active:scale-95">
+          <button onClick={handleBack} className="text-slate-400 hover:text-slate-900 transition-colors p-2.5 rounded-lg hover:bg-slate-100 active:scale-95">
             <ArrowLeft size={22} />
           </button>
           <div className="flex items-center">
@@ -272,7 +272,7 @@ export default function PatientDetail() {
           <div className="flex gap-1.5 items-center">
             <button
               onClick={() => setFocusBarOpen(!focusBarOpen)}
-              className={`p-2.5 rounded-2xl transition-all relative ${focusBarOpen ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+              className={`p-2.5 rounded-lg transition-all relative ${focusBarOpen ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
               title={focusBarOpen ? t('label.collapseFocus') : t('label.expandFocus')}
             >
               <PanelRight size={20}/>
@@ -281,10 +281,10 @@ export default function PatientDetail() {
               )}
             </button>
             <div className="flex gap-1 ml-1">
-              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
                 <ChevronLeft size={20}/>
               </button>
-              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
                 <ChevronRight size={20}/>
               </button>
             </div>
@@ -302,7 +302,7 @@ export default function PatientDetail() {
                 <button
                   key={nav.id}
                   onClick={() => setActiveTab(nav.id)}
-                  className={`w-full flex items-center px-4 py-4 text-sm font-black rounded-2xl transition-all duration-300 ${
+                  className={`w-full flex items-center px-4 py-4 text-sm font-black rounded-lg transition-all duration-300 ${
                     activeTab === nav.id
                       ? 'bg-blue-600 text-white shadow-xl shadow-blue-200 translate-x-1'
                       : 'text-slate-500 hover:bg-slate-50'
@@ -315,7 +315,7 @@ export default function PatientDetail() {
             </nav>
 
             <div className="mt-auto p-4 bg-slate-50 rounded-3xl border border-slate-100 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-black uppercase text-xs">DR</div>
+              <div className="w-10 h-10 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-black uppercase text-xs">DR</div>
               <div className="truncate">
                 <p className="text-xs font-black text-slate-800 truncate">{patient.doctorName}</p>
                 <p className="text-meta text-slate-400 font-bold uppercase tracking-tighter">{t('info.attendingDoctor')}</p>
@@ -363,11 +363,11 @@ export default function PatientDetail() {
             <div className="space-y-3">
               <p className="text-meta font-black text-slate-400 uppercase tracking-widest opacity-70">{t('section.documentStatus')}</p>
               <div className="space-y-2">
-                <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-blue-200 transition-colors">
+                <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-lg shadow-sm hover:border-blue-200 transition-colors">
                   <span className="text-xs font-black text-slate-700">{t('nav.monthlySummary')}</span>
                   <span className="text-meta text-orange-500 font-black uppercase bg-orange-50 px-2 py-0.5 rounded">{t('status.pending')}</span>
                 </div>
-                <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm opacity-60">
+                <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-lg shadow-sm opacity-60">
                   <span className="text-xs font-black text-slate-700">{t('ai.treatmentConsent')}</span>
                   <span className="text-meta text-green-500 font-black uppercase bg-green-50 px-2 py-0.5 rounded">{t('status.done')}</span>
                 </div>

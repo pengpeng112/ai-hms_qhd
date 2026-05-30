@@ -50,7 +50,7 @@ const ModalOverlay = ({
     onClick={onClose}
   >
     <div
-      className={`bg-white rounded-xl shadow-2xl w-full ${maxWidth} max-h-[95vh] overflow-hidden m-4 flex flex-col`}
+      className={`bg-white rounded-lg shadow-2xl w-full ${maxWidth} max-h-[95vh] overflow-hidden m-4 flex flex-col`}
       onClick={(e) => e.stopPropagation()}
     >
       {children}
@@ -150,7 +150,7 @@ const ComprehensiveMonitorModal = ({
         saveButtonText={t('monitoring:action.saveSubmit')}
       />
       <div className="p-6 overflow-y-auto space-y-6 bg-gray-50/50">
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
           <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center">
             <Activity size={16} className="mr-2 text-red-500" /> {t('monitoring:chart.bpHrTrend')}
           </h4>
@@ -198,7 +198,7 @@ const ComprehensiveMonitorModal = ({
             </ResponsiveContainer>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
           <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center">
             <TrendingUp size={16} className="mr-2 text-orange-500" /> {t('monitoring:chart.pressureTrend')}
           </h4>
@@ -232,7 +232,7 @@ const ComprehensiveMonitorModal = ({
             </ResponsiveContainer>
           </div>
         </div>
-        <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
           <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center">
             <BarChart3 size={16} className="mr-2 text-blue-500" /> {t('monitoring:chart.bfUfTrend')}
           </h4>
@@ -323,7 +323,7 @@ const PrescriptionEditModal = ({
                 defaultValue=""
                 className="w-16 h-7 bg-transparent text-center font-bold text-gray-800 outline-none"
               />
-              {/* density:strict 故意小字 */}
+              {/* eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（单位后缀） */}
               <span className="text-[10px] text-gray-400">kg</span>
             </div>
             <label className="flex items-center gap-1 cursor-pointer">
@@ -619,7 +619,7 @@ const OrderListModal = ({
       />
       <div className="flex flex-col flex-1 bg-gray-50 overflow-hidden">
         <div className="bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between shadow-sm shrink-0">
-          <div className="flex bg-gray-100 p-1 rounded-xl">
+          <div className="flex bg-gray-100 p-1 rounded-lg">
             <button
               onClick={() => setActiveTab('LONG')}
               className={`px-8 py-2 text-sm font-bold rounded-lg transition-all ${
@@ -637,12 +637,12 @@ const OrderListModal = ({
               {t('monitoring:orders.temporary')}
             </button>
           </div>
-          <button className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg">
+          <button className="px-6 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-lg">
             {t('monitoring:action.newOrder')}
           </button>
         </div>
         <div className="flex-1 overflow-y-auto p-6">
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
             <table className="w-full text-left text-sm border-collapse">
               <thead className="bg-slate-50/80 backdrop-blur-sm text-gray-500 font-bold border-b border-gray-100 sticky top-0 z-10">
                 <tr>
@@ -778,12 +778,12 @@ const SummaryModal = ({
           <textarea
             value={summary}
             onChange={(e) => setSummary(e.target.value)}
-            className="w-full h-48 p-4 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm leading-relaxed transition-all"
+            className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none text-sm leading-relaxed transition-all"
             placeholder={t('monitoring:summary.placeholder')}
           ></textarea>
         </div>
 
-        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+        <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
           <div className="flex flex-col">
             <span className="text-meta text-gray-400 uppercase font-bold">{t('monitoring:summary.finalBP')}</span>
             <span className="text-sm font-bold text-gray-800">
@@ -1097,7 +1097,7 @@ export default function Monitoring() {
         {loading && (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
             {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="rounded-xl border-2 border-gray-200 bg-gray-50 p-3 h-48 animate-pulse">
+              <div key={i} className="rounded-lg border-2 border-gray-200 bg-gray-50 p-3 h-48 animate-pulse">
                 <div className="flex items-center gap-2 mb-3">
                   <div className="w-8 h-8 bg-gray-200 rounded-lg shrink-0" />
                   <div className="flex-1 space-y-1.5">
@@ -1117,7 +1117,7 @@ export default function Monitoring() {
         {/* 错误提示 */}
         {!loading && loadError && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 bg-red-50 rounded-2xl flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-red-50 rounded-lg flex items-center justify-center mb-4">
               <AlertOctagon size={32} className="text-red-400" />
             </div>
             <p className="text-base font-bold text-gray-700 mb-1">{loadError}</p>
@@ -1133,7 +1133,7 @@ export default function Monitoring() {
         {/* 空状态 */}
         {!loading && !loadError && filteredDevices.length === 0 && (
           <div className="flex flex-col items-center justify-center py-24 text-center">
-            <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mb-4">
+            <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
               <Monitor size={32} className="text-gray-400" />
             </div>
             <p className="text-base font-bold text-gray-600 mb-1">
@@ -1158,7 +1158,7 @@ export default function Monitoring() {
             return (
               <div
                 key={device.id}
-                className={`rounded-xl border-2 p-3 flex flex-col shadow-sm relative group ${getStatusColor(
+                className={`rounded-lg border-2 p-3 flex flex-col shadow-sm relative group ${getStatusColor(
                   device.status
                 )}`}
                 style={{ contain: 'layout style paint' }}
