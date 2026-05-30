@@ -31,6 +31,9 @@
 
   "group.dailyWork": "日常工作",
   "group.patientCenter": "患者中心",
+  "group.schedule": "排班",
+  "group.resource": "资源管理",
+  "group.systemConfig": "系统配置",
   "group.resourceManagement": "资源管理",
   "group.configCenter": "配置中心",
   "group.systemManagement": "系统管理",

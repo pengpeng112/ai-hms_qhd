@@ -1,5 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Popover } from 'antd'
 import { getSelectedRoleUser, getMenusByRole, getRoleLabel } from '@/services/role'
 import {
   LayoutDashboard,
@@ -58,16 +59,15 @@ const menuItems: MenuItem[] = [
   { key: 'settings', path: '/settings', icon: Settings },
   { key: 'userManagement', path: '/user-management', icon: Users },
   { key: 'roleManagement', path: '/role-management', icon: Settings },
-] 
+]
 
 const menuGroups: MenuGroup[] = [
-  { key: 'dailyWork', itemKeys: ['dashboard', 'wardOverview', 'monitoring', 'dialysisProcessing', 'schedule'] },
+  { key: 'dailyWork', itemKeys: ['dashboard', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
-  { key: 'resourceManagement', itemKeys: ['inventory', 'deviceBinding', 'wardManagement', 'bedManagement'] },
-  { key: 'configCenter', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig'] },
-  { key: 'systemManagement', itemKeys: ['userManagement', 'roleManagement', 'settings'] },
-  { key: 'dataAnalysis', itemKeys: ['statistics'] },
-] 
+  { key: 'schedule', itemKeys: ['schedule'] },
+  { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardManagement', 'bedManagement'] },
+  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics'] },
+]
 
 const defaultExpandedGroups = Object.fromEntries(menuGroups.map(group => [group.key, true])) as Record<string, boolean>
 
@@ -153,51 +153,109 @@ export default function Sidebar({ isOpen }: SidebarProps) {
   const translateNav = (key: string) => t(`nav:${key}` as never)
 
   return (
-    <aside className={`${isOpen ? 'w-56' : 'w-16'} bg-slate-900 flex flex-col transition-all duration-300 shadow-xl z-20 shrink-0`}>
-      <div className="h-12 flex items-center justify-center border-b border-slate-800 text-white font-bold text-lg overflow-hidden">
+    <aside className={`${isOpen ? 'w-56' : 'w-16'} bg-[var(--color-surface-sidebar)] flex flex-col transition-all duration-300 shadow-xl z-20 shrink-0`}>
+      {/* 品牌区 */}
+      <div className="h-14 flex items-center justify-center border-b border-white/10 text-white overflow-hidden px-3">
         {isOpen ? (
-          <span className="animate-fade-in whitespace-nowrap">{t('nav:brand.full')}</span>
+          <div className="text-center">
+            <p className="font-bold text-sm whitespace-nowrap animate-fade-in">{t('nav:brand.full')}</p>
+            {roleUser && (
+              <p className="text-meta text-foreground-muted mt-0.5">{t('role:label.current')}: {getRoleLabel(roleUser.role)}</p>
+            )}
+          </div>
         ) : (
-          <span className="text-blue-500">{t('nav:brand.short')}</span>
+          <span className="text-blue-500 font-bold text-lg">{t('nav:brand.short')}</span>
         )}
       </div>
 
+      {/* 菜单区 */}
       <div className="flex-1 px-2 py-2 overflow-y-auto no-scrollbar">
         {visibleMenuGroups.map((group, groupIndex) => {
           const expanded = expandedGroups[group.key] ?? true
-          return (
-            <div key={group.key} className={groupIndex > 0 ? 'mt-2 pt-2 border-t border-slate-800/70' : ''}>
-              {isOpen && (
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.key)}
-                  className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-300 hover:text-white transition-colors"
-                >
-                  <span>{translateNav(`group.${group.key}`)}</span>
-                  <ChevronDown size={13} className={`text-slate-500 transition-transform ${expanded ? '' : '-rotate-90'}`} />
-                </button>
-              )}
 
-              {(!isOpen || expanded) && group.items.map(item => (
+          // 折叠态：用 Popover 弹出子菜单
+          if (!isOpen) {
+            const popoverContent = (
+              <div className="py-1 min-w-[160px]">
+                <p className="px-3 py-1.5 text-meta font-bold text-foreground-muted uppercase tracking-wider">{translateNav(`group.${group.key}`)}</p>
+                {group.items.map(item => (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    end={item.path === '/'}
+                    className={({ isActive }) =>
+                      `flex items-center gap-2 px-3 py-2 text-sm rounded transition-colors ${
+                        isActive ? 'bg-blue-50 text-blue-700 font-medium' : 'text-gray-700 hover:bg-gray-50'
+                      }`
+                    }
+                  >
+                    <item.icon size={16} />
+                    {translateNav(item.key)}
+                  </NavLink>
+                ))}
+              </div>
+            )
+
+            return (
+              <div key={group.key} className={groupIndex > 0 ? 'mt-1' : ''}>
+                {group.items.map(item => (
+                  <Popover
+                    key={item.key}
+                    content={popoverContent}
+                    trigger="hover"
+                    placement="right"
+                    mouseEnterDelay={0.2}
+                    arrow={false}
+                  >
+                    <NavLink
+                      to={item.path}
+                      end={item.path === '/'}
+                      title={translateNav(item.key)}
+                      className={({ isActive }) =>
+                        `group relative w-full flex items-center justify-center py-2 my-0.5 rounded-lg transition-all ${
+                          isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        }`
+                      }
+                    >
+                      {({ isActive }) => (
+                        <item.icon size={18} className={isActive ? 'animate-pulse-slow' : ''} />
+                      )}
+                    </NavLink>
+                  </Popover>
+                ))}
+              </div>
+            )
+          }
+
+          // 展开态：正常渲染
+          return (
+            <div key={group.key} className={groupIndex > 0 ? 'mt-2 pt-2 border-t border-white/10' : ''}>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.key)}
+                className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-300 hover:text-white transition-colors"
+              >
+                <span>{translateNav(`group.${group.key}`)}</span>
+                <ChevronDown size={13} className={`text-slate-500 transition-transform ${expanded ? '' : '-rotate-90'}`} />
+              </button>
+
+              {expanded && group.items.map(item => (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   end={item.path === '/'}
-                  title={!isOpen ? translateNav(item.key) : undefined}
-                  className={({ isActive }) => `
-                    group relative w-full flex items-center px-2.5 py-2 my-0.5 rounded-lg transition-all
-                    ${isOpen ? 'justify-start' : 'justify-center'}
-                    ${isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'}
-                  `}
+                  className={({ isActive }) =>
+                    `group relative w-full flex items-center px-2.5 py-2 my-0.5 rounded-lg transition-all ${
+                      isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    }`
+                  }
                 >
                   {({ isActive }) => (
                     <>
                       <item.icon size={18} className={`shrink-0 ${isActive ? 'animate-pulse-slow' : ''}`} />
-                      {isOpen && (
-                        <span className="ml-2.5 font-medium text-[13px] leading-5 whitespace-nowrap">
-                          {translateNav(item.key)}
-                        </span>
-                      )}
+                      <span className="ml-2.5 font-medium text-[13px] leading-5 whitespace-nowrap">
+                        {translateNav(item.key)}
+                      </span>
                     </>
                   )}
                 </NavLink>
@@ -207,15 +265,10 @@ export default function Sidebar({ isOpen }: SidebarProps) {
         })}
       </div>
 
-      {isOpen && roleUser && (
-        <div className="p-3 border-t border-slate-800">
-          <div className="bg-slate-800/50 rounded-lg px-3 py-2.5">
-            <p className="text-meta text-slate-400 uppercase font-bold tracking-wider">{t('role:label.current')}</p>
-            <p className="text-sm text-white mt-1 font-medium">{roleUser.name}</p>
-            <p className="text-xs text-blue-400 mt-0.5">{getRoleLabel(roleUser.role)}</p>
-          </div>
-        </div>
-      )}
+      {/* 底部留白（版本号预留） */}
+      <div className="p-3 border-t border-white/10">
+        {/* TODO U5 版本号 */}
+      </div>
     </aside>
   )
 }
