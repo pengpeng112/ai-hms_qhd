@@ -79,7 +79,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
         const loadData = async () => {
             try {
                 const [patientResult, shiftsData, equipmentsData, treatmentsData, statsData] = await Promise.all([
-                    restApi.getPatientList({ page: 1, pageSize: 50 }).catch(() => null),
+                    restApi.getPatientList({ page: 1, pageSize: 50, onlyActive: true }).catch(() => null),
                     getActiveShifts().catch(() => []),
                     getAllEquipments().catch(() => []),
                     getTodayTreatments().catch(() => []),
@@ -428,6 +428,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                                 <div key={eq.Id} className={`p-2 rounded border flex flex-col items-center text-center relative ${isAlarm ? 'bg-red-50 border-red-200' :
                                         isOffline ? 'bg-gray-100 border-gray-200' : 'bg-white border-gray-100'
                                     }`}>
+                                    {/* density:strict 故意小字 */}
                                     <span className="text-[10px] font-bold text-gray-500 absolute top-1 left-1">{i + 1}</span>
                                     <div className={`mt-3 mb-1 ${isAlarm ? 'text-red-500' : isOffline ? 'text-gray-400' : 'text-green-500'}`}>
                                         <Monitor size={16} />
@@ -439,6 +440,7 @@ export default function Dashboard({ userRole }: DashboardProps) {
                             // 无数据时显示占位
                             Array.from({ length: 12 }).map((_, i) => (
                                 <div key={i} className="p-2 rounded border border-gray-100 bg-gray-50 flex flex-col items-center text-center relative">
+                                    {/* density:strict 故意小字 */}
                                     <span className="text-[10px] font-bold text-gray-300 absolute top-1 left-1">{i + 1}</span>
                                     <div className="mt-3 mb-1 text-gray-300">
                                         <Monitor size={16} />

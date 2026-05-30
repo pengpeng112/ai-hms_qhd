@@ -1,976 +1,793 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react'
-import { useTranslation } from 'react-i18next'
-import type { PatientScheduleItem, StaffMember } from '../types/original'
-import { restApi, convertRestPatientList } from '@/services'
-import type { RestShift, RestPatientShift } from '@/services'
-import type { Patient } from '@/types/original'
-import { getSelectedRoleUser } from '@/services/role'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { message, Modal, Spin, Table, Tag } from 'antd'
 import {
   Calendar as CalendarIcon, ChevronLeft, ChevronRight,
-  Plus, Download, Users, Moon, Sun, Sunset,
-  X, Search, CheckCircle2,
-  BedDouble, ChevronDown,
-  UserCog, Settings, Timer, Zap, Copy, ArrowRightLeft
+  RefreshCw, Search, Trash2, Plus, LayoutGrid, List,
+  PanelRightOpen, PanelRightClose,
+  ArrowRightLeft, ClipboardList, History, X,
 } from 'lucide-react'
+import {
+  restApi, getErrorMessage,
+  type RestScheduleBed,
+  type RestSchedulePendingPatient,
+  type RestScheduleWard,
+  type RestScheduleWeekResponse,
+  type RestScheduleWeekShift,
+  type RestShift,
+} from '@/services'
+import ApplyTemplateModal from '@/components/schedule/ApplyTemplateModal'
+import { useScheduleModals } from '@/hooks/useScheduleModals'
+import { useScheduleDragDrop } from '@/hooks/useScheduleDragDrop'
 
-type TabType = 'PATIENT' | 'STAFF'
+// ─── utils（全部用本地时间，避免 UTC 偏移） ───
+function pad(n: number) { return n < 10 ? `0${n}` : `${n}` }
+function toDateString(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
+function toApi(dt: string) { return dt }
+function startOfWeek(d: Date) { const x = new Date(d); const day = x.getDay() || 7; x.setDate(x.getDate() - day + 1); x.setHours(0,0,0,0); return x }
+function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+function isToday(dt: string) { return dt === toDateString(new Date()) }
+function isDateLocked(dt: string) { return dt < toDateString(new Date()) }
 
-// 扩展班次定义，支持自定义岗位和时间
-interface ShiftTemplate {
-  id: string
-  name: string
-  timeRange: string
-  color: string
-  category: 'RESPONSIBLE' | 'SUPERVISOR' | 'MANAGER'
+const WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六']
+const freq = (p: Pick<RestSchedulePendingPatient,'oddWeekFrequency'|'evenWeekFrequency'>) =>
+  p.oddWeekFrequency === p.evenWeekFrequency ? `每周${p.oddWeekFrequency||'--'}次` : `单${p.oddWeekFrequency||0}/双${p.evenWeekFrequency||0}`
+
+// 透析模式色块
+const MODE_BG: Record<string, string> = {
+  'HD': 'bg-blue-600',
+  'HDF': 'bg-violet-600',
+  'HF': 'bg-emerald-600',
+  'HP': 'bg-orange-500',
+  'PE': 'bg-rose-600',
+}
+function modeBg(mode?: string) { return MODE_BG[mode || ''] || 'bg-slate-500' }
+
+/** 过滤乱码/测试病区 */
+function isValidWard(w: RestScheduleWard) {
+  const n = (w.name || '').trim()
+  if (!n || n.length < 2) return false
+  if (n.includes('?') || n.includes('�')) return false
+  if (/^[\x00-\x1f\x7f]+$/.test(n)) return false
+  if (/SMOKE_TEST/i.test(n)) return false
+  return true
 }
 
-interface SchedulingModalData {
-  bedNumber?: string
-  staffId?: string
-  date: string
-  shift?: 'Morning' | 'Afternoon' | 'Evening'
-}
-
-// 预设岗位模板
-const DEFAULT_TEMPLATES: ShiftTemplate[] = [
-  { id: 't1', name: '总管班', timeRange: '08:00-17:00', color: 'blue', category: 'MANAGER' },
-  { id: 't2', name: '主管班', timeRange: '08:00-12:00', color: 'indigo', category: 'SUPERVISOR' },
-  { id: 't3', name: '责任-A1', timeRange: '08:00-12:00', color: 'emerald', category: 'RESPONSIBLE' },
-  { id: 't4', name: '责任-A2', timeRange: '13:00-17:00', color: 'emerald', category: 'RESPONSIBLE' },
-  { id: 't5', name: '责任-B', timeRange: '08:00-12:00', color: 'teal', category: 'RESPONSIBLE' },
-]
-
-// 患者班次卡片：极致紧凑型
-const PatientShiftCard = React.memo(({
-  item,
-  shiftType,
-  bedNumber,
-  date,
-  onOpen
-}: {
-  item?: PatientScheduleItem
-  shiftType: 'Morning' | 'Afternoon' | 'Evening'
-  bedNumber: string
-  date: string
-  onOpen: (bed: string, date: string, shift: 'Morning' | 'Afternoon' | 'Evening', pid?: string) => void
-}) => {
-  const styles = {
-    'Morning': {
-      bg: 'bg-blue-50/50',
-      text: 'text-blue-700',
-      border: 'border-blue-100',
-      icon: <Sun size={12} className="text-blue-500 shrink-0"/>,
-      pill: 'bg-blue-100 text-blue-600'
-    },
-    'Afternoon': {
-      bg: 'bg-amber-50/50',
-      text: 'text-amber-700',
-      border: 'border-amber-100',
-      icon: <Sunset size={12} className="text-orange-500 shrink-0"/>,
-      pill: 'bg-orange-100 text-orange-600'
-    },
-    'Evening': {
-      bg: 'bg-indigo-50/50',
-      text: 'text-indigo-700',
-      border: 'border-indigo-100',
-      icon: <Moon size={12} className="text-indigo-500 shrink-0"/>,
-      pill: 'bg-indigo-100 text-indigo-600'
-    }
-  }[shiftType]
-
-  if (!item) {
-    return (
-      <div
-        onClick={() => onOpen(bedNumber, date, shiftType)}
-        className="h-[32px] w-10 flex items-center justify-center group/add cursor-pointer rounded-lg border border-dashed border-slate-100 hover:bg-slate-50 hover:border-blue-300 transition-all"
-      >
-        <Plus size={12} className="text-slate-200 group-hover/add:text-blue-400 font-bold"/>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      onClick={() => {
-        onOpen(bedNumber, date, shiftType, item.patientId)
-      }}
-      className={`inline-flex items-center justify-start gap-1.5 px-2 h-[32px] rounded-lg border shadow-sm transition-all hover:shadow-md cursor-pointer group/item ${styles.bg} ${styles.border} w-fit max-w-full overflow-hidden`}
-    >
-      <div className="flex items-center shrink-0">
-        <span className="mr-1 shrink-0">{styles.icon}</span>
-        <span className="font-bold text-[12px] text-slate-700 whitespace-nowrap tracking-tight">{item.patientName}</span>
-      </div>
-      <span className={`text-[8px] font-black px-1 py-0.5 rounded-md shrink-0 ${styles.pill}`}>
-        {item.mode}
-      </span>
-    </div>
-  )
-})
-
-// 护士岗位班次卡片：显示自定义岗位和时间
-const StaffShiftCard = React.memo(({
-  shift,
-  onOpen,
-  staffId,
-  date
-}: {
-  shift?: {
-    label?: string
-    timeRange?: string
-    category?: string
-    type?: string
-  }
-  staffId: string
-  date: string
-  onOpen: (sid: string, date: string) => void
-}) => {
-  if (!shift || shift.type === 'OFF') return (
-    <div
-      onClick={() => onOpen(staffId, date)}
-      className="h-full w-full min-h-[56px] flex items-center justify-center group cursor-pointer hover:bg-slate-50 rounded-xl transition-all border border-dashed border-transparent hover:border-slate-200"
-    >
-      <Plus size={14} className="text-slate-100 group-hover:text-blue-400"/>
-    </div>
-  )
-
-  // 根据类别定义样式
-  const getStyle = (category: string) => {
-    switch(category) {
-      case 'MANAGER': return 'bg-blue-600 text-white border-blue-700'
-      case 'SUPERVISOR': return 'bg-indigo-500 text-white border-indigo-600'
-      case 'RESPONSIBLE': return 'bg-emerald-50 text-emerald-700 border-emerald-100'
-      default: return 'bg-slate-100 text-slate-600 border-slate-200'
-    }
-  }
-
-  const styleClass = getStyle(shift.category || '')
-
-  return (
-    <div
-      onClick={() => onOpen(staffId, date)}
-      className={`h-full w-full min-h-[56px] flex flex-col items-center justify-center rounded-xl border shadow-sm cursor-pointer hover:shadow-md transition-all p-2 ${styleClass}`}
-    >
-      <span className="text-[12px] font-black tracking-tight mb-0.5">{shift.label}</span>
-      <div className={`flex items-center gap-1 text-[9px] font-bold opacity-80 ${shift.category === 'RESPONSIBLE' ? 'text-emerald-500' : 'text-white/80'}`}>
-        <Timer size={10}/>
-        {shift.timeRange}
-      </div>
-    </div>
-  )
-})
-
+// ─── 主组件 ───
 export default function Schedule() {
-  const { t } = useTranslation(['schedule'])
-  // 获取当前用户角色
-  const roleUser = useMemo(() => getSelectedRoleUser(), [])
-  const isNurse = roleUser?.role?.includes('NURSE') ?? false
+  const [viewMode, setViewMode] = useState<'week'|'day'>('week')
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()))
+  const [selectedDay, setSelectedDay] = useState(() => toDateString(new Date()))
+  const [wardFilter, setWardFilter] = useState<'ALL' | number>('ALL')
+  const [data, setData] = useState<RestScheduleWeekResponse|null>(null)
+  const [loading, setLoading] = useState(false)
+  const [queueSearch, setQueueSearch] = useState('')
+  const [modeFilter, setModeFilter] = useState('ALL')
+  const [queueVisible, setQueueVisible] = useState(true)
+  const [selectedQueuePatient, setSelectedQueuePatient] = useState<number | null>(null)
 
-  const [activeTab, setActiveTab] = useState<TabType>('PATIENT')
-  const [viewStartDate, setViewStartDate] = useState(new Date())
-  const [selectedZone, setSelectedZone] = useState<string>('A')
+  // 使用自定义 hook 管理弹窗状态
+  const {
+    modal, setModal,
+    selPatient, setSelPatient,
+    actionMenu, setActionMenu,
+    applyTemplateOpen, setApplyTemplateOpen,
+    moveModal, setMoveModal,
+    moveLoading, setMoveLoading,
+    treatModal, setTreatModal,
+    treatments, setTreatments,
+    treatLoading, setTreatLoading,
+    historyModal, setHistoryModal,
+    shiftHistory, setShiftHistory,
+    historyLoading, setHistoryLoading,
+  } = useScheduleModals()
 
-  // REST API 数据
-  const [shifts, setShifts] = useState<RestShift[]>([])
-  const [patients, setPatients] = useState<Partial<Patient>[]>([])
-  const [searchResults, setSearchResults] = useState<Partial<Patient>[]>([])
-  const [staff, setStaff] = useState<StaffMember[]>([])
+  // 使用自定义 hook 管理拖拽状态
+  const {
+    dragItem,
+    dragOverKey,
+    onDragStart,
+    onDragOver,
+    onDropOnEmpty,
+    onDropOnOccupied,
+    onDragEnd,
+    onDragLeave,
+  } = useScheduleDragDrop()
 
-  const [patientSchedule, setPatientSchedule] = useState<PatientScheduleItem[]>([])
-  const [staffSchedule, setStaffSchedule] = useState<Array<{
-    staffId: string
-    date: string
-    type: string
-    area: string
-    label?: string
-    timeRange?: string
-    category?: string
-  }>>( [])
+  // 操作菜单（点击已排班卡片弹出）
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
-  const [shiftTemplates, setShiftTemplates] = useState<ShiftTemplate[]>(DEFAULT_TEMPLATES)
-  const [isTemplateModalOpen, setIsTemplateModalOpen] = useState(false)
-  const [newTemplate, setNewTemplate] = useState<Partial<ShiftTemplate>>({ category: 'RESPONSIBLE', color: 'emerald' })
+  // ─── 数据加载 ───
+  const days = useMemo(() => Array.from({length:7},(_,i)=>addDays(weekStart,i)), [weekStart])
+  const startDate = toDateString(days[0])
+  const endDate = toDateString(days[6])
 
-  // 快速排班状态
-  const [isQuickScheduleModalOpen, setIsQuickScheduleModalOpen] = useState(false)
-  const [quickTargetStaffId, setQuickTargetStaffId] = useState<string>('')
-  const [quickSourceType, setQuickSourceType] = useState<'SELF' | 'OTHER'>('SELF')
-  const [quickSourceStaffId, setQuickSourceStaffId] = useState<string>('')
-
-  const scheduleMap = useMemo(() => {
-    const map = new Map<string, PatientScheduleItem>()
-    patientSchedule.forEach(item => {
-      map.set(`${item.bedNumber}-${item.date}-${item.shift}`, item)
-    })
-    return map
-  }, [patientSchedule])
-
-  const staffMap = useMemo(() => {
-    const map = new Map<string, typeof staffSchedule[0]>()
-    staffSchedule.forEach(s => {
-      map.set(`${s.staffId}-${s.date}`, s)
-    })
-    return map
-  }, [staffSchedule])
-
-  const [isScheduling, setIsScheduling] = useState(false)
-  const [isStaffScheduling, setIsStaffScheduling] = useState(false)
-  const [schedulingData, setSchedulingData] = useState<SchedulingModalData | null>(null)
-
-  const [searchPatientQuery, setSearchPatientQuery] = useState('')
-  const [showSearchDropdown, setShowSearchDropdown] = useState(false)
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null)
-  const [selectedTreatmentMode, setSelectedTreatmentMode] = useState('HD')
-
-  // 生成展示的7天日期（从 viewStartDate 开始）
-  const dates = useMemo(() => {
-    const res = []
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(viewStartDate)
-      d.setDate(viewStartDate.getDate() + i)
-      res.push(d)
-    }
-    return res
-  }, [viewStartDate])
-
-  const dateStrings = useMemo(() => dates.map(d => d.toISOString().split('T')[0]), [dates])
-
-  // 从后端加载班次定义
-  useEffect(() => {
-    restApi.getShifts()
-      .then(res => setShifts(res.data))
-      .catch(err => console.error('加载班次失败:', err))
-  }, [])
-
-  // 将后端班次名称映射到前端 shift 类型
-  const shiftNameToType = useCallback((shiftName: string): 'Morning' | 'Afternoon' | 'Evening' => {
-    const name = shiftName.toLowerCase()
-    if (name.includes('早') || name.includes('上午') || name.includes('morning')) return 'Morning'
-    if (name.includes('晚') || name.includes('夜') || name.includes('evening')) return 'Evening'
-    return 'Afternoon' // 默认中班
-  }, [])
-
-  // 从后端加载患者排班（按当前视图 7 天）
-  useEffect(() => {
-    if (dateStrings.length === 0) return
-    const startDate = dateStrings[0]
-    const endDate = dateStrings[dateStrings.length - 1]
-
-    restApi.getPatientShifts({ startDate, endDate, page: 1, pageSize: 500 })
-      .then(res => {
-        const items: PatientScheduleItem[] = res.data.items.map((ps: RestPatientShift) => ({
-          id: String(ps.id),
-          bedNumber: ps.bed?.name || `B${ps.bedId || 0}`,
-          date: ps.scheduleDate.split('T')[0],
-          shift: ps.shift ? shiftNameToType(ps.shift.name) : 'Morning',
-          patientName: ps.patient?.name || `患者${ps.patientId}`,
-          mode: (ps.patient as unknown as Record<string, unknown>)?.defaultMode as string || 'HD',
-          patientId: ps.patient?.id ? String(ps.patient.id) : String(ps.patientId)
-        }))
-        setPatientSchedule(items)
+  const loadWeek = useCallback(async () => {
+    setLoading(true)
+    try {
+      const res = await restApi.getScheduleWeek({
+        startDate,
+        endDate,
+        wardId: wardFilter === 'ALL' ? undefined : wardFilter,
       })
-      .catch(err => console.error('加载患者排班失败:', err))
-  }, [dateStrings, shiftNameToType])
+      setData(res.data)
+    } catch(e) { message.error(getErrorMessage(e)) }
+    finally { setLoading(false) }
+  }, [endDate, wardFilter, startDate])
 
-  // 加载患者列表（用于搜索）
-  useEffect(() => {
-    restApi.getPatientList({ page: 1, pageSize: 200 })
-      .then(res => setPatients(convertRestPatientList(res.data.items)))
-      .catch(err => console.error('加载患者列表失败:', err))
-  }, [])
+  useEffect(() => { void loadWeek() }, [loadWeek])
 
-  // 加载护理人员列表
-  useEffect(() => {
-    restApi.getUserList({ status: 'active' })
-      .then(users => {
-        const mapped: StaffMember[] = users.map(u => ({
-          id: u.id,
-          name: u.realName || u.username,
-          role: u.role,
-          level: u.role,
-        }))
-        setStaff(mapped)
-        if (mapped.length > 0) {
-          setQuickTargetStaffId(mapped[0].id)
-          setQuickSourceStaffId(mapped[0].id)
-        }
-      })
-      .catch((err) => console.error('[Schedule] 患者搜索加载失败', err))
-  }, [])
+  // ─── 派生数据 ───
+  const wards = useMemo(() => (data?.wards||[]).filter(isValidWard), [data])
+  const validWardIds = useMemo(() => new Set(wards.map(w => Number(w.id))), [wards])
+  // 过滤掉无效床位：wardId=0 或不在有效病区列表中的
+  const beds = useMemo(() => (data?.beds||[]).filter(b => {
+    const wid = Number(b.wardId)
+    return wid > 0 && validWardIds.has(wid)
+  }), [data, validWardIds])
+  const shifts = data?.shifts || []
+  const pShifts = data?.patientShifts || []
+  const pending = data?.pendingPatients || []
 
-  // 患者搜索防抖：输入 300ms 后查询后端
-  useEffect(() => {
-    if (!searchPatientQuery.trim()) {
-      setSearchResults([])
-      return
-    }
-    const timer = setTimeout(() => {
-      // 先从已加载的患者列表中本地搜索
-      const local = patients.filter(p =>
-        p.name?.includes(searchPatientQuery) ||
-        p.id?.includes(searchPatientQuery) ||
-        p.bedNumber?.includes(searchPatientQuery)
-      )
-      if (local.length > 0) {
-        setSearchResults(local)
-      } else {
-        // 本地无结果时请求后端
-        restApi.getPatientList({ name: searchPatientQuery, page: 1, pageSize: 20 })
-          .then(res => setSearchResults(convertRestPatientList(res.data.items)))
-          .catch(() => setSearchResults([]))
-      }
-    }, 300)
-    return () => clearTimeout(timer)
-  }, [searchPatientQuery, patients])
+  const schedMap = useMemo(() => {
+    const m = new Map<string, RestScheduleWeekShift>()
+    pShifts.forEach(s => m.set(`${s.bedId}-${s.treatmentTime.split('T')[0]}-${s.shiftId}`, s))
+    return m
+  }, [pShifts])
 
-  const filteredBeds = useMemo(() => {
-    const counts: Record<string, number> = { 'A': 16, 'B': 5, 'C': 4 }
-    return Array.from({ length: counts[selectedZone] }).map((_, i) => `${selectedZone}${String(i + 1).padStart(2, '0')}`)
-  }, [selectedZone])
-
-  const handleOpenScheduling = useCallback((bedNumber: string, date: string, shift: 'Morning' | 'Afternoon' | 'Evening', pid?: string) => {
-    setSchedulingData({ bedNumber, date, shift })
-    if (pid) {
-      const p = patients.find(x => x.id === pid)
-      if (p) {
-        setSelectedPatientId(p.id!)
-        setSearchPatientQuery(p.name || '')
-        setSelectedTreatmentMode(p.defaultMode || 'HD')
-      }
-    } else {
-      setSearchPatientQuery('')
-      setSelectedPatientId(null)
-    }
-    setIsScheduling(true)
-  }, [patients])
-
-  const handleOpenStaffScheduling = (staffId: string, date: string) => {
-    setSchedulingData({ staffId, date })
-    setIsStaffScheduling(true)
-  }
-
-  const handleAddTemplate = () => {
-    if (!newTemplate.name || !newTemplate.timeRange) return
-    const template: ShiftTemplate = {
-      id: `t-${Date.now()}`,
-      name: newTemplate.name,
-      timeRange: newTemplate.timeRange,
-      color: newTemplate.color || 'blue',
-      category: newTemplate.category || 'RESPONSIBLE'
-    }
-    setShiftTemplates(prev => [...prev, template])
-    setNewTemplate({ category: 'RESPONSIBLE', color: 'emerald' })
-    setIsTemplateModalOpen(false)
-  }
-
-  // 执行快速排班：复制逻辑
-  const handleApplyQuickSchedule = () => {
-    const sourceId = quickSourceType === 'SELF' ? quickTargetStaffId : quickSourceStaffId
-
-    // 获取当前视图 7 天的日期
-    const currentWeekDates = dateStrings
-
-    // 获取"上周"对应的日期（当前日期减 7 天）
-    const lastWeekDates = currentWeekDates.map(d => {
-      const dateObj = new Date(d)
-      dateObj.setDate(dateObj.getDate() - 7)
-      return dateObj.toISOString().split('T')[0]
+  const dayCountMap = useMemo(() => {
+    const m = new Map<string, number>()
+    pShifts.forEach(s => {
+      const dt = s.treatmentTime.split('T')[0]
+      m.set(dt, (m.get(dt) || 0) + 1)
     })
+    return m
+  }, [pShifts])
 
-    const newEntries: typeof staffSchedule = []
-
-    currentWeekDates.forEach((currentDate, index) => {
-      const lastWeekDate = lastWeekDates[index]
-      const sourceShift = staffMap.get(`${sourceId}-${lastWeekDate}`)
-
-      if (sourceShift) {
-        newEntries.push({
-          ...sourceShift,
-          staffId: quickTargetStaffId,
-          date: currentDate
+  const loadMap = useMemo(() => {
+    const m = new Map<string,{used:number;total:number}>()
+    beds.forEach(() => {
+      days.forEach(d => {
+        const dt = toDateString(d)
+        shifts.forEach(s => {
+          const k = `${dt}-${s.id}`
+          const c = m.get(k) || {used:0,total:0}
+          m.set(k, {...c, total: c.total+1})
         })
-      }
-    })
-
-    if (newEntries.length > 0) {
-      setStaffSchedule(prev => {
-        // 移除目标人员在当前视图日期内的旧排班
-        const filtered = prev.filter(s => !(s.staffId === quickTargetStaffId && currentWeekDates.includes(s.date)))
-        return [...filtered, ...newEntries]
       })
-      alert(t('schedule:alert.quickScheduleSuccess', { name: staff.find(s => s.id === quickTargetStaffId)?.name }))
-    } else {
-      alert(t('schedule:alert.noScheduleFound'))
-    }
+    })
+    pShifts.forEach(s => {
+      const k = `${s.treatmentTime.split('T')[0]}-${s.shiftId}`
+      const c = m.get(k)
+      if(c) m.set(k, {...c, used: c.used+1})
+    })
+    return m
+  }, [beds,shifts,days,pShifts])
 
-    setIsQuickScheduleModalOpen(false)
+  // 按病区分组
+  const groupedBeds = useMemo(() => {
+    const wardMap = new Map<string, RestScheduleWard>()
+    wards.forEach(w => wardMap.set(String(w.id), w))
+    const groups = new Map<string, {ward: RestScheduleWard|undefined; beds: RestScheduleBed[]}>()
+    beds.forEach(bed => {
+      const wid = String(bed.wardId)
+      if (!groups.has(wid)) groups.set(wid, { ward: wardMap.get(wid), beds: [] })
+      groups.get(wid)!.beds.push(bed)
+    })
+    return Array.from(groups.values())
+  }, [beds, wards])
+
+  const filteredPending = useMemo(() => {
+    const kw = queueSearch.trim().toLowerCase()
+    return pending.filter(p => {
+      const mm = modeFilter==='ALL'||p.dialysisMode===modeFilter
+      const t = `${p.name} ${p.spell||''} ${p.gender} ${p.dialysisMode} ${freq(p)}`.toLowerCase()
+      return mm && (!kw || t.includes(kw))
+    })
+  }, [modeFilter,pending,queueSearch])
+
+  const modeOpts = useMemo(() => {
+    const s = new Set<string>()
+    pending.forEach(p => { if(p.dialysisMode) s.add(p.dialysisMode) })
+    pShifts.forEach(s2 => { if(s2.dialysisMode) s.add(s2.dialysisMode) })
+    return ['ALL', ...Array.from(s).sort()]
+  }, [pShifts,pending])
+
+  // ─── 操作 ───
+  const openModal = (bed: RestScheduleBed, date: string, shift: RestShift, existing?: RestScheduleWeekShift) => {
+    const prePatient = selectedQueuePatient
+    setModal({ open:true, bed, date, shift, existing:existing||null })
+    setSelPatient(existing ? Number(existing.patientId) : (prePatient ?? undefined))
+    setSelectedQueuePatient(null)
   }
+  const closeModal = () => { setModal({open:false,bed:null,date:'',shift:null,existing:null}); setSelPatient(undefined) }
+
+  const handleSave = async () => {
+    const {bed,date,shift,existing} = modal
+    if(!bed||!shift) return
+    if(!selPatient) { message.error('请选择患者'); return }
+    try {
+      const p = pending.find(x=>x.id===selPatient)
+      if(existing) {
+        if(Number(existing.patientId)!==selPatient) {
+          await restApi.deletePatientShift(existing.id)
+          await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId })
+          message.success('排班已更新')
+        }
+      } else {
+        await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId })
+        message.success('排班已创建')
+      }
+      closeModal(); await loadWeek()
+    } catch(e) { message.error(getErrorMessage(e)) }
+  }
+
+  const handleDelete = async (item: RestScheduleWeekShift) => {
+    if (isDateLocked(item.treatmentTime.split('T')[0])) { message.warning('历史排班不可修改'); return }
+    const ok = await new Promise<boolean>(r => Modal.confirm({ title:'取消排班', content:`确认取消 ${item.patientName} 的排班？`, okText:'确认', okButtonProps:{danger:true}, onOk:()=>r(true), onCancel:()=>r(false) }))
+    if(!ok) return
+    try { await restApi.deletePatientShift(item.id); message.success('已取消'); setActionMenu({visible:false,x:0,y:0,item:null}); await loadWeek() }
+    catch(e) { message.error(getErrorMessage(e)) }
+  }
+
+  // ─── 操作菜单 ───
+  const openActionMenu = (e: React.MouseEvent, item: RestScheduleWeekShift) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setActionMenu({ visible:true, x:e.clientX, y:e.clientY, item })
+  }
+  const closeActionMenu = () => setActionMenu({visible:false, x:0, y:0, item:null})
+
+  // 点击外部关闭菜单
+  useEffect(() => {
+    if (!actionMenu.visible) return
+    const handler = (e: MouseEvent) => {
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) closeActionMenu()
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [actionMenu.visible])
+
+  // ─── 换床 ───
+  const openMoveModal = (item: RestScheduleWeekShift) => {
+    closeActionMenu()
+    setMoveModal({ open:true, item, targetBedId:undefined })
+  }
+  const handleMove = async () => {
+    const { item, targetBedId } = moveModal
+    if (!item || !targetBedId) { message.error('请选择目标床位'); return }
+    const targetBed = beds.find(b => Number(b.id) === targetBedId)
+    if (!targetBed) return
+    setMoveLoading(true)
+    try {
+      await restApi.movePatientShift(item.id, { bedId: targetBedId, wardId: Number(targetBed.wardId) })
+      message.success('换床成功')
+      setMoveModal({open:false, item:null, targetBedId:undefined})
+      await loadWeek()
+    } catch(e) { message.error(getErrorMessage(e)) }
+    finally { setMoveLoading(false) }
+  }
+
+  // ─── 治疗记录 ───
+  const openTreatModal = async (item: RestScheduleWeekShift) => {
+    closeActionMenu()
+    setTreatModal({ open:true, patientId:Number(item.patientId), patientName:item.patientName })
+    setTreatLoading(true)
+    try {
+      const res = await restApi.getTreatments({ patientId: String(item.patientId), pageSize:20 })
+      setTreatments(res.data?.items || [])
+    } catch(e) { message.error(getErrorMessage(e)); setTreatments([]) }
+    finally { setTreatLoading(false) }
+  }
+
+  // ─── 换床记录（排班历史） ───
+  const openHistoryModal = async (item: RestScheduleWeekShift) => {
+    closeActionMenu()
+    setHistoryModal({ open:true, patientId:Number(item.patientId), patientName:item.patientName })
+    setHistoryLoading(true)
+    try {
+      const res = await restApi.getPatientShifts({ patientId:Number(item.patientId), pageSize:30 })
+      setShiftHistory(res.data?.items || [])
+    } catch(e) { message.error(getErrorMessage(e)); setShiftHistory([]) }
+    finally { setHistoryLoading(false) }
+  }
+
+
+
+  // ─── 渲染 ───
+  const visibleDays = viewMode==='day' ? [new Date(selectedDay+'T00:00:00')] : days
+  const colCount = shifts.length || 1
+  const secondRowTop = 30
 
   return (
-    <div className="h-full flex flex-col bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden relative">
-      {/* 顶部主控制栏 */}
-      <div className="px-8 py-5 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-30">
-        <div className="flex items-center">
-          <div className="p-3 bg-blue-600 rounded-2xl text-white shadow-lg shadow-blue-200 mr-4">
-            <CalendarIcon size={24} />
+    <div className="h-full bg-slate-50 p-2 flex flex-col gap-2">
+      {/* ── 顶部工具栏 ── */}
+      <div className="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 flex items-center justify-between gap-3 shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-blue-600 p-1.5 text-white shadow"><CalendarIcon size={16}/></div>
+          <div>
+            <h2 className="text-sm font-black text-slate-800">排班管理</h2>
+            <p className="text-meta font-bold text-slate-400">{startDate} ~ {endDate}</p>
           </div>
-          <div className="mr-12">
-            <h2 className="text-xl font-black text-slate-800 tracking-tight">
-              {activeTab === 'PATIENT' ? t('schedule:title.patientSchedule') : t('schedule:title.staffSchedule')}
-            </h2>
-            <p className="text-[10px] text-slate-300 font-bold uppercase tracking-widest leading-none mt-1">{t('schedule:subtitle')}</p>
-          </div>
-
-          <div className="flex items-center bg-slate-50 rounded-2xl border border-slate-200 p-1 shadow-inner shrink-0">
-            <button onClick={() => setViewStartDate(prev => { const d = new Date(prev); d.setDate(d.getDate() - 1); return d })} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-slate-900 transition-all"><ChevronLeft size={16}/></button>
-            <span className="px-6 text-[15px] font-black text-slate-700 whitespace-nowrap">{t('schedule:nav.year', { year: dates[0].getFullYear() })}{t('schedule:nav.month', { month: dates[0].getMonth() + 1 })}</span>
-            <button onClick={() => setViewStartDate(prev => { const d = new Date(prev); d.setDate(d.getDate() + 1); return d })} className="p-2 hover:bg-white hover:shadow-sm rounded-xl text-slate-400 hover:text-slate-900 transition-all"><ChevronRight size={16}/></button>
-            <button onClick={() => setViewStartDate(new Date())} className="ml-2 px-3 py-1 bg-white border border-slate-200 rounded-lg text-[10px] font-bold text-blue-600 hover:bg-blue-50 shadow-sm transition-all">{t('schedule:nav.backToToday')}</button>
+          <div className="ml-2 flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button onClick={()=>setWeekStart(p=>addDays(p,-7))} className="rounded p-1 text-slate-500 hover:bg-white hover:shadow-sm"><ChevronLeft size={14}/></button>
+            <button onClick={()=>{setWeekStart(startOfWeek(new Date())); setSelectedDay(toDateString(new Date()))}} className="rounded bg-white px-2.5 py-0.5 text-meta font-black text-blue-600 shadow-sm">本周</button>
+            <button onClick={()=>setWeekStart(p=>addDays(p,7))} className="rounded p-1 text-slate-500 hover:bg-white hover:shadow-sm"><ChevronRight size={14}/></button>
           </div>
         </div>
-
-        <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100/80 p-1.5 rounded-2xl shadow-inner">
-            <button
-              onClick={() => setActiveTab('PATIENT')}
-              className={`flex items-center px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'PATIENT' ? 'bg-white text-blue-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-            >
-              <BedDouble size={14} className="mr-2"/> {t('schedule:tab.patient')}
-            </button>
-            {isNurse && (
-              <button
-                onClick={() => setActiveTab('STAFF')}
-                className={`flex items-center px-6 py-2.5 rounded-xl text-sm font-black transition-all ${activeTab === 'STAFF' ? 'bg-white text-blue-600 shadow-md ring-1 ring-slate-200' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                <UserCog size={14} className="mr-2"/> {t('schedule:tab.staff')}
-              </button>
-            )}
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border border-slate-200 bg-slate-50 p-0.5">
+            <button onClick={()=>setViewMode('week')} className={`flex items-center gap-1 rounded px-2.5 py-1 text-meta font-black transition ${viewMode==='week'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><LayoutGrid size={12}/>周</button>
+            <button onClick={()=>setViewMode('day')} className={`flex items-center gap-1 rounded px-2.5 py-1 text-meta font-black transition ${viewMode==='day'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><List size={12}/>日</button>
           </div>
-
-          {activeTab === 'STAFF' && (
-            <button
-              onClick={() => setIsTemplateModalOpen(true)}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-600 hover:bg-slate-50 transition-all shadow-sm"
-            >
-              <Settings size={16} className="text-blue-500"/> {t('schedule:action.positionDef')}
-            </button>
-          )}
-
-          <button
-            onClick={() => {
-              if (activeTab === 'STAFF') setIsQuickScheduleModalOpen(true)
-              else alert(t('schedule:alert.patientNoQuickSchedule'))
-            }}
-            className="px-6 py-3 bg-blue-600 text-white rounded-2xl text-sm font-black hover:bg-blue-700 shadow-xl shadow-blue-100 flex items-center transition-all"
-          >
-            <Plus size={18} className="mr-2 stroke-[3px]"/> {t('schedule:action.quickSchedule')}
+          <button onClick={()=>void loadWeek()} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-meta font-black text-slate-600 hover:bg-slate-50"><RefreshCw size={12}/>刷新</button>
+          <button onClick={()=>setApplyTemplateOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-meta font-black text-white hover:bg-blue-700"><ClipboardList size={12}/>应用模板</button>
+          <button onClick={()=>setQueueVisible(v=>!v)} className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-meta font-black transition ${queueVisible?'border-blue-300 bg-blue-50 text-blue-600':'border-slate-200 text-slate-500 hover:bg-slate-50'}`} title={queueVisible?'隐藏待排班':'显示待排班'}>
+            {queueVisible ? <PanelRightClose size={13}/> : <PanelRightOpen size={13}/>}
           </button>
         </div>
       </div>
 
-      {/* 辅助筛选栏 */}
-      <div className="px-8 py-3 border-b border-slate-100 flex items-center justify-between bg-white shrink-0 z-20">
-        <div className="flex items-center gap-8 shrink-0">
-          {activeTab === 'PATIENT' ? (
-            <>
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{t('schedule:filter.wardLabel')}</span>
-              <div className="flex items-center gap-2">
-                {[{ id: 'A', label: t('schedule:filter.wardA', { count: 16 }) }, { id: 'B', label: t('schedule:filter.wardB', { count: 5 }) }, { id: 'C', label: t('schedule:filter.wardC', { count: 4 }) }].map(z => (
-                  <button
-                    key={z.id}
-                    onClick={() => setSelectedZone(z.id)}
-                    className={`px-5 py-2 rounded-xl border transition-all font-black text-[12px] ${selectedZone === z.id ? 'bg-blue-50 border-blue-500 text-blue-700 shadow-sm' : 'border-slate-100 text-slate-400 hover:border-slate-200 bg-white'}`}
-                  >
-                    {z.label}
-                  </button>
-                ))}
-              </div>
-              <div className="h-6 w-px bg-slate-100 mx-2"></div>
-              <div className="flex items-center gap-6">
-                {[{id:'m', label: t('schedule:shift.morning'), color:'blue'}, {id:'a', label: t('schedule:shift.afternoon'), color:'orange'}, {id:'e', label: t('schedule:shift.evening'), color:'indigo'}].map(s => (
-                  <label key={s.id} className="flex items-center gap-2.5 cursor-pointer group">
-                    <input type="checkbox" defaultChecked className="w-5 h-5 rounded border-slate-200 text-blue-500 focus:ring-blue-400 transition-all"/>
-                    <span className="text-[12px] font-black text-slate-500 group-hover:text-slate-800 transition-colors">{s.label}</span>
-                  </label>
-                ))}
-              </div>
-            </>
-          ) : (
-            <>
-              <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">{t('schedule:filter.quickView')}</span>
-              <div className="flex items-center gap-2">
-                {[t('schedule:filter.selectAll'), t('schedule:filter.headNurse'), t('schedule:filter.responsibleNurse'), t('schedule:filter.mainNurse')].map(label => (
-                  <button key={label} className="px-4 py-2 border border-slate-100 rounded-xl text-xs font-bold text-slate-500 hover:bg-slate-50">{label}</button>
-                ))}
-              </div>
-              <div className="h-6 w-px bg-slate-100 mx-2"></div>
-              <div className="flex items-center gap-4">
-                <span className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{t('schedule:filter.positionLegend')}</span>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-blue-600"></div><span className="text-[11px] font-bold text-slate-500">{t('schedule:legend.manager')}</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-indigo-500"></div><span className="text-[11px] font-bold text-slate-500">{t('schedule:legend.supervisor')}</span></div>
-                  <div className="flex items-center gap-1.5"><div className="w-3 h-3 rounded-full bg-emerald-400"></div><span className="text-[11px] font-bold text-slate-500">{t('schedule:legend.responsible')}</span></div>
-                </div>
-              </div>
-            </>
-          )}
+      {/* ── 病区筛选 + 日视图切换 ── */}
+      <div className="shrink-0 flex items-center gap-2">
+        <div className="flex items-center gap-1 overflow-x-auto flex-1">
+          <button
+            onClick={()=>setWardFilter('ALL')}
+            className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-meta font-black transition ${wardFilter==='ALL'?'border-blue-500 bg-blue-50 text-blue-700':'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+          >全部病区</button>
+          {wards.map(w => (
+            <button
+              key={w.id}
+              onClick={()=>setWardFilter(Number(w.id))}
+              className={`whitespace-nowrap rounded-lg border px-2.5 py-1 text-meta font-black transition ${wardFilter===Number(w.id)?'border-blue-500 bg-blue-50 text-blue-700':'border-slate-200 text-slate-500 hover:border-slate-300'}`}
+            >{w.name}<span className="ml-0.5 text-[9px] opacity-50">{w.bedCount||0}床</span></button>
+          ))}
         </div>
-
-        <button className="flex items-center gap-2 text-[12px] font-black text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-xl transition-all">
-          <Download size={16}/> {t('schedule:action.exportSchedule')}
-        </button>
-      </div>
-
-      {/* 排班表格主体 - 支持左右平铺横向滑动 */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto bg-white no-scrollbar relative">
-        {activeTab === 'PATIENT' ? (
-          <table className="min-w-max border-separate border-spacing-0 table-fixed">
-            <thead>
-              <tr>
-                <th className="sticky left-0 top-0 z-50 bg-white border-b border-r border-slate-100 p-4 w-[100px] text-center text-[11px] font-black text-slate-400 uppercase tracking-widest shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)]">{t('schedule:table.bed')}</th>
-                {dates.map((date, i) => (
-                  <th key={i} colSpan={3} className="sticky top-0 z-40 bg-white border-b border-r border-slate-100 p-4 text-center min-w-[360px]">
-                    <div className="flex items-center justify-center gap-4">
-                      <span className="text-[14px] font-black text-slate-800">{[t('schedule:day.sun'),t('schedule:day.mon'),t('schedule:day.tue'),t('schedule:day.wed'),t('schedule:day.thu'),t('schedule:day.fri'),t('schedule:day.sat')][date.getDay()]}</span>
-                      <span className={`inline-block px-4 py-1 rounded-xl text-[12px] font-black ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white shadow-lg ring-4 ring-blue-100' : 'bg-slate-100 text-slate-400'}`}>
-                        {t('schedule:date.format', { month: date.getMonth() + 1, day: date.getDate() })}
-                        {date.toDateString() === new Date().toDateString() && <span className="ml-1 text-[9px] opacity-70">{t('schedule:day.today')}</span>}
-                      </span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-              <tr className="z-30">
-                <th className="sticky left-0 top-[58px] z-50 bg-white border-b border-r border-slate-100 p-0 w-[100px] shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)]"></th>
-                {dates.map((_, i) => (
-                  <React.Fragment key={i}>
-                    <th className="sticky top-[58px] z-20 bg-slate-50/50 backdrop-blur-sm border-b border-r border-slate-50 p-2 text-center">
-                      <span className="text-[11px] font-black text-blue-400/80 uppercase tracking-tighter">{t('schedule:shift.morning')}</span>
-                    </th>
-                    <th className="sticky top-[58px] z-20 bg-slate-50/50 backdrop-blur-sm border-b border-r border-slate-50 p-2 text-center">
-                      <span className="text-[11px] font-black text-orange-400/80 uppercase tracking-tighter">{t('schedule:shift.afternoon')}</span>
-                    </th>
-                    <th className="sticky top-[58px] z-20 bg-slate-50/50 backdrop-blur-sm border-b border-r border-slate-100 p-2 text-center">
-                      <span className="text-[11px] font-black text-indigo-400/80 uppercase tracking-tighter">{t('schedule:shift.evening')}</span>
-                    </th>
-                  </React.Fragment>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filteredBeds.map(bed => (
-                <tr key={bed} className="group">
-                  <td className="sticky left-0 z-40 bg-white group-hover:bg-blue-50/20 border-r border-slate-100 p-4 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)] transition-colors">
-                    <div className="flex items-center justify-center">
-                      <div className="w-14 h-10 rounded-xl flex items-center justify-center font-black text-sm border-2 bg-blue-50 text-blue-600 border-blue-100 shadow-sm group-hover:scale-105 transition-all">
-                        {bed}
-                      </div>
-                    </div>
-                  </td>
-                  {dateStrings.map((dateStr, i) => (
-                    <React.Fragment key={i}>
-                      <td className="border-r border-slate-50 p-1.5 align-middle"><PatientShiftCard item={scheduleMap.get(`${bed}-${dateStr}-Morning`)} shiftType="Morning" bedNumber={bed} date={dateStr} onOpen={handleOpenScheduling} /></td>
-                      <td className="border-r border-slate-50 p-1.5 align-middle"><PatientShiftCard item={scheduleMap.get(`${bed}-${dateStr}-Afternoon`)} shiftType="Afternoon" bedNumber={bed} date={dateStr} onOpen={handleOpenScheduling} /></td>
-                      <td className="border-r border-slate-100 p-1.5 align-middle"><PatientShiftCard item={scheduleMap.get(`${bed}-${dateStr}-Evening`)} shiftType="Evening" bedNumber={bed} date={dateStr} onOpen={handleOpenScheduling} /></td>
-                    </React.Fragment>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : (
-          <table className="min-w-max border-separate border-spacing-0 table-fixed">
-            <thead>
-              <tr>
-                <th className="sticky left-0 top-0 z-50 bg-white border-b border-r border-slate-100 p-6 w-[200px] text-left shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)]">
-                  <div className="flex items-center text-[11px] font-black text-slate-400 uppercase tracking-[0.2em]"><Users size={14} className="mr-2"/> {t('schedule:table.staff')}</div>
-                </th>
-                {dates.map((date, i) => (
-                  <th key={i} className="sticky top-0 z-40 bg-white border-b border-r border-slate-100 p-4 text-center min-w-[160px]">
-                    <div className="flex flex-col items-center">
-                      <span className="text-[13px] font-black text-slate-800 mb-1">{[t('schedule:day.sun'),t('schedule:day.mon'),t('schedule:day.tue'),t('schedule:day.wed'),t('schedule:day.thu'),t('schedule:day.fri'),t('schedule:day.sat')][date.getDay()]}</span>
-                      <span className={`inline-block px-3 py-0.5 rounded-lg text-[11px] font-black ${date.toDateString() === new Date().toDateString() ? 'bg-blue-600 text-white shadow-lg' : 'bg-slate-100 text-slate-400'}`}>
-                        {t('schedule:date.format', { month: date.getMonth() + 1, day: date.getDate() })}
-                      </span>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {staff.map(staff => (
-                <tr key={staff.id} className="group">
-                  <td className="sticky left-0 z-40 bg-white group-hover:bg-slate-50 border-r border-slate-100 p-4 shadow-[4px_0_12px_-6px_rgba(0,0,0,0.1)] transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-2xl bg-slate-100 flex items-center justify-center font-black text-slate-400 border border-slate-200 shrink-0">{staff.name[0]}</div>
-                      <div className="truncate">
-                        <p className="text-sm font-black text-slate-800 truncate">{staff.name}</p>
-                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{staff.role} · {staff.level}</p>
-                      </div>
-                    </div>
-                  </td>
-                  {dateStrings.map((dateStr, i) => (
-                    <td key={i} className="border-r border-slate-100 p-2 h-[84px] align-middle">
-                      <StaffShiftCard
-                        shift={staffMap.get(`${staff.id}-${dateStr}`)}
-                        staffId={staff.id}
-                        date={dateStr}
-                        onOpen={handleOpenStaffScheduling}
-                      />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {viewMode==='day' && (
+          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 shrink-0">
+            <button onClick={()=>setSelectedDay(toDateString(addDays(new Date(selectedDay+'T00:00:00'),-1)))} className="rounded p-0.5 text-slate-500 hover:bg-white"><ChevronLeft size={13}/></button>
+            <span className="px-2 text-meta font-black text-slate-700">{selectedDay} {WEEKDAYS[new Date(selectedDay+'T00:00:00').getDay()]}</span>
+            <button onClick={()=>setSelectedDay(toDateString(addDays(new Date(selectedDay+'T00:00:00'),1)))} className="rounded p-0.5 text-slate-500 hover:bg-white"><ChevronRight size={13}/></button>
+          </div>
         )}
       </div>
 
-      {/* 岗位定义弹窗 */}
-      {isTemplateModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-lg overflow-hidden animate-scale-in flex flex-col">
-            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-              <h3 className="text-xl font-black text-slate-900 flex items-center gap-2"><Settings size={20} className="text-blue-600"/> {t('schedule:modal.positionSettings')}</h3>
-              <button onClick={() => setIsTemplateModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"><X size={20}/></button>
-            </div>
-            <div className="p-8 space-y-6">
-              <div className="space-y-4">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest">{t('schedule:modal.addEditPosition')}</p>
-                <div className="grid grid-cols-1 gap-5">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">{t('schedule:modal.positionName')}</label>
-                    <input
-                      type="text"
-                      className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all bg-slate-50 focus:bg-white"
-                      placeholder={t('schedule:modal.positionNamePlaceholder')}
-                      value={newTemplate.name || ''}
-                      onChange={e => setNewTemplate(prev => ({...prev, name: e.target.value}))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">{t('schedule:modal.positionTime')}</label>
-                    <input
-                      type="text"
-                      className="w-full h-11 border border-slate-200 rounded-xl px-4 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-500 transition-all bg-slate-50 focus:bg-white"
-                      placeholder={t('schedule:modal.positionTimePlaceholder')}
-                      value={newTemplate.timeRange || ''}
-                      onChange={e => setNewTemplate(prev => ({...prev, timeRange: e.target.value}))}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 mb-1.5 block">{t('schedule:modal.category')}</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {(['RESPONSIBLE', 'SUPERVISOR', 'MANAGER'] as const).map(cat => (
-                        <button
-                          key={cat}
-                          onClick={() => setNewTemplate(prev => ({...prev, category: cat}))}
-                          className={`py-2.5 rounded-xl border text-[11px] font-black transition-all ${newTemplate.category === cat ? 'bg-blue-600 border-blue-600 text-white shadow-md' : 'border-slate-100 text-slate-400 hover:bg-slate-50'}`}
-                        >
-                          {cat === 'RESPONSIBLE' ? t('schedule:modal.categoryResponsible') : (cat === 'SUPERVISOR' ? t('schedule:modal.categorySupervisor') : t('schedule:modal.categoryManager'))}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-6 border-t border-slate-100">
-                <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4">{t('schedule:modal.currentPositions')}</p>
-                <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto no-scrollbar p-1">
-                  {shiftTemplates.map(tmpl => (
-                    <div key={tmpl.id} className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-100 rounded-lg group">
-                      <span className="text-[11px] font-black text-slate-700">{tmpl.name}</span>
-                      <span className="text-[9px] font-bold text-slate-400">({tmpl.timeRange})</span>
-                      <button onClick={() => setShiftTemplates(prev => prev.filter(x => x.id !== tmpl.id))} className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"><X size={10}/></button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-            <div className="px-8 py-6 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
-              <button onClick={() => setIsTemplateModalOpen(false)} className="px-6 py-2.5 bg-white border border-slate-200 text-sm font-black text-slate-500 rounded-xl hover:bg-slate-100 transition-all">{t('schedule:action.cancel')}</button>
-              <button onClick={handleAddTemplate} className="px-10 py-2.5 bg-blue-600 text-white text-sm font-black rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">{t('schedule:action.confirmAdd')}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 快速排班弹窗 */}
-      {isQuickScheduleModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in flex flex-col ring-1 ring-black/5">
-            <div className="px-10 py-8 bg-blue-600 border-b border-blue-700 flex justify-between items-center text-white">
-              <div className="flex items-center gap-4">
-                <div className="p-3 bg-white/20 rounded-2xl">
-                  <Zap size={24}/>
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black">{t('schedule:quick.title')}</h3>
-                  <p className="text-sm opacity-80 font-bold">{t('schedule:quick.subtitle')}</p>
-                </div>
-              </div>
-              <button onClick={() => setIsQuickScheduleModalOpen(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all"><X size={24}/></button>
-            </div>
-
-            <div className="p-10 space-y-10">
-              {/* 步骤一：选择目标护士 */}
-              <div className="space-y-4">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-500">1</div>
-                  {t('schedule:quick.targetNurse')}
-                </label>
-                <div className="relative">
-                  <select
-                    className="w-full h-14 pl-5 pr-10 border border-slate-200 rounded-2xl bg-slate-50 font-black text-slate-800 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all appearance-none shadow-inner"
-                    value={quickTargetStaffId}
-                    onChange={(e) => setQuickTargetStaffId(e.target.value)}
-                  >
-                    {staff.map(s => (
-                      <option key={s.id} value={s.id}>{s.name} ({s.level})</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={20} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                </div>
-              </div>
-
-              {/* 步骤二：选择数据源 */}
-              <div className="space-y-6">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1 flex items-center gap-2">
-                  <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-[10px] text-slate-500">2</div>
-                  {t('schedule:quick.selectSource')}
-                </label>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <button
-                    onClick={() => setQuickSourceType('SELF')}
-                    className={`p-6 rounded-[28px] border-2 flex flex-col items-center gap-3 transition-all ${quickSourceType === 'SELF' ? 'bg-blue-50 border-blue-500 shadow-lg shadow-blue-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <div className={`p-4 rounded-2xl ${quickSourceType === 'SELF' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                      <Copy size={24}/>
-                    </div>
-                    <span className={`font-black text-sm ${quickSourceType === 'SELF' ? 'text-blue-700' : 'text-slate-500'}`}>{t('schedule:quick.copySelf')}</span>
-                  </button>
-                  <button
-                    onClick={() => setQuickSourceType('OTHER')}
-                    className={`p-6 rounded-[28px] border-2 flex flex-col items-center gap-3 transition-all ${quickSourceType === 'OTHER' ? 'bg-indigo-50 border-indigo-500 shadow-lg shadow-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200'}`}
-                  >
-                    <div className={`p-4 rounded-2xl ${quickSourceType === 'OTHER' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-400'}`}>
-                      <ArrowRightLeft size={24}/>
-                    </div>
-                    <span className={`font-black text-sm ${quickSourceType === 'OTHER' ? 'text-indigo-700' : 'text-slate-500'}`}>{t('schedule:quick.copyOther')}</span>
-                  </button>
-                </div>
-
-                {quickSourceType === 'OTHER' && (
-                  <div className="animate-slide-up">
-                    <p className="text-[10px] font-bold text-slate-400 mb-2 ml-1">{t('schedule:quick.selectCopyPerson')}</p>
-                    <div className="relative">
-                      <select
-                        className="w-full h-14 pl-5 pr-10 border border-slate-200 rounded-2xl bg-slate-50 font-black text-slate-800 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all appearance-none shadow-inner"
-                        value={quickSourceStaffId}
-                        onChange={(e) => setQuickSourceStaffId(e.target.value)}
+      {/* ── 主体 ── */}
+      <div className="flex-1 min-h-0 flex gap-2">
+        {/* 排班表格 */}
+        <div className="flex-1 min-w-0 rounded-xl border border-slate-200 bg-white shadow-sm overflow-auto">
+          <Spin spinning={loading}>
+            <table
+              className="w-full border-collapse"
+              style={{minWidth: viewMode==='day' ? '400px' : `${62 + visibleDays.length * colCount * 88}px`}}
+            >
+              <thead>
+                {/* 第一层：床位（rowSpan=2）+ 日期+已排班数 */}
+                <tr>
+                  <th
+                    rowSpan={2}
+                    className="sticky left-0 z-30 w-[62px] bg-slate-50 border-b border-r border-slate-200 px-1.5 py-1.5 text-meta font-black text-slate-400 align-middle text-center"
+                  >床位</th>
+                  {visibleDays.map(day => {
+                    const dt = toDateString(day)
+                    const today = isToday(dt)
+                    const dayCount = dayCountMap.get(dt) || 0
+                    return (
+                      <th
+                        key={dt}
+                        colSpan={shifts.length || 1}
+                        className={[
+                          'sticky top-0 z-20 border-b border-r-2 border-slate-300 px-1.5 py-1 text-center whitespace-nowrap',
+                          today ? 'bg-red-50 border-t-2 border-t-red-400' : 'bg-slate-50',
+                        ].join(' ')}
                       >
-                        {staff.map(s => (
-                          <option key={s.id} value={s.id}>{s.name} ({s.level})</option>
-                        ))}
-                      </select>
-                      <ChevronDown size={20} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+                        <span className={`text-[12px] font-black ${today ? 'text-red-700' : 'text-slate-700'}`}>
+                          {WEEKDAYS[day.getDay()]} {day.getMonth()+1}/{day.getDate()}
+                        </span>
+                        <span className={`ml-1 text-[9px] font-bold ${today ? 'text-red-400' : 'text-slate-400'}`}>
+                          已排{dayCount}
+                        </span>
+                      </th>
+                    )
+                  })}
+                </tr>
+                {/* 第二层：班次名+容量 */}
+                <tr>
+                  {visibleDays.map(day => {
+                    const dt = toDateString(day)
+                    const today = isToday(dt)
+                    const subBase = today ? 'bg-red-50/80' : 'bg-slate-50'
+                    return shifts.length > 0 ? shifts.map((shift, si) => {
+                      const load = loadMap.get(`${dt}-${shift.id}`)
+                      const isLastShift = si === shifts.length - 1
+                      return (
+                        <th
+                          key={`${dt}-${shift.id}`}
+                          style={{top: secondRowTop, minWidth: 88}}
+                          className={`sticky z-20 border-b px-1.5 py-0.5 text-center whitespace-nowrap ${subBase} ${isLastShift ? 'border-r-2 border-r-slate-300' : 'border-r border-r-slate-200'}`}
+                        >
+                          <span className={`text-meta font-black ${today ? 'text-red-600' : 'text-slate-600'}`}>{shift.name}</span>
+                          <span className={`ml-0.5 text-[9px] font-bold ${today ? 'text-red-400' : 'text-slate-400'}`}>{load?.used||0}/{load?.total||0}</span>
+                        </th>
+                      )
+                    }) : (
+                      <th
+                        key={`${dt}-empty`}
+                        style={{top: secondRowTop}}
+                        className={`sticky z-20 border-b border-r border-slate-200 px-1.5 py-0.5 text-meta font-black ${subBase} ${today ? 'text-red-500' : 'text-slate-400'}`}
+                      >无班次</th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody>
+                {groupedBeds.length === 0 && (
+                  <tr>
+                    <td colSpan={1 + visibleDays.length * colCount} className="py-12 text-center text-sm font-bold text-slate-400">暂无床位数据</td>
+                  </tr>
+                )}
+                {groupedBeds.map(({ ward, beds: wbeds }) => (
+                  <Fragment key={`ward-${ward?.id ?? 'unknown'}`}>
+                    {/* 病区分组标题行 */}
+                    <tr className="bg-slate-100/70">
+                      <td colSpan={1 + visibleDays.length * colCount} className="px-2 py-1 border-b border-slate-200">
+                        <span className="text-meta font-black text-slate-600 tracking-wide">{ward?.name ?? '未知病区'}</span>
+                        <span className="ml-1.5 text-[9px] text-slate-400">{wbeds.length} 床</span>
+                      </td>
+                    </tr>
+                    {/* 床位行 */}
+                    {wbeds.map((bed, bi) => (
+                      <tr key={bed.id} className={bi%2===0 ? '' : 'bg-slate-50/30'}>
+                        <td className="sticky left-0 z-20 bg-inherit border-b border-r border-slate-200 px-1.5 py-0.5 text-center w-[62px]">
+                          <div className="text-[12px] font-black text-slate-800 leading-tight">{bed.name}</div>
+                        </td>
+                        {visibleDays.map(day => {
+                          const dt = toDateString(day)
+                          const today = isToday(dt)
+                          const cellBase = today ? 'bg-red-50/20' : ''
+                          return shifts.length > 0 ? shifts.map((shift, si) => {
+                            const cellKey = `${Number(bed.id)}-${dt}-${shift.id}`
+                            const item = schedMap.get(cellKey)
+                            const isLastShift = si === shifts.length - 1
+                            const borderClass = isLastShift ? 'border-r-2 border-r-slate-300' : 'border-r border-r-slate-100'
+                            const isDragOver = dragOverKey === cellKey
+                            const isDragging = dragItem?.id === item?.id
+                            return (
+                              <td
+                                key={cellKey}
+                                className={`border-b p-0.5 align-middle ${borderClass} ${cellBase} ${isDragOver ? 'bg-blue-100/60' : ''}`}
+                                style={{minWidth:88, height:36}}
+                                onDragOver={(e)=>onDragOver(e, cellKey)}
+                                onDragLeave={onDragLeave}
+                              >
+                                 {item ? (
+                                  <div
+                                    draggable={!isDateLocked(dt)}
+                                    onDragStart={(e)=>onDragStart(e, item)}
+                                    onDragEnd={onDragEnd}
+                                    onDrop={(e)=>void onDropOnOccupied(e, item, loadWeek)}
+                                    onContextMenu={(e)=>openActionMenu(e, item)}
+                                    className={`group relative flex items-center justify-center rounded ${modeBg(item.dialysisMode)} text-white px-1 py-0.5 ${isDateLocked(dt) ? 'opacity-70 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'} h-full hover:opacity-90 hover:shadow-md transition-all ${isDragging ? 'opacity-40 ring-2 ring-blue-400' : ''}`}
+                                    title={`${item.patientName} · ${item.dialysisMode||''} · ${item.statusName||''}${isDateLocked(dt) ? ' · 历史锁定' : ''}`}
+                                  >
+                                    <div className="text-center leading-tight w-full select-none">
+                                      <div className="truncate text-meta font-black">{item.patientName}</div>
+                                      <div className="text-[8px] opacity-80">{item.dialysisMode||''}</div>
+                                    </div>
+                                    {item.sourceType === 'template' && !item.isManualAdjusted && (
+                                      <span className="absolute -top-1 -right-1 text-[7px] bg-white/90 text-slate-500 rounded px-0.5 font-bold">模板</span>
+                                    )}
+                                    {item.isManualAdjusted && (
+                                      <span className="absolute -top-1 -right-1 text-[7px] bg-amber-100 text-amber-600 rounded px-0.5 font-bold">调整</span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={[
+                                      'flex h-full items-center justify-center rounded border border-dashed transition-all',
+                                      isDateLocked(dt)
+                                        ? 'border-slate-200 bg-slate-100/50 text-slate-300 cursor-not-allowed'
+                                        : isDragOver
+                                          ? 'border-blue-400 bg-blue-100/60 text-blue-500 scale-105 cursor-pointer'
+                                          : selectedQueuePatient
+                                            ? 'border-green-400 bg-green-50/40 text-green-400 hover:bg-green-50/80 cursor-pointer'
+                                            : today
+                                              ? 'border-red-200 text-red-200 hover:border-red-300 hover:bg-red-50/40 hover:text-red-300 cursor-pointer'
+                                              : 'border-slate-200 text-slate-200 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-400 cursor-pointer',
+                                    ].join(' ')}
+                                    onClick={()=>!isDateLocked(dt) && openModal(bed,dt,shift)}
+                                    onDrop={(e)=>!isDateLocked(dt) && void onDropOnEmpty(e, bed, dt, shift, loadWeek)}
+                                  >
+                                    <Plus size={11}/>
+                                  </div>
+                                )}
+                              </td>
+                            )
+                          }) : (
+                            <td key={`${bed.id}-${dt}-empty`} className="border-b border-r border-slate-100 text-center text-[9px] font-bold text-slate-300">-</td>
+                          )
+                        })}
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </Spin>
+        </div>
+
+        {/* ── 右侧面板：待排班队列（可隐藏） ── */}
+        {queueVisible && (
+          <aside className="w-[220px] shrink-0 rounded-xl border border-slate-200 bg-white shadow-sm flex flex-col min-h-0">
+            <div className="border-b border-slate-100 px-2 py-1.5">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-meta font-black uppercase tracking-widest text-slate-400">待排班</p>
+                {/* density:strict 故意小字 */}
+                <span className="rounded-full bg-blue-100 px-1.5 py-0 text-[10px] font-black text-blue-600">{filteredPending.length}</span>
+              </div>
+              <div className="relative">
+                <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400"/>
+                <input value={queueSearch} onChange={e=>setQueueSearch(e.target.value)} placeholder="搜索患者" className="h-7 w-full rounded border border-slate-200 bg-white pl-7 pr-2 text-meta font-bold outline-none focus:border-blue-400"/>
+              </div>
+              <div className="mt-1 flex flex-wrap gap-0.5">
+                {modeOpts.map(m => (
+                  <button key={m} onClick={()=>setModeFilter(m)} className={`rounded px-1.5 py-0.5 text-[9px] font-black ${modeFilter===m?'bg-blue-600 text-white':'bg-white text-slate-400 border border-slate-100'}`}>{m==='ALL'?'全部':m}</button>
+                ))}
+              </div>
+            </div>
+
+            {selectedQueuePatient != null && (
+              <div className="mx-1.5 mt-1 rounded bg-green-50 border border-green-300 px-1.5 py-0.5 flex items-center justify-between">
+                <span className="text-meta font-black text-green-700">已选·点空格排入</span>
+                <button onClick={()=>setSelectedQueuePatient(null)} className="text-green-500 hover:text-green-700"><Plus size={11} className="rotate-45"/></button>
+              </div>
+            )}
+
+            <div className="flex-1 min-h-0 overflow-y-auto p-1 space-y-0.5">
+              {filteredPending.map(p => (
+                <div
+                  key={p.id}
+                  className={[
+                    'relative overflow-hidden rounded border px-1 py-0.5 cursor-pointer transition-all',
+                    selectedQueuePatient === p.id
+                      ? 'border-green-500 bg-green-50 shadow-sm'
+                      : 'border-slate-200 bg-white hover:border-blue-400',
+                  ].join(' ')}
+                  onClick={() => {
+                    if (selectedQueuePatient === p.id) {
+                      setSelectedQueuePatient(null)
+                    } else {
+                      setSelectedQueuePatient(p.id)
+                      if (modal.open && !modal.existing) setSelPatient(p.id)
+                    }
+                  }}
+                >
+                  <div className={`absolute left-0 top-0 bottom-0 w-[3px] rounded-l ${modeBg(p.dialysisMode)}`}/>
+                  <div className="pl-1">
+                    <div className="flex items-center gap-1">
+                      <span className="truncate text-[13px] font-black text-slate-800">{p.name}</span>
+                      <span className="shrink-0 text-meta font-bold text-slate-400">{p.gender||''}</span>
+                    </div>
+                    <div className="flex gap-1 mt-0.5">
+                      <span className={`rounded px-1.5 py-0 text-meta font-black text-white ${modeBg(p.dialysisMode)}`}>{p.dialysisMode||'--'}</span>
+                      <span className="text-meta font-bold text-slate-400">{freq(p)}</span>
                     </div>
                   </div>
-                )}
-              </div>
+                </div>
+              ))}
+              {filteredPending.length===0 && (
+                <div className="rounded border border-dashed border-slate-200 p-4 text-center text-meta font-bold text-slate-400">暂无待排班患者</div>
+              )}
             </div>
+          </aside>
+        )}
+      </div>
 
-            <div className="px-10 py-8 bg-slate-50 border-t border-slate-200 flex justify-end gap-4 shrink-0">
-              <button onClick={() => setIsQuickScheduleModalOpen(false)} className="px-8 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-500 hover:bg-slate-100 transition-all">{t('schedule:action.cancelAction')}</button>
-              <button
-                onClick={handleApplyQuickSchedule}
-                className="px-12 py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3"
-              >
-                <CheckCircle2 size={20} className="stroke-[2.5px]"/> {t('schedule:action.applySchedule')}
-              </button>
+      {/* ── 快速排班弹窗 ── */}
+      {modal.open && modal.bed && modal.shift && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={closeModal}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e=>e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-black text-slate-800">{modal.existing ? '修改排班' : '新建排班'}</h3>
+                <p className="text-meta text-slate-400 font-bold mt-0.5">{modal.bed.name} · {modal.shift.name} · {modal.date}</p>
+              </div>
+              <button onClick={closeModal} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><Plus size={16} className="rotate-45"/></button>
+            </div>
+            <div className="px-5 py-3 space-y-3">
+              <div>
+                <label className="text-meta font-black text-slate-500 block mb-1.5">选择患者</label>
+                <select value={selPatient||''} onChange={e=>setSelPatient(Number(e.target.value)||undefined)} className="w-full h-8 rounded-lg border border-slate-200 px-3 text-xs font-bold outline-none focus:border-blue-400">
+                  <option value="">-- 请选择 --</option>
+                  {pending.map(p => <option key={p.id} value={p.id}>{p.name} ({p.dialysisMode||'--'}) {freq(p)}</option>)}
+                  {modal.existing && !pending.find(p=>p.id===Number(modal.existing!.patientId)) && (
+                    <option value={Number(modal.existing.patientId)}>{modal.existing.patientName} (已排班)</option>
+                  )}
+                </select>
+              </div>
+              {modal.existing && (
+                <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-meta font-bold text-amber-700">
+                  当前已排班：{modal.existing.patientName}（{modal.existing.dialysisMode}）
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-between">
+              {modal.existing && (
+                <button onClick={()=>void handleDelete(modal.existing!)} className="px-3 py-1.5 text-meta font-black text-red-600 hover:bg-red-50 rounded-lg transition">取消排班</button>
+              )}
+              <div className="flex gap-2 ml-auto">
+                <button onClick={closeModal} className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-meta font-black hover:bg-slate-50">关闭</button>
+                <button onClick={()=>void handleSave()} className="px-5 py-1.5 bg-blue-600 text-white rounded-lg text-meta font-black hover:bg-blue-700 shadow-lg shadow-blue-100">保存</button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* 护士排班操作弹窗 */}
-      {isStaffScheduling && schedulingData && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in p-4">
-          <div className="bg-white rounded-[32px] shadow-2xl w-full max-w-xl overflow-hidden animate-scale-in flex flex-col">
-            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+      {/* ── 操作菜单（点击已排班卡片弹出） ── */}
+      {actionMenu.visible && actionMenu.item && (
+        <div
+          ref={actionMenuRef}
+          className="fixed z-[60] bg-white rounded-xl shadow-2xl border border-slate-200 py-1 min-w-[140px] overflow-hidden"
+          style={{ left: actionMenu.x, top: actionMenu.y }}
+        >
+          <div className="px-3 py-1.5 border-b border-slate-100">
+            <p className="text-meta font-black text-slate-800 truncate">{actionMenu.item.patientName}</p>
+            <p className="text-[9px] text-slate-400">{actionMenu.item.dialysisMode} · {actionMenu.item.statusName}</p>
+          </div>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-meta font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition"
+            onClick={()=>{
+              const itm = actionMenu.item!
+              const bed = beds.find(b=>Number(b.id)===itm.bedId)
+              const shift = shifts.find(s=>s.id===itm.shiftId)
+              if(bed && shift) { closeActionMenu(); openModal(bed, itm.treatmentTime.split('T')[0], shift, itm) }
+              else { message.error('无法获取床位或班次信息'); closeActionMenu() }
+            }}
+          ><Plus size={12}/>修改排班</button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-meta font-bold text-slate-600 hover:bg-violet-50 hover:text-violet-700 transition"
+            onClick={()=>void openMoveModal(actionMenu.item!)}
+          ><ArrowRightLeft size={12}/>换床</button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-meta font-bold text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition"
+            onClick={()=>void openTreatModal(actionMenu.item!)}
+          ><ClipboardList size={12}/>治疗记录</button>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-meta font-bold text-slate-600 hover:bg-amber-50 hover:text-amber-700 transition"
+            onClick={()=>void openHistoryModal(actionMenu.item!)}
+          ><History size={12}/>换床记录</button>
+          <div className="border-t border-slate-100 mt-1"/>
+          <button
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-meta font-bold text-red-500 hover:bg-red-50 transition"
+            onClick={()=>void handleDelete(actionMenu.item!)}
+          ><Trash2 size={12}/>取消排班</button>
+        </div>
+      )}
+
+      {/* ── 换床弹窗 ── */}
+      {moveModal.open && moveModal.item && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setMoveModal({open:false,item:null,targetBedId:undefined})}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden" onClick={e=>e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-black text-slate-900">{t('schedule:staffModal.assignPosition')}</h3>
-                <p className="text-xs text-slate-400 mt-1 font-bold">{t('schedule:staffModal.nurse')} <span className="text-blue-600">{staff.find(s => s.id === schedulingData.staffId)?.name}</span> · {t('schedule:staffModal.date')} {schedulingData.date}</p>
+                <h3 className="text-sm font-black text-slate-800">换床</h3>
+                <p className="text-meta text-slate-400 font-bold mt-0.5">{moveModal.item.patientName} · {moveModal.item.treatmentTime.split('T')[0]} · {shifts.find(s=>s.id===moveModal.item!.shiftId)?.name||''}</p>
               </div>
-              <button onClick={() => setIsStaffScheduling(false)} className="p-2 text-slate-400 hover:text-slate-600 rounded-xl"><X size={20}/></button>
+              <button onClick={()=>setMoveModal({open:false,item:null,targetBedId:undefined})} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
-            <div className="p-8 space-y-6">
-              <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">{t('schedule:staffModal.selectPreset')}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {shiftTemplates.map(tmpl => (
-                  <button
-                    key={tmpl.id}
-                    onClick={() => {
-                      const newShift = {
-                        date: schedulingData.date,
-                        staffId: schedulingData.staffId!,
-                        label: tmpl.name,
-                        timeRange: tmpl.timeRange,
-                        category: tmpl.category,
-                        type: tmpl.category[0], // 兼容原有数据结构
-                        area: 'A区'
-                      }
-                      setStaffSchedule(prev => {
-                        const filtered = prev.filter(s => !(s.date === newShift.date && s.staffId === newShift.staffId))
-                        return [...filtered, newShift]
-                      })
-                      setIsStaffScheduling(false)
-                    }}
-                    className="flex flex-col items-center justify-center p-4 border border-slate-100 rounded-2xl bg-slate-50/50 hover:bg-blue-50 hover:border-blue-200 transition-all group"
-                  >
-                    <span className="text-sm font-black text-slate-700 group-hover:text-blue-700 mb-1">{tmpl.name}</span>
-                    <span className="text-[10px] font-bold text-slate-400 group-hover:text-blue-400">{tmpl.timeRange}</span>
-                  </button>
-                ))}
-                <button
-                  onClick={() => {
-                    setStaffSchedule(prev => {
-                      const filtered = prev.filter(s => !(s.date === schedulingData.date && s.staffId === schedulingData.staffId))
-                      return [...filtered, { date: schedulingData.date, staffId: schedulingData.staffId!, type: 'OFF', area: '' }]
-                    })
-                    setIsStaffScheduling(false)
-                  }}
-                  className="flex flex-col items-center justify-center p-4 border border-dashed border-slate-200 rounded-2xl hover:bg-slate-50 transition-all"
+            <div className="px-5 py-3 space-y-3">
+              <div className="rounded-lg bg-slate-50 border border-slate-200 px-3 py-2 text-meta font-bold text-slate-500">
+                当前床位：<span className="text-slate-800 font-black">{moveModal.item.bedName}</span>
+              </div>
+              <div>
+                <label className="text-meta font-black text-slate-500 block mb-1.5">选择目标床位</label>
+                <select
+                  value={moveModal.targetBedId||''}
+                  onChange={e=>setMoveModal(m=>({...m, targetBedId:Number(e.target.value)||undefined}))}
+                  className="w-full h-8 rounded-lg border border-slate-200 px-3 text-xs font-bold outline-none focus:border-blue-400"
                 >
-                  <span className="text-sm font-black text-slate-400 italic">{t('schedule:staffModal.dayOff')}</span>
-                </button>
+                  <option value="">-- 请选择 --</option>
+                  {groupedBeds.map(({ward, beds:wbeds}) => (
+                    <optgroup key={ward?.id??'x'} label={ward?.name??'未知'}>
+                      {wbeds.filter(b=>Number(b.id)!==moveModal.item!.bedId).map(b=>(
+                        <option key={b.id} value={Number(b.id)}>{b.name}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
+            </div>
+            <div className="px-5 py-2.5 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+              <button onClick={()=>setMoveModal({open:false,item:null,targetBedId:undefined})} className="px-4 py-1.5 bg-white border border-slate-200 text-slate-600 rounded-lg text-meta font-black hover:bg-slate-50">取消</button>
+              <button onClick={()=>void handleMove()} disabled={moveLoading} className="px-5 py-1.5 bg-violet-600 text-white rounded-lg text-meta font-black hover:bg-violet-700 shadow-lg shadow-violet-100 disabled:opacity-50">{moveLoading?'换床中...':'确认换床'}</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 患者排班操作弹窗 */}
-      {isScheduling && schedulingData && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-md animate-fade-in p-4">
-          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-2xl overflow-hidden animate-scale-in flex flex-col ring-1 ring-black/5">
-            <div className="px-10 py-8 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+      {/* ── 治疗记录弹窗 ── */}
+      {treatModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setTreatModal({open:false,patientId:undefined,patientName:''})}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
               <div>
-                <h3 className="text-2xl font-black text-slate-900">{t('schedule:patientModal.title')}</h3>
-                <p className="text-sm text-slate-400 mt-1 font-bold tracking-tight">{t('schedule:patientModal.bed')} <span className="text-blue-600">{schedulingData.bedNumber}</span> · {t('schedule:patientModal.date')} {schedulingData.date}</p>
+                <h3 className="text-sm font-black text-slate-800">治疗记录</h3>
+                <p className="text-meta text-slate-400 font-bold mt-0.5">{treatModal.patientName}</p>
               </div>
-              <button onClick={() => setIsScheduling(false)} className="p-3 text-slate-400 hover:text-slate-600 hover:bg-white rounded-2xl transition-all shadow-sm border border-transparent hover:border-slate-200"><X size={24}/></button>
+              <button onClick={()=>setTreatModal({open:false,patientId:undefined,patientName:''})} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
             </div>
-
-            <div className="p-10 space-y-10">
-              <div className="grid grid-cols-2 gap-10">
-                <div className="space-y-3">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('schedule:patientModal.selectPatient')}</label>
-                  <div className="relative">
-                    <Search size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"/>
-                    <input
-                      type="text"
-                      placeholder={t('schedule:patientModal.searchPlaceholder')}
-                      className="w-full pl-11 pr-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all text-sm font-bold shadow-inner"
-                      value={searchPatientQuery}
-                      onChange={(e) => { setSearchPatientQuery(e.target.value); setShowSearchDropdown(true) }}
-                      onFocus={() => setShowSearchDropdown(true)}
-                    />
-                    {showSearchDropdown && searchPatientQuery && (
-                      <div className="absolute top-full left-0 right-0 mt-3 bg-white border border-slate-200 rounded-3xl shadow-2xl max-h-56 overflow-y-auto z-50 no-scrollbar ring-1 ring-black/5 p-2 animate-slide-up">
-                        {searchResults.map(p => (
-                          <button
-                            key={p.id}
-                            onClick={() => {
-                              setSelectedPatientId(p.id!)
-                              setSearchPatientQuery(p.name || '')
-                              setShowSearchDropdown(false)
-                              setSelectedTreatmentMode(p.defaultMode || 'HD')
-                            }}
-                            className="w-full text-left px-5 py-4 hover:bg-blue-50 flex items-center justify-between rounded-2xl transition-colors mb-1 last:mb-0"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black">{(p.name || '?')[0]}</div>
-                              <p className="text-sm font-black text-slate-800">{p.name}</p>
-                            </div>
-                            <span className="text-[10px] bg-slate-100 px-3 py-1 rounded-lg font-black text-slate-500 uppercase">{p.defaultMode || 'HD'}</span>
-                          </button>
-                        ))}
-                        {searchResults.length === 0 && (
-                          <div className="text-center py-4 text-slate-400 text-sm">未找到匹配患者</div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-widest ml-1">{t('schedule:patientModal.treatmentMode')}</label>
-                  <div className="relative">
-                    <select
-                      className="w-full px-5 py-4 bg-slate-50 border border-slate-200 rounded-2xl outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 focus:bg-white transition-all text-sm font-bold appearance-none shadow-inner"
-                      value={selectedTreatmentMode}
-                      onChange={(e) => setSelectedTreatmentMode(e.target.value)}
-                    >
-                      {['HD', 'HDF', 'HF', 'HP', 'HD+HP'].map(m => <option key={m} value={m}>{m}</option>)}
-                    </select>
-                    <ChevronDown size={18} className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="px-10 py-8 bg-slate-50 border-t border-slate-200 flex justify-end gap-4 shrink-0">
-              <button onClick={() => setIsScheduling(false)} className="px-8 py-3.5 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-500 hover:bg-slate-100 transition-all shadow-sm">{t('schedule:action.cancel')}</button>
-              <button
-                disabled={!selectedPatientId}
-                onClick={async () => {
-                  const patient = patients.find(p => p.id === selectedPatientId)
-                  if (patient && schedulingData.bedNumber && schedulingData.shift) {
-                    // 找到对应的后端 shiftId
-                    const shiftTypeMap: Record<string, string[]> = {
-                      'Morning': ['早', '上午', 'morning'],
-                      'Afternoon': ['中', '下午', 'afternoon'],
-                      'Evening': ['晚', '夜', 'evening']
-                    }
-                    const keywords = shiftTypeMap[schedulingData.shift] || []
-                    const matchedShift = shifts.find(s => keywords.some(k => s.name.toLowerCase().includes(k)))
-                    const shiftId = matchedShift?.id || shifts[0]?.id
-
-                    if (shiftId) {
-                      try {
-                        await restApi.createPatientShift({
-                          patientId: Number(patient.id),
-                          scheduleDate: schedulingData.date,
-                          shiftId,
-                        })
-                      } catch (err) {
-                        console.error('创建排班失败:', err)
-                      }
-                    }
-
-                    // 同时更新本地状态（乐观更新）
-                    const newSession: PatientScheduleItem = {
-                      id: `S-NEW-${Date.now()}`,
-                      bedNumber: schedulingData.bedNumber,
-                      date: schedulingData.date,
-                      shift: schedulingData.shift,
-                      patientName: patient.name || '',
-                      mode: selectedTreatmentMode,
-                      patientId: patient.id
-                    }
-                    setPatientSchedule(prev => [...prev, newSession])
-                    setIsScheduling(false)
-                  }
-                }}
-                className="px-12 py-3.5 bg-blue-600 text-white rounded-2xl text-sm font-black shadow-xl shadow-blue-200 hover:bg-blue-700 transition-all flex items-center gap-3 disabled:opacity-30 disabled:pointer-events-none"
-              >
-                <CheckCircle2 size={20} className="stroke-[2.5px]"/> {t('schedule:action.confirmSchedule')}
-              </button>
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              <Spin spinning={treatLoading}>
+                <Table
+                  size="small"
+                  rowKey="id"
+                  pagination={false}
+                  dataSource={treatments}
+                  locale={{emptyText:'暂无治疗记录'}}
+                  columns={[
+                    {title:'日期', dataIndex:'treatmentDate', width:100, render:(v:string)=><span className="text-meta font-bold">{v?.split('T')[0]}</span>},
+                    {title:'班次', dataIndex:'shiftName', width:60, render:(v:string)=><span className="text-meta">{v||'--'}</span>},
+                    {title:'类型', dataIndex:'treatmentType', width:60, render:(v:string)=><span className="text-meta">{v||'--'}</span>},
+                    {title:'状态', dataIndex:'status', width:70, render:(v:number)=>{
+                      const m:Record<number,{c:string;t:string}>={0:{c:'default',t:'待开始'},1:{c:'processing',t:'进行中'},2:{c:'success',t:'已完成'},3:{c:'error',t:'已取消'}}
+                      const s=m[v]||{c:'default',t:'未知'}
+                      return <Tag color={s.c} className="text-meta">{s.t}</Tag>
+                    }},
+                    {title:'医生', dataIndex:'doctorName', width:70, render:(v:string)=><span className="text-meta">{v||'--'}</span>},
+                    {title:'时长', dataIndex:'durationMinutes', width:60, render:(v:number)=><span className="text-meta">{v?`${v}分`:'--'}</span>},
+                    {title:'备注', dataIndex:'notes', ellipsis:true, render:(v:string)=><span className="text-meta">{v||'--'}</span>},
+                  ]}
+                />
+              </Spin>
             </div>
           </div>
         </div>
       )}
+
+      {/* ── 换床记录弹窗 ── */}
+      {historyModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4" onClick={()=>setHistoryModal({open:false,patientId:undefined,patientName:''})}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col" onClick={e=>e.stopPropagation()}>
+            <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <div>
+                <h3 className="text-sm font-black text-slate-800">排班 / 换床记录</h3>
+                <p className="text-meta text-slate-400 font-bold mt-0.5">{historyModal.patientName}</p>
+              </div>
+              <button onClick={()=>setHistoryModal({open:false,patientId:undefined,patientName:''})} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><X size={16}/></button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-auto p-4">
+              <Spin spinning={historyLoading}>
+                <Table
+                  size="small"
+                  rowKey="id"
+                  pagination={false}
+                  dataSource={shiftHistory}
+                  locale={{emptyText:'暂无排班记录'}}
+                  columns={[
+                    {title:'日期', dataIndex:'scheduleDate', width:100, render:(v:string)=><span className="text-meta font-bold">{v?.split('T')[0]}</span>},
+                    {title:'班次', dataIndex:['shift','name'], width:60, render:(_:any,__:any,record:any)=><span className="text-meta">{record.shift?.name||'--'}</span>},
+                    {title:'床位', dataIndex:['bed','name'], width:60, render:(_:any,__:any,record:any)=><span className="text-meta font-black">{record.bed?.name||'--'}</span>},
+                    {title:'病区', dataIndex:['ward','name'], width:80, render:(_:any,__:any,record:any)=><span className="text-meta">{record.ward?.name||'--'}</span>},
+                    {title:'状态', dataIndex:'status', width:70, render:(v:number)=>{
+                      const m:Record<number,{c:string;t:string}>={10:{c:'default',t:'待确认'},20:{c:'processing',t:'已确认'},30:{c:'success',t:'已完成'},50:{c:'error',t:'已取消'},60:{c:'warning',t:'转出'}}
+                      const s=m[v]||{c:'default',t:`${v}`}
+                      return <Tag color={s.c} className="text-meta">{s.t}</Tag>
+                    }},
+                    {title:'创建时间', dataIndex:'createTime', width:140, render:(v:string)=><span className="text-meta text-slate-400">{v?.replace('T',' ').slice(0,16)}</span>},
+                  ]}
+                />
+              </Spin>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 应用模板弹窗 */}
+      <ApplyTemplateModal
+        open={applyTemplateOpen}
+        onClose={() => setApplyTemplateOpen(false)}
+        onSuccess={() => void loadWeek()}
+      />
     </div>
   )
 }

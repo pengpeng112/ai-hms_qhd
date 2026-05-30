@@ -1,12 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from 'react'
-import { Outlet, useNavigate } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Sidebar from './Sidebar'
 import Header from './Header'
+import PageBreadcrumb from './PageBreadcrumb'
 import { UserRole } from '@/types/original'
 import { logout } from '@/services/auth'
 import { getRolePermissionCodes, getSelectedRoleUser } from '@/services/role'
 import { restApi, type RestClinicalTask } from '@/services/restClient'
+import { getRouteMeta } from './routeMeta'
 import {
     AlertCircle, Zap, FileEdit, CheckCircle2, X, ChevronRight, ClipboardList
 } from 'lucide-react'
@@ -54,6 +56,7 @@ const getTaskRoute = (type: string) => {
 export default function MainLayout() {
     const { t } = useTranslation('common')
     const navigate = useNavigate()
+    const location = useLocation()
     const [sidebarOpen, setSidebarOpen] = useState(true)
     const [taskbarOpen, setTaskbarOpen] = useState(() => {
         const saved = localStorage.getItem(TASKBAR_STATE_KEY)
@@ -62,6 +65,11 @@ export default function MainLayout() {
     const [tasks, setTasks] = useState<RestClinicalTask[]>([])
     const [permissionCodes, setPermissionCodes] = useState<string[]>([])
     const [taskLoading, setTaskLoading] = useState(false)
+
+    useEffect(() => {
+        const meta = getRouteMeta(location.pathname)
+        document.title = `${meta.title} - AI-HMS 智能透析`
+    }, [location.pathname])
 
     const taskbarRef = useRef<HTMLDivElement>(null)
     const toggleBtnRef = useRef<HTMLButtonElement>(null)
@@ -162,7 +170,8 @@ export default function MainLayout() {
                 />
 
                 <div className="flex-1 flex overflow-hidden">
-                    <main className="flex-1 overflow-auto p-6 no-scrollbar">
+                    <main className="flex-1 overflow-auto p-4 no-scrollbar">
+                        <PageBreadcrumb />
                         <Outlet />
                     </main>
 
@@ -203,13 +212,14 @@ export default function MainLayout() {
                                                 <span className="mr-2 p-1.5 bg-white/50 rounded-lg shrink-0">{getTaskIcon(task.type)}</span>
                                                 {task.title}
                                             </div>
+                                            {/* density:strict 故意小字 */}
                                             <span className="text-[10px] font-bold opacity-60 bg-white/30 px-1.5 py-0.5 rounded whitespace-nowrap shrink-0">
                                                 {t('taskbar.bed', { bed: task.bedNumber || '--' })}
                                             </span>
                                         </div>
                                         <p className="text-xs font-bold mb-1">{task.patientName || '--'}</p>
                                         <p className="text-xs opacity-80 leading-relaxed mb-3">{task.description || ''}</p>
-                                        <div className={`flex items-center justify-end text-[10px] font-bold uppercase tracking-wider transition-transform ${canHandle ? 'group-hover:translate-x-1' : ''}`}>
+                                        <div className={`flex items-center justify-end text-meta font-bold uppercase tracking-wider transition-transform ${canHandle ? 'group-hover:translate-x-1' : ''}`}>
                                             {canHandle ? t('taskbar.goHandle') : '无处理权限'} <ChevronRight size={12} className="ml-1" />
                                         </div>
                                     </div>

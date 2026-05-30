@@ -74,8 +74,8 @@ const ModalHeader = ({
       <Icon className="mr-2 text-blue-600" size={20} /> {title}
     </h3>
     <div className="flex items-center gap-2">
-      <button className="px-4 py-1.5 bg-blue-600 text-white rounded text-sm font-bold hover:bg-blue-700 transition-colors shadow-sm">
-        {saveButtonText}
+      <button disabled className="cursor-not-allowed px-4 py-1.5 bg-slate-200 text-slate-500 rounded text-sm font-bold shadow-sm" title="该弹窗保存接口暂未开放">
+        {saveButtonText}（未开放）
       </button>
       <button
         onClick={onClose}
@@ -121,7 +121,7 @@ const PrescriptionInput = ({
         }`}
       />
       {suffix && (
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-400 pointer-events-none">
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-meta text-gray-400 pointer-events-none">
           {suffix}
         </span>
       )}
@@ -323,6 +323,7 @@ const PrescriptionEditModal = ({
                 defaultValue=""
                 className="w-16 h-7 bg-transparent text-center font-bold text-gray-800 outline-none"
               />
+              {/* density:strict 故意小字 */}
               <span className="text-[10px] text-gray-400">kg</span>
             </div>
             <label className="flex items-center gap-1 cursor-pointer">
@@ -677,11 +678,11 @@ const OrderListModal = ({
                     </td>
                     <td className="px-6 py-4 flex flex-col">
                       <span className="text-gray-700 font-bold">{order.doctor}</span>
-                      <span className="text-[10px] text-gray-400 font-mono">{order.time}</span>
+                      <span className="text-meta text-gray-400 font-mono">{order.time}</span>
                     </td>
                     <td className="px-6 py-4 text-center">
                       <span
-                        className={`px-3 py-1 rounded-full text-[11px] font-bold shadow-sm ${
+                        className={`px-3 py-1 rounded-full text-meta font-bold shadow-sm ${
                           order.status === 'ACTIVE'
                             ? 'bg-green-500 text-white'
                             : order.status === 'STOPPED'
@@ -757,14 +758,14 @@ const SummaryModal = ({
             <label className="text-sm font-bold text-gray-700 flex items-center">
               <Sparkles size={16} className="mr-1 text-indigo-500" /> {t('monitoring:summary.quickTemplate')}
             </label>
-            <span className="text-[10px] text-gray-400">{t('monitoring:summary.clickToFill')}</span>
+            <span className="text-meta text-gray-400">{t('monitoring:summary.clickToFill')}</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {templates.map((tpl, i) => (
               <button
                 key={i}
                 onClick={() => setSummary((prev) => (prev ? `${prev}\n${tpl}` : tpl))}
-                className="text-[11px] bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors"
+                className="text-meta bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-lg border border-indigo-100 hover:bg-indigo-100 transition-colors"
               >
                 {tpl}
               </button>
@@ -784,14 +785,14 @@ const SummaryModal = ({
 
         <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-dashed border-gray-200">
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-400 uppercase font-bold">{t('monitoring:summary.finalBP')}</span>
+            <span className="text-meta text-gray-400 uppercase font-bold">{t('monitoring:summary.finalBP')}</span>
             <span className="text-sm font-bold text-gray-800">
               {device.vitals.sbp}/{device.vitals.dbp} mmHg
             </span>
           </div>
           <div className="w-px h-8 bg-gray-200"></div>
           <div className="flex flex-col">
-            <span className="text-[10px] text-gray-400 uppercase font-bold">{t('monitoring:summary.finalUF')}</span>
+            <span className="text-meta text-gray-400 uppercase font-bold">{t('monitoring:summary.finalUF')}</span>
             <span className="text-sm font-bold text-gray-800">{device.vitals.ufVolume.toFixed(2)} L</span>
           </div>
         </div>
@@ -850,6 +851,16 @@ function ensureDeviceCache(device: MonitorDevice) {
   }
 }
 
+function formatPositive(value: number, suffix = '') {
+  return value > 0 ? `${value}${suffix}` : '--'
+}
+
+function formatBloodPressure(device: MonitorDevice) {
+  return device.vitals.sbp > 0 && device.vitals.dbp > 0
+    ? `${device.vitals.sbp}/${device.vitals.dbp}`
+    : '--'
+}
+
 function buildDeviceAssignments(items: RestPatient[]): Map<string, DeviceAssignment> {
   const assignments = new Map<string, DeviceAssignment>()
 
@@ -868,7 +879,7 @@ function buildDeviceAssignments(items: RestPatient[]): Map<string, DeviceAssignm
     assignments.set(bedNumber, {
       patientId: item.id,
       patientName,
-      mode: item.defaultMode?.trim() || 'HD',
+      mode: item.defaultMode?.trim() || '',
     })
   })
 
@@ -884,14 +895,14 @@ function toMonitorDevice(d: RestDevice, assignment?: DeviceAssignment): MonitorD
     offline: 'offline',
     maintenance: 'offline',
   }
-  const status = statusMap[d.status] ?? 'offline'
+  const status = statusMap[d.status] ?? 'unknown'
   return {
     id: d.id,
     bedNumber: d.bedNumber || d.name,
     patientName: assignment?.patientName || '',
     patientId: assignment?.patientId,
     status,
-    mode: assignment?.mode || 'HD',
+    mode: assignment?.mode || '',
     timeRemaining: '--',
     vitals: {
       sbp: 0,
@@ -904,7 +915,7 @@ function toMonitorDevice(d: RestDevice, assignment?: DeviceAssignment): MonitorD
       conductivity: 0,
       temp: 0,
     },
-    alarms: status === 'alarm' ? ['血压偏低'] : status === 'warning' ? ['血流量不足'] : [],
+    alarms: [],
   }
 }
 
@@ -1036,6 +1047,8 @@ export default function Monitoring() {
         return 'border-red-500 bg-red-50'
       case 'offline':
         return 'border-gray-200 bg-gray-50 opacity-60'
+      case 'unknown':
+        return 'border-slate-200 bg-slate-50'
       default:
         return 'border-green-400 bg-white'
     }
@@ -1136,13 +1149,7 @@ export default function Monitoring() {
           className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4"
           style={{ contain: 'layout style' }}
         >
-          {!loading && !loadError && filteredDevices.map((device, i) => {
-            const gender = i % 2 === 0 ? t('monitoring:label.male') : t('monitoring:label.female')
-            const age = 45 + (i % 30)
-            const dryWeight = 65.5 + (i % 10)
-            const weightGainVal = 1.2 + (i % 2)
-            const weightGainPct = ((weightGainVal / dryWeight) * 100).toFixed(1)
-            const access = i % 3 === 0 ? 'AVF' : 'TCC'
+          {!loading && !loadError && filteredDevices.map((device) => {
             const ufPercent =
               device.vitals.ufGoal > 0
                 ? Math.round((device.vitals.ufVolume / device.vitals.ufGoal) * 100)
@@ -1172,18 +1179,13 @@ export default function Monitoring() {
                     <div className="min-w-0 flex-1">
                       <h4 className="font-bold text-gray-900 text-sm flex items-center truncate">
                         <span className="truncate">{device.patientName || t('monitoring:card.idle')}</span>
-                        {device.patientName && (
-                          <span className="text-[10px] text-gray-500 ml-1 font-normal whitespace-nowrap">
-                            ({gender} 路 {age}{t('monitoring:label.age')})
-                          </span>
-                        )}
                       </h4>
-                      <div className="flex items-center text-[10px] text-gray-500 font-medium">
+                      <div className="flex items-center text-meta text-gray-500 font-medium">
                         <Wifi
                           size={10}
-                          className={`mr-1 shrink-0 ${device.status === 'offline' ? 'text-gray-300' : 'text-green-500'}`}
+                          className={`mr-1 shrink-0 ${device.status === 'normal' ? 'text-green-500' : 'text-gray-300'}`}
                         />
-                        <span className="text-blue-600">{device.mode}</span>
+                        <span className="text-blue-600">{device.mode || '--'}</span>
                         <span className="mx-1 opacity-40">路</span>
                         <Clock size={10} className="mr-0.5 shrink-0" /> {device.timeRemaining}
                       </div>
@@ -1209,20 +1211,18 @@ export default function Monitoring() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-3 gap-1 mb-2 py-1.5 border-t border-b border-gray-100 text-[10px] font-medium text-gray-600">
+                <div className="grid grid-cols-3 gap-1 mb-2 py-1.5 border-t border-b border-gray-100 text-meta font-medium text-gray-600">
                   <div className="flex flex-col">
                     <span className="text-gray-400 scale-90 origin-left">{t('monitoring:card.dryWeight')}</span>
-                    <span className="text-gray-800 font-bold">{dryWeight.toFixed(1)}kg</span>
+                    <span className="text-gray-800 font-bold">--</span>
                   </div>
                   <div className="flex flex-col">
                     <span className="text-gray-400 scale-90 origin-left">{t('monitoring:card.gainPct')}</span>
-                    <span className="text-blue-600 font-bold">
-                      {weightGainVal.toFixed(1)}kg ({weightGainPct}%)
-                    </span>
+                    <span className="text-blue-600 font-bold">--</span>
                   </div>
                   <div className="flex flex-col items-end">
                     <span className="text-gray-400 scale-90 origin-right">{t('monitoring:card.vascularAccess')}</span>
-                    <span className="text-gray-800 font-bold">{access}</span>
+                    <span className="text-gray-800 font-bold">--</span>
                   </div>
                 </div>
 
@@ -1239,7 +1239,7 @@ export default function Monitoring() {
                             device.status === 'alarm' ? 'text-red-600' : 'text-gray-900'
                           }`}
                         >
-                          {device.vitals.sbp}/{device.vitals.dbp}
+                          {formatBloodPressure(device)}
                         </span>
                         <span className="text-[9px] text-gray-400 ml-0.5 font-bold">mmHg</span>
                       </div>
@@ -1248,7 +1248,7 @@ export default function Monitoring() {
                       <span className="text-[9px] font-bold text-gray-400 uppercase">{t('monitoring:card.hr')}</span>
                       <div className="flex items-baseline">
                         <span className="text-base font-bold font-mono leading-none text-gray-900">
-                          {device.vitals.hr}
+                          {formatPositive(device.vitals.hr)}
                         </span>
                         <span className="text-[9px] text-gray-400 ml-0.5 font-bold">bpm</span>
                       </div>
@@ -1261,10 +1261,12 @@ export default function Monitoring() {
                   onClick={() => device.status !== 'offline' && openModal(device, 'PRESCRIPTION')}
                   className="flex-1 cursor-pointer group/pres pt-1"
                 >
-                  <div className="flex justify-between items-center text-[10px] mb-1 px-1 font-bold">
+                  <div className="flex justify-between items-center text-meta mb-1 px-1 font-bold">
                     <span className="text-gray-500 flex items-center">
                       <Droplet size={10} className="mr-1 text-blue-500" />{' '}
-                      {device.vitals.ufVolume.toFixed(2)}L / {device.vitals.ufGoal.toFixed(1)}L
+                      {device.vitals.ufGoal > 0
+                        ? `${device.vitals.ufVolume.toFixed(2)}L / ${device.vitals.ufGoal.toFixed(1)}L`
+                        : '暂无超滤数据'}
                     </span>
                     <span className="text-blue-700">{ufPercent}%</span>
                   </div>

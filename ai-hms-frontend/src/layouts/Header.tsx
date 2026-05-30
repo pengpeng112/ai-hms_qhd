@@ -37,7 +37,7 @@ export default function Header({
     const avatarText = (username || userRole || 'U').trim().slice(0, 1).toUpperCase()
 
     return (
-        <header className="h-16 bg-[#f0f7ff] border-b border-blue-100 flex items-center justify-between px-6 z-10">
+        <header className="h-12 bg-[#f0f7ff] border-b border-blue-100 flex items-center justify-between px-4 z-10">
             {/* Left: Sidebar Toggle + Department Badge */}
             <div className="flex items-center">
                 <button
@@ -66,6 +66,7 @@ export default function Header({
                 >
                     <ClipboardList size={20} />
                     {taskCount > 0 && !taskbarOpen && (
+                        // density:strict 故意小字
                         <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white animate-bounce">
                             {taskCount}
                         </span>
@@ -77,7 +78,7 @@ export default function Header({
                 <div className="flex items-center gap-3">
                     <div className="text-right hidden sm:block">
                         <p className="text-sm font-bold text-gray-800 leading-none">{username}</p>
-                        <p className="text-[10px] text-gray-400 mt-1 uppercase tracking-tight">{userRole}</p>
+                        <p className="text-meta text-gray-400 mt-1 uppercase tracking-tight">{userRole}</p>
                     </div>
                     <div className="relative group">
                         {!avatarFailed && userAvatar ? (

@@ -8,13 +8,13 @@ import {
 } from 'lucide-react'
 import { LoadingState } from '@/components'
 import { CreatePatientModal } from '@/components/patient'
-import { message } from 'antd'
+import { message, Modal } from 'antd'
 import { useDictNameMaps, getNameFromMap } from '@/hooks/useDictName'
 import { DICT_TYPES } from '@/services/dictApi'
 import { useAuth } from '@/contexts/AuthContext'
 import { getErrorMessage } from '@/services/restClient'
 
-type FilterType = 'all' | 'today' | 'active' | 'mine'
+type FilterType = 'all' | 'today' | 'active' | 'mine' | 'in_dept' | 'transferred'
 
 export default function PatientList() {
   const navigate = useNavigate()
@@ -29,6 +29,7 @@ export default function PatientList() {
   const [total, setTotal] = useState(0)
   const [createModalOpen, setCreateModalOpen] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)  // 用于强制刷新列表
+  const [patientStats, setPatientStats] = useState<{totalCount:number; activeCount:number; outpatientCount:number; inpatientCount:number} | null>(null)
   const pageSize = 50
 
   // 搜索防抖：输入停止 300ms 后触发后端搜索
@@ -53,17 +54,21 @@ export default function PatientList() {
 
   // 构建后端查询参数：将可映射的筛选条件传给后端
   const buildQueryParams = useCallback(() => {
-    const params: { page: number; pageSize: number; name?: string; status?: string } = {
+    const params: { page: number; pageSize: number; name?: string; status?: string; onlyActive?: boolean; onlyTransferred?: boolean } = {
       page: currentPage,
       pageSize,
     }
-    // 搜索词 → 后端 name LIKE 模糊匹配
     if (debouncedSearch.trim()) {
       params.name = debouncedSearch.trim()
     }
-    // "透析中" 筛选 → 后端 status 精确匹配
     if (activeFilter === 'active') {
       params.status = '透析中'
+    }
+    if (activeFilter === 'in_dept') {
+      params.onlyActive = true
+    }
+    if (activeFilter === 'transferred') {
+      params.onlyTransferred = true
     }
     return params
   }, [currentPage, debouncedSearch, activeFilter])
@@ -92,6 +97,11 @@ export default function PatientList() {
     loadPatients()
   }, [loadPatients, refreshKey])  // refreshKey 变化时强制刷新
 
+  // 加载患者统计
+  useEffect(() => {
+    restApi.getPatientStats().then(setPatientStats).catch(() => {})
+  }, [refreshKey])
+
   // 稳定的 Modal 回调（符合 Vercel React 最佳实践：rerender-functional-setstate）
   const handleCloseModal = useCallback(() => {
     setCreateModalOpen(false)
@@ -110,8 +120,7 @@ export default function PatientList() {
     setCurrentPage(1)
   }, [])
 
-  // 本地过滤：仅处理后端无法表达的筛选条件（today/mine）
-  // name 搜索和 active 状态已由后端处理
+  // 本地过滤：仅处理后端无法表达的筛选条件（today/mine/transferred）
   const filteredPatients = patients.filter(p => {
     if (!p.name || !p.id) return false
 
@@ -125,7 +134,9 @@ export default function PatientList() {
           return p.status !== '居家'
         }
         return true
-      // all / active 已由后端过滤，直接返回
+      case 'transferred':
+        // 转出患者需要后端支持，当前显示全部但标记
+        return true
       default:
         return true
     }
@@ -141,21 +152,26 @@ export default function PatientList() {
 
     if (!patient.id) return
 
-    const confirmed = window.confirm(
-      `确定要删除患者"${patient.name}"吗？\n\n此操作将删除患者及其所有相关数据，且无法恢复。`
-    )
+    const patientId = patient.id
+    const patientName = patient.name
 
-    if (!confirmed) return
-
-    try {
-      await restApi.deletePatient(patient.id)
-      message.success('删除成功')
-      // 刷新列表
-      loadPatients()
-    } catch (error) {
-      console.error('删除患者失败:', error)
-      message.error(getErrorMessage(error))
-    }
+    Modal.confirm({
+      title: '确认删除',
+      content: `确定要删除患者"${patientName}"吗？此操作将删除患者及其所有相关数据，且无法恢复。`,
+      okText: '确认',
+      cancelText: '取消',
+      okButtonProps: { danger: true },
+      onOk: async () => {
+        try {
+          await restApi.deletePatient(patientId)
+          message.success('删除成功')
+          loadPatients()
+        } catch (error) {
+          console.error('删除患者失败:', error)
+          message.error(getErrorMessage(error))
+        }
+      },
+    })
   }
 
   return (
@@ -164,8 +180,14 @@ export default function PatientList() {
       <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-gray-800">全科患者管理</h2>
-          <p className="text-gray-500 text-sm mt-1">
-            总建档 {total || patients.length} 人，今日治疗 {patients.filter(p => p.status !== '居家').length} 人
+          <p className="text-gray-500 text-sm mt-1 flex items-center flex-wrap gap-x-1">
+            <span>患者总人数:<span className="font-bold text-gray-700">{patientStats?.totalCount ?? '--'}</span>人</span>
+            <span className="text-gray-300">|</span>
+            <span>当前符合条件:<span className="font-bold text-blue-600">{patientStats?.activeCount ?? '--'}</span>人</span>
+            <span className="text-gray-300">|</span>
+            <span>门诊:<span className="font-bold text-green-600">{patientStats?.outpatientCount ?? '--'}</span>人</span>
+            <span className="text-gray-300">|</span>
+            <span>住院:<span className="font-bold text-purple-600">{patientStats?.inpatientCount ?? '--'}</span>人</span>
             {apiError && (
               <span className="ml-2 text-orange-500 inline-flex items-center">
                 <AlertCircle size={12} className="mr-1" />
@@ -230,6 +252,19 @@ export default function PatientList() {
           >
             <Stethoscope size={16} className="mr-2" /> 我的患者
           </button>
+          <div className="h-6 w-px bg-gray-200 mx-2"></div>
+          <button
+            onClick={() => handleFilterChange('in_dept')}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'in_dept' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            在科患者
+          </button>
+          <button
+            onClick={() => handleFilterChange('transferred')}
+            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'transferred' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50'}`}
+          >
+            转出患者
+          </button>
 
           <div className="flex-1"></div>
           <button className="text-gray-400 hover:text-gray-600 p-2">
@@ -269,7 +304,7 @@ export default function PatientList() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="space-y-1">
-                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] border ${patient.patientType === '住院' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
+                        <span className={`inline-block px-2 py-0.5 rounded text-meta border ${patient.patientType === '住院' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
                           }`}>
                           {getNameFromMap(dictNameMaps[DICT_TYPES.PATIENT_TYPE] || new Map(), patient.patientType)}
                         </span>
@@ -283,7 +318,7 @@ export default function PatientList() {
                         </div>
                         <div className="h-6 w-px bg-gray-200"></div>
                         <div>
-                          <div className="font-bold text-gray-800">{Math.round(patient.dryWeight ?? 0)} <span className="text-[10px] font-normal text-gray-400">kg</span></div>
+                          <div className="font-bold text-gray-800">{Math.round(patient.dryWeight ?? 0)} {/* density:strict 故意小字 */}<span className="text-[10px] font-normal text-gray-400">kg</span></div>
                         </div>
                       </div>
                     </td>

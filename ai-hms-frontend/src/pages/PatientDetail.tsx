@@ -42,6 +42,7 @@ export default function PatientDetail() {
   const [loading, setLoading] = useState(true)
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
   const [patient, setPatient] = useState<Patient | null>(null)
+  const [switchingPatient, setSwitchingPatient] = useState(false)
 
   // Load patient data
   useEffect(() => {
@@ -140,8 +141,34 @@ export default function PatientDetail() {
 
   // Navigation handlers
   const handleBack = () => navigate('/patients')
-  const handleSwitchPatient = (direction: 'prev' | 'next') => {
-    message.info(direction === 'prev' ? t('label.switchPrev') : t('label.switchNext'))
+  const handleSwitchPatient = async (direction: 'prev' | 'next') => {
+    if (!id || switchingPatient) return
+
+    setSwitchingPatient(true)
+    try {
+      const response = await restApi.getPatientList({ page: 1, pageSize: 1000 })
+      const patients = response.data.items
+      const currentIndex = patients.findIndex(item => String(item.id) === String(id))
+
+      if (currentIndex < 0) {
+        message.warning(t('notFoundInfo'))
+        return
+      }
+
+      const nextIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1
+      const targetPatient = patients[nextIndex]
+      if (!targetPatient) {
+        message.info(direction === 'prev' ? t('label.switchPrev') : t('label.switchNext'))
+        return
+      }
+
+      navigate(`/patients/${targetPatient.id}`)
+    } catch (error) {
+      console.error('Switch patient failed:', error)
+      message.error(getErrorMessage(error))
+    } finally {
+      setSwitchingPatient(false)
+    }
   }
 
   // Tab 导航配置
@@ -214,14 +241,14 @@ export default function PatientDetail() {
             <div className="ml-6">
               <div className="flex items-center">
                 <h1 data-testid="patient-detail-name" className="text-2xl font-black text-slate-900">{patient.name}</h1>
-                <span className={`ml-4 px-2.5 py-0.5 rounded-lg text-[10px] font-black border ${patient.infection?.hbsag === '阳性' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                <span className={`ml-4 px-2.5 py-0.5 rounded-lg text-meta font-black border ${patient.infection?.hbsag === '阳性' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
                   {t('info.infection')}: {patient.infection?.hbsag === '阳性' ? 'HBV(+)' : t('status.safe')}
                 </span>
-                <span className="ml-2 px-2.5 py-0.5 bg-slate-900 text-white rounded-lg text-[10px] font-black shadow-sm uppercase tracking-tighter">
+                <span className="ml-2 px-2.5 py-0.5 bg-slate-900 text-white rounded-lg text-meta font-black shadow-sm uppercase tracking-tighter">
                   {patient.bedNumber} {t('info.bedNumber')}
                 </span>
               </div>
-              <div className="text-[11px] text-slate-500 mt-1.5 flex items-center gap-5 font-black uppercase">
+              <div className="text-meta text-slate-500 mt-1.5 flex items-center gap-5 font-black uppercase">
                 <span>{patient.gender} · {patient.age}岁</span>
                 <span className="w-px h-3 bg-slate-200"></span>
                 <span className="flex items-center text-orange-600">
@@ -234,12 +261,12 @@ export default function PatientDetail() {
 
         <div className="flex items-center gap-6">
           <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{t('info.dialysisAge')}</p>
-            <p className="font-black text-xl text-slate-900">3.2 <span className="text-[10px] font-bold">Years</span></p>
+            <p className="text-meta text-slate-400 uppercase font-black tracking-widest">{t('info.dialysisAge')}</p>
+            <p className="font-black text-xl text-slate-900">3.2 {/* density:strict 故意小字 */}<span className="text-[10px] font-bold">Years</span></p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-slate-400 uppercase font-black tracking-widest">{t('info.targetUF')}</p>
-            <p className="font-black text-xl text-blue-600">2.50 <span className="text-[10px] font-bold">L</span></p>
+            <p className="text-meta text-slate-400 uppercase font-black tracking-widest">{t('info.targetUF')}</p>
+            <p className="font-black text-xl text-blue-600">2.50 {/* density:strict 故意小字 */}<span className="text-[10px] font-bold">L</span></p>
           </div>
           <div className="h-10 w-px bg-slate-200 mx-2"></div>
           <div className="flex gap-1.5 items-center">
@@ -254,10 +281,10 @@ export default function PatientDetail() {
               )}
             </button>
             <div className="flex gap-1 ml-1">
-              <button onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95">
+              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
                 <ChevronLeft size={20}/>
               </button>
-              <button onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95">
+              <button disabled={switchingPatient} onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
                 <ChevronRight size={20}/>
               </button>
             </div>
@@ -270,7 +297,7 @@ export default function PatientDetail() {
         <div className="bg-white border-r border-slate-200 flex flex-col shrink-0 z-10 w-52">
           <div className="w-52 h-full flex flex-col p-5 shrink-0 overflow-y-auto no-scrollbar">
             <nav className="space-y-1">
-              <p className="text-[10px] font-black text-slate-400 uppercase px-4 mb-3 tracking-[0.2em] opacity-60">{t('nav.holisticView')}</p>
+              <p className="text-meta font-black text-slate-400 uppercase px-4 mb-3 tracking-[0.2em] opacity-60">{t('nav.holisticView')}</p>
               {navItems.map(nav => (
                 <button
                   key={nav.id}
@@ -291,14 +318,14 @@ export default function PatientDetail() {
               <div className="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center font-black uppercase text-xs">DR</div>
               <div className="truncate">
                 <p className="text-xs font-black text-slate-800 truncate">{patient.doctorName}</p>
-                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{t('info.attendingDoctor')}</p>
+                <p className="text-meta text-slate-400 font-bold uppercase tracking-tighter">{t('info.attendingDoctor')}</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* 中部内容区 */}
-        <div className="flex-1 overflow-y-auto p-8 scroll-smooth no-scrollbar">
+        <div className="flex-1 overflow-y-auto p-4 scroll-smooth no-scrollbar">
           <div className={`${activeTab === 'scheme_order' || activeTab === 'monthly_summary' ? 'max-w-none' : 'max-w-6xl'} mx-auto pb-10 h-full transition-all duration-300`}>
             {renderTabContent()}
           </div>
@@ -317,39 +344,39 @@ export default function PatientDetail() {
               <X size={18}/>
             </button>
           </div>
-          <div className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar">
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar">
             <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-70">{t('section.criticalValues')}</p>
+              <p className="text-meta font-black text-slate-400 uppercase tracking-widest opacity-70">{t('section.criticalValues')}</p>
               <div className="p-5 bg-red-50/50 border border-red-100 rounded-3xl relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-16 h-16 bg-red-100/50 rounded-bl-full animate-pulse opacity-50"></div>
-                <p className="text-[10px] text-red-400 font-black mb-1">{t('ai.bloodK')}</p>
+                <p className="text-meta text-red-400 font-black mb-1">{t('ai.bloodK')}</p>
                 <div className="flex justify-between items-baseline">
                   <span className="text-3xl font-black text-red-600 font-mono">6.2</span>
-                  <span className="text-[10px] text-red-400 font-black uppercase">mmol/L</span>
+                  <span className="text-meta text-red-400 font-black uppercase">mmol/L</span>
                 </div>
-                <p className="text-[10px] text-red-400 font-bold mt-2 flex items-center italic">
+                <p className="text-meta text-red-400 font-bold mt-2 flex items-center italic">
                   <AlertCircle size={10} className="mr-1"/> {t('ai.suggestion')}
                 </p>
               </div>
             </div>
 
             <div className="space-y-3">
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest opacity-70">{t('section.documentStatus')}</p>
+              <p className="text-meta font-black text-slate-400 uppercase tracking-widest opacity-70">{t('section.documentStatus')}</p>
               <div className="space-y-2">
                 <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm hover:border-blue-200 transition-colors">
                   <span className="text-xs font-black text-slate-700">{t('nav.monthlySummary')}</span>
-                  <span className="text-[10px] text-orange-500 font-black uppercase bg-orange-50 px-2 py-0.5 rounded">{t('status.pending')}</span>
+                  <span className="text-meta text-orange-500 font-black uppercase bg-orange-50 px-2 py-0.5 rounded">{t('status.pending')}</span>
                 </div>
                 <div className="flex items-center justify-between p-4 bg-white border border-slate-100 rounded-2xl shadow-sm opacity-60">
                   <span className="text-xs font-black text-slate-700">{t('ai.treatmentConsent')}</span>
-                  <span className="text-[10px] text-green-500 font-black uppercase bg-green-50 px-2 py-0.5 rounded">{t('status.done')}</span>
+                  <span className="text-meta text-green-500 font-black uppercase bg-green-50 px-2 py-0.5 rounded">{t('status.done')}</span>
                 </div>
               </div>
             </div>
           </div>
 
           <div className="p-6 bg-slate-50 border-t border-slate-100 shrink-0">
-            <div className="flex items-center text-slate-400 text-[10px] font-black uppercase tracking-tight">
+            <div className="flex items-center text-slate-400 text-meta font-black uppercase tracking-tight">
               <Clock size={12} className="mr-2"/> {t('label.lastSync')}: 14:32:05
             </div>
           </div>
