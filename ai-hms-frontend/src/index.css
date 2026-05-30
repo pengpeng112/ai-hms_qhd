@@ -17,6 +17,37 @@
   /* Sidebar colors */
   --color-sidebar: #001529;
   --color-sidebar-light: #002140;
+
+  /* ========== Radius（仅三档） ========== */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  /* ========== 字号阶梯 ========== */
+  --text-meta: 12px;
+  --text-body: 14px;
+  --text-h3: 16px;
+  --text-h2: 20px;
+  --text-h1: 24px;
+
+  /* ========== 业务状态语义色 ========== */
+  --state-treating: #1677ff;
+  --state-treating-bg: #e6f4ff;
+  --state-waiting: #faad14;
+  --state-waiting-bg: #fff7e6;
+  --state-finished: #52c41a;
+  --state-finished-bg: #f6ffed;
+  --state-alert: #ff4d4f;
+  --state-alert-bg: #fff1f0;
+  --state-offline: #8c8c8c;
+  --state-offline-bg: #f5f5f5;
+
+  /* ========== Surface（用于替代裸 bg-white / bg-gray-50） ========== */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f5f7fa;
+  --color-surface-sidebar: #1f2a44;
+  --color-foreground: #1f2937;
+  --color-foreground-muted: #6b7280;
 }
 
 /* ========== Theme System ========== */
@@ -165,4 +196,8 @@ body {
 /* Outcome modal select dropdown layer */
 .outcome-select-popup {
   z-index: 1200 !important;
+}
+
+@layer utilities {
+  .text-density-strict { font-size: 11px; line-height: 14px; }
 }
