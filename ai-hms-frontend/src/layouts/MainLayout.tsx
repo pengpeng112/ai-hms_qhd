@@ -3,7 +3,6 @@ import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import Sidebar from './Sidebar'
 import Header from './Header'
-import PageBreadcrumb from './PageBreadcrumb'
 import { UserRole } from '@/types/original'
 import { logout } from '@/services/auth'
 import { getRolePermissionCodes, getSelectedRoleUser } from '@/services/role'
@@ -171,7 +170,6 @@ export default function MainLayout() {
 
                 <div className="flex-1 flex overflow-hidden">
                     <main className="flex-1 overflow-auto p-4 no-scrollbar">
-                        <PageBreadcrumb />
                         <Outlet />
                     </main>
 

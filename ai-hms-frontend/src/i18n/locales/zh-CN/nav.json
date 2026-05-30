@@ -7,16 +7,32 @@
   "schedule": "排班管理",
   "inventory": "耗材管理",
   "deviceBinding": "设备管理",
+  "wardManagement": "病区管理",
+  "bedManagement": "床位管理",
+  "educationManagement": "宣教管理",
   "statistics": "统计报表",
   "masterData": "主数据管理",
   "treatmentConfig": "诊疗配置",
   "dictConfig": "字典配置",
   "settings": "系统设置",
+  "userManagement": "用户管理",
+  "roleManagement": "角色管理",
 
   "brand.full": "AI-HMS 智能透析",
   "brand.short": "AI",
 
   "header.currentDept": "当前科室",
   "header.search": "搜索",
-  "header.tasks": "任务列表"
+  "header.tasks": "任务列表",
+  "header.currentRole": "当前角色",
+  "header.switchRole": "切换角色",
+  "header.settings": "个人设置",
+  "header.logout": "退出登录",
+
+  "group.dailyWork": "日常工作",
+  "group.patientCenter": "患者中心",
+  "group.resourceManagement": "资源管理",
+  "group.configCenter": "配置中心",
+  "group.systemManagement": "系统管理",
+  "group.dataAnalysis": "数据分析"
 }
