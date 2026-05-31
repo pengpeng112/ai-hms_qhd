@@ -41,7 +41,7 @@ export default defineConfig([
       ],
     },
   },
-  // 后续阶段 PR 中按文件移出豁免清单
+  // U5-Step4: 逐文件清理后移出豁免清单
   {
     files: [
       'src/pages/DictConfig.tsx',
