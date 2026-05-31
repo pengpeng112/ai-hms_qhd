@@ -223,7 +223,13 @@ function TypeValueTable({
         <button
           type="button"
           onClick={() => onAdd(type.code)}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700"
+          disabled={isLegacySource(type.source)}
+          title={isLegacySource(type.source) ? '老库字典暂不支持新增' : undefined}
+          className={`inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold text-white transition ${
+            isLegacySource(type.source)
+              ? 'cursor-not-allowed bg-slate-300 opacity-60'
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
         >
           <Plus size={16} />
           新增字典值

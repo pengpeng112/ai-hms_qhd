@@ -46,6 +46,8 @@ export default function BedManagement() {
       name: record.name,
       wardId: record.wardId ? Number(record.wardId) : undefined,
       sort: record.sort,
+      fepId: record.fepId ?? undefined,
+      acquisiteConnectId: record.acquisiteConnectId ?? undefined,
       note: record.note || '',
       isDisabled: record.isDisabled,
     })
@@ -59,6 +61,8 @@ export default function BedManagement() {
         name: values.name,
         wardId: Number(values.wardId),
         sort: values.sort ?? 0,
+        fepId: values.fepId ? Number(values.fepId) : undefined,
+        acquisiteConnectId: values.acquisiteConnectId ? Number(values.acquisiteConnectId) : undefined,
         note: values.note || undefined,
         isDisabled: values.isDisabled ?? false,
       }
@@ -127,7 +131,7 @@ export default function BedManagement() {
         <Table dataSource={beds} columns={columns} rowKey="id" loading={loading} pagination={false} />
       </div>
 
-      <Modal title={editingBed ? '编辑床位' : '新建床位'} open={editVisible} onCancel={() => setEditVisible(false)} onOk={handleSubmit} width={480} destroyOnClose>
+      <Modal title={editingBed ? '编辑床位' : '新建床位'} open={editVisible} onCancel={() => setEditVisible(false)} onOk={handleSubmit} width={560} destroyOnClose>
         <Form form={form} layout="vertical" className="mt-4">
           <Form.Item name="name" label="床位名称" rules={[{ required: true, message: '请输入床位名称' }]}>
             <Input placeholder="请输入床位名称（如 床位01）" />
@@ -138,6 +142,14 @@ export default function BedManagement() {
           <Space className="w-full" size="middle">
             <Form.Item name="sort" label="排序" className="flex-1">
               <InputNumber className="w-full" placeholder="序号" min={0} />
+            </Form.Item>
+          </Space>
+          <Space className="w-full" size="middle">
+            <Form.Item name="fepId" label="FEP 设备" className="flex-1">
+              <InputNumber className="w-full" placeholder="FEP设备 ID" />
+            </Form.Item>
+            <Form.Item name="acquisiteConnectId" label="采集连接" className="flex-1">
+              <InputNumber className="w-full" placeholder="采集连接 ID" />
             </Form.Item>
           </Space>
           <Form.Item name="note" label="备注">

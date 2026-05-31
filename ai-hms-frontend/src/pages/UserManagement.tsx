@@ -108,7 +108,7 @@ export default function UserManagement() {
       phone: record.phone || '',
       email: record.email || '',
       type: record.type || record.accountType || '',
-      role: record.role || (record.roles?.[0] ?? ''),
+      roles: record.roles || (record.role ? [record.role] : []),
     })
     setEditVisible(true)
   }
@@ -123,7 +123,7 @@ export default function UserManagement() {
         phone: values.phone || undefined,
         email: values.email || undefined,
         type: values.type || undefined,
-        role: values.role || undefined,
+        roles: values.roles || undefined,
       }
       if (editingUser) {
         // When editing, password is optional
@@ -188,13 +188,15 @@ export default function UserManagement() {
     },
     {
       title: '角色',
-      dataIndex: 'role',
-      key: 'role',
-      width: 120,
-      render: (v: string, r: RestUser) => {
-        const code = v || r.roles?.[0] || ''
-        const role = roles.find(item => item.code === code)
-        return role?.name || code || '-'
+      dataIndex: 'roles',
+      key: 'roles',
+      width: 180,
+      render: (vals: string[], r: RestUser) => {
+        const codes = vals || (r.role ? [r.role] : [])
+        const names = codes
+          .map((code: string) => roles.find(item => item.code === code)?.name || code)
+          .filter(Boolean)
+        return names.join('、') || '-'
       },
     },
     { title: '手机号', dataIndex: 'phone', key: 'phone', width: 130, render: (v: string) => v || '-' },
@@ -313,8 +315,8 @@ export default function UserManagement() {
                 ]}
               />
             </Form.Item>
-            <Form.Item name="role" label="角色" className="flex-1">
-              <Select placeholder="请选择" allowClear options={roleOptions} />
+            <Form.Item name="roles" label="角色" className="flex-1">
+              <Select mode="multiple" placeholder="请选择角色" allowClear options={roleOptions} />
             </Form.Item>
           </Space>
         </Form>

@@ -33,6 +33,7 @@ export interface CreateUserRequest {
   password?: string
   realName: string
   role?: string
+  roles?: string[]
   gender?: string
   phone?: string
   email?: string

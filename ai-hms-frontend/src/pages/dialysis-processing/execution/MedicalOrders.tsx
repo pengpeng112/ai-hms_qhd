@@ -198,6 +198,7 @@ export default function MedicalOrders({ patient }: Props) {
   const [editingOrder, setEditingOrder] = useState<Order | null>(null)
   const [form, setForm] = useState<OrderFormState>(EMPTY_FORM)
   const [sourceMode, setSourceMode] = useState<'direct' | 'template'>('direct')
+  const [templateId, setTemplateId] = useState('')
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -259,7 +260,26 @@ export default function MedicalOrders({ patient }: Props) {
 
   const handleSave = async () => {
     if (sourceMode === 'template') {
-      message.info('功能待后端接口就绪')
+      if (!templateId.trim()) {
+        message.warning('请输入模板ID')
+        return
+      }
+      try {
+        setSaving(true)
+        const created = await orderApi.createFromTemplate(patient.id, {
+          templateId: templateId.trim(),
+          type: '长期',
+          items: [],
+        })
+        setOrders((items) => [...created, ...items])
+        message.success(`已从模板创建 ${created.length} 条医嘱`)
+        closeModal()
+      } catch (error) {
+        console.error('[MedicalOrders] createFromTemplate failed', error)
+        message.error(getErrorMessage(error))
+      } finally {
+        setSaving(false)
+      }
       return
     }
     if (!form.content.trim() && !form.name.trim()) {
@@ -407,7 +427,20 @@ export default function MedicalOrders({ patient }: Props) {
               <tr><th className="px-6 py-3">类别</th><th className="px-6 py-3">名称</th><th className="px-6 py-3">剂量</th><th className="px-6 py-3">医生</th><th className="px-6 py-3">执行</th><th className="px-6 py-3">核对</th></tr>
             </thead>
             <tbody>
-              <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-400">暂无抗凝剂接口数据</td></tr>
+              {orders.filter((o) => o.category === '抗凝' || o.name?.includes('肝素') || o.content?.includes('肝素')).length > 0 ? (
+                orders.filter((o) => o.category === '抗凝' || o.name?.includes('肝素') || o.content?.includes('肝素')).map((o) => (
+                  <tr key={o.id} className="border-t border-slate-100 text-sm">
+                    <td className="px-6 py-3 text-slate-600">{o.category || '抗凝'}</td>
+                    <td className="px-6 py-3 font-semibold text-slate-800">{o.name || o.content}</td>
+                    <td className="px-6 py-3 text-slate-600">{o.dose || '--'}</td>
+                    <td className="px-6 py-3 text-slate-600">{o.doctorName || '--'}</td>
+                    <td className="px-6 py-3">{o.status === '已执行' ? <CheckCircle2 size={16} className="text-emerald-500" /> : <span className="text-slate-400">待执行</span>}</td>
+                    <td className="px-6 py-3 text-slate-400">--</td>
+                  </tr>
+                ))
+              ) : (
+                <tr><td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-400">暂无抗凝剂医嘱数据</td></tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -427,17 +460,30 @@ export default function MedicalOrders({ patient }: Props) {
               </button>
             </div>
 
-            <div className="border-b border-slate-100 px-8">
-              <div className="flex gap-8 text-sm font-black">
-                <button type="button" onClick={() => setSourceMode('direct')} className={`border-b-2 px-0 py-3 ${sourceMode === 'direct' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>直接新增录入</button>
-                <button type="button" onClick={() => setSourceMode('template')} className={`border-b-2 px-0 py-3 ${sourceMode === 'template' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>从模板组调取</button>
-              </div>
+            <div className="border-b border-slate-100 px-8 flex items-center gap-6">
+              <button type="button" onClick={() => setSourceMode('direct')} className={`border-b-2 px-0 py-3 text-sm font-semibold ${sourceMode === 'direct' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>
+                直接新增录入
+              </button>
+              <button type="button" onClick={() => setSourceMode('template')} className={`border-b-2 px-0 py-3 text-sm font-semibold ${sourceMode === 'template' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-400'}`}>
+                从模板组调取
+              </button>
             </div>
 
             <div className="flex-1 overflow-y-auto px-8 py-6">
               {sourceMode === 'template' ? (
-                <div className="rounded-lg border border-dashed border-slate-300 bg-slate-50 p-12 text-center text-sm font-semibold text-slate-500">
-                  功能待后端接口就绪
+                <div className="rounded-lg border border-blue-100 bg-blue-50 p-8 space-y-4">
+                  <div className="text-sm font-semibold text-blue-700">从医嘱模板组调取并生成医嘱</div>
+                  <div className="flex gap-3">
+                    <input
+                      value={templateId}
+                      onChange={(e) => setTemplateId(e.target.value)}
+                      placeholder="输入模板ID..."
+                      className="flex-1 h-11 rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold outline-none focus:border-blue-400"
+                    />
+                    <button type="button" onClick={() => void handleSave()} disabled={saving || !templateId.trim()} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white disabled:opacity-50">
+                      {saving ? '创建中...' : '从模板创建'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="space-y-7">

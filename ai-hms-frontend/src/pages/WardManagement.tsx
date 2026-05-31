@@ -3,10 +3,12 @@ import { message, Table, Button, Space, Modal, Form, Input, Select, Switch, Popc
 import { Plus, Edit3, Trash2, RefreshCw } from 'lucide-react'
 import { getErrorMessage } from '@/services/restClient'
 import { wardManagementApi, type WardItem, type WardPayload } from '@/services/managementApi'
+import { userApi, type RestUser } from '@/services/userApi'
 
 export default function WardManagement() {
   const [loading, setLoading] = useState(false)
   const [wards, setWards] = useState<WardItem[]>([])
+  const [userOptions, setUserOptions] = useState<Array<{ label: string; value: string }>>([])
   const [editVisible, setEditVisible] = useState(false)
   const [editingWard, setEditingWard] = useState<WardItem | null>(null)
   const [form] = Form.useForm()
@@ -25,6 +27,19 @@ export default function WardManagement() {
 
   useEffect(() => { void loadWards() }, [loadWards])
 
+  useEffect(() => {
+    const loadUsers = async () => {
+      try {
+        const res = await userApi.getList({ page: 1, pageSize: 200 })
+        setUserOptions((res.items || []).map((u: RestUser) => ({
+          label: u.realName || u.username,
+          value: String(u.id),
+        })))
+      } catch { /* ignore */ }
+    }
+    void loadUsers()
+  }, [])
+
   const handleCreate = () => {
     setEditingWard(null)
     form.resetFields()
@@ -38,7 +53,9 @@ export default function WardManagement() {
       sort: record.sort,
       patientType: record.patientType || '',
       infectionType: record.infectionType || '',
-      responsibleUsers: record.responsibleUsers || '',
+      responsibleUsers: record.responsibleUsers
+        ? record.responsibleUsers.split(',').map((s) => s.trim()).filter(Boolean)
+        : [],
       note: record.note || '',
       isDisabled: record.isDisabled,
     })
@@ -53,7 +70,9 @@ export default function WardManagement() {
         sort: values.sort ?? 0,
         patientType: values.patientType || undefined,
         infectionType: values.infectionType || undefined,
-        responsibleUsers: values.responsibleUsers || undefined,
+        responsibleUsers: Array.isArray(values.responsibleUsers)
+          ? values.responsibleUsers.join(',')
+          : (values.responsibleUsers || undefined),
         note: values.note || undefined,
         isDisabled: values.isDisabled ?? false,
       }
@@ -145,8 +164,8 @@ export default function WardManagement() {
                 { label: 'HIV', value: 'HIV' },
               ]} />
             </Form.Item>
-            <Form.Item name="responsibleUsers" label="责任人员" className="flex-1">
-              <Input placeholder="请输入责任人员" />
+            <Form.Item name="responsibleUsers" label="负责医护" className="flex-1">
+              <Select mode="multiple" placeholder="请选择负责医护" options={userOptions} allowClear />
             </Form.Item>
           </Space>
           <Form.Item name="note" label="备注">
