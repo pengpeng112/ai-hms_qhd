@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -1390,10 +1391,10 @@ func (s *TreatmentService) Update(id int64, req TreatmentUpdateRequest) (*Treatm
 	if req.Status != nil {
 		updates["Status"] = legacyStatusFromApp(*req.Status)
 		if *req.Status == models.TreatmentStatusInProgress {
-			updates["StartTime"] = time.Now()
+			updates["StartTime"] = gorm.Expr(`COALESCE("StartTime", ?)`, time.Now())
 		}
 		if *req.Status == models.TreatmentStatusCompleted {
-			updates["EndTime"] = time.Now()
+			updates["EndTime"] = gorm.Expr(`COALESCE("EndTime", ?)`, time.Now())
 		}
 	}
 	if req.StartTime != nil {
@@ -2586,6 +2587,102 @@ func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req Treatment
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	return s.Get(treatmentID)
+}
+
+// TreatmentDisinfectionRequest 消毒登记请求
+type TreatmentDisinfectionRequest struct {
+	EquipmentID    *int64  `json:"equipmentId"`
+	DisinfectUserID *int64 `json:"disinfectUserId"`
+	DisinfectWay  *string `json:"disinfectWay"`
+	Type          *string `json:"type"`
+	Disinfectant  *string `json:"disinfectant"`
+	StartTime     *string `json:"startTime"`
+	EndTime       *string `json:"endTime"`
+	Description   *string `json:"description"`
+	Note          *string `json:"note"`
+}
+
+// TreatmentSummaryRequest 治疗小结保存请求
+type TreatmentSummaryRequest struct {
+	TreatmentSummary *string `json:"treatmentSummary"`
+	NurseSummary     *string `json:"nurseSummary"`
+	DoctorSummary    *string `json:"doctorSummary"`
+}
+
+func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisinfectionRequest, creatorID int64) (*TreatmentRealtimeResponse, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	columns := map[string]interface{}{
+		`"TreatmentId"`:    treatmentID,
+		`"CreatorId"`:      creatorID,
+	}
+	if req.EquipmentID != nil {
+		columns[`"EquipmentId"`] = *req.EquipmentID
+	}
+	if req.DisinfectUserID != nil {
+		columns[`"DisinfectUserId"`] = *req.DisinfectUserID
+	}
+	if req.DisinfectWay != nil {
+		columns[`"DisinfectWay"`] = *req.DisinfectWay
+	}
+	if req.Type != nil {
+		columns[`"Type"`] = *req.Type
+	}
+	if req.Disinfectant != nil {
+		columns[`"Disinfectant"`] = *req.Disinfectant
+	}
+	if req.Description != nil {
+		columns[`"Description"`] = *req.Description
+	}
+	if req.Note != nil {
+		columns[`"Note"`] = *req.Note
+	}
+	if req.StartTime != nil && *req.StartTime != "" {
+		columns[`"StartTime"`] = *req.StartTime
+	}
+	if req.EndTime != nil && *req.EndTime != "" {
+		columns[`"EndTime"`] = *req.EndTime
+	}
+
+	result := s.db.Table(`"Auxiliary_EquipmentDisinfection"`).Create(columns)
+	if result.Error != nil {
+		return nil, fmt.Errorf("保存消毒登记失败: %w", result.Error)
+	}
+
+	return s.Get(treatmentID)
+}
+
+func (s *TreatmentService) SaveSummary(treatmentID int64, req TreatmentSummaryRequest, creatorID int64) (*TreatmentRealtimeResponse, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	updates := map[string]interface{}{}
+	if req.TreatmentSummary != nil {
+		updates[`"TreatmentSummary"`] = *req.TreatmentSummary
+	}
+	if req.NurseSummary != nil {
+		updates[`"NurseSummary"`] = *req.NurseSummary
+	}
+	if req.DoctorSummary != nil {
+		updates[`"TreatmentSummary"`] = *req.DoctorSummary
+	}
+
+	if len(updates) == 0 {
+		return s.Get(treatmentID)
+	}
+
+	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ?`, treatmentID).Updates(updates)
+	if result.Error != nil {
+		return nil, fmt.Errorf("保存治疗小结失败: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, fmt.Errorf("treatment not found")
 	}
 
 	return s.Get(treatmentID)

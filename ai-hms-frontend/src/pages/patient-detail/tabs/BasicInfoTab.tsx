@@ -35,7 +35,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
   const { t } = useTranslation('patient')
 
   // 字典名称映射（用于只读模式显示名称而非代码）
-  const dictTypeCodes = useMemo(() => [
+    const dictTypeCodes = useMemo(() => [
     DICT_TYPES.ID_TYPE,
     DICT_TYPES.PATIENT_TYPE,
     DICT_TYPES.VISIT_CATEGORY,
@@ -44,6 +44,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
     DICT_TYPES.EDUCATION_LEVEL,
     DICT_TYPES.MARITAL_STATUS,
     DICT_TYPES.INSURANCE_TYPE,
+    DICT_TYPES.RELATIONSHIP_OPTIONS,
   ], [])
   const dictNameMaps = useDictNameMaps(dictTypeCodes)
 
@@ -102,7 +103,8 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
           rhBloodTypes,
           educationLevels,
           maritalStatuses,
-          insuranceTree
+          insuranceTree,
+          relationshipOptions,
         ] = await Promise.all([
           dictCache.getOptions(DICT_TYPES.ID_TYPE),
           dictCache.getOptions(DICT_TYPES.PATIENT_TYPE),
@@ -112,6 +114,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
           dictCache.getOptions(DICT_TYPES.EDUCATION_LEVEL),
           dictCache.getOptions(DICT_TYPES.MARITAL_STATUS),
           dictCache.getCascaderOptions(DICT_TYPES.INSURANCE_TYPE),
+          dictCache.getOptions(DICT_TYPES.RELATIONSHIP_OPTIONS),
         ])
 
         setDictOptions({
@@ -122,6 +125,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
           [DICT_TYPES.BLOOD_TYPE_RH]: rhBloodTypes,
           [DICT_TYPES.EDUCATION_LEVEL]: educationLevels,
           [DICT_TYPES.MARITAL_STATUS]: maritalStatuses,
+          [DICT_TYPES.RELATIONSHIP_OPTIONS]: relationshipOptions,
         })
 
         // 更新医保类型选项
@@ -756,6 +760,7 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
         isOpen={isContactModalOpen}
         onClose={() => setIsContactModalOpen(false)}
         onAdd={handleAddContact}
+        relationOptions={dictOptions[DICT_TYPES.RELATIONSHIP_OPTIONS] || []}
       />
 
       {/* 电子文书弹窗 */}
@@ -914,9 +919,10 @@ interface AddFamilyContactModalProps {
   isOpen: boolean
   onClose: () => void
   onAdd: (contact: Omit<FamilyContact, 'id'>) => void
+  relationOptions: Array<{ value: string; label: string }>
 }
 
-function AddFamilyContactModal({ isOpen, onClose, onAdd }: AddFamilyContactModalProps) {
+function AddFamilyContactModal({ isOpen, onClose, onAdd, relationOptions }: AddFamilyContactModalProps) {
   const [contact, setContact] = useState({
     name: '',
     phone: '',
@@ -1037,13 +1043,9 @@ function AddFamilyContactModal({ isOpen, onClose, onAdd }: AddFamilyContactModal
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
               >
                 <option value="">请选择</option>
-                <option value="配偶">配偶</option>
-                <option value="父亲">父亲</option>
-                <option value="母亲">母亲</option>
-                <option value="子女">子女</option>
-                <option value="兄弟">兄弟</option>
-                <option value="姐妹">姐妹</option>
-                <option value="其他">其他</option>
+                {relationOptions.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
               </select>
             </div>
           )}

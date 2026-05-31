@@ -38,6 +38,7 @@ interface PostAssessmentFormState {
   lineVCoag: string
   symptoms: string
   notes: string
+  fistulaCareGuidance: boolean
 }
 
 const COAG_OPTIONS = ['0级', '1级', '2级', '3级']
@@ -65,6 +66,7 @@ const EMPTY_FORM: PostAssessmentFormState = {
   lineVCoag: '',
   symptoms: '',
   notes: '',
+  fistulaCareGuidance: false,
 }
 
 function toText(value?: string | number | null) {
@@ -136,6 +138,7 @@ function mapTreatmentToForm(treatment: RestTreatment | null): PostAssessmentForm
     lineVCoag: getSymptomItemValue(symItems, 'line_v_coag'),
     symptoms: after?.symptoms || getSymptomItemValue(symItems, 'symptoms'),
     notes: after?.notes || getSymptomItemValue(symItems, 'notes') || treatment.treatmentSummary || treatment.notes || '',
+    fistulaCareGuidance: getSymptomItemValue(symItems, 'fistula_care') === '是',
   }
 }
 
@@ -151,6 +154,7 @@ function buildPayload(form: PostAssessmentFormState): TreatmentAfterSignsRequest
     ['dialyzer_coag', form.dialyzerCoag],
     ['line_a_coag', form.lineACoag],
     ['line_v_coag', form.lineVCoag],
+    ['fistula_care', form.fistulaCareGuidance ? '是' : '否'],
   ].map(([code, value]) => ({ code, value: value.trim() })).filter((item) => item.value)
 
   return {
@@ -427,8 +431,8 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
               <span className="text-sm font-bold text-slate-700">内瘘情况:</span>
               <input value={form.symptoms} onChange={(e) => updateField('symptoms', e.target.value)} placeholder="杂音强、震颤强..." className="h-10 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none" />
             </div>
-            <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-              <input type="checkbox" checked readOnly />是否进行内瘘/导管护理健康指导
+            <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 cursor-pointer">
+              <input type="checkbox" checked={form.fistulaCareGuidance} onChange={(e) => updateField('fistulaCareGuidance', e.target.checked)} />是否进行内瘘/导管护理健康指导
             </label>
             <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
               <AlertTriangle size={14} />

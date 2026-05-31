@@ -549,3 +549,159 @@ func (s *PatientShiftService) ValidateShiftEdit(shift *models.PatientShift, tena
 
 	return nil
 }
+
+// ─── S-12 批量保存 ───
+
+type BatchSaveRequest struct {
+	Items []PatientShiftCreateRequest `json:"items" binding:"required"`
+}
+
+type BatchSaveResult struct {
+	Success []models.PatientShift `json:"success"`
+	Failed  []BatchSaveFailItem   `json:"failed"`
+}
+
+type BatchSaveFailItem struct {
+	Index   int    `json:"index"`
+	Error   string `json:"error"`
+}
+
+func (s *PatientShiftService) BatchSave(req BatchSaveRequest, tenantId, creatorId int64) (*BatchSaveResult, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	result := &BatchSaveResult{}
+	for i, item := range req.Items {
+		scheduleDate, err := ParseScheduleDate(item.ScheduleDate)
+		if err != nil {
+			result.Failed = append(result.Failed, BatchSaveFailItem{Index: i, Error: "invalid date: " + err.Error()})
+			continue
+		}
+
+		bedIdVal := int64(0)
+		if item.BedId != nil {
+			bedIdVal = *item.BedId
+		}
+		if vErr := s.ValidateShiftMutation(item.PatientId, bedIdVal, tenantId, scheduleDate, item.ShiftId, nil); vErr != nil {
+			result.Failed = append(result.Failed, BatchSaveFailItem{Index: i, Error: vErr.Error()})
+			continue
+		}
+
+		shift, err := s.Create(item, tenantId, creatorId)
+		if err != nil {
+			result.Failed = append(result.Failed, BatchSaveFailItem{Index: i, Error: err.Error()})
+			continue
+		}
+		result.Success = append(result.Success, *shift)
+	}
+
+	return result, nil
+}
+
+// ─── S-8/S-9 模板功能（Status=60） ───
+
+func (s *PatientShiftService) ListTemplates(tenantId int64, wardID *int64) ([]models.PatientShift, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	query := s.db.Where("\"TenantId\" = ? AND \"Status\" = ?", tenantId, 60).
+		Preload("Patient").Preload("Shift").Preload("Bed").Preload("Ward")
+	if wardID != nil {
+		query = query.Where("\"WardId\" = ?", *wardID)
+	}
+	var items []models.PatientShift
+	if err := query.Order("\"TreatmentTime\" ASC").Find(&items).Error; err != nil {
+		return nil, err
+	}
+	for i := range items {
+		items[i].Status = MapPatientShiftStatusLegacyToNew(items[i].Status)
+	}
+	return items, nil
+}
+
+func (s *PatientShiftService) SaveTemplate(items []PatientShiftCreateRequest, tenantId, creatorId int64) error {
+	if s.db == nil {
+		return errors.New("database not available")
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("\"TenantId\" = ? AND \"Status\" = ?", tenantId, 60).Delete(&models.PatientShift{}).Error; err != nil {
+			return err
+		}
+		for _, item := range items {
+			scheduleDate, err := ParseScheduleDate(item.ScheduleDate)
+			if err != nil {
+				return err
+			}
+			shift := models.PatientShift{
+				TenantId:      tenantId,
+				PatientId:     modeltypes.LegacyID(item.PatientId),
+				ScheduleDate:  scheduleDate,
+				ShiftId:       item.ShiftId,
+				BedId:         item.BedId,
+				WardId:        item.WardId,
+				PatientPlanId: item.PatientPlanId,
+				ShiftTiming:   item.ShiftTiming,
+				Status:        60,
+				CreatorId:     creatorId,
+			}
+			if err := tx.Create(&shift).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func (s *PatientShiftService) ApplyTemplate(targetDate string, tenantId, creatorId int64, wardID *int64) (int, error) {
+	if s.db == nil {
+		return 0, errors.New("database not available")
+	}
+
+	targetTime, err := ParseScheduleDate(targetDate)
+	if err != nil {
+		return 0, err
+	}
+
+	var templates []models.PatientShift
+	tq := s.db.Where("\"TenantId\" = ? AND \"Status\" = ?", tenantId, 60)
+	if wardID != nil {
+		tq = tq.Where("\"WardId\" = ?", *wardID)
+	}
+	if err := tq.Find(&templates).Error; err != nil {
+		return 0, err
+	}
+
+	created := 0
+	for _, tpl := range templates {
+		hasConflict, _ := s.CheckConflict(int64(tpl.PatientId), tenantId, targetTime, tpl.ShiftId, nil)
+		if hasConflict {
+			continue
+		}
+		bedIdVal := int64(0)
+		if tpl.BedId != nil {
+			bedIdVal = *tpl.BedId
+		}
+		hasBedConflict, _ := s.CheckBedConflict(bedIdVal, tenantId, targetTime, tpl.ShiftId, nil)
+		if hasBedConflict {
+			continue
+		}
+		newShift := models.PatientShift{
+			TenantId:      tenantId,
+			PatientId:     tpl.PatientId,
+			ScheduleDate:  targetTime,
+			ShiftId:       tpl.ShiftId,
+			BedId:         tpl.BedId,
+			WardId:        tpl.WardId,
+			PatientPlanId: tpl.PatientPlanId,
+			ShiftTiming:   tpl.ShiftTiming,
+			Status:        20,
+			CreatorId:     creatorId,
+		}
+		if err := s.db.Create(&newShift).Error; err != nil {
+			continue
+		}
+		created++
+	}
+	return created, nil
+}

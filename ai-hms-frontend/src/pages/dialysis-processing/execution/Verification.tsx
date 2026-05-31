@@ -7,6 +7,7 @@ import { getErrorMessage } from '@/services/restClient'
 import type {
   TreatmentFirstCheckRequest,
   TreatmentSecondCheckRequest,
+  TreatmentDisinfectionRequest,
 } from '@/services/restClient'
 import type { Patient } from '../types'
 import { useAuth } from '@/contexts/AuthContext'
@@ -17,6 +18,7 @@ interface Props {
   treatmentLoading?: boolean
   onSaveFirstCheck: (payload: TreatmentFirstCheckRequest) => Promise<void>
   onSaveSecondCheck: (payload: TreatmentSecondCheckRequest) => Promise<void>
+  onSaveDisinfection: (payload: TreatmentDisinfectionRequest) => Promise<void>
 }
 
 interface StaffOption {
@@ -201,6 +203,7 @@ export default function Verification({
   treatmentLoading = false,
   onSaveFirstCheck,
   onSaveSecondCheck,
+  onSaveDisinfection,
 }: Props) {
   const { user: currentUser } = useAuth()
   const [staffOptions, setStaffOptions] = useState<StaffOption[]>([])
@@ -208,6 +211,7 @@ export default function Verification({
   const [savingFirst, setSavingFirst] = useState(false)
   const [savingSecond, setSavingSecond] = useState(false)
   const [savingAll, setSavingAll] = useState(false)
+  const [savingDisinfection, setSavingDisinfection] = useState(false)
   const [firstForm, setFirstForm] = useState<FirstCheckFormState>(mapFirstCheckForm(treatment))
   const [secondForm, setSecondForm] = useState<SecondCheckFormState>(mapSecondCheckForm(treatment))
   const [disinfectionTime, setDisinfectionTime] = useState('')
@@ -287,7 +291,7 @@ export default function Verification({
     setDisinfectionTime((current) => current || defaultTimes.disinfectionTime)
   }, [loadingStaff, staffOptions.length, currentUserId, defaultTimes])
 
-  const disinfectionOperator = staffNameById.get(firstForm.operatorId) || patient.name
+  const disinfectionOperator = currentUser?.name || staffNameById.get(firstForm.operatorId) || staffNameById.get(currentUserId) || '--'
 
   const buildFirstPayload = (): TreatmentFirstCheckRequest => ({
     operatorId: parseOptionalNumber(firstForm.operatorId),
@@ -353,6 +357,24 @@ export default function Verification({
       message.error(getErrorMessage(error))
     } finally {
       setSavingAll(false)
+    }
+  }
+
+  const handleSaveDisinfection = async () => {
+    try {
+      setSavingDisinfection(true)
+      const payload: TreatmentDisinfectionRequest = {
+        type: '机器',
+        disinfectant: '500mg/L含氯消毒液',
+        startTime: disinfectionTime || defaultTimes.disinfectionTime,
+        disinfectUserId: parseOptionalNumber(currentUserId) || undefined,
+      }
+      await onSaveDisinfection(payload)
+    } catch (error) {
+      console.error('[Verification] save disinfection failed', error)
+      message.error(getErrorMessage(error))
+    } finally {
+      setSavingDisinfection(false)
     }
   }
 
@@ -455,8 +477,8 @@ export default function Verification({
                 <CheckCircle2 size={20} className="text-emerald-500" />
               </div>
             </div>
-            <button type="button" disabled title="功能待后端接口就绪" className="h-11 w-full cursor-not-allowed rounded-lg bg-emerald-600 text-sm font-bold text-white opacity-60">
-              功能待后端接口就绪
+            <button type="button" onClick={() => void handleSaveDisinfection()} disabled={treatmentLoading || savingDisinfection} className="h-11 w-full rounded-lg bg-emerald-600 text-sm font-bold text-white disabled:opacity-60 hover:bg-emerald-700 transition">
+              {treatmentLoading ? '治疗加载中...' : savingDisinfection ? '保存中...' : '确认并保存消毒登记'}
             </button>
           </div>
         </section>

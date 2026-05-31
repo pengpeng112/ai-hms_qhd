@@ -579,6 +579,79 @@ func (h *PatientShiftHandler) Swap(c *gin.Context) {
 	response.Success(c, gin.H{"success": true})
 }
 
+// BatchSave 批量保存排班
+func (h *PatientShiftHandler) BatchSave(c *gin.Context) {
+	var req services.BatchSaveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+	result, err := h.service.BatchSave(req, tenantId, creatorId)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, result)
+}
+
+// ListTemplates 模板列表
+func (h *PatientShiftHandler) ListTemplates(c *gin.Context) {
+	tenantId := middleware.GetTenantID(c)
+	var wardID *int64
+	if w := c.Query("wardId"); w != "" {
+		parsed, _ := strconv.ParseInt(w, 10, 64)
+		if parsed > 0 {
+			wardID = &parsed
+		}
+	}
+	items, err := h.service.ListTemplates(tenantId, wardID)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, items)
+}
+
+// SaveTemplate 保存模板
+func (h *PatientShiftHandler) SaveTemplate(c *gin.Context) {
+	var req struct {
+		Items []services.PatientShiftCreateRequest `json:"items"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+	if err := h.service.SaveTemplate(req.Items, tenantId, creatorId); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"success": true})
+}
+
+// ApplyTemplateHandler 应用模板
+func (h *PatientShiftHandler) ApplyTemplateHandler(c *gin.Context) {
+	var req struct {
+		TargetDate string `json:"targetDate"`
+		WardId     *int64 `json:"wardId"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+	tenantId := middleware.GetTenantID(c)
+	creatorId := middleware.GetCreatorID(c)
+	count, err := h.service.ApplyTemplate(req.TargetDate, tenantId, creatorId, req.WardId)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"created": count})
+}
+
 // RegisterScheduleRoutes 注册排班管理路由
 func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	shiftHandler := NewShiftHandler()
@@ -605,6 +678,8 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 		patientShifts.DELETE("/:id", patientShiftHandler.Delete)
 		patientShifts.POST("/:id/move", patientShiftHandler.Move)
 		patientShifts.POST("/swap", patientShiftHandler.Swap)
+		patientShifts.POST("/batch-save", patientShiftHandler.BatchSave)
+		patientShifts.GET("/templates", patientShiftHandler.ListTemplates)
 	}
 
 	// 患者相关的排班查询
@@ -612,6 +687,13 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 
 	// 周视图聚合
 	r.GET("/schedule/week", weekHandler.GetWeek)
+
+	// 模板管理
+	templateGroup := r.Group("/schedule/template")
+	{
+		templateGroup.POST("/save", patientShiftHandler.SaveTemplate)
+		templateGroup.POST("/apply", patientShiftHandler.ApplyTemplateHandler)
+	}
 }
 
 // ScheduleWeekHandler 周视图聚合

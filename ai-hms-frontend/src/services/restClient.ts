@@ -2010,12 +2010,27 @@ class RestApiService {
   async getShifts(): Promise<ApiSuccessResponse<RestShift[]>> {
     const response = await apiClient.get<ApiSuccessResponse<RestShift[]>>('/api/v1/shifts')
     if (!response.data.success) {
-      throw new Error('鑾峰彇鐝鍒楄〃澶辫触')
+      throw new Error('获取班次列表失败')
     }
     return response.data
   }
 
-  // ============ 鎮ｈ€呮帓鐝鐞?============
+  async createShift(data: { name: string; startTime: string; endTime: string; sort?: number; notes?: string }): Promise<ApiSuccessResponse<RestShift>> {
+    const response = await apiClient.post<ApiSuccessResponse<RestShift>>('/api/v1/shifts', data)
+    return response.data
+  }
+
+  async updateShift(id: number, data: Record<string, unknown>): Promise<ApiSuccessResponse<RestShift>> {
+    const response = await apiClient.put<ApiSuccessResponse<RestShift>>(`/api/v1/shifts/${id}`, data)
+    return response.data
+  }
+
+  async deleteShift(id: number): Promise<unknown> {
+    const response = await apiClient.delete<unknown>(`/api/v1/shifts/${id}`)
+    return response.data
+  }
+
+  // ============ 患者排班管理 ============
 
   /**
    * 鑾峰彇鎮ｈ€呮帓鐝垪琛?   */

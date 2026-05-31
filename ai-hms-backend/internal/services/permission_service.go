@@ -2,11 +2,9 @@ package services
 
 import (
 	"errors"
-	"strings"
-	"sync"
+	"fmt"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
-	"github.com/elliotxin/ai-hms-backend/internal/models"
 	"gorm.io/gorm"
 )
 
@@ -14,251 +12,206 @@ type PermissionService struct {
 	db *gorm.DB
 }
 
-var defaultPermissionsOnce sync.Once
-
 func NewPermissionService() *PermissionService {
 	return &PermissionService{db: database.GetDB()}
 }
 
-func (s *PermissionService) ListPermissions() ([]models.Permission, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
-		return nil, err
-	}
-	if err := s.ensureDefaultsInitialized(); err != nil {
-		return nil, err
-	}
-	var items []models.Permission
-	if err := s.db.Order("module ASC, code ASC").Find(&items).Error; err != nil {
-		return nil, err
-	}
-	return items, nil
+type rawPermissionRow struct {
+	Code       string `gorm:"column:Code"`
+	Name       string `gorm:"column:Name"`
+	Exclusions string `gorm:"column:Exclusions"`
 }
 
-func (s *PermissionService) SavePermission(input models.Permission) (*models.Permission, error) {
+func (s *PermissionService) ListPermissions() ([]rawPermissionRow, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
-	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
-		return nil, err
-	}
-	var existing models.Permission
-	err := s.db.Where("code = ?", input.Code).First(&existing).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		if err := s.db.Create(&input).Error; err != nil {
-			return nil, err
-		}
-		return &input, nil
-	}
+	var rows []rawPermissionRow
+	err := s.db.Table(`"Authorization_Permissions"`).
+		Select(`"Code", "Name", "Exclusions"`).
+		Find(&rows).Error
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("query permissions failed: %w", err)
 	}
+	return rows, nil
+}
 
-	existing.Name = input.Name
-	existing.Description = input.Description
-	existing.Module = input.Module
-	existing.Action = input.Action
-	if input.Status != "" {
-		existing.Status = input.Status
+func (s *PermissionService) SavePermission(code string, name string) (*rawPermissionRow, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
 	}
-	if err := s.db.Save(&existing).Error; err != nil {
-		return nil, err
+	result := s.db.Table(`"Authorization_Permissions"`).
+		Where(`"Code" = ?`, code).
+		Assign(map[string]interface{}{`"Name"`: name}).
+		FirstOrCreate(nil)
+	if result.Error != nil {
+		return nil, fmt.Errorf("save permission failed: %w", result.Error)
 	}
-	return &existing, nil
+	return &rawPermissionRow{Code: code, Name: name}, nil
 }
 
 func (s *PermissionService) GetRolePermissionCodes(role string) ([]string, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
-	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
-		return nil, err
+	type row struct {
+		PermissionCode string `gorm:"column:PermissionCode"`
 	}
-	if err := s.ensureDefaultsInitialized(); err != nil {
-		return nil, err
+	var rows []row
+	err := s.db.Table(`"Authorization_RolePermissions"`).
+		Select(`"PermissionCode"`).
+		Where(`"RoleId" = (SELECT "Id" FROM "Authorization_Roles" WHERE "Name" = ? LIMIT 1)`, role).
+		Find(&rows).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return []string{}, nil
+		}
+		return nil, fmt.Errorf("query role permissions failed: %w", err)
 	}
-	var rows []models.RolePermission
-	if err := s.db.Where("role = ?", role).Order("permission_code ASC").Find(&rows).Error; err != nil {
-		return nil, err
+	codes := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if r.PermissionCode != "" {
+			codes = append(codes, r.PermissionCode)
+		}
 	}
-	result := make([]string, 0, len(rows))
+	return codes, nil
+}
+
+func (s *PermissionService) SetRolePermissionCodes(role string, codes []string) error {
+	if s.db == nil {
+		return errors.New("database not available")
+	}
+	var roleID int64
+	s.db.Table(`"Authorization_Roles"`).
+		Select(`"Id"`).
+		Where(`"Name" = ?`, role).
+		Scan(&roleID)
+	if roleID == 0 {
+		s.db.Table(`"Authorization_Roles"`).
+			Create(map[string]interface{}{`"Name"`: role})
+		s.db.Table(`"Authorization_Roles"`).
+			Select(`"Id"`).
+			Where(`"Name" = ?`, role).
+			Scan(&roleID)
+	}
+	s.db.Table(`"Authorization_RolePermissions"`).
+		Where(`"RoleId" = ?`, roleID).
+		Delete(nil)
+	for _, code := range codes {
+		s.db.Table(`"Authorization_RolePermissions"`).
+			Create(map[string]interface{}{
+				`"RoleId"`:         roleID,
+				`"PermissionCode"`: code,
+			})
+	}
+	return nil
+}
+
+type AppRole struct {
+	ID   string `json:"id"`
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+type rawRoleRow struct {
+	ID   int64  `gorm:"column:Id"`
+	Name string `gorm:"column:Name"`
+}
+
+func (s *PermissionService) ListRoles() ([]AppRole, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	var rows []rawRoleRow
+	err := s.db.Table(`"Authorization_Roles"`).
+		Select(`"Id", "Name"`).
+		Order(`"Id" ASC`).
+		Find(&rows).Error
+	if err != nil {
+		return nil, fmt.Errorf("query roles failed: %w", err)
+	}
+	result := make([]AppRole, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, row.PermissionCode)
+		result = append(result, AppRole{
+			ID:   fmt.Sprintf("%d", row.ID),
+			Code: row.Name,
+			Name: row.Name,
+		})
 	}
 	return result, nil
 }
 
-func (s *PermissionService) SetRolePermissionCodes(role string, permissionCodes []string) error {
+func (s *PermissionService) CreateRole(name string) (*AppRole, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	if name == "" {
+		return nil, fmt.Errorf("role name is required")
+	}
+	columns := map[string]interface{}{`"Name"`: name}
+	result := s.db.Table(`"Authorization_Roles"`).Create(columns)
+	if result.Error != nil {
+		return nil, fmt.Errorf("create role failed: %w", result.Error)
+	}
+	var newID int64
+	s.db.Raw(`SELECT LASTVAL()`).Scan(&newID)
+	if newID == 0 {
+		var maxID int64
+		s.db.Table(`"Authorization_Roles"`).Select(`MAX("Id")`).Scan(&maxID)
+		newID = maxID
+	}
+	return &AppRole{ID: fmt.Sprintf("%d", newID), Code: name, Name: name}, nil
+}
+
+func (s *PermissionService) UpdateRole(code string, name string) (*AppRole, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	result := s.db.Table(`"Authorization_Roles"`).
+		Where(`"Name" = ?`, code).
+		Updates(map[string]interface{}{`"Name"`: name})
+	if result.Error != nil {
+		return nil, fmt.Errorf("update role failed: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, fmt.Errorf("role not found")
+	}
+	return &AppRole{Code: name, Name: name}, nil
+}
+
+func (s *PermissionService) DeleteRole(code string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
-		return err
+	result := s.db.Table(`"Authorization_Roles"`).
+		Where(`"Name" = ?`, code).
+		Delete(nil)
+	if result.Error != nil {
+		return fmt.Errorf("delete role failed: %w", result.Error)
 	}
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("role = ?", role).Delete(&models.RolePermission{}).Error; err != nil {
-			return err
-		}
-		if len(permissionCodes) == 0 {
-			return nil
-		}
-		rows := make([]models.RolePermission, 0, len(permissionCodes))
-		for _, code := range permissionCodes {
-			rows = append(rows, models.RolePermission{
-				Role:           role,
-				PermissionCode: code,
-			})
-		}
-		return tx.Create(&rows).Error
-	})
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("role not found")
+	}
+	return nil
 }
 
-func (s *PermissionService) ensureDefaultsInitialized() error {
-	var initErr error
-	defaultPermissionsOnce.Do(func() {
-		initErr = s.InitDefaultPermissions()
-	})
-	return initErr
+type PermissionNode struct {
+	Code        string           `json:"code"`
+	Name        string           `json:"name"`
+	Children    []PermissionNode `json:"children,omitempty"`
 }
 
-func (s *PermissionService) InitDefaultPermissions() error {
-	if s.db == nil {
-		return errors.New("database not available")
+func (s *PermissionService) GetPermissionTree() ([]PermissionNode, error) {
+	perms, err := s.ListPermissions()
+	if err != nil {
+		return nil, err
 	}
-	if err := ensureTables(s.db, &models.Permission{}, &models.RolePermission{}); err != nil {
-		return err
+	nodes := make([]PermissionNode, 0, len(perms))
+	for _, p := range perms {
+		nodes = append(nodes, PermissionNode{
+			Code: p.Code,
+			Name: p.Name,
+		})
 	}
-
-	permissions := []models.Permission{
-		{Code: "menu.dashboard", Name: "仪表盘菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.ward_overview", Name: "病区总览菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.patients", Name: "患者管理菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.monitoring", Name: "治疗监控菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.dialysis_processing", Name: "透析执行菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.schedule", Name: "排班管理菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.inventory", Name: "耗材管理菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.device_binding", Name: "设备管理菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.statistics", Name: "统计报表菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.master_data", Name: "主数据菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.treatment_config", Name: "治疗配置菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.dict_config", Name: "字典配置菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "menu.settings", Name: "系统设置菜单", Module: "menu", Action: "view", Status: "active"},
-		{Code: "task.alert.view", Name: "告警任务查看", Module: "task", Action: "view", Status: "active"},
-		{Code: "task.prescription.view", Name: "处方任务查看", Module: "task", Action: "view", Status: "active"},
-		{Code: "task.order.view", Name: "医嘱任务查看", Module: "task", Action: "view", Status: "active"},
-		{Code: "task.assessment.view", Name: "评估任务查看", Module: "task", Action: "view", Status: "active"},
-		{Code: "task.alert.handle", Name: "告警任务处理", Module: "task", Action: "handle", Status: "active"},
-		{Code: "task.prescription.handle", Name: "处方任务处理", Module: "task", Action: "handle", Status: "active"},
-		{Code: "task.order.handle", Name: "医嘱任务处理", Module: "task", Action: "handle", Status: "active"},
-		{Code: "task.assessment.handle", Name: "评估任务处理", Module: "task", Action: "handle", Status: "active"},
-	}
-
-	rolePermissions := map[string][]string{
-		models.RoleAdmin: {
-			"menu.dashboard", "menu.ward_overview", "menu.patients", "menu.monitoring", "menu.dialysis_processing",
-			"menu.schedule", "menu.inventory", "menu.device_binding", "menu.statistics", "menu.master_data",
-			"menu.treatment_config", "menu.dict_config", "menu.settings",
-			"task.alert.view", "task.prescription.view", "task.order.view", "task.assessment.view",
-			"task.alert.handle", "task.prescription.handle", "task.order.handle", "task.assessment.handle",
-		},
-		models.RoleDoctorChief: {
-			"menu.dashboard", "menu.ward_overview", "menu.patients", "menu.monitoring",
-			"menu.schedule", "menu.statistics", "menu.treatment_config", "menu.dict_config", "menu.settings",
-			"task.alert.view", "task.prescription.view",
-			"task.alert.handle", "task.prescription.handle",
-		},
-		models.RoleDoctorSupervisor: {
-			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
-			"task.alert.view", "task.prescription.view",
-			"task.alert.handle", "task.prescription.handle",
-		},
-		models.RoleDoctorDuty: {
-			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
-			"task.alert.view", "task.prescription.view", "task.assessment.view",
-			"task.alert.handle", "task.prescription.handle", "task.assessment.handle",
-		},
-		models.RoleNurseHead: {
-			"menu.dashboard", "menu.ward_overview", "menu.patients", "menu.dialysis_processing",
-			"menu.schedule", "menu.inventory", "menu.statistics", "menu.master_data",
-			"menu.treatment_config", "menu.dict_config", "menu.settings",
-			"task.alert.view", "task.order.view", "task.assessment.view",
-			"task.alert.handle", "task.order.handle", "task.assessment.handle",
-		},
-		models.RoleNurseScheduler: {
-			"menu.dashboard", "menu.monitoring", "menu.schedule", "menu.statistics", "menu.settings",
-			"task.alert.view",
-			"task.alert.handle",
-		},
-		models.RoleNurseManager: {
-			"menu.dashboard", "menu.inventory", "menu.statistics", "menu.settings",
-			"task.alert.view", "task.order.view",
-			"task.alert.handle", "task.order.handle",
-		},
-		models.RoleNurseResponsible: {
-			"menu.dashboard", "menu.patients", "menu.monitoring", "menu.dialysis_processing", "menu.statistics", "menu.settings",
-			"task.alert.view", "task.prescription.view", "task.order.view", "task.assessment.view",
-			"task.alert.handle", "task.prescription.handle", "task.order.handle", "task.assessment.handle",
-		},
-		models.RoleEngineer: {
-			"menu.dashboard", "menu.monitoring", "menu.device_binding", "menu.statistics", "menu.master_data", "menu.dict_config", "menu.settings",
-			"task.alert.view",
-			"task.alert.handle",
-		},
-	}
-
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		for _, p := range permissions {
-			code := strings.TrimSpace(p.Code)
-			if code == "" {
-				continue
-			}
-
-			var existing models.Permission
-			err := tx.Where("code = ?", code).First(&existing).Error
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if err := tx.Create(&p).Error; err != nil {
-					return err
-				}
-				continue
-			}
-			if err != nil {
-				return err
-			}
-
-			existing.Name = p.Name
-			existing.Module = p.Module
-			existing.Action = p.Action
-			existing.Status = p.Status
-			if err := tx.Save(&existing).Error; err != nil {
-				return err
-			}
-		}
-
-		for role, codes := range rolePermissions {
-			rows := make([]models.RolePermission, 0, len(codes))
-			for _, code := range codes {
-				var existing models.RolePermission
-				err := tx.Where("role = ? AND permission_code = ?", role, code).First(&existing).Error
-				if err == nil {
-					continue
-				}
-				if !errors.Is(err, gorm.ErrRecordNotFound) {
-					return err
-				}
-				rows = append(rows, models.RolePermission{
-					Role:           role,
-					PermissionCode: code,
-				})
-			}
-			if len(rows) > 0 {
-				if err := tx.Create(&rows).Error; err != nil {
-					return err
-				}
-			}
-		}
-
-		return nil
-	})
+	return nodes, nil
 }

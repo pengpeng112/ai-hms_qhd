@@ -520,7 +520,6 @@ export default function PreAssessment({
           <span className="text-xs text-slate-400">称重照片历史</span>
         </div>
         <div className="flex gap-3">
-          <button type="button" disabled className="rounded-lg border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-400">暂存草稿</button>
           <button type="button" onClick={() => void handleSave()} disabled={saving || treatmentLoading} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white disabled:opacity-60">
             {treatmentLoading ? '治疗加载中...' : saving ? '提交中...' : '提交透前评估'}
           </button>

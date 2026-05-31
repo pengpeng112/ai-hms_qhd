@@ -10,6 +10,7 @@ import type {
   TreatmentDuringParamRequest,
   TreatmentFirstCheckRequest,
   TreatmentSecondCheckRequest,
+  TreatmentDisinfectionRequest,
 } from '@/services/restClient'
 import PatientListSidebar from './components/PatientListSidebar'
 import PatientSummaryHeader from './components/PatientSummaryHeader'
@@ -259,6 +260,14 @@ export default function DialysisExecution() {
     message.success('二次核对已保存')
   }
 
+  const handleSaveDisinfection = async (payload: TreatmentDisinfectionRequest) => {
+    const treatment = await ensureTodayTreatment(1)
+    if (!treatment) return
+    await restApi.saveTreatmentDisinfection(treatment.id, payload)
+    await reloadTodayTreatment()
+    message.success('消毒登记已保存')
+  }
+
   const handleCreateDuringParam = async (payload: TreatmentDuringParamRequest) => {
     const treatment = await ensureTodayTreatment(1)
     if (!treatment) return
@@ -328,8 +337,8 @@ export default function DialysisExecution() {
             treatmentLoading={loadingTreatment}
             onSaveFirstCheck={handleSaveFirstCheck}
             onSaveSecondCheck={handleSaveSecondCheck}
-          />
-        )
+            onSaveDisinfection={handleSaveDisinfection}
+          />)
       case ExecutionTab.MEDICAL_ORDERS:
         return <MedicalOrders patient={selectedPatient} />
       case ExecutionTab.MID_MONITORING:
@@ -371,6 +380,7 @@ export default function DialysisExecution() {
             patient={selectedPatient}
             treatment={currentTreatment}
             treatmentLoading={loadingTreatment}
+            onTreatmentUpdated={(t) => setCurrentTreatment(t)}
           />
         )
       default:

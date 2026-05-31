@@ -124,11 +124,23 @@ func main() {
 			// 诊疗配置路由
 			v1api.RegisterTreatmentConfigRoutes(protected)
 
-			// 字典管理路由
-			v1api.RegisterDictRoutes(protected)
+		// 字典管理路由
+		v1api.RegisterDictRoutes(protected)
 
-			// 用户管理路由（角色选择）
-			v1api.RegisterUserRoutes(protected)
+		// 用户管理路由（角色选择）
+		v1api.RegisterUserRoutes(protected)
+
+		// 健康宣教路由
+		v1api.RegisterHealthEducationRoutes(protected)
+
+		// 角色管理路由
+		v1api.RegisterRoleManagementRoutes(protected)
+
+		// 病区管理路由
+		v1api.RegisterWardRoutes(protected)
+
+		// 床位管理路由
+		v1api.RegisterBedRoutes(protected)
 
 			// 设备管理路由
 			v1api.RegisterDeviceRoutes(protected)

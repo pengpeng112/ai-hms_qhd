@@ -396,6 +396,54 @@ func (h *TreatmentHandler) SaveSecondCheck(c *gin.Context) {
 	response.Success(c, item)
 }
 
+func (h *TreatmentHandler) SaveDisinfection(c *gin.Context) {
+	treatmentIDStr := c.Param("id")
+	treatmentID, err := strconv.ParseInt(treatmentIDStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid treatment id")
+		return
+	}
+	var req services.TreatmentDisinfectionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	item, err := h.service.SaveDisinfection(treatmentID, req, middleware.GetCreatorID(c))
+	if err != nil {
+		if err.Error() == "treatment not found" {
+			response.NotFound(c, "treatment not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, item)
+}
+
+func (h *TreatmentHandler) SaveSummary(c *gin.Context) {
+	treatmentIDStr := c.Param("id")
+	treatmentID, err := strconv.ParseInt(treatmentIDStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "invalid treatment id")
+		return
+	}
+	var req services.TreatmentSummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "invalid request parameters")
+		return
+	}
+	item, err := h.service.SaveSummary(treatmentID, req, middleware.GetCreatorID(c))
+	if err != nil {
+		if err.Error() == "treatment not found" {
+			response.NotFound(c, "treatment not found")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, item)
+}
+
 func RegisterTreatmentRoutes(r *gin.RouterGroup) {
 	handler := NewTreatmentHandler()
 
@@ -415,6 +463,8 @@ func RegisterTreatmentRoutes(r *gin.RouterGroup) {
 		treatments.PUT("/:id/post-assessment-submit", handler.SubmitPostAssessment)
 		treatments.PUT("/:id/first-check", handler.SaveFirstCheck)
 		treatments.PUT("/:id/second-check", handler.SaveSecondCheck)
+		treatments.PUT("/:id/disinfection", handler.SaveDisinfection)
+		treatments.PUT("/:id/summary", handler.SaveSummary)
 	}
 
 	r.GET("/patients/:id/treatment", handler.GetByPatientAndDate)

@@ -18,6 +18,7 @@ import {
     DictConfig,
     WardManagement,
     BedManagement,
+    ShiftConfig,
     UserManagement,
     RoleManagement,
     EducationManagement,
@@ -117,6 +118,10 @@ const router = createBrowserRouter([
             {
                 path: 'bed-management',
                 element: <BedManagement />,
+            },
+            {
+                path: 'shift-config',
+                element: <ShiftConfig />,
             },
             {
                 path: 'user-management',

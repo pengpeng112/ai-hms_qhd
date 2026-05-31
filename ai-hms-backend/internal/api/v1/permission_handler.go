@@ -3,7 +3,6 @@ package v1
 import (
 	"strings"
 
-	"github.com/elliotxin/ai-hms-backend/internal/models"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -27,9 +26,12 @@ func (h *PermissionHandler) ListPermissions(c *gin.Context) {
 }
 
 func (h *PermissionHandler) SavePermission(c *gin.Context) {
-	var req models.Permission
+	var req struct {
+		Code string `json:"code" binding:"required"`
+		Name string `json:"name" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "invalid request")
+		response.BadRequest(c, "code and name are required")
 		return
 	}
 	req.Code = strings.TrimSpace(req.Code)
@@ -38,7 +40,7 @@ func (h *PermissionHandler) SavePermission(c *gin.Context) {
 		response.BadRequest(c, "code and name are required")
 		return
 	}
-	item, err := h.service.SavePermission(req)
+	item, err := h.service.SavePermission(req.Code, req.Name)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return

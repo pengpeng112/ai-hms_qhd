@@ -686,7 +686,11 @@ func (s *DictService) CreateItem(item *models.DictItem) error {
 	}
 
 	item.ID = uuid.New().String()
-	return s.db.Create(item).Error
+	if err := s.db.Create(item).Error; err != nil {
+		return err
+	}
+	s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, !item.IsEnabled)
+	return nil
 }
 
 // UpdateItem 更新字典项（code 变更时级联更新后代 code/parent_code）
@@ -698,8 +702,20 @@ func (s *DictService) UpdateItem(id string, updates map[string]interface{}) erro
 	// 检查是否修改了 code 字段
 	newCode, codeChanged := updates["code"]
 	if !codeChanged {
-		// 无 code 变更，直接更新
-		return s.db.Model(&models.DictItem{}).Where("id = ?", id).Updates(updates).Error
+		if err := s.db.Model(&models.DictItem{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+			return err
+		}
+		var item models.DictItem
+		if err := s.db.Where("id = ?", id).First(&item).Error; err == nil {
+			isDisabled := true
+			if v, ok := updates["is_enabled"].(bool); ok {
+				isDisabled = !v
+			} else if v, ok := updates["IsEnabled"].(bool); ok {
+				isDisabled = !v
+			}
+			s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, isDisabled)
+		}
+		return nil
 	}
 
 	// code 被修改，需要级联更新子项
@@ -770,7 +786,7 @@ func (s *DictService) DeleteItem(id string) error {
 		return errors.New("字典项不存在")
 	}
 
-	return s.db.Transaction(func(tx *gorm.DB) error {
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
 		// 收集所有后代的 code
 		descendantCodes, err := collectDescendantCodes(tx, item.TypeCode, item.Code)
 		if err != nil {
@@ -788,6 +804,11 @@ func (s *DictService) DeleteItem(id string) error {
 		}
 		return nil
 	})
+	if txErr != nil {
+		return txErr
+	}
+	s.legacyDictDisable(item.TypeCode, item.Code)
+	return nil
 }
 
 // collectDescendantCodes 收集所有后代的 code（单次查询 + 内存 BFS）
@@ -886,7 +907,11 @@ func (s *DictService) ToggleItemEnabled(id string) error {
 		return err
 	}
 
-	return s.db.Model(&item).Update("is_enabled", !item.IsEnabled).Error
+	if err := s.db.Model(&item).Update("is_enabled", !item.IsEnabled).Error; err != nil {
+		return err
+	}
+	s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, !item.IsEnabled)
+	return nil
 }
 
 // ImportData 导入字典数据
@@ -1695,4 +1720,43 @@ func getClinicalDictItems() []models.DictItem {
 		// 9. 其他过敏（独立项）
 		{TypeCode: models.DictTypeAllergen, Code: "9", Name: "其他过敏", SortOrder: 4},
 	}
+}
+
+// ─── 老库字典写操作（CodeDictionary_CodeDictionarys） ───
+
+func (s *DictService) legacyDictUpsert(typeCode, code, name string, sortOrder int, isDisabled bool) error {
+	if s.db == nil || typeCode == "" || code == "" {
+		return nil
+	}
+	var count int64
+	s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Where(`"Type" = ? AND "Code" = ?`, typeCode, code).
+		Count(&count)
+	if count > 0 {
+		return s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+			Where(`"Type" = ? AND "Code" = ?`, typeCode, code).
+			Updates(map[string]interface{}{
+				"Name":       name,
+				"Sort":       sortOrder,
+				"IsDisabled": isDisabled,
+			}).Error
+	}
+	return s.db.Table(`"CodeDictionary_CodeDictionarys"`).Create(map[string]interface{}{
+		"Type":       typeCode,
+		"Code":       code,
+		"Name":       name,
+		"Sort":       sortOrder,
+		"IsDisabled": isDisabled,
+		"OrganId":    0,
+		"Builtin":    false,
+	}).Error
+}
+
+func (s *DictService) legacyDictDisable(typeCode, code string) error {
+	if s.db == nil || typeCode == "" || code == "" {
+		return nil
+	}
+	return s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Where(`"Type" = ? AND "Code" = ?`, typeCode, code).
+		Update("IsDisabled", true).Error
 }
