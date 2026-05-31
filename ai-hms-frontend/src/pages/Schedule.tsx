@@ -32,7 +32,17 @@ const WEEKDAYS = ['周日','周一','周二','周三','周四','周五','周六'
 const freq = (p: Pick<RestSchedulePendingPatient,'oddWeekFrequency'|'evenWeekFrequency'>) =>
   p.oddWeekFrequency === p.evenWeekFrequency ? `每周${p.oddWeekFrequency||'--'}次` : `单${p.oddWeekFrequency||0}/双${p.evenWeekFrequency||0}`
 
-// 透析模式色块
+// 透析模式色块（用作左侧色条）
+const MODE_BORDER: Record<string, string> = {
+  'HD': 'border-l-blue-600',
+  'HDF': 'border-l-violet-600',
+  'HF': 'border-l-emerald-600',
+  'HP': 'border-l-orange-500',
+  'PE': 'border-l-rose-600',
+}
+function modeBorder(mode?: string) { return MODE_BORDER[mode || ''] || 'border-l-slate-400' }
+
+// 模式徽章背景（队列和弹窗用）
 const MODE_BG: Record<string, string> = {
   'HD': 'bg-blue-600',
   'HDF': 'bg-violet-600',
@@ -320,7 +330,10 @@ export default function Schedule() {
             <button onClick={()=>setViewMode('day')} className={`flex items-center gap-1 rounded px-2.5 py-1 text-meta font-black transition ${viewMode==='day'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><List size={12}/>日</button>
           </div>
           <button onClick={()=>void loadWeek()} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-meta font-black text-slate-600 hover:bg-slate-50"><RefreshCw size={12}/>刷新</button>
-          <button onClick={()=>setApplyTemplateOpen(true)} className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-2.5 py-1 text-meta font-black text-white hover:bg-blue-700"><ClipboardList size={12}/>应用模板</button>
+          <div className="text-meta text-foreground-muted">
+            本周完成度：<span className="font-semibold text-foreground">--</span>
+          </div>
+          <button onClick={()=>setApplyTemplateOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-meta font-black text-slate-600 hover:bg-slate-50"><ClipboardList size={12}/>应用模板</button>
           <button onClick={()=>setQueueVisible(v=>!v)} className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-meta font-black transition ${queueVisible?'border-blue-300 bg-blue-50 text-blue-600':'border-slate-200 text-slate-500 hover:bg-slate-50'}`} title={queueVisible?'隐藏待排班':'显示待排班'}>
             {queueVisible ? <PanelRightClose size={13}/> : <PanelRightOpen size={13}/>}
           </button>
@@ -455,7 +468,7 @@ export default function Schedule() {
                               <td
                                 key={cellKey}
                                 className={`border-b p-0.5 align-middle ${borderClass} ${cellBase} ${isDragOver ? 'bg-blue-100/60' : ''}`}
-                                style={{minWidth:88, height:36}}
+                                style={{minWidth:88, height:48}}
                                 onDragOver={(e)=>onDragOver(e, cellKey)}
                                 onDragLeave={onDragLeave}
                               >
@@ -466,12 +479,12 @@ export default function Schedule() {
                                     onDragEnd={onDragEnd}
                                     onDrop={(e)=>void onDropOnOccupied(e, item, loadWeek)}
                                     onContextMenu={(e)=>openActionMenu(e, item)}
-                                    className={`group relative flex items-center justify-center rounded ${modeBg(item.dialysisMode)} text-white px-1 py-0.5 ${isDateLocked(dt) ? 'opacity-70 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'} h-full hover:opacity-90 hover:shadow-md transition-all ${isDragging ? 'opacity-40 ring-2 ring-blue-400' : ''}`}
+                                    className={`group relative flex items-center justify-center rounded bg-surface border-l-4 ${modeBorder(item.dialysisMode)} text-foreground px-1 py-0.5 ${isDateLocked(dt) ? 'opacity-70 cursor-not-allowed' : 'cursor-grab active:cursor-grabbing'} h-full hover:bg-surface-sunken hover:shadow-md transition-all ${isDragging ? 'opacity-40 ring-2 ring-blue-400' : ''}`}
                                     title={`${item.patientName} · ${item.dialysisMode||''} · ${item.statusName||''}${isDateLocked(dt) ? ' · 历史锁定' : ''}`}
                                   >
                                     <div className="text-center leading-tight w-full select-none">
-                                      <div className="truncate text-meta font-black">{item.patientName}</div>
-                                      <div className="text-[8px] opacity-80">{item.dialysisMode||''}</div>
+                                      <div className="truncate text-body font-medium">{item.patientName}</div>
+                                      <div className="text-meta text-foreground-muted">{item.dialysisMode||''}</div>
                                     </div>
                                     {item.sourceType === 'template' && !item.isManualAdjusted && (
                                       <span className="absolute -top-1 -right-1 text-[7px] bg-white/90 text-slate-500 rounded px-0.5 font-bold">模板</span>
@@ -550,7 +563,7 @@ export default function Schedule() {
                     'relative overflow-hidden rounded border px-1 py-0.5 cursor-pointer transition-all',
                     selectedQueuePatient === p.id
                       ? 'border-green-500 bg-green-50 shadow-sm'
-                      : 'border-slate-200 bg-white hover:border-blue-400',
+                      : 'border-slate-200 bg-white hover:bg-surface-sunken',
                   ].join(' ')}
                   onClick={() => {
                     if (selectedQueuePatient === p.id) {
