@@ -810,15 +810,15 @@ export default function Monitoring() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'warning':
-        return 'border-orange-400 bg-orange-50/30'
+        return 'border-state-waiting bg-state-waiting-bg/30'
       case 'alarm':
-        return 'border-red-500 bg-red-50'
+        return 'border-state-alert bg-state-alert-bg'
       case 'offline':
-        return 'border-gray-200 bg-gray-50 opacity-60'
+        return 'border-gray-200 bg-state-offline-bg opacity-60'
       case 'unknown':
         return 'border-slate-200 bg-slate-50'
       default:
-        return 'border-green-400 bg-white'
+        return 'border-state-finished bg-white'
     }
   }
 

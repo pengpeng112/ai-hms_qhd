@@ -2,7 +2,7 @@ import { memo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '@/types/original'
 import {
-  Monitor, Wifi, Clock, ClipboardList, FileEdit, Droplet, AlertOctagon,
+  Monitor, Wifi, Clock, ClipboardList, FileEdit, Droplet, AlertOctagon, AlertTriangle,
 } from 'lucide-react'
 import { AreaChart, Area, Line } from 'recharts'
 import { cachedGraphData, formatPositive, formatBloodPressure } from './types'
@@ -80,8 +80,8 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
       {/* 错误提示 */}
       {!loading && loadError && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-red-50 rounded-lg flex items-center justify-center mb-4">
-            <AlertOctagon size={32} className="text-red-400" />
+          <div className="w-16 h-16 bg-state-alert-bg rounded-lg flex items-center justify-center mb-4">
+            <AlertOctagon size={32} className="text-state-alert" />
           </div>
           <p className="text-base font-bold text-gray-700 mb-1">{loadError}</p>
           <button onClick={onReload} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
@@ -117,8 +117,8 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
               <div className="flex justify-between items-start mb-2 gap-1">
                 <div className="flex items-center min-w-0 flex-1">
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm mr-2 shadow-sm shrink-0 ${
-                    device.status === 'alarm' ? 'bg-red-600 text-white'
-                    : device.status === 'warning' ? 'bg-orange-500 text-white'
+                    device.status === 'alarm' ? 'bg-state-alert text-white'
+                    : device.status === 'warning' ? 'bg-state-waiting text-white'
                     : 'bg-slate-800 text-white'
                   }`}>
                     {device.bedNumber}
@@ -167,7 +167,7 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
                   <div className="flex flex-col">
                     <span className="text-[9px] font-bold text-gray-400 uppercase">{t('card.bp')}</span>
                     <div className="flex items-baseline">
-                      <span className={`text-base font-bold font-mono leading-none ${device.status === 'alarm' ? 'text-red-600' : 'text-gray-900'}`}>
+                        <span className={`text-base font-bold font-mono leading-none ${device.status === 'alarm' ? 'text-state-alert' : 'text-gray-900'}`}>
                         {formatBloodPressure(device)}
                       </span>
                       <span className="text-[9px] text-gray-400 ml-0.5 font-bold">mmHg</span>
@@ -193,12 +193,12 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
                   <span className="text-blue-700">{ufPercent}%</span>
                 </div>
                 <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden mb-2 relative shadow-inner">
-                  <div className={`h-full rounded-full ${device.status === 'alarm' ? 'bg-red-500' : 'bg-blue-600'}`} style={{ width: `${Math.min(100, ufPercent)}%` }}></div>
+                  <div className={`h-full rounded-full ${device.status === 'alarm' ? 'bg-state-alert' : 'bg-state-treating'}`} style={{ width: `${Math.min(100, ufPercent)}%` }}></div>
                 </div>
               </div>
               {device.status === 'alarm' && (
-                <div className="absolute bottom-1 right-1 text-red-600 flex items-center bg-red-100 p-0.5 rounded-full">
-                  <AlertOctagon size={14} className="animate-bounce" />
+                <div className="absolute bottom-1 right-1 text-state-alert flex items-center bg-state-alert-bg p-0.5 rounded-full">
+                    <AlertTriangle size={14} />
                 </div>
               )}
             </div>
