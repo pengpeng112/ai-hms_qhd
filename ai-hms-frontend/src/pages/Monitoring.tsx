@@ -558,8 +558,10 @@ export const OrderListModal = ({
 
   useEffect(() => {
     if (!device.patientId) {
-      setLongOrders([])
-      setTempOrders([])
+      queueMicrotask(() => {
+        setLongOrders([])
+        setTempOrders([])
+      })
       return
     }
 
@@ -580,7 +582,7 @@ export const OrderListModal = ({
             : 'PENDING',
       }))
 
-    setOrdersLoading(true)
+    queueMicrotask(() => setOrdersLoading(true))
     Promise.all([
       restApi.getPatientOrders(String(device.patientId), { type: 'LONG' }).catch(() => null),
       restApi.getPatientOrders(String(device.patientId), { type: 'TEMP' }).catch(() => null),

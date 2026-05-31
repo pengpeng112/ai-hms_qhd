@@ -69,6 +69,12 @@ export interface TreatmentPlan {
   duration: number
   dryWeight: number
   extraWeight: number
+  salineQuantity: number
+  sealType: string
+  sealQuantity: number
+  arterialQuantity: number
+  venousQuantity: number
+  vascularAccessId?: string
   status: string
   doctorId?: string
   startDate?: string
@@ -89,6 +95,12 @@ interface CreateTreatmentPlanRequest {
   duration?: number
   dryWeight?: number
   extraWeight?: number
+  salineQuantity?: number
+  sealType?: string
+  sealQuantity?: number
+  arterialQuantity?: number
+  venousQuantity?: number
+  vascularAccessId?: string
   status?: string
   notes?: string
   dialysisMode: DialysisMode
@@ -104,6 +116,12 @@ interface UpdateTreatmentPlanRequest {
   duration?: number
   dryWeight?: number
   extraWeight?: number
+  salineQuantity?: number
+  sealType?: string
+  sealQuantity?: number
+  arterialQuantity?: number
+  venousQuantity?: number
+  vascularAccessId?: string
   status?: string
   notes?: string
   dialysisMode?: DialysisMode
@@ -125,6 +143,8 @@ export interface AdjustmentRecord {
 interface CreateAdjustmentRecordRequest {
   content: string
   operator?: string
+  patientPlanPrescriptionId?: number
+  type?: number
 }
 
 // ===== 辅助函数 =====
@@ -209,15 +229,20 @@ export const patientApi = {
     return put<TreatmentPlan>(`/api/v1/patients/${patientId}/treatment-plan`, data)
   },
 
+  syncTreatmentPlanToPrescriptions: async (patientId: string, dialysisMode: string): Promise<{ updatedCount: number }> => {
+    return post<{ updatedCount: number }>(`/api/v1/patients/${patientId}/treatment-plan/sync-prescriptions`, { dialysisMode })
+  },
+
   // 删除患者治疗方案
   deleteTreatmentPlan: async (patientId: string): Promise<void> => {
     return del(`/api/v1/patients/${patientId}/treatment-plan`)
   },
 
   // 获取方案调整记录列表
-  getAdjustmentRecords: async (patientId: string): Promise<AdjustmentRecord[]> => {
+  getAdjustmentRecords: async (patientId: string, patientPlanPrescriptionId?: string): Promise<AdjustmentRecord[]> => {
     try {
-      return await get<AdjustmentRecord[]>(`/api/v1/patients/${patientId}/adjustment-records`)
+      const query = patientPlanPrescriptionId ? `?patientPlanPrescriptionId=${patientPlanPrescriptionId}` : ''
+      return await get<AdjustmentRecord[]>(`/api/v1/patients/${patientId}/adjustment-records${query}`)
     } catch (error) {
       if (error && typeof error === 'object' && 'response' in error) {
         const err = error as { response?: { status?: number } }

@@ -1,7 +1,9 @@
 // AI-HMS 全局类型定义
+// 老库/HDIS PascalCase row 类型
+// Patient → LegacyPatientRow，避免与 original.ts 中的 UI Patient 冲突
 
 // 患者信息
-export interface Patient {
+export interface LegacyPatientRow {
     Id: number
     TenantId: number
     Name: string
@@ -51,7 +53,7 @@ export interface DialysisParam {
 }
 
 // 排班信息
-export interface PatientShift {
+export interface LegacyPatientShiftRow {
     Id: number
     PatientId: number
     TreatmentTime: string

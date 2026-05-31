@@ -23,6 +23,7 @@ export interface DictType {
   code: string
   name: string
   description: string
+  source: string
   icon?: string  // 图标（emoji）
   sortOrder: number
   isEnabled: boolean
@@ -37,6 +38,7 @@ export interface DictItem {
   code: string
   name: string
   description: string
+  source: string
   sortOrder: number
   isEnabled: boolean
   extra?: string
@@ -189,6 +191,7 @@ export const DICT_TYPES = {
   DIALYSATE_TYPE: 'DIALYSATE_TYPE',     // 透析液类型
   DIALYSATE_GROUP: 'DIALYSATE_GROUP',   // 透析液组
   DIALYSATE_FLOW: 'DIALYSATE_FLOW',     // 透析液流量
+  DIALYZER_AREA: 'DIALYZER_AREA',       // 透析器面积
   GLUCOSE: 'GLUCOSE',                   // 葡萄糖类型
   MATERIAL_CATEGORY: 'MATERIAL_CATEGORY', // 材料分类
   DRUG_CATEGORY: 'DRUG_CATEGORY',       // 药品分类
@@ -207,7 +210,9 @@ export const DICT_TYPES = {
   BLOOD_TYPE_RH: 'BLOOD_TYPE_RH',       // Rh血型
   EDUCATION_LEVEL: 'EDUCATION_LEVEL',   // 文化程度
   MARITAL_STATUS: 'MARITAL_STATUS',     // 婚姻状况
+  RELATIONSHIP_OPTIONS: 'RelationshipOptions', // 患者关系
   DOCTOR: 'DOCTOR',                     // 医生列表
+  NURSE: 'NURSE',                       // 护士列表
   HOSPITAL: 'HOSPITAL',                 // 手术医院
   SURGERY_TYPE: 'SURGERY_TYPE',         // 手术类型（血管通路干预）
   // 临床诊疗分类
@@ -217,6 +222,8 @@ export const DICT_TYPES = {
   TUMOR: 'TUMOR',                       // 肿瘤分类
   ALLERGEN: 'ALLERGEN',                 // 过敏原类型
   OUTCOME: 'OUTCOME',                   // 患者转归（一级：在科/转出，二级：具体原因）
+  HEALTH_EDUCATION_TYPE: 'HealthEducationType', // 宣教内容类型
+  HEALTH_CLASSIFY: 'HealthClassify',     // 宣教内容分类
   // 医嘱用药扩展
   ORDER_ROUTE: 'ORDER_ROUTE',             // 医嘱用法
   ORDER_FREQUENCY: 'ORDER_FREQUENCY',     // 医嘱频次

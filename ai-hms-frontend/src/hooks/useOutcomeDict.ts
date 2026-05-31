@@ -17,7 +17,7 @@ export function useOutcomeDict() {
     setLoading(true)
     try {
       const allItems = await dictCache.getItems(DICT_TYPES.OUTCOME)
-      // 一级分类：parentCode 为空 → 转归类型（在科/转出）
+      // 一级分类：parentCode 为空 → 转归类型（转入/转出）
       const typeItems = allItems.filter(item => !item.parentCode)
       // 二级分类：parentCode 非空 → 转归原因（具体原因）
       const reasonItems = allItems.filter(item => !!item.parentCode)
@@ -66,7 +66,11 @@ export function useOutcomeDict() {
 
   // 获取转归类型选项（用于 Select）
   const typeOptions = useMemo(() => {
-    return types.map(t => ({ value: t.code, label: t.name }))
+    const options = types.map(t => ({ value: t.code, label: t.name }))
+    return options.length > 0 ? options : [
+      { value: '10', label: '转入' },
+      { value: '20', label: '转出' },
+    ]
   }, [types])
 
   // 获取转归原因选项（用于 Select，按类型过滤）

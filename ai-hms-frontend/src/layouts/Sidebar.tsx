@@ -101,7 +101,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
 
   useEffect(() => {
     if (!role) {
-      setAllowedMenuKeys([])
+      queueMicrotask(() => setAllowedMenuKeys([]))
       return
     }
 

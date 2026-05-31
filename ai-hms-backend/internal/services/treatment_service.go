@@ -1349,6 +1349,8 @@ type TreatmentUpdateRequest struct {
 	ShiftId       *int64     `json:"shiftId"`
 	ShiftTiming   *int       `json:"shiftTiming"`
 	Status        *int       `json:"status"`
+	StartTime     *time.Time `json:"startTime"`
+	EndTime       *time.Time `json:"endTime"`
 	IsDisabled    *bool      `json:"isDisabled"`
 	Notes         *string    `json:"notes"`
 }
@@ -1394,6 +1396,12 @@ func (s *TreatmentService) Update(id int64, req TreatmentUpdateRequest) (*Treatm
 			updates["EndTime"] = time.Now()
 		}
 	}
+	if req.StartTime != nil {
+		updates["StartTime"] = *req.StartTime
+	}
+	if req.EndTime != nil {
+		updates["EndTime"] = *req.EndTime
+	}
 	if req.Notes != nil {
 		updates["NurseSummary"] = *req.Notes
 		updates["TreatmentSummary"] = *req.Notes
@@ -1434,10 +1442,7 @@ func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 		"LastModifyTime": time.Now(),
 	}
 	if status == models.TreatmentStatusInProgress {
-		updates["StartTime"] = time.Now()
-	}
-	if status == models.TreatmentStatusCompleted {
-		updates["EndTime"] = time.Now()
+		updates["StartTime"] = gorm.Expr(`COALESCE("StartTime", ?)`, time.Now())
 	}
 	result := s.db.Table(`"Treatment_Treatment"`).
 		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
@@ -2585,4 +2590,3 @@ func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req Treatment
 
 	return s.Get(treatmentID)
 }
-

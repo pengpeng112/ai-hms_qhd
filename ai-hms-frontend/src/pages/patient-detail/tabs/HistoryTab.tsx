@@ -31,12 +31,14 @@ export default function HistoryTab({ patient }: HistoryTabProps) {
   useEffect(() => {
     const patientId = patient?.id
     if (!patientId) {
-      setHistoryList([])
-      setLoading(false)
+      queueMicrotask(() => {
+        setHistoryList([])
+        setLoading(false)
+      })
       return
     }
 
-    setLoading(true)
+    queueMicrotask(() => setLoading(true))
     restApi
       .getTreatments({ patientId, pageSize: 25 })
       .then((res) => {

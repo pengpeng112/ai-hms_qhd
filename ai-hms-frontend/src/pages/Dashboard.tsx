@@ -72,14 +72,14 @@ export default function Dashboard() {
           const s = parsed.find(c => c.id === def.id)
           return s ? { ...def, ...s } : { ...def, visible: defaultKeys.includes(def.id), colSpan: def.size === 'large' ? 6 : 3, rowSpan: def.size === 'large' ? 6 : 5 }
         })
-        setCardsConfig(merged); return
+        queueMicrotask(() => setCardsConfig(merged)); return
       } catch { /* fall through */ }
     }
 
-    setCardsConfig(V2_CARD_REGISTRY.map(def => ({
+    queueMicrotask(() => setCardsConfig(V2_CARD_REGISTRY.map(def => ({
       ...def, visible: defaultKeys.includes(def.id),
       colSpan: def.size === 'large' ? 6 : 3, rowSpan: def.size === 'large' ? 6 : 5,
-    })))
+    }))))
   }, [role])
 
   // 保存配置

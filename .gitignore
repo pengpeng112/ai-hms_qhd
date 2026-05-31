@@ -34,5 +34,6 @@ CLAUDE.md
 # Temp / scratch files
 *.tmp
 *.temp
--
-状态说明：
+
+# Captured browser/network traces may contain tokens or patient data
+*.har

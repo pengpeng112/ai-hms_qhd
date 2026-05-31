@@ -1,46 +1,47 @@
 /**
- * 鏈嶅姟灞傜粺涓€瀵煎嚭
+ * 服务层统一导出
  *
- * 鎸夋ā鍧楃粍缁囷細
- * - api: 鍩虹 GraphQL 瀹㈡埛绔? * - patient: 鎮ｈ€呯浉鍏虫湇鍔? * - schedule: 鎺掔彮鐩稿叧鏈嶅姟
- * - treatment: 娌荤枟鐩稿叧鏈嶅姟
- * - order: 鍖诲槺鐩稿叧鏈嶅姟
- * - vitals: 浣撳緛鐩戞祴鏈嶅姟
- * - examination: 妫€楠屾鏌ユ湇鍔? * - equipment: 璁惧绠＄悊鏈嶅姟
+ * 按模块组织：
+ * - api: 基础 GraphQL 客户端（HDIS 兼容层）
+ * - schedule/treatment/order/vitals/examination/equipment: HDIS GraphQL 服务
+ * - restClient: 历史兼容 REST 客户端（禁止新增业务方法）
+ * - *Api.ts: 新增 REST 接口优先在此实现
  */
 
-// ============ 绫诲瀷瀵煎嚭 ============
+// ============ 类型导出 ============
 export type {
-  // 閫氱敤绫诲瀷
+  // 通用类型
   PaginatedItem,
   PaginatedResponse,
   QueryParams,
   EntityName,
-  // 鎮ｈ€呯浉鍏?  Hospitalization,
+  // 患者相关
+  Hospitalization,
   Infection,
   VascularAccess,
   CaseHistory,
-  // 鎺掔彮鐩稿叧
+  // 排班相关
   Shift,
   PatientShift,
   Bed,
   Ward,
-  // 娌荤枟鐩稿叧
+  // 治疗相关
   Treatment,
   PatientPrescription,
   PatientPlan,
-  // 鍖诲槺鐩稿叧
+  // 医嘱相关
   OrderTPL,
   OrderTemplate,
   PatientOrder,
   PatientDayOrder,
-  // 浣撳緛鐩稿叧
+  // 体征相关
   BeforeSigns,
   DuringSigns,
   AfterSigns,
-  // 妫€楠岀浉鍏?  Examination,
+  // 检验相关
+  Examination,
   ExaminationItem,
-  // 璁惧鐩稿叧
+  // 设备相关
   EquipmentInfo,
   EquipmentDisinfection,
   EquipmentMaintenanceRecord,
@@ -49,7 +50,7 @@ export type {
   MachineRunRecord,
 } from './types/api'
 
-// ============ API 鍩虹鍑芥暟 ============
+// ============ API 基础函数 ============
 export {
   graphqlQuery,
   isApiConfigured,
@@ -63,14 +64,34 @@ export {
   formatDateForApi,
 } from './api'
 
-// ============ REST API 瀹㈡埛绔?============
+// ============ REST API 客户端 ============
+// REST API 客户端（历史兼容 facade，新代码请使用独立 *Api.ts 文件）
 export { restApi, convertRestPatientToUI, convertRestPatientList, getErrorMessage } from './restClient'
-export type { RestPatient, RestShift, RestPatientShift, RestTreatment, PaginationMeta } from './restClient'
+export type {
+  HealthEducationContentApi,
+  PatientHealthEducationApi,
+  RestPatient,
+  RestShift,
+  RestPatientShift,
+  RestScheduleWard,
+  RestScheduleBed,
+  RestScheduleWeekShift,
+  RestSchedulePendingPatient,
+  RestScheduleWeekResponse,
+  RestTreatment,
+  PaginationMeta,
+} from './restClient'
 export type { PaginatedResponse as RestPaginatedResponse } from './restClient'
 
-// ============ 涓存椂 Mock 杈呭姪鍑芥暟 ============
+// ============ 独立 REST API 模块 ============
+export { userApi } from './userApi'
+export type { RestUser, CreateUserRequest, UpdateUserRequest, UserListParams } from './userApi'
+export { roleManagementApi } from './roleManagementApi'
+export type { AppRoleApi, PermissionNodeApi } from './roleManagementApi'
 
-// ============ 鎺掔彮鏈嶅姟 ============
+// ============ 临时 Mock 辅助函数 ============
+
+// ============ 排班服务 ============
 export {
   getShiftList,
   getActiveShifts,
@@ -87,7 +108,7 @@ export {
   getTodayScheduleOverview,
 } from './schedule'
 
-// ============ 娌荤枟鏈嶅姟 ============
+// ============ 治疗服务 ============
 export {
   getTreatmentList,
   getTodayTreatments,
@@ -102,7 +123,7 @@ export {
   getTodayTreatmentStats,
 } from './treatment'
 
-// ============ 鍖诲槺鏈嶅姟 ============
+// ============ 医嘱服务 ============
 export {
   getOrderTemplates,
   getOrderTemplatesByGroup,
@@ -118,7 +139,7 @@ export {
   getPatientOrderOverview,
 } from './order'
 
-// ============ 浣撳緛鏈嶅姟 ============
+// ============ 体征服务 ============
 export {
   getPatientBeforeSigns,
   getBeforeSignsByTreatment,
@@ -133,7 +154,7 @@ export {
 } from './vitals'
 export type { TreatmentVitals, VitalTrendPoint, BPStats } from './vitals'
 
-// ============ 妫€楠屾湇鍔?============
+// ============ 检验服务 ============
 export {
   getExaminationList,
   getPatientExaminations,
@@ -148,7 +169,7 @@ export {
 } from './examination'
 export type { AbnormalItem, ExamItemTrend } from './examination'
 
-// ============ 璁惧鏈嶅姟 ============
+// ============ 设备服务 ============
 export {
   getEquipmentList,
   getAllEquipments,
@@ -163,7 +184,7 @@ export {
 } from './equipment'
 export type { EquipmentStats, EquipmentOverview, DashboardEquipmentData } from './equipment'
 
-// ============ 瑙掕壊鏈嶅姟 ============
+// ============ 角色服务 ============
 export {
   getRoleUsers,
   getRoleUsersByGroup,

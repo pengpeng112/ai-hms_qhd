@@ -85,7 +85,7 @@ export default function MainLayout() {
     }
 
     useEffect(() => {
-        setTaskLoading(true)
+        queueMicrotask(() => setTaskLoading(true))
         restApi.getClinicalTasks({ status: 'pending' })
             .then(res => setTasks(res.data.items))
             .catch(() => setTasks([]))
@@ -94,7 +94,7 @@ export default function MainLayout() {
 
     useEffect(() => {
         if (!roleUser?.role) {
-            setPermissionCodes([])
+            queueMicrotask(() => setPermissionCodes([]))
             return
         }
         getRolePermissionCodes(roleUser.role)

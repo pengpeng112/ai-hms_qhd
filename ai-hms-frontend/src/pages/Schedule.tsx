@@ -14,6 +14,7 @@ import {
   type RestScheduleWeekResponse,
   type RestScheduleWeekShift,
   type RestShift,
+  type RestPatientShift,
 } from '@/services'
 import ApplyTemplateModal from '@/components/schedule/ApplyTemplateModal'
 import { useScheduleModals } from '@/hooks/useScheduleModals'
@@ -57,7 +58,10 @@ function isValidWard(w: RestScheduleWard) {
   const n = (w.name || '').trim()
   if (!n || n.length < 2) return false
   if (n.includes('?') || n.includes('�')) return false
-  if (/^[\x00-\x1f\x7f]+$/.test(n)) return false
+  if ([...n].every(ch => {
+    const code = ch.charCodeAt(0)
+    return code <= 31 || code === 127
+  })) return false
   if (/SMOKE_TEST/i.test(n)) return false
   return true
 }
@@ -134,9 +138,9 @@ export default function Schedule() {
     const wid = Number(b.wardId)
     return wid > 0 && validWardIds.has(wid)
   }), [data, validWardIds])
-  const shifts = data?.shifts || []
-  const pShifts = data?.patientShifts || []
-  const pending = data?.pendingPatients || []
+  const shifts = useMemo(() => data?.shifts || [], [data])
+  const pShifts = useMemo(() => data?.patientShifts || [], [data])
+  const pending = useMemo(() => data?.pendingPatients || [], [data])
 
   const schedMap = useMemo(() => {
     const m = new Map<string, RestScheduleWeekShift>()
@@ -245,7 +249,7 @@ export default function Schedule() {
     e.stopPropagation()
     setActionMenu({ visible:true, x:e.clientX, y:e.clientY, item })
   }
-  const closeActionMenu = () => setActionMenu({visible:false, x:0, y:0, item:null})
+  const closeActionMenu = useCallback(() => setActionMenu({visible:false, x:0, y:0, item:null}), [setActionMenu])
 
   // 点击外部关闭菜单
   useEffect(() => {
@@ -255,7 +259,7 @@ export default function Schedule() {
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
-  }, [actionMenu.visible])
+  }, [actionMenu.visible, closeActionMenu])
 
   // ─── 换床 ───
   const openMoveModal = (item: RestScheduleWeekShift) => {
@@ -778,9 +782,9 @@ export default function Schedule() {
                   locale={{emptyText:'暂无排班记录'}}
                   columns={[
                     {title:'日期', dataIndex:'scheduleDate', width:100, render:(v:string)=><span className="text-meta font-bold">{v?.split('T')[0]}</span>},
-                    {title:'班次', dataIndex:['shift','name'], width:60, render:(_:any,__:any,record:any)=><span className="text-meta">{record.shift?.name||'--'}</span>},
-                    {title:'床位', dataIndex:['bed','name'], width:60, render:(_:any,__:any,record:any)=><span className="text-meta font-black">{record.bed?.name||'--'}</span>},
-                    {title:'病区', dataIndex:['ward','name'], width:80, render:(_:any,__:any,record:any)=><span className="text-meta">{record.ward?.name||'--'}</span>},
+                    {title:'班次', dataIndex:['shift','name'], width:60, render:(_: unknown, record: RestPatientShift)=><span className="text-meta">{record.shift?.name||'--'}</span>},
+                    {title:'床位', dataIndex:['bed','name'], width:60, render:(_: unknown, record: RestPatientShift)=><span className="text-meta font-black">{record.bed?.name||'--'}</span>},
+                    {title:'病区', dataIndex:['ward','name'], width:80, render:(_: unknown, record: RestPatientShift)=><span className="text-meta">{record.ward?.name||'--'}</span>},
                     {title:'状态', dataIndex:'status', width:70, render:(v:number)=>{
                       const m:Record<number,{c:string;t:string}>={10:{c:'default',t:'待确认'},20:{c:'processing',t:'已确认'},30:{c:'success',t:'已完成'},50:{c:'error',t:'已取消'},60:{c:'warning',t:'转出'}}
                       const s=m[v]||{c:'default',t:`${v}`}

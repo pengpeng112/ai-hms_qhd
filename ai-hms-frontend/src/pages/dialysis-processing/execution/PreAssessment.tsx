@@ -126,8 +126,10 @@ export default function PreAssessment({
   const [newSymptom, setNewSymptom] = useState('')
 
   useEffect(() => {
-    setForm(mapTreatmentToForm(treatment))
-    setNewSymptom('')
+    queueMicrotask(() => {
+      setForm(mapTreatmentToForm(treatment))
+      setNewSymptom('')
+    })
   }, [treatment])
 
   const weightGain = useMemo(() => {

@@ -1,3 +1,5 @@
+// 前端 UI 聚合模型（camelCase），用于患者详情、列表、工作台等页面
+
 // 角色定义 - 与原版 UI v1.3 保持一致
 export const UserRole = {
   // 医生组
@@ -236,7 +238,7 @@ export interface MonitorDevice {
   bedNumber: string;
   patientName: string;
   patientId?: string;
-  status: 'normal' | 'warning' | 'alarm' | 'offline';
+  status: 'normal' | 'warning' | 'alarm' | 'offline' | 'unknown';
   mode: string;
   timeRemaining: string;
   vitals: {

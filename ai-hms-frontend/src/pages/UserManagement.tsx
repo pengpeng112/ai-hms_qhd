@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { message, Table, Button, Space, Input } from 'antd'
 import { RefreshCw, Search } from 'lucide-react'
 import { getErrorMessage } from '@/services/restClient'
@@ -9,7 +9,7 @@ export default function UserManagement() {
   const [users, setUsers] = useState<RestUser[]>([])
   const [keyword, setKeyword] = useState('')
 
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true)
     try {
       const res = await userApi.getList({ keyword: keyword || undefined })
@@ -19,9 +19,9 @@ export default function UserManagement() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [keyword])
 
-  useEffect(() => { void loadUsers() }, [])
+  useEffect(() => { void loadUsers() }, [loadUsers])
 
   const columns = [
     { title: '用户名', dataIndex: 'username', key: 'username' },

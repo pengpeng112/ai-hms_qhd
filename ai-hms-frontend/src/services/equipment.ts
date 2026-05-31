@@ -24,6 +24,7 @@ interface DeviceApiItem {
   wardId?: number | null
   wardName?: string
   status?: string
+  lastDisinfectionTime?: string
   installDate?: string
   manufactureDate?: string
   lastMaintained?: string
@@ -124,6 +125,7 @@ const toEquipmentInfo = (item: DeviceApiItem): EquipmentInfo => ({
   WardId: item.wardId ?? null,
   WardName: item.wardName || '',
   Status: item.status || 'normal',
+  LastDisinfectionTime: item.lastDisinfectionTime,
   InstallDate: item.installDate,
   ManufactureDate: item.manufactureDate,
   LastMaintained: item.lastMaintained,
@@ -178,9 +180,13 @@ const toEquipmentMaintenanceRecord = (item: DeviceMaintenanceApiItem): Equipment
 
 export async function getEquipmentList(
   page: number = 1,
-  pageSize: number = 100
+  pageSize: number = 100,
+  forceRefresh = false
 ): Promise<PaginatedResponse<EquipmentInfo>> {
   const key = cacheKey('equipment:list', page, pageSize)
+  if (forceRefresh) {
+    apiCache.invalidate('equipment')
+  }
   return apiCache.withCache(key, async () => {
     const response = await apiClient.get<ApiSuccessResponse<DeviceListApiResponse>>('/api/v1/devices', {
       params: { page, pageSize }
@@ -190,15 +196,18 @@ export async function getEquipmentList(
       data: data.items.map(toEquipmentInfo),
       total: data.total,
     }
-  }, CACHE_TTL.EQUIPMENT_LIST)
+  }, CACHE_TTL.DEFAULT)
 }
 
-export async function getAllEquipments(): Promise<EquipmentInfo[]> {
+export async function getAllEquipments(forceRefresh = false): Promise<EquipmentInfo[]> {
   const key = cacheKey('equipment:all')
+  if (forceRefresh) {
+    apiCache.invalidate('equipment')
+  }
   return apiCache.withCache(key, async () => {
-    const result = await getEquipmentList(1, 500)
+    const result = await getEquipmentList(1, 500, forceRefresh)
     return result.data
-  }, CACHE_TTL.EQUIPMENT_LIST)
+  }, CACHE_TTL.DEFAULT)
 }
 
 export async function getEquipmentById(id: number): Promise<EquipmentInfo | null> {
@@ -271,8 +280,8 @@ export interface EquipmentStats {
   byDialysisMethod: Record<string, number>
 }
 
-export async function getEquipmentStats(): Promise<EquipmentStats> {
-  const result = await getEquipmentList(1, 500)
+export async function getEquipmentStats(forceRefresh = false): Promise<EquipmentStats> {
+  const result = await getEquipmentList(1, 500, forceRefresh)
   const equipments = result.data
 
   const stats: EquipmentStats = {

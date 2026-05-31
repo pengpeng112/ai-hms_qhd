@@ -41,7 +41,7 @@ export default function LabHistoryModal({ isOpen, onClose, patientId, patientNam
   useEffect(() => {
     if (!isOpen || !patientId) return
 
-    setLoading(true)
+    queueMicrotask(() => setLoading(true))
     restApi.getLabReports(patientId, { page: 1, pageSize: 200 })
       .then((result) => {
         setReports(result.items || [])
@@ -58,7 +58,7 @@ export default function LabHistoryModal({ isOpen, onClose, patientId, patientNam
 
   useEffect(() => {
     if (!isOpen) {
-      setExpandedId(null)
+      queueMicrotask(() => setExpandedId(null))
     }
   }, [isOpen])
 

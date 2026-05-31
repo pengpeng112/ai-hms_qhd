@@ -325,6 +325,7 @@ export interface EquipmentInfo extends PaginatedItem {
   Maintenance?: number | null
   MaintenanceCycle?: string
   Flux?: string
+  LastDisinfectionTime?: string
   Notes?: string
   IsDisabled?: boolean
   CreatorId?: number

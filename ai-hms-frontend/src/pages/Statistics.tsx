@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   AreaChart,
@@ -45,8 +45,10 @@ export default function Statistics() {
   const currentYearMonth = `${currentYear}-${String(new Date().getMonth() + 1).padStart(2, '0')}`
 
   useEffect(() => {
-    setLoading(true)
-    setError('')
+    queueMicrotask(() => {
+      setLoading(true)
+      setError('')
+    })
 
     Promise.all([
       restApi.getQualityStatistics({ year: currentYear }),
@@ -77,17 +79,17 @@ export default function Statistics() {
     { id: 'WORKLOAD' as const, label: t('statistics:tab.workload'), icon: TrendingUp },
   ]
 
-  const monthLabel = (month: number) => {
+  const monthLabel = useCallback((month: number) => {
     const map = [
       'statistics:month.jan', 'statistics:month.feb', 'statistics:month.mar', 'statistics:month.apr', 'statistics:month.may', 'statistics:month.jun',
       'statistics:month.jul', 'statistics:month.aug', 'statistics:month.sep', 'statistics:month.oct', 'statistics:month.nov', 'statistics:month.dec',
     ]
     return t((map[month - 1] || 'statistics:month.jan') as never)
-  }
+  }, [t])
 
-  const qualityChartData = useMemo(() => qualityData.map(i => ({ ...i, month: monthLabel(i.month) })), [qualityData])
-  const infectionChartData = useMemo(() => infectionData.map(i => ({ ...i, month: monthLabel(i.month) })), [infectionData])
-  const vascularChartData = useMemo(() => vascularData.map(i => ({ ...i, month: monthLabel(i.month) })), [vascularData])
+  const qualityChartData = useMemo(() => qualityData.map(i => ({ ...i, month: monthLabel(i.month) })), [monthLabel, qualityData])
+  const infectionChartData = useMemo(() => infectionData.map(i => ({ ...i, month: monthLabel(i.month) })), [infectionData, monthLabel])
+  const vascularChartData = useMemo(() => vascularData.map(i => ({ ...i, month: monthLabel(i.month) })), [monthLabel, vascularData])
 
   const avg = (list: number[]) => list.length ? (list.reduce((a, b) => a + b, 0) / list.length).toFixed(1) : '--'
   const sum = (list: number[]) => list.reduce((a, b) => a + b, 0)

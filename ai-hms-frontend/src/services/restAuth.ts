@@ -5,7 +5,11 @@
 
 import { restApi } from './restClient'
 import * as tokenStorage from '@/utils/token'
-import { saveSelectedRoleUser, type RoleUser } from './role'
+import { clearSelectedRole, type RoleUser } from './role'
+
+export function isLocalPreviewLoginEnabled() {
+  return import.meta.env.DEV || import.meta.env.VITE_ENABLE_LOCAL_PREVIEW_LOGIN === 'true'
+}
 
 function normalizeRole(role: string | undefined): RoleUser['role'] {
   if (!role) {
@@ -27,12 +31,8 @@ export async function performLogin(credentials: { username: string; password: st
     // 调用后端登录接口
     const loginResult = await restApi.login(credentials)
     const normalizedRole = normalizeRole(loginResult.role)
-    const selectedRoleUser: RoleUser = {
-      id: loginResult.userId,
-      name: loginResult.realName || loginResult.username,
-      role: normalizedRole,
-      subLabelKey: normalizedRole === 'ADMIN' ? '系统管理员' : 'role:subLabel.doctorSupervisor',
-    }
+
+    clearSelectedRole()
 
     // 保存 token
     tokenStorage.saveToken({
@@ -48,7 +48,7 @@ export async function performLogin(credentials: { username: string; password: st
       },
     })
 
-    saveSelectedRoleUser(selectedRoleUser)
+    // 登录成功后不自动保存角色，跳转角色选择页
 
     return loginResult
   } catch (error) {
@@ -75,6 +75,39 @@ export async function performLogin(credentials: { username: string; password: st
 
     throw new Error(error instanceof Error && error.message ? error.message : fallbackMessage)
   }
+}
+
+export function performLocalPreviewLogin() {
+  if (!isLocalPreviewLoginEnabled()) {
+    throw new Error('本地预览登录未启用')
+  }
+
+  const previewUser: RoleUser = {
+    id: 'local-preview',
+    name: '本地预览管理员',
+    role: 'ADMIN',
+    subLabelKey: '系统管理员',
+  }
+
+  clearSelectedRole()
+
+  tokenStorage.saveToken({
+    accessToken: 'local-preview-token',
+    expiresIn: 86400,
+    user: {
+      id: previewUser.id,
+      name: previewUser.name,
+      nickname: 'local-preview',
+      role: previewUser.role,
+      organId: '',
+      tenantAddress: '',
+    },
+  })
+
+  // 本地预览登录也不自动保存角色
+  // saveSelectedRoleUser(previewUser)
+
+  return previewUser
 }
 
 /**

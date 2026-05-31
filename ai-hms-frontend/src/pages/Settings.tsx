@@ -124,7 +124,7 @@ export default function Settings() {
     i18n.changeLanguage(lng)
   }
 
-  const loadIntegrationSettings = async () => {
+  const loadIntegrationSettings = useCallback(async () => {
     setIntegrationLoading(true)
     try {
       const settings = await restApi.getHdisIntegrationSettings()
@@ -152,13 +152,13 @@ export default function Settings() {
     } finally {
       setIntegrationLoading(false)
     }
-  }
+  }, [t])
 
   useEffect(() => {
     if (activeTab === 'integration' && !integrationLoaded) {
       void loadIntegrationSettings()
     }
-  }, [activeTab, integrationLoaded])
+  }, [activeTab, integrationLoaded, loadIntegrationSettings])
 
   const saveIntegrationSettings = async () => {
     setIntegrationSaving(true)

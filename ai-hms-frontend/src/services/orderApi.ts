@@ -341,7 +341,7 @@ export const prescriptionApi = {
     return post<Prescription>(`/api/v1/patients/${patientId}/prescriptions/${prescriptionId}/cancel`)
   },
 
-  extract: async (patientId: string, date: string): Promise<Prescription> => {
-    return post<Prescription>(`/api/v1/patients/${patientId}/prescriptions/extract`, { date })
+  extract: async (patientId: string, date: string, dialysisMode?: string): Promise<Prescription> => {
+    return post<Prescription>(`/api/v1/patients/${patientId}/prescriptions/extract`, { date, dialysisMode })
   },
 }

@@ -41,6 +41,28 @@ interface ApiUser {
   status: string
 }
 
+// 从 GET /api/v1/me/roles 获取当前登录用户可选角色
+export async function getMyRoles(): Promise<RoleUser[]> {
+  try {
+    const res = await restApi.getMyRoles()
+    const data = res.data as { userId: string; username: string; realName: string; roles: string[] }
+    if (Array.isArray(data.roles) && data.roles.length > 0) {
+      return data.roles.map(roleCode => {
+        const role = normalizeAppRole(roleCode)
+        return {
+          id: data.userId,
+          name: data.realName || data.username,
+          role,
+          subLabelKey: ROLE_SUBLABEL_MAP[role] || '系统管理员',
+        }
+      })
+    }
+  } catch {
+    // 接口异常，使用本地登录用户兜底
+  }
+  return buildFallbackFromCurrentUser()
+}
+
 // 从当前已登录用户信息构建兜底角色列表
 function buildFallbackFromCurrentUser(): RoleUser[] {
   const userInfo = getUserInfo()
@@ -59,6 +81,12 @@ function normalizeAppRole(role: string | null | undefined): AppRole {
   if (!role || role.toLowerCase() === 'admin') {
     return 'ADMIN'
   }
+  if (role === '医生') {
+    return UserRole.DOCTOR_DUTY
+  }
+  if (role === '护士') {
+    return UserRole.NURSE_RESPONSIBLE
+  }
 
   return role as UserRole
 }
@@ -68,13 +96,16 @@ export async function getRoleUsers(): Promise<RoleUser[]> {
     const res = await restApi.getUserList()
     if (Array.isArray(res) && res.length > 0) {
       const mapped = (res as ApiUser[])
-        .filter(u => u.role === 'ADMIN' || Object.values(UserRole).includes(u.role as UserRole))
-        .map(u => ({
-          id: u.id,
-          name: u.realName || u.username,
-          role: normalizeAppRole(u.role),
-          subLabelKey: ROLE_SUBLABEL_MAP[u.role] || 'role:subLabel.doctorSupervisor',
-        }))
+        .filter(u => u.role === 'ADMIN' || u.role === '医生' || u.role === '护士' || Object.values(UserRole).includes(u.role as UserRole))
+        .map(u => {
+          const role = normalizeAppRole(u.role)
+          return {
+            id: u.id,
+            name: u.realName || u.username,
+            role,
+            subLabelKey: ROLE_SUBLABEL_MAP[role] || 'role:subLabel.doctorSupervisor',
+          }
+        })
       if (mapped.length > 0) return mapped
     }
   } catch {
@@ -85,7 +116,7 @@ export async function getRoleUsers(): Promise<RoleUser[]> {
 }
 
 export async function getRoleUsersByGroup(): Promise<RoleGroup[]> {
-  const users = await getRoleUsers()
+  const users = await getMyRoles()
 
   const doctorRoles = RoleGroups.DOCTOR as readonly UserRole[]
   const nurseRoles = RoleGroups.NURSE as readonly UserRole[]
@@ -147,11 +178,16 @@ const SUPPORTED_MENU_KEYS = new Set([
   'schedule',
   'inventory',
   'device_binding',
+  'ward_management',
+  'bed_management',
+  'education_management',
   'statistics',
   'master_data',
   'treatment_config',
   'dict_config',
   'settings',
+  'user_management',
+  'role_management',
 ])
 
 const PERMISSION_TO_MENU_KEY: Record<string, string> = {
@@ -163,11 +199,16 @@ const PERMISSION_TO_MENU_KEY: Record<string, string> = {
   'menu.schedule': 'schedule',
   'menu.inventory': 'inventory',
   'menu.device_binding': 'device_binding',
+  'menu.ward_management': 'ward_management',
+  'menu.bed_management': 'bed_management',
+  'menu.education_management': 'education_management',
   'menu.statistics': 'statistics',
   'menu.master_data': 'master_data',
   'menu.treatment_config': 'treatment_config',
   'menu.dict_config': 'dict_config',
   'menu.settings': 'settings',
+  'menu.user_management': 'user_management',
+  'menu.role_management': 'role_management',
 }
 
 const normalizePermissionToMenuKey = (code: string): string | null => {
@@ -207,7 +248,9 @@ export async function getRolePermissionCodes(role: AppRole): Promise<string[]> {
 const ALL_MENU_KEYS = [
   'dashboard', 'ward_overview', 'patients', 'monitoring',
   'dialysis_processing', 'schedule', 'inventory', 'device_binding',
+  'ward_management', 'bed_management', 'education_management',
   'statistics', 'master_data', 'treatment_config', 'dict_config', 'settings',
+  'user_management', 'role_management',
 ]
 
 export async function getMenusByRole(role: AppRole): Promise<string[]> {
@@ -227,11 +270,33 @@ export async function getMenusByRole(role: AppRole): Promise<string[]> {
       if (menuSet.size > 0) return Array.from(menuSet)
     }
   } catch {
-    // 接口失败，返回全部菜单作为兜底
+    // 接口失败时不能扩大权限，交给页面展示无权限状态。
   }
 
-  // 接口失败或无权限数据时：返回全部菜单
-  return ALL_MENU_KEYS
+  return []
+}
+
+export function getMenuKeyByPath(pathname: string): string | null {
+  const path = pathname.split('?')[0].split('#')[0]
+  if (path === '/' || path === '/dashboard') return 'dashboard'
+  if (path === '/ward-overview') return 'ward_overview'
+  if (path === '/monitoring') return 'monitoring'
+  if (path === '/dialysis-processing') return 'dialysis_processing'
+  if (path === '/schedule') return 'schedule'
+  if (path === '/patients' || path.startsWith('/patients/')) return 'patients'
+  if (path === '/education-management') return 'education_management'
+  if (path === '/inventory') return 'inventory'
+  if (path === '/device-binding') return 'device_binding'
+  if (path === '/ward-management') return 'ward_management'
+  if (path === '/bed-management') return 'bed_management'
+  if (path === '/master-data') return 'master_data'
+  if (path === '/treatment-config') return 'treatment_config'
+  if (path === '/dict-config') return 'dict_config'
+  if (path === '/user-management') return 'user_management'
+  if (path === '/role-management') return 'role_management'
+  if (path === '/settings') return 'settings'
+  if (path === '/statistics') return 'statistics'
+  return null
 }
 
 export function saveSelectedRoleUser(user: RoleUser): void {
