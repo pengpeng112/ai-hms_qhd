@@ -18,7 +18,6 @@ import {
 } from 'recharts'
 import { restApi } from '@/services'
 import { getAllEquipments } from '@/services/equipment'
-import { getActiveShifts } from '@/services/schedule'
 
 // 颜色配置
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
@@ -70,15 +69,14 @@ export default function WardOverview() {
     setLoading(true)
     try {
       // 并行请求多个 API
-      const [patientsRes, equipmentsRes, shiftsRes, dashboardRes] = await Promise.all([
+      const [patientsRes, equipmentsRes, dashboardRes] = await Promise.all([
         restApi.getPatientList({ page: 1, pageSize: 100 }).catch(() => null),
         getAllEquipments().catch(() => null),
-        getActiveShifts().catch(() => null),
         restApi.getDashboardStats().catch(() => null),
       ])
 
       // 计算统计数据
-      const scheduledPatients = shiftsRes?.length || dashboardRes?.todaySchedules || 0
+      const scheduledPatients = dashboardRes?.todaySchedules || 0
       const totalEquipments = equipmentsRes?.length || dashboardRes?.equipmentCount || 0
       const totalPatients = patientsRes?.data?.pagination?.total || dashboardRes?.activePatients || 0
 

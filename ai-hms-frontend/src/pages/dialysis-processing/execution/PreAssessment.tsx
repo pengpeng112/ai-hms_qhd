@@ -9,9 +9,8 @@ import { useAuth } from '@/contexts/AuthContext'
 
 const FISTULA_DEFAULTS = ['杂音强', '震颤强', '搏动强']
 const BP_SITES = ['右上肢', '左上肢', '右下肢', '左下肢', '其他']
-const CONSCIOUSNESS_OPTS = ['清醒', '嗜睡', '昏睡', '浅昏迷', '中昏迷', '深昏迷']
+const CONSCIOUSNESS_OPTS = ['清醒', '嗜睡', '昏睡', '昏迷']
 const NURSING_LEVEL_OPTS = ['危重', '重症', '其他']
-const AV_SITE_OPTS = ['前臂中段', '上臂', '肘部']
 
 function AssessmentSection({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -223,10 +222,8 @@ export default function PreAssessment({
   const { user: currentUser } = useAuth()
   const [form, setForm] = useState<PreAssessmentFormValue>({ ...EMPTY_FORM })
   const [newSymptom, setNewSymptom] = useState('')
-  const [newFistulaStatus, setNewFistulaStatus] = useState('')
   const [vascularAccesses, setVascularAccesses] = useState<VascularAccessApi[]>([])
   const [skinRecordHistory, setSkinRecordHistory] = useState<string[]>([])
-  const [draftSavedAt, setDraftSavedAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (!patient.id) return
@@ -248,8 +245,25 @@ export default function PreAssessment({
   }, [patient.id])
 
   // 从血管通路数据中提取 A端和 V端位点选项
-  const aSiteOptions = AV_SITE_OPTS
-  const vSiteOptions = AV_SITE_OPTS
+  const aSiteOptions = useMemo(() => {
+    const sites = new Set<string>()
+    vascularAccesses.forEach((v) => {
+      if (v.aPuncturePosition && Array.isArray(v.aPuncturePosition)) {
+        v.aPuncturePosition.forEach((s) => sites.add(s))
+      }
+    })
+    return Array.from(sites)
+  }, [vascularAccesses])
+
+  const vSiteOptions = useMemo(() => {
+    const sites = new Set<string>()
+    vascularAccesses.forEach((v) => {
+      if (v.vPuncturePosition && Array.isArray(v.vPuncturePosition)) {
+        v.vPuncturePosition.forEach((s) => sites.add(s))
+      }
+    })
+    return Array.from(sites)
+  }, [vascularAccesses])
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -297,58 +311,6 @@ export default function PreAssessment({
 
   const handleRemoveSymptom = (item: string) => {
     updateField('symptoms', form.symptoms.filter((s) => s !== item))
-  }
-
-  const handleAddFistulaStatus = () => {
-    const s = newFistulaStatus.trim()
-    if (!s) return
-    if (form.fistulaStatus.includes(s)) {
-      message.warning('该体征已存在')
-      return
-    }
-    updateField('fistulaStatus', [...form.fistulaStatus, s])
-    setNewFistulaStatus('')
-  }
-
-  const handleRemoveFistulaStatus = (item: string) => {
-    updateField('fistulaStatus', form.fistulaStatus.filter((s) => s !== item))
-  }
-
-  const handleSaveDraft = () => {
-    try {
-      const draft = {
-        patientId: patient.id,
-        treatmentId: treatment?.id,
-        form,
-        savedAt: new Date().toISOString(),
-      }
-      localStorage.setItem('preAssessmentDraft', JSON.stringify(draft))
-      setDraftSavedAt(new Date().toLocaleString('zh-CN'))
-      message.success('草稿已暂存')
-    } catch (error) {
-      console.error('暂存草稿失败:', error)
-      message.error('暂存草稿失败')
-    }
-  }
-
-  const handleLoadDraft = () => {
-    try {
-      const raw = localStorage.getItem('preAssessmentDraft')
-      if (!raw) {
-        message.info('暂无草稿')
-        return
-      }
-      const draft = JSON.parse(raw) as { patientId: string; form: PreAssessmentFormValue }
-      if (draft.patientId !== patient.id) {
-        message.warning('草稿所属患者与当前患者不一致')
-        return
-      }
-      setForm(draft.form)
-      message.success('已恢复草稿')
-    } catch (error) {
-      console.error('加载草稿失败:', error)
-      message.error('加载草稿失败')
-    }
   }
 
   const handleSave = async () => {
@@ -558,6 +520,7 @@ export default function PreAssessment({
           <span className="text-xs text-slate-400">称重照片历史</span>
         </div>
         <div className="flex gap-3">
+          <button type="button" disabled className="rounded-lg border border-slate-200 px-5 py-2 text-sm font-semibold text-slate-400">暂存草稿</button>
           <button type="button" onClick={() => void handleSave()} disabled={saving || treatmentLoading} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white disabled:opacity-60">
             {treatmentLoading ? '治疗加载中...' : saving ? '提交中...' : '提交透前评估'}
           </button>
