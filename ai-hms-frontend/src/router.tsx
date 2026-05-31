@@ -16,6 +16,13 @@ import {
     DeviceManagement,
     TreatmentConfig,
     DictConfig,
+    WardManagement,
+    BedManagement,
+    UserManagement,
+    RoleManagement,
+    EducationManagement,
+    ScheduleTemplateList,
+    ScheduleTemplateEditor,
 } from '@/pages'
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
@@ -102,6 +109,34 @@ const router = createBrowserRouter([
             {
                 path: 'dict-config',
                 element: <DictConfig />,
+            },
+            {
+                path: 'ward-management',
+                element: <WardManagement />,
+            },
+            {
+                path: 'bed-management',
+                element: <BedManagement />,
+            },
+            {
+                path: 'user-management',
+                element: <UserManagement />,
+            },
+            {
+                path: 'role-management',
+                element: <RoleManagement />,
+            },
+            {
+                path: 'education-management',
+                element: <EducationManagement />,
+            },
+            {
+                path: 'schedule-templates',
+                element: <ScheduleTemplateList />,
+            },
+            {
+                path: 'schedule-templates/edit',
+                element: <ScheduleTemplateEditor />,
             },
         ],
     },
