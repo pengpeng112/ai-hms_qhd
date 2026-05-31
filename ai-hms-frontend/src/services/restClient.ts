@@ -243,7 +243,7 @@ export interface RestScheduleWeekShift {
   statusName: string
   treatmentTime: string
   lastModifyTime: string
-  sourceType?: 'manual' | 'template' | 'import'
+  sourceType?: 'manual' | 'contract' | 'temporary' | 'template' | 'import'
   templateId?: number
   templateItemId?: number
   isManualAdjusted?: boolean
@@ -260,6 +260,9 @@ export interface RestSchedulePendingPatient {
   patientPlanId: number
   oddWeekFrequency: number
   evenWeekFrequency: number
+  expectedTimes?: number
+  scheduledTimes?: number
+  remainingTimes?: number
 }
 
 export interface RestScheduleWeekResponse {
@@ -2047,9 +2050,24 @@ class RestApiService {
     dialysisMode?: string
     patientPlanId?: number
     shiftTiming?: number
+    status?: number
     notes?: string
   }): Promise<unknown> {
     const response = await apiClient.post<unknown>('/api/v1/patient-shifts', data)
+    return response.data
+  }
+
+  async updatePatientShift(id: number, data: {
+    shiftId?: number
+    bedId?: number
+    wardId?: number
+    patientPlanId?: number
+    shiftTiming?: number
+    treatmentTime?: string
+    status?: number
+    notes?: string
+  }): Promise<unknown> {
+    const response = await apiClient.put<unknown>(`/api/v1/patient-shifts/${id}`, data)
     return response.data
   }
 
@@ -2067,9 +2085,6 @@ class RestApiService {
     wardId?: number
     bedId?: number
     shiftId?: number
-    dialysisMode?: string
-    patientPlanId?: number
-    shiftTiming?: number
   }): Promise<unknown> {
     const response = await apiClient.post<unknown>(`/api/v1/patient-shifts/${id}/move`, data)
     return response.data
@@ -2605,4 +2620,16 @@ function parseFrequency(frequency: string): number {
   if (frequency.includes('4次/周')) return 4
   if (frequency.includes('1次/周')) return 1
   return 3
+}
+
+// Dashboard Stats 类型定义
+export interface DashboardStats {
+  activePatients: number
+  shiftCount: number
+  equipmentCount: number
+  todaySchedules: number
+  todayTreatments: number
+  alertItems: number
+  treatmentsByHour: { name: string; value: number }[]
+  qualityByHour: { name: string; value: number }[]
 }

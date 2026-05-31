@@ -7,7 +7,7 @@
  * - 设备与床位运行矩阵
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import {
   Users, Monitor, Activity, CheckCircle2,
@@ -55,12 +55,12 @@ export default function WardOverview() {
   })
 
   // 治疗进度数据
-  const processData = useMemo<ProcessDataItem[]>(() => [
-    { name: t('process.waiting'), value: 5, status: 'waiting' },
-    { name: t('process.dialysis'), value: 18, status: 'dialysis' },
-    { name: t('process.disinfect'), value: 3, status: 'disinfect' },
-    { name: t('process.completed'), value: 10, status: 'completed' },
-  ], [t])
+  const [processData, setProcessData] = useState<ProcessDataItem[]>([
+    { name: t('process.waiting'), value: 0, status: 'waiting' },
+    { name: t('process.dialysis'), value: 0, status: 'dialysis' },
+    { name: t('process.disinfect'), value: 0, status: 'disinfect' },
+    { name: t('process.completed'), value: 0, status: 'completed' },
+  ])
 
   // 床位状态数据
   const [bedStatuses, setBedStatuses] = useState<BedStatus[]>([])
@@ -70,42 +70,53 @@ export default function WardOverview() {
     setLoading(true)
     try {
       // 并行请求多个 API
-      const [patientsRes, equipmentsRes, shiftsRes] = await Promise.all([
+      const [patientsRes, equipmentsRes, shiftsRes, dashboardRes] = await Promise.all([
         restApi.getPatientList({ page: 1, pageSize: 100 }).catch(() => null),
         getAllEquipments().catch(() => null),
         getActiveShifts().catch(() => null),
+        restApi.getDashboardStats().catch(() => null),
       ])
 
       // 计算统计数据
-      const scheduledPatients = shiftsRes?.length || 45
-      const totalEquipments = equipmentsRes?.length || 32
-      const totalPatients = patientsRes?.data?.pagination?.total || 0
+      const scheduledPatients = shiftsRes?.length || dashboardRes?.todaySchedules || 0
+      const totalEquipments = equipmentsRes?.length || dashboardRes?.equipmentCount || 0
+      const totalPatients = patientsRes?.data?.pagination?.total || dashboardRes?.activePatients || 0
 
-      // 模拟床位状态分布（API 暂不提供实时状态）
-      const activeCount = Math.min(scheduledPatients, totalEquipments - 4)
-      const alarmCount = 2
-      const emptyCount = totalEquipments - activeCount - alarmCount
+      // 使用 Dashboard Stats 的真实数据
+      const activeCount = dashboardRes?.todaySchedules || scheduledPatients
+      const alarmCount = dashboardRes?.alertItems || 0
 
-      setStats(prev => ({
-        ...prev,
-        scheduledPatients: scheduledPatients || totalPatients || 45,
-        onSiteCount: activeCount,
-        alarmDevices: alarmCount,
+      setStats({
+        scheduledPatients: activeCount,
+        totalCapacity: totalEquipments,
+        workCompletion: dashboardRes?.todayTreatments ? Math.round((dashboardRes.todayTreatments / Math.max(activeCount, 1)) * 100) : 0,
         deviceUtilization: totalEquipments > 0
           ? Math.round((activeCount / totalEquipments) * 1000) / 10
-          : 92.8,
-      }))
+          : 0,
+        avgDialysisHours: 3.8, // 暂无真实数据，保留默认值
+        onSiteCount: totalPatients,
+        alarmDevices: alarmCount,
+      })
+
+      // 治疗进度数据使用真实数据
+      const waitingCount = Math.max(0, activeCount - (dashboardRes?.todayTreatments || 0))
+      const completedCount = dashboardRes?.todayTreatments || 0
+
+      setProcessData([
+        { name: t('process.waiting'), value: waitingCount, status: 'waiting' },
+        { name: t('process.dialysis'), value: activeCount, status: 'dialysis' },
+        { name: t('process.disinfect'), value: 0, status: 'disinfect' },
+        { name: t('process.completed'), value: completedCount, status: 'completed' },
+      ])
 
       // 生成床位状态矩阵
-      const beds: BedStatus[] = Array.from({ length: 32 }).map((_, i) => {
+      const beds: BedStatus[] = Array.from({ length: totalEquipments || 32 }).map((_, i) => {
         // 基于设备数量分配状态
         let status: BedStatus['status'] = 'active'
 
         if (i < alarmCount) {
           status = 'alarm'
-        } else if (i >= totalEquipments - emptyCount && i < totalEquipments) {
-          status = 'empty'
-        } else if (i >= totalEquipments) {
+        } else if (i >= activeCount) {
           status = 'empty'
         }
 

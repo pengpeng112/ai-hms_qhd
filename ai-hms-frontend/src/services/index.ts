@@ -80,6 +80,7 @@ export type {
   RestScheduleWeekResponse,
   RestTreatment,
   PaginationMeta,
+  DashboardStats,
 } from './restClient'
 export type { PaginatedResponse as RestPaginatedResponse } from './restClient'
 

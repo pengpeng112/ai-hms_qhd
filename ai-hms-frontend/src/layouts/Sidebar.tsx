@@ -153,7 +153,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
   const translateNav = (key: string) => t(`nav:${key}` as never)
 
   return (
-    <aside className={`${isOpen ? 'w-56' : 'w-16'} bg-[var(--color-surface-sidebar)] flex flex-col transition-all duration-300 shadow-xl z-20 shrink-0`}>
+    <aside className={`${isOpen ? 'w-60' : 'w-16'} bg-[var(--color-surface-sidebar)] flex flex-col transition-all duration-300 shadow-xl z-20 shrink-0`}>
       {/* 品牌区 */}
       <div className="h-14 flex items-center justify-center border-b border-white/10 text-white overflow-hidden px-3">
         {isOpen ? (
@@ -265,9 +265,15 @@ export default function Sidebar({ isOpen }: SidebarProps) {
         })}
       </div>
 
-      {/* 底部留白（版本号预留） */}
+      {/* 底部身份信息 */}
       <div className="p-3 border-t border-white/10">
-        {/* TODO U5 版本号 */}
+        {roleUser && (
+          <div className="text-center">
+            <p className="text-meta text-slate-400">{t('role:label.current')}</p>
+            <p className="text-sm font-medium text-white mt-0.5 truncate">{roleUser.name || roleUser.role}</p>
+            <p className="text-meta text-slate-500 mt-0.5">{getRoleLabel(roleUser.role)}</p>
+          </div>
+        )}
       </div>
     </aside>
   )

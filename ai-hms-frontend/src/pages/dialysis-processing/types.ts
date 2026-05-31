@@ -26,8 +26,14 @@ export interface PreAssessmentFormValue {
   vSite: string
   consciousness: string
   nurseLevel: string
+  fallRisk: string
+  painScore: string
   notes: string
   symptoms: string[]
+  fistulaStatus: string[]
+  skinRecord: string
+  refuseMeasure: boolean
+  bedridden: boolean
 }
 
 export const ExecutionTab = {

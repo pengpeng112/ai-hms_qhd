@@ -3,8 +3,10 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -42,6 +44,15 @@ type rawUserRow struct {
 	RoleName string `gorm:"column:RoleName"` // Identity_Roles.Name
 }
 
+func isMissingColumnError(err error) bool {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "42703" {
+		return true
+	}
+	lower := strings.ToLower(err.Error())
+	return strings.Contains(lower, "column") && strings.Contains(lower, "does not exist")
+}
+
 // List 获取用户列表，查 Identity_Users + Organ_Employee + Identity_UserRoles + Identity_Roles
 func (s *UserService) List(req UserListRequest) ([]UserDTO, error) {
 	if s.db == nil {
@@ -49,6 +60,8 @@ func (s *UserService) List(req UserListRequest) ([]UserDTO, error) {
 	}
 
 	rows := []rawUserRow{}
+
+	// 先尝试包含 UserId 的联查（标准老库）
 	err := s.db.Table(`"Identity_Users" AS u`).
 		Select(`u."Id", u."UserName", COALESCE(e."Name", '') AS "Name", COALESCE(r."Name", '') AS "RoleName"`).
 		Joins(`LEFT JOIN "Organ_Employee" AS e ON e."UserId" = u."Id"`).
@@ -56,6 +69,19 @@ func (s *UserService) List(req UserListRequest) ([]UserDTO, error) {
 		Joins(`LEFT JOIN "Identity_Roles" AS r ON r."Id" = ur."RoleId"`).
 		Order(`u."Id" ASC`).
 		Find(&rows).Error
+
+	// 如果 Organ_Employee 缺少 UserId 列，降级为仅用 Id 查姓名
+	if err != nil && isMissingColumnError(err) {
+		rows = []rawUserRow{}
+		err = s.db.Table(`"Identity_Users" AS u`).
+			Select(`u."Id", u."UserName", COALESCE(e."Name", '') AS "Name", COALESCE(r."Name", '') AS "RoleName"`).
+			Joins(`LEFT JOIN "Organ_Employee" AS e ON e."Id" = u."Id"`).
+			Joins(`LEFT JOIN "Identity_UserRoles" AS ur ON ur."UserId" = u."Id"`).
+			Joins(`LEFT JOIN "Identity_Roles" AS r ON r."Id" = ur."RoleId"`).
+			Order(`u."Id" ASC`).
+			Find(&rows).Error
+	}
+
 	if err != nil {
 		return nil, fmt.Errorf("查询用户列表失败: %w", err)
 	}

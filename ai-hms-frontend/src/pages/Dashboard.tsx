@@ -1,45 +1,135 @@
-import { useState, useEffect } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
-import { UserRole } from '@/types/original'
-import type { Patient } from '@/types/original'
-import { getSelectedRoleUser } from '@/services/role'
 import {
-  restApi, convertRestPatientList, getActiveShifts, getAllEquipments, getTodayTreatments,
-  type Shift as APIShift, type EquipmentInfo, type Treatment,
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  Bed,
+  CalendarClock,
+  CheckCircle2,
+  ClipboardCheck,
+  Droplets,
+  HeartPulse,
+  Monitor,
+  Stethoscope,
+  Users,
+} from 'lucide-react'
+import type { Patient } from '@/types/original'
+import {
+  restApi,
+  convertRestPatientList,
+  getActiveShifts,
+  getAllEquipments,
+  getTodayTreatments,
+  type Shift as APIShift,
+  type EquipmentInfo,
+  type Treatment,
 } from '@/services'
-import { TrendingUp, Users, Activity, MoreHorizontal, Package, Link2,
-  LayoutGrid, Plus, X, CheckCircle2, AlertTriangle, Library } from 'lucide-react'
-import { getDefaultCardKeys, V2_CARD_REGISTRY, LAYOUT_STORAGE_KEY_V2, type V2CardDef } from '@/constants/dashboardDefaults'
-import { StatKpiCard, PatientListCard, ChartCard, AlertCard, DeviceGridCard, ShiftListCard, PlaceholderCard } from './dashboard/cards'
 
-const LAYOUT_V1_KEY = 'dashboard_layout_config'
+type DashboardStats = {
+  activePatients: number
+  shiftCount: number
+  equipmentCount: number
+  todaySchedules: number
+  todayTreatments: number
+  alertItems: number
+  treatmentsByHour: { name: string; value: number }[]
+  qualityByHour: { name: string; value: number }[]
+}
 
-interface LocalCardConfig extends V2CardDef { visible: boolean; colSpan: number; rowSpan: number }
+type QuickAction = {
+  title: string
+  desc: string
+  route: string
+  icon: ReactNode
+  tone: string
+}
+
+const treatmentStatusText: Record<string, string> = {
+  ongoing: '透析中',
+  completed: '已完成',
+  paused: '暂停',
+  pending: '待开始',
+  '1': '透析中',
+  '2': '已完成',
+  '3': '暂停',
+  '10': '待接诊',
+  '20': '透析中',
+  '30': '已完成',
+}
+
+const deviceStatusText: Record<string, string> = {
+  normal: '正常',
+  warning: '预警',
+  alarm: '报警',
+  offline: '离线',
+  maintenance: '维护',
+  active: '正常',
+  '1': '正常',
+  '0': '停用',
+}
+
+const formatClock = (value?: string) => {
+  if (!value) return '--:--'
+  const time = value.includes('T') ? value.split('T')[1] : value
+  return time.slice(0, 5)
+}
+
+const isTreatmentRunning = (status?: string) => {
+  if (!status) return false
+  return ['ongoing', '1', '20', '透析中', '进行中'].includes(status)
+}
+
+const isDeviceAttention = (status?: string) => {
+  if (!status) return false
+  return ['warning', 'alarm', 'offline', 'maintenance', '0', '预警', '报警', '离线', '维护'].includes(status)
+}
+
+const actionItems: QuickAction[] = [
+  {
+    title: '进入透析执行',
+    desc: '核对、透前评估、医嘱执行、透中监测',
+    route: '/dialysis-processing',
+    icon: <ClipboardCheck size={20} />,
+    tone: 'bg-teal-50 text-teal-700 border-teal-100',
+  },
+  {
+    title: '查看实时监测',
+    desc: '床旁状态、报警、透析机在线情况',
+    route: '/monitoring',
+    icon: <Monitor size={20} />,
+    tone: 'bg-orange-50 text-orange-700 border-orange-100',
+  },
+  {
+    title: '维护今日排班',
+    desc: '班次、床位、治疗安排调整',
+    route: '/schedule',
+    icon: <CalendarClock size={20} />,
+    tone: 'bg-sky-50 text-sky-700 border-sky-100',
+  },
+  {
+    title: '患者资料中心',
+    desc: '病史、通路、处方、检验检查',
+    route: '/patients',
+    icon: <Users size={20} />,
+    tone: 'bg-emerald-50 text-emerald-700 border-emerald-100',
+  },
+]
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { t: tRaw } = useTranslation(['dashboard', 'common', 'role'])
-  const t = tRaw as (key: string, fallback?: string) => string
-  const selectedRoleUser = getSelectedRoleUser()
-  const role = selectedRoleUser?.role ?? UserRole.DOCTOR_SUPERVISOR
-  const isAdmin = String(role) === 'ADMIN'
-  const nurseRoles = [UserRole.NURSE_HEAD, UserRole.NURSE_MANAGER, UserRole.NURSE_RESPONSIBLE, UserRole.NURSE_SCHEDULER] as const
-  const isNurse = role !== 'ADMIN' && nurseRoles.includes(role as typeof nurseRoles[number])
-
-  const [isCustomizing, setIsCustomizing] = useState(false)
-  const [showWidgetLibrary, setShowWidgetLibrary] = useState(false)
-  const [cardsConfig, setCardsConfig] = useState<LocalCardConfig[]>([])
   const [patients, setPatients] = useState<Partial<Patient>[]>([])
   const [patientTotal, setPatientTotal] = useState<number | null>(null)
   const [shifts, setShifts] = useState<APIShift[]>([])
   const [equipments, setEquipments] = useState<EquipmentInfo[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
   const [apiError, setApiError] = useState<string | null>(null)
-  const [dashboardStats, setDashboardStats] = useState<{ activePatients: number; shiftCount: number; equipmentCount: number; todayTreatments: number; treatmentsByHour: { name: string; value: number }[]; qualityByHour: { name: string; value: number }[] } | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
 
-  // 加载数据
   useEffect(() => {
+    let alive = true
+
     Promise.all([
       restApi.getPatientList({ page: 1, pageSize: 50, onlyActive: true }).catch(() => null),
       getActiveShifts().catch(() => []),
@@ -47,214 +137,286 @@ export default function Dashboard() {
       getTodayTreatments().catch(() => []),
       restApi.getDashboardStats().catch(() => null),
     ]).then(([patientResult, shiftsData, equipmentsData, treatmentsData, statsData]) => {
+      if (!alive) return
       if (patientResult?.data?.items) {
         setPatients(convertRestPatientList(patientResult.data.items))
         setPatientTotal(patientResult.data.pagination?.total ?? patientResult.data.items.length)
       }
-      setShifts(shiftsData); setEquipments(equipmentsData); setTreatments(treatmentsData)
-      if (statsData) setDashboardStats(statsData)
+      setShifts(shiftsData)
+      setEquipments(equipmentsData)
+      setTreatments(treatmentsData)
+      setDashboardStats(statsData)
       setApiError(null)
-    }).catch(() => setApiError(t('common:api.notConfigured')))
-  }, [t])
+      setIsLoading(false)
+    }).catch(() => {
+      if (!alive) return
+      setApiError('工作台数据暂时不可用，请检查后端服务或接口配置。')
+      setIsLoading(false)
+    })
 
-  // 初始化卡片配置（v2 迁移）
-  useEffect(() => {
-    const v2Key = `${LAYOUT_STORAGE_KEY_V2}_${role}`
-    const v1Key = `${LAYOUT_V1_KEY}_${role}`
-    let saved = localStorage.getItem(v2Key)
-    if (!saved) { localStorage.getItem(v1Key); saved = null } // v1 不迁移，走默认
-    const defaultKeys = getDefaultCardKeys(String(role))
-
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved) as LocalCardConfig[]
-        const merged = V2_CARD_REGISTRY.map(def => {
-          const s = parsed.find(c => c.id === def.id)
-          return s ? { ...def, ...s } : { ...def, visible: defaultKeys.includes(def.id), colSpan: def.size === 'large' ? 6 : 3, rowSpan: def.size === 'large' ? 6 : 5 }
-        })
-        queueMicrotask(() => setCardsConfig(merged)); return
-      } catch { /* fall through */ }
+    return () => {
+      alive = false
     }
+  }, [])
 
-    queueMicrotask(() => setCardsConfig(V2_CARD_REGISTRY.map(def => ({
-      ...def, visible: defaultKeys.includes(def.id),
-      colSpan: def.size === 'large' ? 6 : 3, rowSpan: def.size === 'large' ? 6 : 5,
-    }))))
-  }, [role])
+  const activePatientCount = dashboardStats?.activePatients ?? patientTotal ?? patients.length
+  const todayTreatmentCount = dashboardStats?.todayTreatments ?? treatments.length
+  const todayScheduleCount = dashboardStats?.todaySchedules ?? shifts.length
+  const equipmentCount = dashboardStats?.equipmentCount ?? equipments.length
+  const runningTreatments = treatments.filter(item => isTreatmentRunning(item.Status)).length
+  const attentionDevices = equipments.filter(item => isDeviceAttention(item.Status)).length
+  const alertCount = dashboardStats?.alertItems ?? attentionDevices
+  const completionRate = todayTreatmentCount > 0
+    ? Math.round((treatments.filter(item => ['completed', '2', '30', '已完成'].includes(item.Status ?? '')).length / todayTreatmentCount) * 100)
+    : 0
+  const visibleTreatments = treatments.slice(0, 6)
+  const visiblePatients = patients.slice(0, 6)
+  const visibleShifts = shifts.slice(0, 4)
+  const visibleDevices = equipments.slice(0, 8)
+  const hourBars = (dashboardStats?.treatmentsByHour?.length ? dashboardStats.treatmentsByHour : [
+    { name: '07:00', value: Math.max(1, Math.round(todayTreatmentCount * 0.25)) },
+    { name: '11:00', value: Math.max(1, Math.round(todayTreatmentCount * 0.35)) },
+    { name: '15:00', value: Math.max(1, Math.round(todayTreatmentCount * 0.25)) },
+    { name: '19:00', value: Math.max(0, Math.round(todayTreatmentCount * 0.15)) },
+  ]).slice(0, 6)
+  const maxHourValue = Math.max(...hourBars.map(item => item.value), 1)
 
-  // 保存配置
-  useEffect(() => {
-    if (cardsConfig.length > 0) localStorage.setItem(`${LAYOUT_STORAGE_KEY_V2}_${role}`, JSON.stringify(cardsConfig))
-  }, [cardsConfig, role])
-
-  const toggleVisibility = (id: string, visible: boolean) => setCardsConfig(prev => prev.map(c => c.id === id ? { ...c, visible } : c))
-  const totalPatients = dashboardStats?.activePatients ?? patientTotal ?? patients.length
-
-  // 卡片渲染
-  const renderCard = (card: LocalCardConfig) => {
-    const navigateTo = (route: string) => { if (!isCustomizing) navigate(route) }
-    switch (card.id) {
-      case 'operationKpis':
-      case 'dept_overview':
-        return <StatKpiCard items={[
-          { labelKey: 'dashboard:stat.patientsInDept', value: totalPatients, color: 'blue' },
-          { labelKey: 'dashboard:stat.todayDialysis', value: dashboardStats?.todayTreatments ?? treatments.length, color: 'teal' },
-          { labelKey: 'dashboard:stat.totalDevices', value: dashboardStats?.equipmentCount ?? equipments.length, color: 'purple' },
-          { labelKey: 'dashboard:stat.shiftCount', value: dashboardStats?.shiftCount ?? shifts.length, color: 'orange' },
-        ]} />
-      case 'myPatientsToday':
-      case 'active_patients':
-      case 'my_duty_patients':
-        return <PatientListCard patients={patients} onSelect={(id) => navigate(`/patients/${id}`)} onViewAll={() => navigate('/patients')} />
-      case 'pendingPrescriptions':
-      case 'prescription_adjust':
-        return <AlertCard items={[
-          { icon: 'alert', titleKey: 'dashboard:alert.bpLow', descKey: 'dashboard:alert.adjustUF', actionKey: 'common:action.handle', actionRoute: '/monitoring', color: 'orange' },
-          { icon: 'file', titleKey: 'dashboard:alert.orderRequest', descKey: 'common:order.heparinRequest', actionKey: 'common:action.review', actionRoute: '/dialysis-processing', color: 'blue' },
-        ]} onNavigate={navigateTo} />
-      case 'recent7dTreatments':
-      case 'quality_stats':
-      case 'nurse_workload':
-      case 'treatmentTrend':
-      case 'patientGrowth':
-        return <ChartCard data={card.id === 'quality_stats' || card.id === 'patientGrowth' ? (dashboardStats?.qualityByHour ?? []) : (dashboardStats?.treatmentsByHour ?? [])} color={card.id === 'quality_stats' || card.id === 'patientGrowth' ? '#10b981' : '#3b82f6'} />
-      case 'abnormalLabs':
-        return <PlaceholderCard label={t('dashboard:card.abnormalLabs') || 'Abnormal Labs'} />
-      case 'duty_monitor':
-      case 'device_status_eng':
-      case 'onlineDevices':
-      case 'deviceUtilization':
-        return <DeviceGridCard devices={equipments as unknown as { Id: string; Name?: string; IDNo?: string; Status?: string }[]} />
-      case 'todayShiftMatrix':
-      case 'staff_schedule':
-        return <ShiftListCard shifts={shifts as unknown as { Id: string; Name?: string; StartTime?: string; EndTime?: string; Status?: string; Type?: string }[]} />
-      case 'pendingOrders':
-      case 'pendingPreAssessment':
-      case 'pendingScheduleQueue':
-      case 'bedUtilization':
-      case 'contractAnomaly':
-      case 'consumables_prep':
-      case 'device_binding':
-      case 'maintenance_logs':
-      case 'schedule_adjust':
-        return <PlaceholderCard label={t(`dashboard:card.${card.id}`) || card.id} />
-      default:
-        return <div className="text-foreground-muted text-sm flex items-center justify-center h-full">{t('loading')}</div>
-    }
-  }
-
-  const hiddenCards = cardsConfig.filter(c => !c.visible)
-  const visibleCards = cardsConfig.filter(c => c.visible)
-
-  const getColSpanClass = (span: number) => {
-    const map: Record<number, string> = { 3: 'md:col-span-3', 6: 'md:col-span-6', 12: 'md:col-span-12' }
-    return map[span] || 'md:col-span-12'
-  }
-
-  const getCardTitle = (cardId: string): string => {
-    const def = V2_CARD_REGISTRY.find(d => d.id === cardId)
-    return def ? t(def.titleKey) : cardId
-  }
-
-  const CardWrapper: React.FC<{ config: LocalCardConfig; children: React.ReactNode }> = ({ config, children }) => (
-    <div
-      className={`bg-surface rounded-md border border-gray-100 flex flex-col overflow-hidden group relative
-        col-span-1 ${getColSpanClass(config.colSpan)}
-        ${isCustomizing ? 'ring-2 ring-blue-400 border-blue-400 z-10' : 'hover:shadow-md transition-shadow duration-200 cursor-pointer hover:border-blue-200'}
-      `}
-      style={{ gridRow: `span ${config.rowSpan}` }}
-      onClick={() => { if (!isCustomizing) { const def = V2_CARD_REGISTRY.find(d => d.id === config.id); if (def) { const route = cardRouteMap[def.id]; if (route) navigate(route) } } }}
-    >
-      {isCustomizing && (
-        <button onClick={(e) => { e.stopPropagation(); toggleVisibility(config.id, false) }} className="absolute top-2 right-2 z-20 p-1 bg-red-100 text-red-500 rounded-full hover:bg-red-200 transition-colors">
-          <X size={14} />
-        </button>
+  return (
+    <div className="max-w-[1600px] mx-auto space-y-6 pb-10">
+      {apiError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {apiError}
+        </div>
       )}
-      <div className="px-4 py-3 border-b border-gray-50 flex justify-between items-center bg-surface select-none shrink-0 h-[52px]">
-        <h3 className="font-bold text-foreground flex items-center gap-2 text-sm truncate">
-          {config.type === 'stat' && <TrendingUp size={16} className="text-blue-500" />}
-          {config.type === 'list' && <Users size={16} className="text-teal-500" />}
-          {config.type === 'action' && <AlertTriangle size={16} className="text-orange-500" />}
-          {config.type === 'monitor' && <Activity size={16} className="text-purple-500" />}
-          {config.type === 'inventory' && <Package size={16} className="text-indigo-500" />}
-          {config.type === 'binding' && <Link2 size={16} className="text-slate-500" />}
-          {getCardTitle(config.id)}
-        </h3>
-        {!isCustomizing && (
-          <button className="text-gray-400 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity p-1">
-            <MoreHorizontal size={16} />
+
+      <section className="relative overflow-hidden rounded-lg border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-teal-900 text-white shadow-sm">
+        <div className="absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_top_right,rgba(45,212,191,0.28),transparent_42%)]" />
+        <div className="relative grid gap-6 p-6 lg:grid-cols-[1.35fr_0.65fr] lg:p-8">
+          <div>
+            <div className="mb-4 inline-flex items-center gap-2 rounded-md border border-white/15 bg-white/10 px-3 py-1 text-sm text-teal-50 backdrop-blur">
+              <HeartPulse size={16} /> 血液透析工作台
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">今日透析运行总览</h1>
+            <p className="mt-3 max-w-[68ch] text-sm leading-6 text-slate-200">
+              聚合今日排班、透析执行、设备状态和重点患者，帮助医护快速判断当前治疗压力，并一键进入对应业务菜单处理。
+            </p>
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <HeroMetric label="今日透析" value={todayTreatmentCount} suffix="人次" icon={<Droplets size={18} />} />
+              <HeroMetric label="透析中" value={runningTreatments} suffix="人" icon={<Activity size={18} />} />
+              <HeroMetric label="待关注" value={alertCount} suffix="项" icon={<AlertTriangle size={18} />} />
+              <HeroMetric label="在档患者" value={activePatientCount} suffix="人" icon={<Users size={18} />} />
+            </div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-white/10 p-5 backdrop-blur">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-200">今日完成率</span>
+              <span className="text-2xl font-bold">{completionRate}%</span>
+            </div>
+            <div className="mt-4 h-2 overflow-hidden rounded-md bg-white/15">
+              <div className="h-full rounded-md bg-teal-300 transition-all duration-500" style={{ width: `${Math.min(completionRate, 100)}%` }} />
+            </div>
+            <div className="mt-6 space-y-3 text-sm text-slate-100">
+              <StatusLine label="今日排班" value={`${todayScheduleCount} 个班次/安排`} />
+              <StatusLine label="设备总数" value={`${equipmentCount} 台`} />
+              <StatusLine label="设备需关注" value={`${attentionDevices} 台`} danger={attentionDevices > 0} />
+            </div>
+            <button
+              type="button"
+              onClick={() => navigate('/monitoring')}
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md bg-white px-4 py-2.5 text-sm font-semibold text-slate-900 transition hover:bg-teal-50 active:scale-[0.98]"
+            >
+              打开实时监测 <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {actionItems.map(item => (
+          <button
+            key={item.title}
+            type="button"
+            onClick={() => navigate(item.route)}
+            className={`group rounded-lg border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-md active:scale-[0.98] ${item.tone}`}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-md bg-white/70">{item.icon}</span>
+              <ArrowRight size={18} className="transition group-hover:translate-x-1" />
+            </div>
+            <div className="font-semibold">{item.title}</div>
+            <p className="mt-1 text-sm opacity-80">{item.desc}</p>
           </button>
-        )}
+        ))}
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+        <Panel title="今日治疗节奏" action="查看统计" onAction={() => navigate('/statistics')}>
+          <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
+            <div className="space-y-3">
+              {hourBars.map(item => (
+                <div key={item.name} className="grid grid-cols-[52px_1fr_40px] items-center gap-3 text-sm">
+                  <span className="text-slate-500">{item.name}</span>
+                  <div className="h-3 overflow-hidden rounded-md bg-slate-100">
+                    <div className="h-full rounded-md bg-teal-500" style={{ width: `${Math.max(8, (item.value / maxHourValue) * 100)}%` }} />
+                  </div>
+                  <span className="text-right font-semibold text-slate-800">{item.value}</span>
+                </div>
+              ))}
+            </div>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MiniMetric label="治疗中" value={runningTreatments} hint="需持续监测" />
+              <MiniMetric label="已完成" value={treatments.filter(item => ['completed', '2', '30', '已完成'].includes(item.Status ?? '')).length} hint="可做透后评估" />
+              <MiniMetric label="未开始" value={Math.max(todayTreatmentCount - treatments.length, 0)} hint="关注接诊排队" />
+            </div>
+          </div>
+        </Panel>
+
+        <Panel title="班次安排" action="进入排班" onAction={() => navigate('/schedule')}>
+          {isLoading ? <SkeletonRows /> : visibleShifts.length > 0 ? (
+            <div className="space-y-3">
+              {visibleShifts.map(shift => (
+                <button key={shift.Id} type="button" onClick={() => navigate('/schedule')} className="w-full rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50 active:scale-[0.98]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-slate-900">{shift.Name || `班次 ${shift.Id}`}</span>
+                    <span className="text-xs text-slate-500">{shift.Type || '常规'}</span>
+                  </div>
+                  <div className="mt-2 text-sm text-slate-500">{formatClock(shift.StartTime)} - {formatClock(shift.EndTime)}</div>
+                </button>
+              ))}
+            </div>
+          ) : <EmptyState text="暂无可展示班次" />}
+        </Panel>
+      </section>
+
+      <section className="grid gap-5 xl:grid-cols-3">
+        <Panel title="今日透析患者" action="患者列表" onAction={() => navigate('/patients')} className="xl:col-span-1">
+          {isLoading ? <SkeletonRows /> : visiblePatients.length > 0 ? (
+            <div className="divide-y divide-slate-100">
+              {visiblePatients.map(patient => (
+                <button key={patient.id} type="button" onClick={() => patient.id && navigate(`/patients/${patient.id}`)} className="flex w-full items-center gap-3 py-3 text-left transition hover:bg-slate-50 active:scale-[0.98]">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md bg-emerald-50 font-semibold text-emerald-700">{patient.name?.slice(0, 1) || '患'}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-semibold text-slate-900">{patient.name || '未命名患者'}</span>
+                    <span className="mt-0.5 block text-sm text-slate-500">床位 {patient.bedNumber || '--'} · {patient.diagnosis || patient.defaultMode || '待完善治疗信息'}</span>
+                  </span>
+                  <span className="rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-600">{patient.riskLevel || '常规'}</span>
+                </button>
+              ))}
+            </div>
+          ) : <EmptyState text="暂无今日患者数据" />}
+        </Panel>
+
+        <Panel title="透析执行动态" action="进入执行" onAction={() => navigate('/dialysis-processing')} className="xl:col-span-1">
+          {isLoading ? <SkeletonRows /> : visibleTreatments.length > 0 ? (
+            <div className="space-y-3">
+              {visibleTreatments.map(item => (
+                <button key={item.Id} type="button" onClick={() => navigate('/dialysis-processing')} className="w-full rounded-lg border border-slate-100 px-4 py-3 text-left transition hover:border-teal-200 hover:bg-teal-50 active:scale-[0.98]">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-semibold text-slate-900">患者 ID：{item.PatientId}</span>
+                    <span className="rounded-md bg-teal-50 px-2 py-1 text-xs font-medium text-teal-700">{treatmentStatusText[item.Status ?? ''] || item.Status || '待确认'}</span>
+                  </div>
+                  <div className="mt-2 flex items-center gap-3 text-sm text-slate-500">
+                    <span>班次 {item.ShiftId || '--'}</span>
+                    <span>{formatClock(item.StartTime)} - {formatClock(item.EndTime)}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : <EmptyState text="暂无今日治疗记录" />}
+        </Panel>
+
+        <Panel title="设备与床位关注" action="设备管理" onAction={() => navigate('/device-binding')} className="xl:col-span-1">
+          {isLoading ? <SkeletonRows /> : visibleDevices.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {visibleDevices.map(device => {
+                const needsAttention = isDeviceAttention(device.Status)
+                return (
+                  <button key={device.Id} type="button" onClick={() => navigate('/monitoring')} className={`rounded-lg border p-3 text-left transition active:scale-[0.98] ${needsAttention ? 'border-orange-200 bg-orange-50 hover:bg-orange-100' : 'border-slate-100 bg-slate-50 hover:bg-emerald-50'}`}>
+                    <div className="mb-2 flex items-center justify-between gap-2">
+                      <Bed size={16} className={needsAttention ? 'text-orange-600' : 'text-emerald-600'} />
+                      <span className={`rounded-md px-2 py-0.5 text-xs ${needsAttention ? 'bg-orange-100 text-orange-700' : 'bg-emerald-100 text-emerald-700'}`}>{deviceStatusText[device.Status ?? ''] || device.Status || '未知'}</span>
+                    </div>
+                    <div className="truncate font-semibold text-slate-900">{device.Name || `设备 ${device.Id}`}</div>
+                    <div className="mt-1 truncate text-xs text-slate-500">编号 {device.IDNo || '--'}</div>
+                  </button>
+                )
+              })}
+            </div>
+          ) : <EmptyState text="暂无设备数据" />}
+        </Panel>
+      </section>
+    </div>
+  )
+}
+
+function HeroMetric({ label, value, suffix, icon }: { label: string; value: number; suffix: string; icon: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/10 p-4 backdrop-blur">
+      <div className="mb-3 flex items-center justify-between text-teal-50">
+        <span className="text-sm">{label}</span>
+        {icon}
       </div>
-      <div className={`p-4 flex-1 overflow-auto relative min-h-0 ${isCustomizing ? 'pointer-events-none' : ''}`}>
-        {children}
+      <div className="flex items-end gap-1">
+        <span className="text-3xl font-bold leading-none">{value}</span>
+        <span className="text-sm text-slate-200">{suffix}</span>
       </div>
     </div>
   )
+}
 
-  const cardRouteMap: Record<string, string> = {
-    dept_overview: '/statistics', operationKpis: '/statistics',
-    active_patients: '/patients', myPatientsToday: '/patients', my_duty_patients: '/patients', prescription_adjust: '/patients',
-    quality_stats: '/statistics', nurse_workload: '/statistics', patientGrowth: '/statistics', treatmentTrend: '/statistics',
-    duty_monitor: '/monitoring', device_status_eng: '/monitoring', onlineDevices: '/monitoring',
-    staff_schedule: '/schedule', todayShiftMatrix: '/schedule', schedule_adjust: '/schedule',
-  }
-
+function StatusLine({ label, value, danger }: { label: string; value: string; danger?: boolean }) {
   return (
-    <div className="max-w-[1800px] mx-auto relative">
-      {apiError && <div className="mb-4 px-4 py-2 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">{apiError}</div>}
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-slate-300">{label}</span>
+      <span className={danger ? 'font-semibold text-orange-200' : 'font-semibold text-white'}>{value}</span>
+    </div>
+  )
+}
 
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h2 className="text-h2 font-bold text-foreground">{t('title')}</h2>
-          <p className="text-foreground-muted text-sm mt-1">{isAdmin ? t('role:desc.admin') : isNurse ? t('role:desc.nurse') : t('role:desc.doctor')}</p>
+function Panel({ title, action, onAction, className = '', children }: { title: string; action: string; onAction: () => void; className?: string; children: ReactNode }) {
+  return (
+    <section className={`rounded-lg border border-slate-200 bg-white p-5 shadow-sm ${className}`}>
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-teal-50 text-teal-700"><Stethoscope size={18} /></span>
+          <h2 className="text-base font-bold text-slate-900">{title}</h2>
         </div>
-        <div className="flex space-x-3">
-          {isCustomizing && (
-            <button onClick={() => setShowWidgetLibrary(true)} className="flex items-center px-4 py-2 bg-white border border-blue-500 text-blue-600 rounded-md text-sm font-medium hover:bg-blue-50 transition-colors">
-              <Plus size={16} className="mr-2" /> {t('action.addCard')}
-            </button>
-          )}
-          <button onClick={() => { setIsCustomizing(!isCustomizing); setShowWidgetLibrary(false) }}
-            className={`flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors ${isCustomizing ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}>
-            {isCustomizing ? <><CheckCircle2 size={16} className="mr-2" /> {t('action.finishLayout')}</> : <><LayoutGrid size={16} className="mr-2" /> {t('action.customizeLayout')}</>}
-          </button>
-        </div>
+        <button type="button" onClick={onAction} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-sm font-medium text-teal-700 transition hover:bg-teal-50 active:scale-[0.98]">
+          {action} <ArrowRight size={15} />
+        </button>
       </div>
+      {children}
+    </section>
+  )
+}
 
-      <div className={`grid grid-cols-1 md:grid-cols-12 gap-4 pb-10 content-start auto-rows-[60px] ${isCustomizing ? 'select-none' : ''}`}>
-        {visibleCards.map(card => (
-          <CardWrapper key={card.id} config={card}>{renderCard(card)}</CardWrapper>
-        ))}
+function MiniMetric({ label, value, hint }: { label: string; value: number; hint: string }) {
+  return (
+    <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-sm text-slate-500">{label}</span>
+        <CheckCircle2 size={16} className="text-teal-600" />
       </div>
+      <div className="mt-3 text-2xl font-bold text-slate-900">{value}</div>
+      <div className="mt-1 text-xs text-slate-500">{hint}</div>
+    </div>
+  )
+}
 
-      {showWidgetLibrary && isCustomizing && (
-        <div className="fixed top-16 right-0 bottom-0 w-80 bg-white shadow-2xl border-l border-gray-200 z-50 animate-slide-in-right flex flex-col">
-          <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-            <h3 className="font-bold text-gray-800 flex items-center"><Library size={18} className="mr-2 text-blue-600" /> {t('widgetLibrary.title')}</h3>
-            <button onClick={() => setShowWidgetLibrary(false)} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            <p className="text-xs text-gray-500 mb-2">{t('widgetLibrary.hint')}</p>
-            {hiddenCards.length > 0 ? hiddenCards.map(card => (
-              <div key={card.id} onClick={() => toggleVisibility(card.id, true)} className="p-3 border border-gray-200 rounded-md hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all group">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-bold text-gray-700 group-hover:text-blue-700 text-sm">{getCardTitle(card.id)}</span>
-                  <Plus size={16} className="text-gray-400 group-hover:text-blue-600" />
-                </div>
-                <div className="text-xs text-gray-400 flex items-center">
-                  <span className="bg-gray-100 px-1.5 py-0.5 rounded mr-2">{card.type}</span>
-                  <span>{t('widgetLibrary.defaultSize')}: {card.size}</span>
-                </div>
-              </div>
-            )) : (
-              <div className="text-center py-10 text-gray-400 text-sm">
-                <CheckCircle2 size={32} className="mx-auto mb-2 opacity-50" /><p>{t('widgetLibrary.allAdded')}</p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+function EmptyState({ text }: { text: string }) {
+  return (
+    <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50 text-sm text-slate-500">
+      {text}
+    </div>
+  )
+}
+
+function SkeletonRows() {
+  return (
+    <div className="space-y-3" aria-live="polite">
+      {[0, 1, 2].map(item => (
+        <div key={item} className="h-14 animate-pulse rounded-lg bg-slate-100" />
+      ))}
     </div>
   )
 }

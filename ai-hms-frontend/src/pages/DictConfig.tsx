@@ -580,6 +580,9 @@ export default function DictConfig() {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-1 text-xs text-slate-400 px-1">
+        <span>系统设置</span><span>/</span><span className="text-slate-600">字典配置</span>
+      </div>
       <section className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>

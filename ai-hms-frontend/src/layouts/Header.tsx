@@ -1,9 +1,9 @@
-import { useState, type RefObject } from 'react'
+import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Popover } from 'antd'
 import { UserRole } from '@/types/original'
 import type { AppRole } from '@/services/role'
-import { Menu, ClipboardList, Stethoscope, ChevronRight } from 'lucide-react'
+import { Menu, Stethoscope, ChevronRight } from 'lucide-react'
 import { getRouteMeta } from './routeMeta'
 import HeaderUserMenu from './HeaderUserMenu'
 
@@ -16,10 +16,6 @@ interface HeaderProps {
     onLogout?: () => void
     sidebarOpen?: boolean
     onSidebarToggle?: () => void
-    taskbarOpen?: boolean
-    onTaskbarToggle?: () => void
-    taskCount?: number
-    toggleBtnRef?: RefObject<HTMLButtonElement | null>
 }
 
 export default function Header({
@@ -31,10 +27,6 @@ export default function Header({
     onLogout,
     sidebarOpen = true,
     onSidebarToggle,
-    taskbarOpen = false,
-    onTaskbarToggle,
-    taskCount = 0,
-    toggleBtnRef,
 }: HeaderProps) {
     const location = useLocation()
     const [avatarFailed, setAvatarFailed] = useState(false)
@@ -42,7 +34,6 @@ export default function Header({
 
     const routeMeta = getRouteMeta(location.pathname)
     const showBreadcrumb = routeMeta.breadcrumb.length > 1
-    const displayCount = taskCount > 99 ? '99+' : String(taskCount)
 
     return (
         <header className="shrink-0 z-10">
@@ -69,25 +60,8 @@ export default function Header({
                     </div>
                 </div>
 
-                {/* 右侧：任务按�?+ 头像弹出菜单 */}
-                <div className="flex items-center space-x-4">
-                    <button
-                        ref={toggleBtnRef}
-                        onClick={onTaskbarToggle}
-                        className={`p-2 rounded-lg relative transition-all ${
-                            taskbarOpen ? 'bg-blue-600 text-white shadow-lg' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                        }`}
-                    >
-                        <ClipboardList size={20} />
-                    {taskCount > 0 && !taskbarOpen && (
-                        // eslint-disable-next-line no-restricted-syntax -- density:strict 小字角标
-                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white px-0.5">
-                                {displayCount}
-                            </span>
-                        )}
-                    </button>
-
-                    <div className="h-8 w-px bg-gray-200 mx-2"></div>
+                {/* 右侧：头像弹出菜单 */}
+                <div className="flex items-center">
 
                     <Popover
                         content={<HeaderUserMenu username={username} userRole={userRole} onLogout={onLogout || (() => {})} />}

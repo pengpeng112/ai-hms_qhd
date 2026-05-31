@@ -253,12 +253,19 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 		return
 	}
 
+	// parse date for conflict check
+	scheduleDate, err := services.ParseScheduleDate(req.ScheduleDate)
+	if err != nil {
+		response.BadRequest(c, "无效的日期格式，应为 YYYY-MM-DD")
+		return
+	}
+
 	// 检查冲突
 	tenantId := middleware.GetTenantID(c)
 	hasConflict, err := h.service.CheckConflict(
 		req.PatientId,
 		tenantId,
-		req.ScheduleDate,
+		scheduleDate,
 		req.ShiftId,
 		nil,
 	)
@@ -269,6 +276,18 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 	if hasConflict {
 		response.BadRequest(c, "该患者在该日期的该班次已有排班")
 		return
+	}
+
+	if req.BedId != nil {
+		hasBedConflict, err := h.service.CheckBedConflict(*req.BedId, tenantId, scheduleDate, req.ShiftId, nil)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+		if hasBedConflict {
+			response.BadRequest(c, "该床位该班次已被占用")
+			return
+		}
 	}
 
 	creatorId := middleware.GetCreatorID(c)
@@ -306,6 +325,22 @@ func (h *PatientShiftHandler) Update(c *gin.Context) {
 	}
 
 	tenantId := middleware.GetTenantID(c)
+
+	// P0-7: 修改前先校验
+	existingShift, err := h.service.Get(id, tenantId)
+	if err != nil {
+		if err.Error() == "patient shift not found" {
+			response.NotFound(c, "排班记录不存在")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	if err := h.service.ValidateShiftEdit(existingShift, tenantId); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	patientShift, err := h.service.Update(id, tenantId, req)
 	if err != nil {
 		if err.Error() == "patient shift not found" {
@@ -336,6 +371,22 @@ func (h *PatientShiftHandler) Delete(c *gin.Context) {
 	}
 
 	tenantId := middleware.GetTenantID(c)
+
+	// P0-7: 取消前先校验
+	shift, err := h.service.Get(id, tenantId)
+	if err != nil {
+		if err.Error() == "patient shift not found" {
+			response.NotFound(c, "排班记录不存在")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+	if err := h.service.ValidateShiftEdit(shift, tenantId); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
 	if err := h.service.Delete(id, tenantId); err != nil {
 		if err.Error() == "patient shift not found" {
 			response.NotFound(c, "排班记录不存在")
@@ -392,31 +443,208 @@ func (h *PatientShiftHandler) GetByPatientAndDate(c *gin.Context) {
 	response.Success(c, patientShift)
 }
 
+// MoveRequest 换床请求
+type MoveRequest struct {
+	BedID         *int64    `json:"bedId"`
+	WardID        *int64    `json:"wardId"`
+	TreatmentTime *string   `json:"treatmentTime"`
+	ShiftID       *int64    `json:"shiftId"`
+}
+
+// Move 换床/移动排班（支持跨日期/跨班次）
+func (h *PatientShiftHandler) Move(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		response.BadRequest(c, "无效的ID")
+		return
+	}
+
+	var req MoveRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+
+	tenantId := middleware.GetTenantID(c)
+	patientShift, err := h.service.Get(id, tenantId)
+	if err != nil {
+		if err.Error() == "patient shift not found" {
+			response.NotFound(c, "排班记录不存在")
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	// P0-7 校验：历史保护/已过班次保护/治疗中保护
+	if err := h.service.ValidateShiftEdit(patientShift, tenantId); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+
+	// 计算目标值
+	targetDate := patientShift.ScheduleDate
+	targetShiftID := patientShift.ShiftId
+	targetBedID := patientShift.BedId
+	targetWardID := patientShift.WardId
+
+	if req.TreatmentTime != nil {
+		parsed, err := services.ParseScheduleDate(*req.TreatmentTime)
+		if err != nil {
+			response.BadRequest(c, "无效的 treatmentTime 格式，应为 YYYY-MM-DD")
+			return
+		}
+		targetDate = parsed
+	}
+	if req.ShiftID != nil {
+		targetShiftID = *req.ShiftID
+	}
+	if req.BedID != nil {
+		targetBedID = req.BedID
+	}
+	if req.WardID != nil {
+		targetWardID = req.WardID
+	}
+
+	// 冲突校验
+	if targetBedID != nil {
+		hasConflict, err := h.service.CheckBedConflict(*targetBedID, tenantId, targetDate, targetShiftID, &id)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+		if hasConflict {
+			response.BadRequest(c, "目标床位该班次已被占用")
+			return
+		}
+	}
+
+	updateReq := services.PatientShiftUpdateRequest{
+		BedId:         targetBedID,
+		WardId:        targetWardID,
+		ShiftId:       &targetShiftID,
+		TreatmentTime: &targetDate,
+	}
+	updated, err := h.service.Update(id, tenantId, updateReq)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, updated)
+}
+
+// SwapRequest 互换请求
+type SwapRequest struct {
+	SourceID int64 `json:"sourceId"`
+	TargetID int64 `json:"targetId"`
+}
+
+// Swap 互换排班（事务 + 完整交换）
+func (h *PatientShiftHandler) Swap(c *gin.Context) {
+	var req SwapRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+
+	tenantId := middleware.GetTenantID(c)
+
+	// P0-7: 互换前校验双方
+	sourceShift, err := h.service.Get(req.SourceID, tenantId)
+	if err != nil {
+		response.NotFound(c, "源排班记录不存在")
+		return
+	}
+	targetShift, err := h.service.Get(req.TargetID, tenantId)
+	if err != nil {
+		response.NotFound(c, "目标排班记录不存在")
+		return
+	}
+	if err := h.service.ValidateShiftEdit(sourceShift, tenantId); err != nil {
+		response.BadRequest(c, "源排班: "+err.Error())
+		return
+	}
+	if err := h.service.ValidateShiftEdit(targetShift, tenantId); err != nil {
+		response.BadRequest(c, "目标排班: "+err.Error())
+		return
+	}
+
+	if err := h.service.Swap(req.SourceID, req.TargetID, tenantId); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, gin.H{"success": true})
+}
+
 // RegisterScheduleRoutes 注册排班管理路由
 func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	shiftHandler := NewShiftHandler()
 	patientShiftHandler := NewPatientShiftHandler()
+	weekHandler := NewScheduleWeekHandler()
 
 	// 班次路由
 	shifts := r.Group("/shifts")
 	{
-		shifts.GET("", shiftHandler.List)          // 获取班次列表
-		shifts.POST("", shiftHandler.Create)       // 创建班次
-		shifts.GET("/:id", shiftHandler.Get)       // 获取班次详情
-		shifts.PUT("/:id", shiftHandler.Update)    // 更新班次
-		shifts.DELETE("/:id", shiftHandler.Delete) // 删除班次
+		shifts.GET("", shiftHandler.List)
+		shifts.POST("", shiftHandler.Create)
+		shifts.GET("/:id", shiftHandler.Get)
+		shifts.PUT("/:id", shiftHandler.Update)
+		shifts.DELETE("/:id", shiftHandler.Delete)
 	}
 
 	// 患者排班路由
 	patientShifts := r.Group("/patient-shifts")
 	{
-		patientShifts.GET("", patientShiftHandler.List)          // 获取患者排班列表
-		patientShifts.POST("", patientShiftHandler.Create)       // 创建患者排班
-		patientShifts.GET("/:id", patientShiftHandler.Get)       // 获取患者排班详情
-		patientShifts.PUT("/:id", patientShiftHandler.Update)    // 更新患者排班
-		patientShifts.DELETE("/:id", patientShiftHandler.Delete) // 删除患者排班
+		patientShifts.GET("", patientShiftHandler.List)
+		patientShifts.POST("", patientShiftHandler.Create)
+		patientShifts.GET("/:id", patientShiftHandler.Get)
+		patientShifts.PUT("/:id", patientShiftHandler.Update)
+		patientShifts.DELETE("/:id", patientShiftHandler.Delete)
+		patientShifts.POST("/:id/move", patientShiftHandler.Move)
+		patientShifts.POST("/swap", patientShiftHandler.Swap)
 	}
 
 	// 患者相关的排班查询
 	r.GET("/patients/:id/shift", patientShiftHandler.GetByPatientAndDate)
+
+	// 周视图聚合
+	r.GET("/schedule/week", weekHandler.GetWeek)
+}
+
+// ScheduleWeekHandler 周视图聚合
+type ScheduleWeekHandler struct {
+	service *services.ScheduleWeekService
+}
+
+func NewScheduleWeekHandler() *ScheduleWeekHandler {
+	return &ScheduleWeekHandler{service: services.NewScheduleWeekService()}
+}
+
+func (h *ScheduleWeekHandler) GetWeek(c *gin.Context) {
+	startDate := c.Query("startDate")
+	endDate := c.Query("endDate")
+	if startDate == "" || endDate == "" {
+		response.BadRequest(c, "startDate 和 endDate 必填")
+		return
+	}
+
+	var wardID *int64
+	if wardStr := c.Query("wardId"); wardStr != "" {
+		parsed, err := strconv.ParseInt(wardStr, 10, 64)
+		if err == nil {
+			wardID = &parsed
+		}
+	}
+
+	tenantID := middleware.GetTenantID(c)
+	result, err := h.service.GetWeek(startDate, endDate, tenantID, wardID)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, result)
 }

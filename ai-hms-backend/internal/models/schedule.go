@@ -142,10 +142,14 @@ func (PatientShift) TableName() string {
 }
 
 // PatientShiftStatus 患者排班状态常量
+// 老库 Schedule_PatientShift.Status 对应关系：
+//   10 草稿 / 20 已确认 / 30 用户确认 / 40 用户取消 / 50 排班取消 / 60 转出人员
 const (
-	PatientShiftStatusPending    = 0 // 待执行
-	PatientShiftStatusConfirmed  = 1 // 已确认
-	PatientShiftStatusInProgress = 2 // 进行中
-	PatientShiftStatusCompleted  = 3 // 已完成
-	PatientShiftStatusCancelled  = 4 // 已取消
+	PatientShiftStatusPending       = 0 // 待执行 -> 老库 10 草稿
+	PatientShiftStatusConfirmed     = 1 // 已确认 -> 老库 20 已确认
+	PatientShiftStatusInProgress    = 2 // 进行中 -> 老库 20 已确认
+	PatientShiftStatusCompleted     = 3 // 已完成 -> 老库 30 用户确认
+	PatientShiftStatusCancelled     = 4 // 系统取消 -> 老库 50 排班取消
+	PatientShiftStatusUserCancelled = 5 // 用户取消 -> 老库 40 用户取消
+	PatientShiftStatusTransferred   = 6 // 转出人员 -> 老库 60 转出人员
 )

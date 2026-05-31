@@ -391,7 +391,7 @@ export default function DialysisExecution() {
     <div className="relative flex h-full overflow-hidden bg-slate-100">
       <div
         className={`overflow-hidden border-r border-slate-200 transition-all duration-300 ease-in-out ${
-          isPatientListVisible ? 'w-72' : 'w-0'
+          isPatientListVisible ? 'w-60' : 'w-0'
         }`}
       >
         <PatientListSidebar
@@ -406,7 +406,7 @@ export default function DialysisExecution() {
         type="button"
         onClick={() => setIsPatientListVisible((value) => !value)}
         className="absolute top-1/2 z-20 -translate-y-1/2 transition-all duration-300"
-        style={{ left: isPatientListVisible ? '276px' : '-4px' }}
+        style={{ left: isPatientListVisible ? '244px' : '-4px' }}
       >
         <span className="inline-flex h-20 w-5 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 shadow-sm hover:bg-blue-50 hover:text-blue-600">
           {isPatientListVisible ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
@@ -421,7 +421,7 @@ export default function DialysisExecution() {
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                   activeTab === tab
                     ? 'bg-blue-600 text-white shadow-sm'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -436,19 +436,19 @@ export default function DialysisExecution() {
 
         <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
           {loadingPatients ? (
-            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+            <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500">
               正在加载患者列表...
             </div>
           ) : selectedPatient ? (
             <>
               {!loadingTreatment && treatmentLoadState === 'missing' ? (
-                <div className="mb-4 rounded-3xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
                   <div className="text-base font-semibold">暂无治疗记录</div>
                   <div className="mt-1 text-sm text-emerald-700">可先创建今日治疗记录，再继续录入和查看。</div>
                   <button
                     type="button"
                     onClick={handleCreateTodayTreatment}
-                    className="mt-3 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                    className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
                   >
                     创建治疗记录
                   </button>
@@ -456,14 +456,14 @@ export default function DialysisExecution() {
               ) : null}
 
               {!loadingTreatment && (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') ? (
-                <div className="mb-4 rounded-3xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-900">
+                <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-900">
                   <div className="text-base font-semibold">
                     {treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试'}
                   </div>
                   <button
                     type="button"
                     onClick={() => void reloadTodayTreatment()}
-                    className="mt-3 rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                    className="mt-3 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
                   >
                     重试加载
                   </button>
@@ -473,7 +473,7 @@ export default function DialysisExecution() {
               {content}
             </>
           ) : (
-            <div className="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500">
+            <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500">
               暂无可用患者
             </div>
           )}

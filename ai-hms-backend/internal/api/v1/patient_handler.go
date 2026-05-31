@@ -70,6 +70,23 @@ func (h *PatientHandler) List(c *gin.Context) {
 	response.Paginated(c, result.Items, result.Page, result.PageSize, result.Total)
 }
 
+// Stats 获取患者统计数据
+// @Summary 获取患者统计数据
+// @Tags 患者管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} services.PatientStatsResponse
+// @Router /api/v1/patients/stats [get]
+func (h *PatientHandler) Stats(c *gin.Context) {
+	result, err := h.service.GetStats()
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, result)
+}
+
 // Get 获取患者详情
 // @Summary 获取患者详情
 // @Tags 患者管理

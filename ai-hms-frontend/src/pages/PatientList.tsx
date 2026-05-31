@@ -21,7 +21,7 @@ export default function PatientList() {
   const { user: currentUser } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [activeFilter, setActiveFilter] = useState<FilterType>('in_dept')
   const [loading, setLoading] = useState(false)
   const [patients, setPatients] = useState<Partial<Patient>[]>([])
   const [apiError, setApiError] = useState<string | null>(null)

@@ -73,6 +73,7 @@ func RegisterPatientRoutesWithCore(r *gin.RouterGroup) {
 		patients.GET("", handler.List)           // 获取患者列表
 		patients.POST("", handler.Create)        // 创建患者
 		// 注意：带子路径的路由必须在 :id 之前注册，避免 Gin 路由冲突
+		patients.GET("/stats", handler.Stats)    // 获取患者统计数据（必须在 /:id 之前）
 		patients.GET("/:id/core", coreHandler.GetCore)            // 患者核心信息（必须在 /:id 之前）
 		patients.GET("/:id/basic-info", basicInfoHandler.GetBasicInfo)    // 患者基本信息档案
 		patients.PUT("/:id/basic-info", basicInfoHandler.UpdateBasicInfo)  // 更新患者基本信息档案

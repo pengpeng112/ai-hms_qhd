@@ -15,8 +15,8 @@
   --color-primary-900: #001d66;
 
   /* Sidebar colors */
-  --color-sidebar: #001529;
-  --color-sidebar-light: #002140;
+  --color-sidebar: #0f172a;
+  --color-sidebar-light: #1e293b;
 
   /* ========== Radius（仅三档） ========== */
   --radius-sm: 4px;
@@ -45,7 +45,7 @@
   /* ========== Surface（用于替代裸 bg-white / bg-gray-50） ========== */
   --color-surface: #ffffff;
   --color-surface-sunken: #f5f7fa;
-  --color-surface-sidebar: #1f2a44;
+  --color-surface-sidebar: #0f172a;
   --color-foreground: #1f2937;
   --color-foreground-muted: #6b7280;
 }
@@ -55,9 +55,9 @@
 /* Light Theme (Default) */
 :root,
 .theme-light {
-  --theme-bg: #f5f5f5;
+  --theme-bg: #f5f7fb;
   --theme-bg-card: #ffffff;
-  --theme-bg-sidebar: #001529;
+  --theme-bg-sidebar: #0f172a;
   --theme-text: #333333;
   --theme-text-secondary: #666666;
   --theme-text-muted: #999999;
@@ -121,6 +121,17 @@ body {
   }
   to {
     transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
     opacity: 1;
   }
 }

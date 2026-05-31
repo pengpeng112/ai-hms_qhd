@@ -87,11 +87,13 @@ export function useScheduleDragDrop(): UseScheduleDragDropReturn {
       return
     }
     const targetBedId = Number(bed.id)
-    if (targetBedId === dragItem.bedId) return
+    if (targetBedId === dragItem.bedId && _dt === dragItem.treatmentTime.split('T')[0] && _shift.id === dragItem.shiftId) return
     try {
       await restApi.movePatientShift(dragItem.id, {
         bedId: targetBedId,
         wardId: Number(bed.wardId),
+        treatmentTime: _dt,
+        shiftId: _shift.id,
       })
       message.success(`${dragItem.patientName} 已换床至 ${bed.name}`)
       await loadWeek()

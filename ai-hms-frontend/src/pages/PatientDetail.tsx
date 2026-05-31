@@ -1,27 +1,87 @@
-// PatientDetail - 患者详情页面（U3 重构：4 主 Tab + 子 Tab + Header + FocusPanel）
-
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { message, Tabs } from 'antd'
-import { ArrowLeft, ChevronLeft, ChevronRight } from 'lucide-react'
+import { message } from 'antd'
+import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar } from 'lucide-react'
 import { restApi, convertCoreResponseToPatient } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
 import { LoadingState } from '@/components/ui'
 
-// 导入 Tab 组件
 import {
-  OverviewTab,
-  HistoryTab,
+  OverviewTab, BasicInfoTab, TreatmentPlanTab, MedicalRecordTab,
+  SchemeOrderTab, LabsExamsTab, VascularTab, HistoryTab, MonthlySummaryTab,
 } from './patient-detail/tabs'
-import TreatmentTabs from './patient-detail/TreatmentTabs'
-import RecordsTabs from './patient-detail/RecordsTabs'
 import PatientHeader from './patient-detail/PatientHeader'
-import FocusPanel from './patient-detail/FocusPanel'
+import ClinicalFocusDrawer from './patient-detail/ClinicalFocusDrawer'
+import TodoPopover from './patient-detail/TodoPopover'
+import FloatingActionButtons from './patient-detail/FloatingActionButtons'
 
-// 导入类型
-import type { MainTabID, TreatmentSubTab, RecordsSubTab } from './patient-detail/types'
+type SectionID =
+  | 'overview'        // 全息透析概览
+  | 'basic_info'      // 基本信息档案
+  | 'treatment_plan'  // 治疗方案管理
+  | 'medical_record'  // 临床病史档案
+  | 'scheme_order'    // 长期方案/医嘱
+  | 'labs_exams'      // 检查检验报告
+  | 'vascular'        // 血管通路评估
+  | 'history'         // 治疗详情历史
+  | 'monthly_summary' // 月份评估小结
+
+const MENU_ITEMS: { key: SectionID; label: string; icon: React.ReactNode }[] = [
+  { key: 'overview',        label: '全息透析概览', icon: <Activity size={18} /> },
+  { key: 'basic_info',      label: '基本信息档案', icon: <User size={18} /> },
+  { key: 'treatment_plan',  label: '治疗方案管理', icon: <Stethoscope size={18} /> },
+  { key: 'medical_record',  label: '临床病史档案', icon: <ClipboardList size={18} /> },
+  { key: 'scheme_order',    label: '长期方案/医嘱', icon: <FileText size={18} /> },
+  { key: 'labs_exams',      label: '检查检验报告', icon: <FlaskConical size={18} /> },
+  { key: 'vascular',        label: '血管通路评估', icon: <GitBranch size={18} /> },
+  { key: 'history',         label: '治疗详情历史', icon: <Clock size={18} /> },
+  { key: 'monthly_summary', label: '月份评估小结', icon: <Calendar size={18} /> },
+]
+
+function SidebarMenu({ active, onSelect }: { active: SectionID; onSelect: (key: SectionID) => void }) {
+  return (
+    <aside className="w-[220px] shrink-0 bg-white border-r border-slate-200 flex flex-col h-full overflow-y-auto">
+      <div className="px-3.5 pt-5 pb-4">
+        <h2 className="text-xs font-bold text-blue-400 tracking-wide">诊疗全息视图</h2>
+      </div>
+
+      <nav className="flex-1 px-3 space-y-1">
+        {MENU_ITEMS.map((item) => {
+          const isActive = active === item.key
+          return (
+            <button
+              key={item.key}
+              type="button"
+              onClick={() => onSelect(item.key)}
+              className={`flex items-center gap-3 w-full h-11 px-3 rounded-xl text-sm font-medium transition ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-blue-50 hover:text-slate-800'
+              }`}
+            >
+              <span className={isActive ? 'text-white' : 'text-blue-500'}>{item.icon}</span>
+              <span>{item.label}</span>
+            </button>
+          )
+        })}
+      </nav>
+
+      {/* 底部医生信息卡片 */}
+      <div className="px-3 pb-5 pt-3 shrink-0">
+        <div className="flex items-center gap-3 rounded-xl bg-blue-50/70 px-3 py-3">
+          <div className="w-9 h-9 rounded-full bg-blue-200 flex items-center justify-center shrink-0">
+            <span className="text-xs font-bold text-blue-600">DR</span>
+          </div>
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-slate-500 truncate">主治医生 / 团队</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  )
+}
 
 export default function PatientDetail() {
   const { id } = useParams()
@@ -29,34 +89,36 @@ export default function PatientDetail() {
   const { t } = useTranslation('patient')
   const [searchParams, setSearchParams] = useSearchParams()
 
-  // URL 同步的主 Tab 和子 Tab
-  const mainTab = (searchParams.get('tab') || 'overview') as MainTabID
-  const treatmentSub = (searchParams.get('sub') || 'plan') as TreatmentSubTab
-  const recordsSub = (searchParams.get('sub') || 'basicInfo') as RecordsSubTab
+  const activeSection = (searchParams.get('section') || 'overview') as SectionID
 
-  // 核心状态
   const [loading, setLoading] = useState(true)
   const [avatarLoadFailed, setAvatarLoadFailed] = useState(false)
   const [patient, setPatient] = useState<Patient | null>(null)
   const [switchingPatient, setSwitchingPatient] = useState(false)
 
-  const setMainTab = (tab: string) => {
-    const next: Record<string, string> = { tab }
-    // 设置子 tab 默认值
-    if (tab === 'treatment') next.sub = treatmentSub || 'plan'
-    if (tab === 'records') next.sub = recordsSub || 'basicInfo'
-    setSearchParams(next, { replace: true })
-  }
+  // 临床焦点抽屉状态
+  const [clinicalFocusOpen, setClinicalFocusOpen] = useState(false)
 
-  const setTreatmentSub = (sub: TreatmentSubTab) => {
-    setSearchParams({ tab: 'treatment', sub }, { replace: true })
-  }
+  // 待办任务弹窗状态
+  const [todoOpen, setTodoOpen] = useState(false)
+  const todoButtonRef = useRef<HTMLButtonElement>(null)
 
-  const setRecordsSub = (sub: RecordsSubTab) => {
-    setSearchParams({ tab: 'records', sub }, { replace: true })
-  }
+  const setSection = useCallback((key: SectionID) => {
+    setSearchParams({ section: key }, { replace: true })
+  }, [setSearchParams])
 
-  // Load patient data
+  // 打开临床焦点时关闭待办弹窗
+  const handleOpenClinicalFocus = useCallback(() => {
+    setTodoOpen(false)
+    setClinicalFocusOpen(true)
+  }, [])
+
+  // 打开待办弹窗时关闭临床焦点
+  const handleToggleTodo = useCallback(() => {
+    setClinicalFocusOpen(false)
+    setTodoOpen(prev => !prev)
+  }, [])
+
   useEffect(() => {
     const loadPatient = async () => {
       if (!id) return
@@ -148,34 +210,38 @@ export default function PatientDetail() {
     }
   }
 
-  // 主 Tab 项目
-  const mainTabItems = [
-    {
-      key: 'overview',
-      label: t('tab.main.overview'),
-      children: <OverviewTab patient={patient} onNavigate={(id: string) => setMainTab(id)} />,
-    },
-    {
-      key: 'treatment',
-      label: t('tab.main.treatment'),
-      children: <TreatmentTabs patient={patient} defaultSub={treatmentSub} onSubChange={setTreatmentSub} />,
-    },
-    {
-      key: 'records',
-      label: t('tab.main.records'),
-      children: <RecordsTabs patient={patient} defaultSub={recordsSub} onSubChange={setRecordsSub} />,
-    },
-    {
-      key: 'history',
-      label: t('tab.main.history'),
-      children: <HistoryTab patient={patient} />,
-    },
-  ]
+  const renderContent = () => {
+    switch (activeSection) {
+      case 'overview':
+        return <OverviewTab patient={patient} onNavigate={(key: string) => setSection(key as SectionID)} />
+      case 'basic_info':
+        return <BasicInfoTab patient={patient} />
+      case 'treatment_plan':
+        return <TreatmentPlanTab patientId={patient.id} patientName={patient.name} />
+      case 'medical_record':
+        return <MedicalRecordTab patient={patient} />
+      case 'scheme_order':
+        return <SchemeOrderTab patient={patient} />
+      case 'labs_exams':
+        return <LabsExamsTab patient={patient} />
+      case 'vascular':
+        return <VascularTab patient={patient} />
+      case 'history':
+        return <HistoryTab patient={patient} />
+      case 'monthly_summary':
+        return <MonthlySummaryTab patient={patient} />
+      default:
+        return <OverviewTab patient={patient} onNavigate={(key: string) => setSection(key as SectionID)} />
+    }
+  }
+
+  // 判断是否有风险
+  const hasRisk = patient.riskLevel === '高危' || patient.infection?.hbsag === '阳性'
 
   return (
-    <div className="h-full flex flex-col max-w-[1800px] mx-auto overflow-hidden bg-slate-50/50">
+    <div className="h-full flex flex-col max-w-[1800px] mx-auto overflow-hidden bg-[#f5f8fc]">
       {/* 顶部信息条 */}
-      <div className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shadow-sm z-20 shrink-0">
+      <div className="bg-white border-b border-[#e6ebf3] px-6 py-4 flex items-center justify-between shadow-sm z-20 shrink-0">
         <div className="flex items-center gap-4">
           <button onClick={handleBack} className="text-slate-400 hover:text-slate-900 transition-colors p-2.5 rounded-lg hover:bg-slate-100 active:scale-95 shrink-0">
             <ArrowLeft size={22} />
@@ -183,12 +249,31 @@ export default function PatientDetail() {
           <PatientHeader patient={patient} avatarFailed={avatarLoadFailed} onAvatarError={() => setAvatarLoadFailed(true)} />
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          <div className="flex gap-1">
-            <button disabled={switchingPatient} onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+        <div className="flex items-center gap-3 shrink-0">
+          {/* 悬浮操作按钮 */}
+          <FloatingActionButtons
+            onClinicalFocusClick={handleOpenClinicalFocus}
+            onTodoClick={handleToggleTodo}
+            hasRisk={hasRisk}
+            todoCount={3}
+            todoButtonRef={todoButtonRef}
+          />
+
+          {/* 待办任务弹窗 */}
+          <div className="relative">
+            <TodoPopover
+              open={todoOpen}
+              onClose={() => setTodoOpen(false)}
+              anchorRef={todoButtonRef}
+            />
+          </div>
+
+          {/* 患者切换按钮 */}
+          <div className="flex gap-1 ml-2">
+            <button disabled={switchingPatient} onClick={() => handleSwitchPatient('prev')} className="p-2.5 bg-white border border-[#e6ebf3] rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
               <ChevronLeft size={20}/>
             </button>
-            <button disabled={switchingPatient} onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
+            <button disabled={switchingPatient} onClick={() => handleSwitchPatient('next')} className="p-2.5 bg-white border border-[#e6ebf3] rounded-lg hover:bg-slate-50 text-slate-500 shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:pointer-events-none">
               <ChevronRight size={20}/>
             </button>
           </div>
@@ -196,21 +281,23 @@ export default function PatientDetail() {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 主内容区 */}
+        {/* 左侧垂直菜单 */}
+        <SidebarMenu active={activeSection} onSelect={setSection} />
+
+        {/* 主内容区 - 自动扩展占满剩余宽度 */}
         <div className="flex-1 overflow-y-auto no-scrollbar">
-          <div className="p-4">
-            <Tabs
-              activeKey={mainTab}
-              onChange={setMainTab}
-              items={mainTabItems}
-              className="patient-detail-tabs"
-            />
+          <div className="p-6">
+            {renderContent()}
           </div>
         </div>
-
-        {/* 右侧焦点栏 */}
-        <FocusPanel patient={patient} />
       </div>
+
+      {/* 临床焦点抽屉 */}
+      <ClinicalFocusDrawer
+        patient={patient}
+        open={clinicalFocusOpen}
+        onClose={() => setClinicalFocusOpen(false)}
+      />
     </div>
   )
 }

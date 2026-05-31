@@ -222,13 +222,18 @@ export default function Schedule() {
     try {
       const p = pending.find(x=>x.id===selPatient)
       if(existing) {
-        if(Number(existing.patientId)!==selPatient) {
-          await restApi.deletePatientShift(existing.id)
-          await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId })
-          message.success('排班已更新')
-        }
+        // 编辑已有排班：禁止换患者，只用 PUT
+        await restApi.updatePatientShift(existing.id, {
+          bedId: Number(bed.id),
+          wardId: Number(bed.wardId),
+          shiftId: shift.id,
+          treatmentTime: toApi(date),
+          patientPlanId: p?.patientPlanId,
+          shiftTiming: 20,
+        })
+        message.success('排班已更新')
       } else {
-        await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId })
+        await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId, shiftTiming:20, status:1 })
         message.success('排班已创建')
       }
       closeModal(); await loadWeek()
@@ -490,12 +495,15 @@ export default function Schedule() {
                                       <div className="truncate text-body font-medium">{item.patientName}</div>
                                       <div className="text-meta text-foreground-muted">{item.dialysisMode||''}</div>
                                     </div>
-                                    {item.sourceType === 'template' && !item.isManualAdjusted && (
-                                      <span className="absolute -top-1 -right-1 text-[7px] bg-white/90 text-slate-500 rounded px-0.5 font-bold">模板</span>
-                                    )}
-                                    {item.isManualAdjusted && (
+                                    {item.sourceType === 'temporary' ? (
+                                      <span className="absolute -top-1 -right-1 text-[7px] bg-orange-500 text-white rounded px-0.5 font-bold">临</span>
+                                    ) : item.isManualAdjusted ? (
                                       <span className="absolute -top-1 -right-1 text-[7px] bg-amber-100 text-amber-600 rounded px-0.5 font-bold">调整</span>
-                                    )}
+                                    ) : item.sourceType === 'contract' ? (
+                                      <span className="absolute -top-1 -right-1 text-[7px] bg-emerald-100 text-emerald-600 rounded px-0.5 font-bold">合约</span>
+                                    ) : item.sourceType === 'template' ? (
+                                      <span className="absolute -top-1 -right-1 text-[7px] bg-white/90 text-slate-500 rounded px-0.5 font-bold">模板</span>
+                                    ) : null}
                                   </div>
                                 ) : (
                                   <div
@@ -587,6 +595,9 @@ export default function Schedule() {
                     <div className="flex gap-1 mt-0.5">
                       <span className={`rounded px-1.5 py-0 text-meta font-black text-white ${modeBg(p.dialysisMode)}`}>{p.dialysisMode||'--'}</span>
                       <span className="text-meta font-bold text-slate-400">{freq(p)}</span>
+                      {(p.remainingTimes ?? 0) > 0 && (
+                        <span className="text-meta font-black text-orange-500">剩 {p.remainingTimes} 次</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -613,7 +624,7 @@ export default function Schedule() {
             <div className="px-5 py-3 space-y-3">
               <div>
                 <label className="text-meta font-black text-slate-500 block mb-1.5">选择患者</label>
-                <select value={selPatient||''} onChange={e=>setSelPatient(Number(e.target.value)||undefined)} className="w-full h-8 rounded-lg border border-slate-200 px-3 text-xs font-bold outline-none focus:border-blue-400">
+                <select value={selPatient||''} onChange={e=>setSelPatient(Number(e.target.value)||undefined)} disabled={!!modal.existing} className="w-full h-8 rounded-lg border border-slate-200 px-3 text-xs font-bold outline-none focus:border-blue-400 disabled:bg-slate-100 disabled:cursor-not-allowed">
                   <option value="">-- 请选择 --</option>
                   {pending.map(p => <option key={p.id} value={p.id}>{p.name} ({p.dialysisMode||'--'}) {freq(p)}</option>)}
                   {modal.existing && !pending.find(p=>p.id===Number(modal.existing!.patientId)) && (

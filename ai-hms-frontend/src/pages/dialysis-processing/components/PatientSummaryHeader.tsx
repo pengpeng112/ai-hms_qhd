@@ -8,7 +8,7 @@ interface Props {
 function SummaryItem({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <div className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">{label}</div>
+      <div className="text-meta font-semibold tracking-wide text-slate-400 uppercase">{label}</div>
       <div className="mt-1 text-sm font-bold text-slate-700">{value}</div>
     </div>
   )
@@ -35,20 +35,20 @@ export default function PatientSummaryHeader({ patient }: Props) {
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
-        <div className="grid grid-cols-2 gap-6 border border-slate-200 rounded-2xl bg-white px-6 py-4 shadow-sm">
+        <div className="grid grid-cols-2 gap-6 border border-slate-200 rounded-lg bg-white px-6 py-4 shadow-sm">
           <div className="text-center">
-            <div className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">干体重</div>
+            <div className="text-meta font-semibold tracking-wide text-slate-400 uppercase">干体重</div>
             <div className="mt-2 text-2xl font-black text-blue-600">{patient.dryWeight}<span className="ml-1 text-xs text-slate-400">kg</span></div>
           </div>
           <div className="text-center">
-            <div className="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">治疗方案</div>
+            <div className="text-meta font-semibold tracking-wide text-slate-400 uppercase">治疗方案</div>
             <div className="mt-2 text-2xl font-black text-slate-800">{patient.treatmentPlan}</div>
           </div>
         </div>
-        <button type="button" className="h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-500 flex items-center justify-center hover:text-blue-600 hover:border-blue-300">
+        <button type="button" className="h-12 w-12 rounded-lg border border-slate-200 bg-white text-slate-500 flex items-center justify-center hover:text-blue-600 hover:border-blue-300">
           <Printer size={18} />
         </button>
-        <button type="button" className="h-12 w-12 rounded-xl border border-slate-200 bg-white text-slate-500 flex items-center justify-center hover:text-blue-600 hover:border-blue-300">
+        <button type="button" className="h-12 w-12 rounded-lg border border-slate-200 bg-white text-slate-500 flex items-center justify-center hover:text-blue-600 hover:border-blue-300">
           <FileOutput size={18} />
         </button>
       </div>

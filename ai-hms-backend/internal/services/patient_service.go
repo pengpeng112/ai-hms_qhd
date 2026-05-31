@@ -413,12 +413,14 @@ func (s *PatientService) toTreatmentPlanDTO(plan legacyPatientPlan, drugNames ma
 
 // ListRequest 获取患者列表请求
 type ListRequest struct {
-	Page      int    `form:"page"`
-	PageSize  int    `form:"pageSize"`
-	Status    string `form:"status"`
-	BedNumber string `form:"bedNumber"`
-	Name      string `form:"name"`
-	RiskLevel string `form:"riskLevel"`
+	Page             int    `form:"page"`
+	PageSize         int    `form:"pageSize"`
+	Status           string `form:"status"`
+	BedNumber        string `form:"bedNumber"`
+	Name             string `form:"name"`
+	RiskLevel        string `form:"riskLevel"`
+	OnlyActive       bool   `form:"onlyActive"`
+	OnlyTransferred  bool   `form:"onlyTransferred"`
 }
 
 // ListResponse 获取患者列表响应
@@ -447,12 +449,29 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 	// TenantId=3 过滤（老血透库多租户）
 	query := s.db.Model(&models.Patient{}).Where(`"TenantId" = ?`, legacyTenantID)
 
-	// 筛选条件（使用老库 PascalCase 列名）
-	if req.Status != "" {
-		query = query.Where(`"TreatmentStatus" = ?`, req.Status)
-	}
+	// 筛选条件
 	if req.Name != "" {
 		query = query.Where(`"Name" LIKE ?`, "%"+req.Name+"%")
+	}
+
+	// 通过 Register_OutCome 过滤活跃/转出患者
+	if req.OnlyActive {
+		activeSubquery := s.db.Table(`"Register_OutCome"`).
+			Select(`DISTINCT ON ("PatientId") "PatientId", "Type"`).
+			Where(`"TenantId" = ?`, legacyTenantID).
+			Order(`"PatientId", "OutComeTime" DESC, "CreateTime" DESC`)
+		query = query.Joins(`INNER JOIN (?) AS oc ON oc."PatientId" = "Register_PatientInfomation"."Id" AND oc."Type" = '10'`, activeSubquery)
+	}
+	if req.OnlyTransferred {
+		activeSubquery := s.db.Table(`"Register_OutCome"`).
+			Select(`DISTINCT ON ("PatientId") "PatientId", "Type"`).
+			Where(`"TenantId" = ?`, legacyTenantID).
+			Order(`"PatientId", "OutComeTime" DESC, "CreateTime" DESC`)
+		query = query.Joins(`INNER JOIN (?) AS oc ON oc."PatientId" = "Register_PatientInfomation"."Id" AND oc."Type" = '20'`, activeSubquery)
+	}
+	// 旧 status 筛选保留兼容，但老库 TreatmentStatus 通常为空
+	if req.Status != "" && !req.OnlyActive && !req.OnlyTransferred {
+		query = query.Where(`"TreatmentStatus" = ?`, req.Status)
 	}
 	// BedNumber 和 RiskLevel 在老库无对应列，忽略过滤
 
@@ -492,6 +511,60 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 		Page:      req.Page,
 		PageSize:  req.PageSize,
 		TotalPage: totalPage,
+	}, nil
+}
+
+// PatientStatsResponse 患者统计响应
+type PatientStatsResponse struct {
+	TotalCount      int64 `json:"totalCount"`
+	ActiveCount     int64 `json:"activeCount"`
+	OutpatientCount int64 `json:"outpatientCount"`
+	InpatientCount  int64 `json:"inpatientCount"`
+}
+
+// GetStats 获取患者统计数据
+func (s *PatientService) GetStats() (*PatientStatsResponse, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+
+	// 总人数
+	var totalCount int64
+	if err := s.db.Model(&models.Patient{}).Where(`"TenantId" = ?`, legacyTenantID).Count(&totalCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 在科活跃：最新 Register_OutCome.Type = '10'（非转出）的患者
+	activeSubquery := s.db.Table(`"Register_OutCome"`).
+		Select(`DISTINCT ON ("PatientId") "PatientId", "Type"`).
+		Where(`"TenantId" = ?`, legacyTenantID).
+		Order(`"PatientId", "OutComeTime" DESC, "CreateTime" DESC`)
+
+	var activeCount int64
+	if err := s.db.Table(`"Register_PatientInfomation" AS p`).
+		Joins(`INNER JOIN (?) AS oc ON oc."PatientId" = p."Id" AND oc."Type" = '10'`, activeSubquery).
+		Where(`p."TenantId" = ?`, legacyTenantID).
+		Count(&activeCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 门诊人数
+	var outpatientCount int64
+	if err := s.db.Model(&models.Patient{}).Where(`"TenantId" = ? AND "PatientType" = ?`, legacyTenantID, "门诊").Count(&outpatientCount).Error; err != nil {
+		return nil, err
+	}
+
+	// 住院人数
+	var inpatientCount int64
+	if err := s.db.Model(&models.Patient{}).Where(`"TenantId" = ? AND "PatientType" = ?`, legacyTenantID, "住院").Count(&inpatientCount).Error; err != nil {
+		return nil, err
+	}
+
+	return &PatientStatsResponse{
+		TotalCount:      totalCount,
+		ActiveCount:     activeCount,
+		OutpatientCount: outpatientCount,
+		InpatientCount:  inpatientCount,
 	}, nil
 }
 

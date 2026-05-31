@@ -29,21 +29,26 @@ func MapPatientTypeLegacyToNew(v string) string {
 	return v
 }
 
-// PatientShiftStatus: 新（0/1/2/3/4）→ 老（10/20/30/40/50）
+// PatientShiftStatus: 新 -> 老
+// 老库 Schedule_PatientShift.Status 语义（排班管理.md）：
+//   10 草稿 / 20 已确认 / 30 用户确认 / 40 用户取消 / 50 排班取消 / 60 转出人员
 var patientShiftStatusNewToLegacy = map[int]int{
-	0: 10, // 待执行 -> 待确认
+	0: 10, // 待执行 -> 草稿
 	1: 20, // 已确认
-	2: 30, // 进行中
-	3: 40, // 已完成
-	4: 50, // 已取消
+	2: 20, // 进行中 -> 已确认
+	3: 30, // 已完成 -> 用户确认
+	4: 50, // 系统取消 -> 排班取消
+	5: 40, // 用户取消
+	6: 60, // 转出人员
 }
 
 var patientShiftStatusLegacyToNew = map[int]int{
-	10: 0,
-	20: 1,
-	30: 2,
-	40: 3,
-	50: 4,
+	10: 0, // 草稿
+	20: 1, // 已确认
+	30: 3, // 用户确认 -> 已完成
+	40: 5, // 用户取消
+	50: 4, // 排班取消 -> 已取消
+	60: 6, // 转出人员
 }
 
 func MapPatientShiftStatusNewToLegacy(v int) int {
