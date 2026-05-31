@@ -2,8 +2,13 @@
 
 import type { Patient } from '@/types/original'
 
-// Tab ID 类型
+// Tab ID 类型（保留旧类型兼容）
 export type TabID = 'overview' | 'basic_info' | 'treatment_plan' | 'medical_record' | 'scheme_order' | 'labs_exams' | 'vascular' | 'history' | 'monthly_summary'
+
+// 主 Tab ID（U3 重构后）
+export type MainTabID = 'overview' | 'treatment' | 'records' | 'history'
+export type TreatmentSubTab = 'plan' | 'schemeOrder' | 'vascular'
+export type RecordsSubTab = 'basicInfo' | 'labs' | 'monthly' | 'medicalRecord'
 
 // 趋势数据项
 export interface TrendDataItem {
