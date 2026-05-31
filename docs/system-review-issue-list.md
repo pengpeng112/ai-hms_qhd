@@ -40,46 +40,18 @@
 
 ---
 
-## 三、后端 API 缺失（前端有调用但后端无路由）
+## 三、后端 API 缺失（审查发现前端调用路径与后端路由已对齐）
 
-### 3.1 完全缺失的模块
+> **重要更新（2026-05-31）**: 经核查，以下所有模块的后端 handler/service/route 均已实现并注册，
+> 之前的"缺失"判断是因为 handler 文件不在预期位置（user_handler.go/role_management_handler.go/health_education_handler.go）。
 
-| # | 前端调用 | HTTP 方法 | 路径 | 严重程度 | 状态 | 说明 |
-|---|---------|-----------|------|----------|------|------|
-| 1 | `restApi.getHealthEducationContents()` | GET | `/api/v1/health-educations` | 🔴高 | ❌ | 后端无任何 health-education handler/service/route |
-| 2 | `restApi.getPatientHealthEducations()` | GET | `/api/v1/patients/:id/health-educations` | 🔴高 | ❌ | 同上 |
-| 3 | `restApi.createPatientHealthEducation()` | POST | `/api/v1/patients/:id/health-educations` | 🔴高 | ❌ | 同上 |
-
-### 3.2 治疗模块缺失的端点
-
-| # | 前端调用 | HTTP 方法 | 路径 | 严重程度 | 状态 | 说明 |
-|---|---------|-----------|------|----------|------|------|
-| 4 | `restApi.saveTreatmentDisinfection()` | PUT | `/api/v1/treatments/:id/disinfection` | 🟡中 | ❌ | Verification.tsx 机表消毒按钮已标注"功能待后端接口就绪"并禁用 |
-| 5 | `restApi.saveTreatmentSummary()` | PUT | `/api/v1/treatments/:id/summary` | 🟡中 | ❌ | DialysisSummary.tsx 保存小结按钮已禁用 |
-
-### 3.3 用户管理模块缺失端点
-
-| # | 前端调用 | HTTP 方法 | 路径 | 严重程度 | 状态 | 说明 |
-|---|---------|-----------|------|----------|------|------|
-| 6 | `userApi.create()` | POST | `/api/v1/users` | 🔴高 | ❌ | 创建用户 |
-| 7 | `userApi.getById()` | GET | `/api/v1/users/:id` | 🔴高 | ❌ | 获取用户详情 |
-| 8 | `userApi.update()` | PUT | `/api/v1/users/:id` | 🔴高 | ❌ | 更新用户 |
-| 9 | `userApi.remove()` | DELETE | `/api/v1/users/:id` | 🔴高 | ❌ | 删除用户 |
-| 10 | `userApi.updateStatus()` | PUT | `/api/v1/users/:id/status` | 🔴高 | ❌ | 更新用户状态 |
-| 11 | `userApi.resetPassword()` | PUT | `/api/v1/users/:id/password` | 🟡中 | ❌ | 重置密码 |
-| 12 | `userApi.getRoles()` | GET | `/api/v1/users/:id/roles` | 🟡中 | ❌ | 获取用户角色 |
-| 13 | `userApi.setRoles()` | PUT | `/api/v1/users/:id/roles` | 🟡中 | ❌ | 设置用户角色 |
-| 14 | `userApi.getMyRoles()` | GET | `/api/v1/me/roles` | 🟡中 | ❌ | 获取当前用户角色 |
-
-### 3.4 角色权限管理缺失端点
-
-| # | 前端调用 | HTTP 方法 | 路径 | 严重程度 | 状态 | 说明 |
-|---|---------|-----------|------|----------|------|------|
-| 15 | `roleManagementApi.getRoleList()` | GET | `/api/v1/app-roles` | 🔴高 | ❌ | 角色列表 |
-| 16 | `roleManagementApi.createRole()` | POST | `/api/v1/app-roles` | 🔴高 | ❌ | 创建角色 |
-| 17 | `roleManagementApi.updateRole()` | PUT | `/api/v1/app-roles/:code` | 🔴高 | ❌ | 更新角色 |
-| 18 | `roleManagementApi.deleteRole()` | DELETE | `/api/v1/app-roles/:code` | 🔴高 | ❌ | 删除角色 |
-| 19 | `roleManagementApi.getPermissionTree()` | GET | `/api/v1/app-permissions/tree` | 🟡中 | ❌ | 权限树（后端仅有 `GET /permissions` 扁平列表） |
+| 模块 | 状态 | 路由文件 |
+|------|------|----------|
+| 用户管理 CRUD（9个端点） | ✅ | `user_handler.go:202-217` |
+| 角色管理 CRUD（5个端点） | ✅ | `role_management_handler.go:95-102` |
+| 健康宣教（3个端点） | ✅ | `health_education_handler.go:59-65` |
+| 消毒登记 | ✅ | `treatment_handler.go:466` |
+| 治疗小结 | ✅ | `treatment_handler.go:467` |
 
 ---
 
@@ -136,14 +108,14 @@
 | 1 | GraphQL 残留 | `services/schedule.ts`, `treatment.ts`, `order.ts`, `vitals.ts`, `examination.ts` | 这 5 个文件使用 GraphQL 查询（通过 HDIS 兼容层），不是真实后端 REST API。当前后端无 GraphQL 端点，这些函数会 404 或返回空数据 | 🟡中 | ❌ |
 | 2 | API 重复 | `services/restClient.ts` vs `services/orderApi.ts` | `restApi.getPatientOrders()` 与 `orderApi.list()` 都调 `GET /patients/:id/orders`，功能重复 | 🟢低 | ❌ |
 | 3 | 类型定义冗余 | `services/types/api.ts` | 大量 GraphQL 相关类型与 REST API 类型并行存在 | 🟢低 | ❌ |
-| 4 | 硬编码占位 | `DialysisSummary.tsx:104,147,148,174` | 凝血分级显示硬编码为"未记录"，未接入后端数据 | 🟡中 | ❌ |
-| 5 | 硬编码占位 | `MidMonitoring.tsx:336-337` | "机位状态：正常传输中"、"同步间隔：60分钟/点" 硬编码 | 🟡中 | ❌ |
-| 6 | 硬编码占位 | `PostAssessment.tsx:431` | "是否进行内瘘/导管护理健康指导" checkbox 只读且硬编码 checked | 🟡中 | ❌ |
-| 7 | 按钮禁用 | `PreAssessment.tsx` 底部操作栏 | "暂存草稿" 按钮始终 disabled，无后端接口 | 🟡中 | ❌ |
-| 8 | 按钮禁用 | `Verification.tsx:462` | "功能待后端接口就绪" 按钮始终 disabled（消毒登记），对应后端无 `/treatments/:id/disinfection` 路由 | 🟡中 | ❌ |
-| 9 | 按钮禁用 | `DialysisSummary.tsx:121` | "保存小结" 按钮始终 disabled，对应后端无 `/treatments/:id/summary` 路由 | 🟡中 | ❌ |
-| 10 | 医嘱模板 | `MedicalOrders.tsx:433` | "从模板组调取" 模式仅显示占位提示，无实际功能 | 🟡中 | ❌ |
-| 11 | 抗凝剂表 | `MedicalOrders.tsx:410` | 抗凝剂表格始终显示"暂无抗凝剂接口数据"，无后端专属接口 | 🟡中 | ❌ |
+| 4 | 硬编码占位 | `DialysisSummary.tsx` | 凝血分级已改为从 symptomItems 读取真实数据 | 🟡中 | ✅ |
+| 5 | 硬编码占位 | `MidMonitoring.tsx:336-337` | "机位状态"、"同步间隔" 仍硬编码 | 🟡中 | ❌ |
+| 6 | 硬编码占位 | `PostAssessment.tsx` | 内瘘护理 checkbox 已改为可交互 | 🟡中 | ✅ |
+| 7 | 按钮禁用 | `PreAssessment.tsx` | "暂存草稿" 按钮已移除 | 🟡中 | ✅ |
+| 8 | 按钮禁用 | `Verification.tsx` | 消毒登记按钮已启用（后端已实现） | 🟡中 | ✅ |
+| 9 | 按钮禁用 | `DialysisSummary.tsx` | 保存小结按钮已启用（后端已实现） | 🟡中 | ✅ |
+| 10 | 占位提示 | `MedicalOrders.tsx` | "从模板组调取" 仍显示占位提示 | 🟡中 | ❌ |
+| 11 | 抗凝剂表 | `MedicalOrders.tsx:410` | 抗凝剂表格仍显示"暂无数据" | 🟡中 | ❌ |
 
 ---
 
@@ -164,27 +136,28 @@
 1. ✅ PreAssessment.tsx 语法错误（已修复）
 2. ✅ HealthEducation.tsx 重复字段（已修复）
 3. ✅ PostAssessment.tsx 硬编码管理员（已修复）
-4. ✅ 用户列表 SQL 查询 `UserId` 列缺失降级（`user_service.go` 已修复）
-5. ❌ 后端健康宣教模块缺失 — 需要新建 handler + service + route
+4. ✅ 用户列表 SQL 查询降级（已修复）
+5. ✅ 后端健康宣教模块（已实现，handler 位于 `health_education_handler.go`）
 
 ### P1 — 高优（系统核心功能无法使用）
-6. ❌ 后端用户管理 CRUD 缺失 — `UserManagement.tsx` 页面增删改用户将全部 404
-7. ❌ 后端角色管理 CRUD 缺失 — `RoleManagement.tsx` 页面增删改角色将全部 404
-8. ❌ `ScheduleTemplateEditor.tsx` — 完全空白，需要实现排班模板编辑功能
+6. ✅ 后端用户管理 CRUD（已实现，handler 位于 `user_handler.go`）
+7. ✅ 后端角色管理 CRUD（已实现，handler 位于 `role_management_handler.go`）
+8. ❌ `ScheduleTemplateEditor.tsx` — 空白页面，需实现排班模板编辑
 
 ### P2 — 中等（功能受限但不阻断）
-9. ❌ 治疗消毒登记后端接口 — `treatments/:id/disinfection`
-10. ❌ 治疗小结保存后端接口 — `treatments/:id/summary`
-11. ❌ 医嘱模板调取 — 前端已占位，需对接 `POST /patients/:id/orders/from-template`
-12. ❌ `EducationManagement.tsx` — 增删改功能缺失
-13. ❌ `MasterData.tsx` 宣教/收费 Tab — 硬编码数据需对接后端
-14. ❌ 凝血分级等透后评估只读字段 — 已改为可选 CoagSelect，但 DialysisSummary 凝血摘要仍硬编码
-15. ❌ PostAssessment 内瘘护理 checkbox 只读 — 未修复
+9. ✅ 治疗消毒登记（已实现，`treatment_handler.go:466`）
+10. ✅ 治疗小结保存（已实现，`treatment_handler.go:467`）
+11. ❌ 医嘱模板调取 — `MedicalOrders.tsx` 仍提示占位
+12. ❌ 抗凝剂表 — `MedicalOrders.tsx:410` 显示"暂无数据"
+13. ❌ PostAssessment 下机图片按钮 disabled
+14. ❌ `ScheduleTemplateEditor.tsx` 空白
+15. ❌ `EducationManagement.tsx` 增删改缺失
+16. ❌ `MasterData.tsx` 宣教/收费 Tab 硬编码
 
 ### P3 — 低优（代码质量与工程改进）
-16. ❌ GraphQL 残留服务清理 — 5 个文件引用 HDIS GraphQL 端点
-17. ❌ 重复 API 函数合并 — `restApi.getPatientOrders` vs `orderApi.list`
-18. ❌ 类型定义冗余 — GraphQL 与 REST 类型并行存在
+17. ❌ GraphQL 残留服务清理
+18. ❌ 重复 API 函数合并
+19. ❌ 类型定义冗余
 
 ### ✅ 本次会话已修复
 - 患者管理：默认在科患者 + 统计数据显示（新增 `/patients/stats` 接口）

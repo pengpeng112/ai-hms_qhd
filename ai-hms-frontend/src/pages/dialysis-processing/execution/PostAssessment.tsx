@@ -334,8 +334,8 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
             <Scale size={16} className="text-blue-600" />
             <h3 className="text-sm font-black text-slate-800">体重与生命体征</h3>
           </div>
-          <button type="button" disabled title="功能待后端接口就绪" className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600 opacity-60">
-            查看下机图片
+          <button type="button" className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600 opacity-60 cursor-not-allowed">
+            下机图片（待对接）
           </button>
         </div>
         <div className="grid grid-cols-1 gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
