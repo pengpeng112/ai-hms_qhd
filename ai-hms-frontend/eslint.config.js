@@ -38,6 +38,10 @@ export default defineConfig([
           selector: "TemplateElement[value.raw=/text-\\[(10|11)px\\]/]",
           message: '禁止裸 text-[10px]/[11px]（模板字符串）',
         },
+        {
+          selector: "Literal[value=/\\b!important\\b/]",
+          message: '禁止在业务页面新增 !important，主题适配请用 surface/foreground token',
+        },
       ],
     },
   },

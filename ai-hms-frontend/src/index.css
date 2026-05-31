@@ -65,7 +65,10 @@
   --theme-border-light: #f3f4f6;
 }
 
-/* High Contrast Theme */
+/* High Contrast Theme
+ * 注意：Tailwind v4 @theme 变量（--color-surface* / --color-foreground*）
+ * 为编译时 token，不支持运行时 CSS 类切换。高对比度仅覆盖 --theme-* 变量。
+ */
 .theme-high-contrast {
   --theme-bg: #ffffff;
   --theme-bg-card: #f0f9ff;

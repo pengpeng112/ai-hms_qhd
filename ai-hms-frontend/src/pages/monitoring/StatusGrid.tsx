@@ -94,10 +94,10 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
       {!loading && !loadError && devices.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
           <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-            <Monitor size={32} className="text-gray-400" />
+            <Monitor size={32} className="text-foreground-muted" />
           </div>
           <p className="text-base font-bold text-gray-600 mb-1">暂无设备数据</p>
-          <p className="text-sm text-gray-400">请先在设备管理中录入透析机信息</p>
+          <p className="text-sm text-foreground-muted">请先在设备管理中录入透析机信息</p>
         </div>
       )}
 
@@ -136,11 +136,11 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
                   </div>
                 </div>
                 <div className="flex shrink-0">
-                  <button onClick={() => onOpenModal(device, 'ORDERS')} className="p-1.5 hover:bg-white rounded text-gray-400 hover:text-blue-600 transition-colors" title={t('action.viewOrders')}>
+                  <button onClick={() => onOpenModal(device, 'ORDERS')} className="p-1.5 hover:bg-white rounded text-foreground-muted hover:text-blue-600 transition-colors" title={t('action.viewOrders')}>
                     <ClipboardList size={16} />
                   </button>
                   {device.patientName && (
-                    <button onClick={() => onOpenModal(device, 'SUMMARY')} className="p-1.5 hover:bg-white rounded text-gray-400 hover:text-indigo-600 transition-colors" title={t('action.writeSummary')}>
+                    <button onClick={() => onOpenModal(device, 'SUMMARY')} className="p-1.5 hover:bg-white rounded text-foreground-muted hover:text-indigo-600 transition-colors" title={t('action.writeSummary')}>
                       <FileEdit size={16} />
                     </button>
                   )}
@@ -149,15 +149,15 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
 
               <div className="grid grid-cols-3 gap-1 mb-2 py-1.5 border-t border-b border-gray-100 text-meta font-medium text-gray-600">
                 <div className="flex flex-col">
-                  <span className="text-gray-400 scale-90 origin-left">{t('card.dryWeight')}</span>
+                  <span className="text-foreground-muted scale-90 origin-left">{t('card.dryWeight')}</span>
                   <span className="text-gray-800 font-bold">--</span>
                 </div>
                 <div className="flex flex-col">
-                  <span className="text-gray-400 scale-90 origin-left">{t('card.gainPct')}</span>
+                  <span className="text-foreground-muted scale-90 origin-left">{t('card.gainPct')}</span>
                   <span className="text-blue-600 font-bold">--</span>
                 </div>
                 <div className="flex flex-col items-end">
-                  <span className="text-gray-400 scale-90 origin-right">{t('card.vascularAccess')}</span>
+                  <span className="text-foreground-muted scale-90 origin-right">{t('card.vascularAccess')}</span>
                   <span className="text-gray-800 font-bold">--</span>
                 </div>
               </div>
@@ -165,19 +165,19 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
               <div onClick={() => device.status !== 'offline' && onOpenModal(device, 'COMPREHENSIVE')} className="bg-white/80 rounded-lg p-2 mb-2 cursor-pointer hover:bg-white hover:shadow-md transition-colors border border-transparent hover:border-blue-200">
                 <div className="flex justify-between items-end mb-1 px-1">
                   <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase">{t('card.bp')}</span>
+                    <span className="text-[9px] font-bold text-foreground-muted uppercase">{t('card.bp')}</span>
                     <div className="flex items-baseline">
                         <span className={`text-base font-bold font-mono leading-none ${device.status === 'alarm' ? 'text-state-alert' : 'text-gray-900'}`}>
                         {formatBloodPressure(device)}
                       </span>
-                      <span className="text-[9px] text-gray-400 ml-0.5 font-bold">mmHg</span>
+                      <span className="text-[9px] text-foreground-muted ml-0.5 font-bold">mmHg</span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end">
-                    <span className="text-[9px] font-bold text-gray-400 uppercase">{t('card.hr')}</span>
+                    <span className="text-[9px] font-bold text-foreground-muted uppercase">{t('card.hr')}</span>
                     <div className="flex items-baseline">
                       <span className="text-base font-bold font-mono leading-none text-gray-900">{formatPositive(device.vitals.hr)}</span>
-                      <span className="text-[9px] text-gray-400 ml-0.5 font-bold">bpm</span>
+                      <span className="text-[9px] text-foreground-muted ml-0.5 font-bold">bpm</span>
                     </div>
                   </div>
                 </div>
