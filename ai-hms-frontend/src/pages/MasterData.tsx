@@ -32,15 +32,9 @@ interface ModalState {
 }
 
 import { materialCatalogApi, drugCatalogApi } from '@/services/treatmentConfigApi'
+import { educationManagementApi, type EducationItem } from '@/services/managementApi'
 
-// EDUCATION / FEES 暂无后端接口，保留本地数据；DRUG / MATERIAL 从 REST 加载
-const LOCAL_EDUCATION: CatalogItem[] = [
-    { id: 'E001', name: '饮食管理指南', spec: '慢性肾脏病患者营养管理', unit: '篇', price: '0.00' },
-    { id: 'E002', name: '透析并发症预防', spec: '低血压/肌肉痉挛/感染预防', unit: '篇', price: '0.00' },
-    { id: 'E003', name: '血管通路护理', spec: '内瘘/导管日常维护', unit: '篇', price: '0.00' },
-    { id: 'E004', name: '水分控制指导', spec: '透析间期体重管理', unit: '篇', price: '0.00' },
-    { id: 'E005', name: '用药依从性教育', spec: '降磷剂/降压药服用', unit: '篇', price: '0.00' },
-]
+// EDUCATION 从后端加载，FEES 暂无后端接口保留本地数据
 const LOCAL_FEES: CatalogItem[] = [
     { id: 'F001', name: '血液透析', spec: '4小时标准透析', unit: '次', price: '420.00' },
     { id: 'F002', name: '血液灌流', spec: '串联血液灌流治疗', unit: '次', price: '680.00' },
@@ -52,7 +46,7 @@ const LOCAL_FEES: CatalogItem[] = [
 const INITIAL_DATA: Record<CatalogType, CatalogItem[]> = {
     DRUG: [],
     MATERIAL: [],
-    EDUCATION: LOCAL_EDUCATION,
+    EDUCATION: [],
     FEES: LOCAL_FEES,
 }
 
@@ -88,6 +82,12 @@ export default function MasterData() {
             }))
             setData(prev => ({ ...prev, MATERIAL: items }))
         }).catch((err) => console.error('[MasterData] 耗材目录加载失败', err))
+        educationManagementApi.list().then(res => {
+            const items: CatalogItem[] = res.map((e: EducationItem) => ({
+                id: String(e.id), name: e.name, spec: e.description || '', unit: e.type || '篇', price: '0.00',
+            }))
+            setData(prev => ({ ...prev, EDUCATION: items }))
+        }).catch((err) => console.error('[MasterData] 宣教目录加载失败', err))
     }, [])
     const [modalState, setModalState] = useState<ModalState>({
         visible: false,
