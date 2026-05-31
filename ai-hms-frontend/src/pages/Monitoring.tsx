@@ -1,7 +1,16 @@
-import React, { useState, useMemo, memo, useRef, useEffect } from 'react'
+import React, { useState, memo, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '../types/original'
-import { restApi, type RestDevice, type RestPatient, type RestPatientOrder } from '../services/restClient'
+import { restApi, type RestPatientOrder } from '../services/restClient'
+import { useMonitoringData } from './monitoring/hooks/useMonitoringData'
+import { useDeviceFilter } from './monitoring/hooks/useDeviceFilter'
+import { useModalManager } from './monitoring/hooks/useModalManager'
+import {
+  cachedGraphData,
+  cachedHistoryData,
+  formatPositive,
+  formatBloodPressure,
+} from './monitoring/types'
 import {
   Monitor,
   Search,
@@ -33,9 +42,7 @@ import {
   Area
 } from 'recharts'
 
-type ModalType = 'COMPREHENSIVE' | 'PRESCRIPTION' | 'ORDERS' | 'SUMMARY' | null
-
-// --- 閫氱敤寮圭獥鍖呰 ---
+// --- 通用弹窗包装 ---
 const ModalOverlay = ({
   children,
   onClose,
@@ -819,107 +826,7 @@ const SummaryModal = ({
   )
 }
 
-type MiniGraphPoint = { sbp: number; hr: number }
-type HistoryPoint = {
-  time: string
-  sbp: number
-  dbp: number
-  hr: number
-  ap: number
-  vp: number
-  tmp: number
-  bf: number
-  uf: number
-}
-
-// 缓存设备图表数据（按需填充）
-const cachedGraphData = new Map<string, MiniGraphPoint[]>()
-const cachedHistoryData = new Map<string, HistoryPoint[]>()
-
-type DeviceAssignment = {
-  patientId: string
-  patientName: string
-  mode: string
-}
-
-function ensureDeviceCache(device: MonitorDevice) {
-  if (!cachedGraphData.has(device.id)) {
-    cachedGraphData.set(device.id, [])
-  }
-  if (!cachedHistoryData.has(device.id)) {
-    cachedHistoryData.set(device.id, [])
-  }
-}
-
-function formatPositive(value: number, suffix = '') {
-  return value > 0 ? `${value}${suffix}` : '--'
-}
-
-function formatBloodPressure(device: MonitorDevice) {
-  return device.vitals.sbp > 0 && device.vitals.dbp > 0
-    ? `${device.vitals.sbp}/${device.vitals.dbp}`
-    : '--'
-}
-
-function buildDeviceAssignments(items: RestPatient[]): Map<string, DeviceAssignment> {
-  const assignments = new Map<string, DeviceAssignment>()
-
-  items.forEach((item) => {
-    const patientName = item.name?.trim()
-    const bedNumber = item.bedNumber?.trim()
-    if (!patientName || !bedNumber) {
-      return
-    }
-
-    const normalizedStatus = item.status?.trim().toLowerCase()
-    if (normalizedStatus === 'discharged') {
-      return
-    }
-
-    assignments.set(bedNumber, {
-      patientId: item.id,
-      patientName,
-      mode: item.defaultMode?.trim() || '',
-    })
-  })
-
-  return assignments
-}
-
-// 灏嗗悗绔?Device 杞崲涓哄墠绔?MonitorDevice 鏍煎紡
-function toMonitorDevice(d: RestDevice, assignment?: DeviceAssignment): MonitorDevice {
-  const statusMap: Record<string, MonitorDevice['status']> = {
-    normal: 'normal',
-    warning: 'warning',
-    alarm: 'alarm',
-    offline: 'offline',
-    maintenance: 'offline',
-  }
-  const status = statusMap[d.status] ?? 'unknown'
-  return {
-    id: d.id,
-    bedNumber: d.bedNumber || d.name,
-    patientName: assignment?.patientName || '',
-    patientId: assignment?.patientId,
-    status,
-    mode: assignment?.mode || '',
-    timeRemaining: '--',
-    vitals: {
-      sbp: 0,
-      dbp: 0,
-      hr: 0,
-      bf: 0,
-      tmp: 0,
-      ufGoal: 0,
-      ufVolume: 0,
-      conductivity: 0,
-      temp: 0,
-    },
-    alarms: [],
-  }
-}
-
-// --- Mini鍥捐〃缁勪欢锛堜娇鐢╩emo闃叉涓嶅繀瑕佺殑閲嶆覆鏌擄級---
+// Mini 图表组件（使用 memo 防止不必要的重渲染）
 const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
   const data = cachedGraphData.get(deviceId) || []
   const containerRef = useRef<HTMLDivElement>(null)
@@ -976,68 +883,12 @@ const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
 
 MiniVitalsChart.displayName = 'MiniVitalsChart'
 
-// --- 涓荤粍浠?---
+// --- 主组件 ---
 export default function Monitoring() {
   const { t } = useTranslation(['monitoring', 'common'])
-  const [activeModal, setActiveModal] = useState<ModalType>(null)
-  const [selectedDevice, setSelectedDevice] = useState<MonitorDevice | null>(null)
-  const [activeZone, setActiveZone] = useState('ALL')
-  const [searchTerm, setSearchTerm] = useState('')
-  const [devices, setDevices] = useState<MonitorDevice[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadError, setLoadError] = useState<string | null>(null)
-
-  useEffect(() => {
-    const loadMonitoringData = async () => {
-      setLoading(true)
-      setLoadError(null)
-      try {
-        const [devicesResult, patientsResult] = await Promise.allSettled([
-          restApi.getDeviceList({ pageSize: 200 }),
-          restApi.getPatientList({ page: 1, pageSize: 500 }),
-        ])
-
-        if (devicesResult.status !== 'fulfilled') {
-          setLoadError('设备列表加载失败，请检查网络连接或联系管理员')
-          setDevices([])
-          return
-        }
-
-        const assignments =
-          patientsResult.status === 'fulfilled'
-            ? buildDeviceAssignments(patientsResult.value.data.items || [])
-            : new Map<string, DeviceAssignment>()
-
-        const mapped = devicesResult.value.map((item) =>
-          toMonitorDevice(item, assignments.get(item.bedNumber || item.name)),
-        )
-        mapped.forEach(ensureDeviceCache)
-        setDevices(mapped)
-      } catch (err) {
-        setLoadError('数据加载异常，请刷新页面重试')
-        console.error('[Monitoring] 加载失败', err)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    void loadMonitoringData()
-  }, [])
-
-  const filteredDevices = useMemo(() => {
-    return devices.filter((d) => {
-      const zoneMatch = activeZone === 'ALL' || d.bedNumber.startsWith(activeZone)
-      const searchMatch =
-        (d.patientName || '').includes(searchTerm) || d.bedNumber.includes(searchTerm)
-      return zoneMatch && searchMatch
-    })
-  }, [devices, activeZone, searchTerm])
-
-
-  const openModal = (device: MonitorDevice, type: ModalType) => {
-    setSelectedDevice(device)
-    setActiveModal(type)
-  }
+  const { devices, loading, loadError } = useMonitoringData()
+  const { filteredDevices, activeZone, setActiveZone, searchTerm, setSearchTerm } = useDeviceFilter(devices)
+  const { activeModal, selectedDevice, openModal, closeModal } = useModalManager()
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -1294,16 +1145,16 @@ export default function Monitoring() {
 
       {/* --- RENDER MODALS --- */}
       {activeModal === 'COMPREHENSIVE' && selectedDevice && (
-        <ComprehensiveMonitorModal device={selectedDevice} onClose={() => setActiveModal(null)} />
+        <ComprehensiveMonitorModal device={selectedDevice} onClose={() => closeModal()} />
       )}
       {activeModal === 'PRESCRIPTION' && selectedDevice && (
-        <PrescriptionEditModal device={selectedDevice} onClose={() => setActiveModal(null)} />
+        <PrescriptionEditModal device={selectedDevice} onClose={() => closeModal()} />
       )}
       {activeModal === 'ORDERS' && selectedDevice && (
-        <OrderListModal device={selectedDevice} onClose={() => setActiveModal(null)} />
+        <OrderListModal device={selectedDevice} onClose={() => closeModal()} />
       )}
       {activeModal === 'SUMMARY' && selectedDevice && (
-        <SummaryModal device={selectedDevice} onClose={() => setActiveModal(null)} />
+        <SummaryModal device={selectedDevice} onClose={() => closeModal()} />
       )}
     </div>
   )
