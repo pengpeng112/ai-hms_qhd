@@ -102,10 +102,10 @@ export interface PlanTemplate {
 }
 
 export interface PlanTemplateContent {
-  weeklyFrequency: number
-  biweeklyFrequency: number
   duration: number
-  dryWeight: number
+  weeklyFrequency?: number
+  biweeklyFrequency?: number
+  dryWeight?: number
   dialysisMode: {
     mode: string
     bloodFlow: number
@@ -377,7 +377,7 @@ export interface OrderTemplate {
 
 export interface OrderTemplateCreateRequest {
   name: string
-  type: '长期' | '临时'
+  type?: '长期' | '临时'
   category: string
   content?: string
   frequency?: string

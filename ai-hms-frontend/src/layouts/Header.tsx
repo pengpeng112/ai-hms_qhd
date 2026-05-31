@@ -69,7 +69,7 @@ export default function Header({
                     </div>
                 </div>
 
-                {/* 右侧：任务按钮 + 头像弹出菜单 */}
+                {/* 右侧：任务按�?+ 头像弹出菜单 */}
                 <div className="flex items-center space-x-4">
                     <button
                         ref={toggleBtnRef}
@@ -79,9 +79,9 @@ export default function Header({
                         }`}
                     >
                         <ClipboardList size={20} />
-                        {taskCount > 0 && !taskbarOpen && (
-                            // eslint-disable-next-line no-restricted-syntax -- density:strict 故意小字（红点角标）
-                            <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white px-0.5">
+                    {taskCount > 0 && !taskbarOpen && (
+                        // eslint-disable-next-line no-restricted-syntax -- density:strict 小字角标
+                        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] flex items-center justify-center rounded-full border-2 border-white px-0.5">
                                 {displayCount}
                             </span>
                         )}

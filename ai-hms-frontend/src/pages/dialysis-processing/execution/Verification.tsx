@@ -187,7 +187,7 @@ export default function Verification({
       try {
         const users = await restApi.getUserList({ status: 'active' })
         setStaffOptions(
-          users.map((item) => ({
+          users.items.map((item) => ({
             id: item.id,
             name: item.realName || item.username,
           }))

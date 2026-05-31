@@ -180,7 +180,7 @@ export default function MidMonitoring({
       try {
         const list = await restApi.getUserList({ status: 'active' })
         setUsers(
-          Object.fromEntries(list.map((item) => [String(item.id), item.realName || item.username || String(item.id)]))
+          Object.fromEntries(list.items.map((item: { id: number | string; realName?: string; username?: string }) => [String(item.id), item.realName || item.username || String(item.id)]))
         )
       } catch (error) {
         console.error('[MidMonitoring] load users failed', error)

@@ -458,10 +458,10 @@ const NewPlanModal = ({ isOpen, onClose, patientName = '', onSave }: NewPlanModa
     // 将 API 返回的方案模板转换为前端使用的 TreatmentPlan 格式
     const apiTemplate = tpl.templateContent
     const convertedPlan: TreatmentPlan = {
-      weeklyFrequency: apiTemplate.weeklyFrequency,
-      biweeklyFrequency: apiTemplate.biweeklyFrequency,
+      weeklyFrequency: apiTemplate.weeklyFrequency ?? 3,
+      biweeklyFrequency: apiTemplate.biweeklyFrequency ?? 0,
       duration: apiTemplate.duration,
-      dryWeight: apiTemplate.dryWeight,
+      dryWeight: apiTemplate.dryWeight ?? 0,
       extraWeight: 0,
       vascularAccess: '-',
       indicators: {
