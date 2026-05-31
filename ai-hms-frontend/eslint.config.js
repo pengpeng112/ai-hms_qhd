@@ -65,6 +65,7 @@ export default defineConfig([
       'src/pages/UserManagement.tsx',
       'src/pages/Login.tsx',
       'src/pages/dialysis-processing/**',
+      'src/pages/dialysis-processing/execution/**',
       'src/pages/patient-detail/**',
       'src/pages/PatientDetail.tsx',
       'src/pages/ScheduleTemplateEditor.tsx',

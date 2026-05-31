@@ -296,7 +296,10 @@ export default function PatientList() {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredPatients.map((patient) => (
-                  <tr key={patient.id || ''} onClick={() => patient.id && handleSelectPatient(patient.id)} className="border-l-4 border-transparent hover:border-state-treating cursor-pointer group transition-colors">
+                  <tr key={patient.id || ''} tabIndex={0} role="row"
+                    onClick={() => patient.id && handleSelectPatient(patient.id)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && patient.id) handleSelectPatient(patient.id) }}
+                    className="border-l-4 border-transparent hover:border-state-treating cursor-pointer group transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset">
                     <td className="px-6 py-5">
                       <div className="flex items-center">
                         <div className={`w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mr-3 border border-slate-200 shrink-0`}>

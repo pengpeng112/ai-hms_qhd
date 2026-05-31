@@ -6,6 +6,8 @@ import { useMonitoringData } from './monitoring/hooks/useMonitoringData'
 import { useDeviceFilter } from './monitoring/hooks/useDeviceFilter'
 import { useModalManager } from './monitoring/hooks/useModalManager'
 import StatusGrid from './monitoring/StatusGrid'
+import AlertList from './monitoring/AlertList'
+import PatientPanel from './monitoring/PatientPanel'
 import { cachedHistoryData } from './monitoring/types'
 import {
   Monitor, Search, X, Activity, TrendingUp,
@@ -111,7 +113,7 @@ const PrescriptionInput = ({
 )
 
 // --- 1. 缁煎悎閫忎腑鐩戞祴寮圭獥 ---
-const ComprehensiveMonitorModal = ({
+export const ComprehensiveMonitorModal = ({
   device,
   onClose
 }: {
@@ -259,7 +261,7 @@ const ComprehensiveMonitorModal = ({
 }
 
 // --- 2. 澶勬柟璋冩暣寮圭獥 ---
-const PrescriptionEditModal = ({
+export const PrescriptionEditModal = ({
   device,
   onClose
 }: {
@@ -539,7 +541,7 @@ interface OrderItem {
   status: 'ACTIVE' | 'STOPPED' | 'PENDING' | 'EXECUTED'
 }
 
-const OrderListModal = ({
+export const OrderListModal = ({
   device,
   onClose
 }: {
@@ -709,7 +711,7 @@ const OrderListModal = ({
 }
 
 // --- 4. 濉啓灏忕粨寮圭獥 ---
-const SummaryModal = ({
+export const SummaryModal = ({
   device,
   onClose
 }: {
@@ -869,19 +871,15 @@ export default function Monitoring() {
         onReload={() => window.location.reload()}
       />
 
-      {/* --- RENDER MODALS --- */}
-      {activeModal === 'COMPREHENSIVE' && selectedDevice && (
-        <ComprehensiveMonitorModal device={selectedDevice} onClose={() => closeModal()} />
-      )}
-      {activeModal === 'PRESCRIPTION' && selectedDevice && (
-        <PrescriptionEditModal device={selectedDevice} onClose={() => closeModal()} />
-      )}
-      {activeModal === 'ORDERS' && selectedDevice && (
-        <OrderListModal device={selectedDevice} onClose={() => closeModal()} />
-      )}
-      {activeModal === 'SUMMARY' && selectedDevice && (
-        <SummaryModal device={selectedDevice} onClose={() => closeModal()} />
-      )}
+      {/* 报警列表 */}
+      <AlertList devices={filteredDevices} onOpenModal={openModal} />
+
+      {/* 弹窗面板 */}
+      <PatientPanel
+        activeModal={activeModal}
+        selectedDevice={selectedDevice}
+        onClose={closeModal}
+      />
     </div>
   )
 }
