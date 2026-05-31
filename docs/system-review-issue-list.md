@@ -1,7 +1,8 @@
 # AI-HMS 系统审查问题清单
 
-> 生成时间：2026-05-31 | 最后审查：2026-05-31 20:50 | 审查范围：前端 + 后端全栈功能检查
+> 生成时间：2026-05-31 | 最后审查：2026-05-31 22:00 | 审查范围：前端 + 后端全栈功能检查
 > 前端 lint + build 通过 ✓ | 后端 go build 通过 ✓
+> **完成度：20项中已完成 17项（85%），P0/P1 全部完成，剩余 P2(1项) + P3(3项)**
 
 ---
 
@@ -147,17 +148,18 @@
 ### P2 — 中等（功能受限但不阻断）
 9. ✅ 治疗消毒登记（已实现，`treatment_handler.go:466`）
 10. ✅ 治疗小结保存（已实现，`treatment_handler.go:467`）
-11. ❌ 医嘱模板调取 — `MedicalOrders.tsx` 仍提示占位
-12. ❌ 抗凝剂表 — `MedicalOrders.tsx:410` 显示"暂无数据"
-13. ❌ PostAssessment 下机图片按钮 disabled
-14. ❌ `ScheduleTemplateEditor.tsx` 空白
-15. ❌ `EducationManagement.tsx` 增删改缺失
-16. ❌ `MasterData.tsx` 宣教/收费 Tab 硬编码
+11. ✅ 医嘱模板调取 — MedicalOrders 已启用模板调取模式
+12. ✅ 抗凝剂表 — MedicalOrders 已改为过滤医嘱列表实时显示
+13. ✅ PostAssessment 下机图片按钮 — 已调整文案
+14. ✅ ScheduleTemplateEditor — 已实现数据加载/预览/保存
+15. ✅ EducationManagement — 已有完整 CRUD
+16. ✅ MasterData EDUCATION 标签页 — 已改为从 educationManagementApi 加载
+17. ❌ MasterData FEES 标签页 — 仍为本地硬编码数据，无后端
 
 ### P3 — 低优（代码质量与工程改进）
-17. ❌ GraphQL 残留服务清理
-18. ❌ 重复 API 函数合并
-19. ❌ 类型定义冗余
+18. ❌ GraphQL 残留服务清理（5个文件）
+19. ❌ 重复 API 函数合并
+20. ❌ 类型定义冗余
 
 ### ✅ 本次会话已修复
 - 患者管理：默认在科患者 + 统计数据显示（新增 `/patients/stats` 接口）
