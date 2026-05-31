@@ -88,7 +88,7 @@
   transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* High contrast specific overrides */
+/* High contrast specific overrides（a11y 必要） */
 .theme-high-contrast .text-gray-600,
 .theme-high-contrast .text-gray-500 {
   color: #1e40af !important;
@@ -136,9 +136,40 @@ body {
   display: none;
 }
 
-/* Outcome modal select dropdown layer */
+/* antd Select 弹出层 z-index 覆盖（第三方组件必要） */
 .outcome-select-popup {
   z-index: 1200 !important;
+}
+
+/* ========== 全局焦点环（a11y） ========== */
+*:focus-visible {
+  outline: 2px solid var(--color-primary-500);
+  outline-offset: 2px;
+}
+
+/* ========== 打印样式 ========== */
+@media print {
+  aside,
+  header,
+  .no-print,
+  [data-no-print] {
+    display: none !important; /* 打印必要：隐藏侧栏/顶栏 */
+  }
+  main {
+    padding: 0 !important; /* 打印必要 */
+  }
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  /* 密排白名单：交班单 */
+  .print-density-strict {
+    font-size: 10px !important;
+    line-height: 12px !important;
+  }
 }
 
 @layer utilities {
