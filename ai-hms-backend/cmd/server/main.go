@@ -153,6 +153,9 @@ func main() {
 			v1api.RegisterClinicalTaskRoutes(protected)
 			v1api.RegisterStatisticsRoutes(protected)
 			v1api.RegisterPermissionRoutes(protected)
+			v1api.RegisterMonitoringRoutes(protected)
+			v1api.RegisterMonthlySummaryRoutes(protected)
+			v1api.RegisterConsumableRoutes(protected)
 		}
 	}
 

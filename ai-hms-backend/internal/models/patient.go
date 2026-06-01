@@ -58,8 +58,8 @@ type Patient struct {
 	AdmissionDate *time.Time `gorm:"column:FirstDialysisDate" json:"admissionDate"`
 	CreatedAt     time.Time  `gorm:"column:CreateTime" json:"createdAt"`
 	UpdatedAt     time.Time  `gorm:"column:LastModifyTime" json:"updatedAt"`
-	Diagnosis          string              `gorm:"column:Note" json:"diagnosis"`
-	DryWeight          float64             `gorm:"column:Weight" json:"dryWeight"`
+	Diagnosis          string              `gorm:"-" json:"diagnosis"`  // 从 Register_Diagnosis.DiagnosisDesc 获取，由服务层填充
+	DryWeight          float64             `gorm:"-" json:"dryWeight"`  // 从 Plan_PatientPlan.DryWeight 获取，由服务层填充
 
 	// 以下字段老库无直接对应列，由服务层计算/联查后填充
 	Age           int        `gorm:"-" json:"age"`

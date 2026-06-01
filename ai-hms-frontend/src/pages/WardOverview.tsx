@@ -18,6 +18,7 @@ import {
 } from 'recharts'
 import { restApi } from '@/services'
 import { getAllEquipments } from '@/services/equipment'
+import { getMonitoringLiveData, type RestMonitoringLiveData } from '@/services/monitoringApi'
 
 // 颜色配置
 const COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
@@ -69,10 +70,11 @@ export default function WardOverview() {
     setLoading(true)
     try {
       // 并行请求多个 API
-      const [patientsRes, equipmentsRes, dashboardRes] = await Promise.all([
+      const [patientsRes, equipmentsRes, dashboardRes, liveData] = await Promise.all([
         restApi.getPatientList({ page: 1, pageSize: 100 }).catch(() => null),
         getAllEquipments().catch(() => null),
         restApi.getDashboardStats().catch(() => null),
+        getMonitoringLiveData().catch(() => [] as RestMonitoringLiveData[]),
       ])
 
       // 计算统计数据
@@ -83,6 +85,7 @@ export default function WardOverview() {
       // 使用 Dashboard Stats 的真实数据
       const activeCount = dashboardRes?.todaySchedules || scheduledPatients
       const alarmCount = dashboardRes?.alertItems || 0
+      const liveArray = Array.isArray(liveData) ? liveData : []
 
       setStats({
         scheduledPatients: activeCount,
@@ -91,7 +94,9 @@ export default function WardOverview() {
         deviceUtilization: totalEquipments > 0
           ? Math.round((activeCount / totalEquipments) * 1000) / 10
           : 0,
-        avgDialysisHours: 3.8, // 暂无真实数据，保留默认值
+        avgDialysisHours: liveArray.length > 0
+          ? liveArray.reduce((s: number, d: RestMonitoringLiveData) => s + (d.estimatedDuration || 0), 0) / liveArray.length / 60
+          : 0,
         onSiteCount: totalPatients,
         alarmDevices: alarmCount,
       })
@@ -107,23 +112,21 @@ export default function WardOverview() {
         { name: t('process.completed'), value: completedCount, status: 'completed' },
       ])
 
-      // 生成床位状态矩阵
-      const beds: BedStatus[] = Array.from({ length: totalEquipments || 32 }).map((_, i) => {
-        // 基于设备数量分配状态
-        let status: BedStatus['status'] = 'active'
-
-        if (i < alarmCount) {
-          status = 'alarm'
-        } else if (i >= activeCount) {
-          status = 'empty'
-        }
-
-        return {
-          id: `bed-${i}`,
+      // 使用监测实时数据生成床位状态
+      const beds: BedStatus[] = liveArray.map((d, i) => ({
+        id: `bed-${d.bedId || i}`,
+        label: d.bedName || `A${String(i + 1).padStart(2, '0')}`,
+        status: 'active' as BedStatus['status'],
+      }))
+      // 补充空床位
+      const totalBeds = totalEquipments > liveArray.length ? totalEquipments : liveArray.length
+      for (let i = beds.length; i < totalBeds; i++) {
+        beds.push({
+          id: `bed-empty-${i}`,
           label: `A${String(i + 1).padStart(2, '0')}`,
-          status,
-        }
-      })
+          status: 'empty',
+        })
+      }
       setBedStatuses(beds)
 
       setLastUpdate(new Date())

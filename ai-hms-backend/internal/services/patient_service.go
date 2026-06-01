@@ -500,6 +500,9 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 		}
 	}
 
+	// 后置填充 DryWeight（从 Plan_PatientPlan）和 Diagnosis（从 Register_Diagnosis）
+	s.fillDryWeightAndDiagnosis(items)
+
 	totalPage := int(total) / req.PageSize
 	if int(total)%req.PageSize > 0 {
 		totalPage++
@@ -512,6 +515,63 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 		PageSize:  req.PageSize,
 		TotalPage: totalPage,
 	}, nil
+}
+
+// fillDryWeightAndDiagnosis 后置填充列表中的干体重和诊断字段
+func (s *PatientService) fillDryWeightAndDiagnosis(items []models.Patient) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]int64, len(items))
+	for i, p := range items {
+		ids[i] = int64(p.ID)
+	}
+
+	// 批量取每个患者最新的 Plan_PatientPlan.DryWeight
+	type planRow struct {
+		PatientID int64   `gorm:"column:PatientId"`
+		DryWeight float64 `gorm:"column:DryWeight"`
+	}
+	var plans []planRow
+	s.db.Table(`"Plan_PatientPlan"`).
+		Select(`"PatientId", "DryWeight"`).
+		Where(`"PatientId" IN ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, ids, legacyTenantID).
+		Order(`"CreateTime" DESC`).
+		Find(&plans)
+	planMap := map[int64]float64{}
+	for _, r := range plans {
+		if _, ok := planMap[r.PatientID]; !ok {
+			planMap[r.PatientID] = r.DryWeight
+		}
+	}
+
+	// 批量取每个患者最新的 Register_Diagnosis.DiagnosisDesc
+	type diagRow struct {
+		PatientID     int64  `gorm:"column:PatientId"`
+		DiagnosisDesc string `gorm:"column:DiagnosisDesc"`
+	}
+	var diags []diagRow
+	s.db.Table(`"Register_Diagnosis"`).
+		Select(`"PatientId", COALESCE("DiagnosisDesc", '') AS "DiagnosisDesc"`).
+		Where(`"PatientId" IN ? AND "TenantId" = ?`, ids, legacyTenantID).
+		Order(`"CreateTime" DESC`).
+		Find(&diags)
+	diagMap := map[int64]string{}
+	for _, r := range diags {
+		if _, ok := diagMap[r.PatientID]; !ok {
+			diagMap[r.PatientID] = r.DiagnosisDesc
+		}
+	}
+
+	for i := range items {
+		pid := int64(items[i].ID)
+		if v, ok := planMap[pid]; ok {
+			items[i].DryWeight = v
+		}
+		if v, ok := diagMap[pid]; ok {
+			items[i].Diagnosis = v
+		}
+	}
 }
 
 // PatientStatsResponse 患者统计响应
@@ -589,6 +649,9 @@ func (s *PatientService) Get(id modeltypes.LegacyID) (*models.Patient, error) {
 		return nil, err
 	}
 
+	// 后置填充 DryWeight 和 Diagnosis
+	s.fillDryWeightAndDiagnosis([]models.Patient{patient})
+
 	return &patient, nil
 }
 
@@ -665,12 +728,10 @@ func (s *PatientService) Create(req CreateRequest, tenantID int64, creatorID str
 			Age:           req.Age,
 			Gender:        req.Gender,
 			BedNumber:     req.BedNumber,
-			Diagnosis:     req.Diagnosis,
 			RiskLevel:     req.RiskLevel,
 			Status:        req.Status,
 			PatientType:   req.PatientType,
 			InsuranceType: req.InsuranceType,
-			DryWeight:     req.DryWeight,
 			DefaultMode:   req.DefaultMode,
 			DoctorID:      req.DoctorID,
 			DoctorName:    req.DoctorName,
@@ -790,9 +851,6 @@ func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*mod
 	if req.BedNumber != nil {
 		updates["bed_number"] = *req.BedNumber
 	}
-	if req.Diagnosis != nil {
-		updates["diagnosis"] = *req.Diagnosis
-	}
 	if req.RiskLevel != nil {
 		updates["risk_level"] = *req.RiskLevel
 	}
@@ -804,9 +862,6 @@ func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*mod
 	}
 	if req.InsuranceType != nil {
 		updates["insurance_type"] = *req.InsuranceType
-	}
-	if req.DryWeight != nil {
-		updates["dry_weight"] = *req.DryWeight
 	}
 	if req.DefaultMode != nil {
 		updates["default_mode"] = *req.DefaultMode

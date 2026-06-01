@@ -236,8 +236,12 @@ func (s *UserService) ResetPassword(id string, newPassword string) error {
 	if newPassword == "" {
 		return fmt.Errorf("new password is required")
 	}
+	hashedPassword, err := HashASPNetIdentityV3Password(newPassword)
+	if err != nil {
+		return fmt.Errorf("生成密码哈希失败: %w", err)
+	}
 	columns := map[string]interface{}{
-		`"PasswordHash"`:       newPassword,
+		`"PasswordHash"`:       hashedPassword,
 		`"AccessFailedCount"`:  0,
 		`"LockoutEnd"`:         nil,
 	}

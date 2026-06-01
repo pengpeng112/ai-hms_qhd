@@ -1,10 +1,9 @@
-// Monthly Summary Tab - 月份小结
-
-import { useState } from 'react'
-import { useTranslation } from 'react-i18next'
-import { FileText, Activity, Zap, ShieldCheck, Beaker, Briefcase, Edit3, Eye, Save, CheckCircle2, Calendar } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { message, Spin } from 'antd'
+import { FileText, Activity, Zap, ShieldCheck, Beaker, Briefcase, Edit3, Eye, Save, Calendar } from 'lucide-react'
 import { SectionHeader, DetailCard, RadioGroup, SmallInput } from '@/components/ui'
 import { SummaryPrintView } from '@/components/patient/modals'
+import { getMonthlySummary, saveMonthlySummary, type MonthlySummaryData } from '@/services/monthlySummaryApi'
 import type { Patient } from '@/types/original'
 
 interface MonthlySummaryTabProps {
@@ -12,214 +11,165 @@ interface MonthlySummaryTabProps {
 }
 
 export default function MonthlySummaryTab({ patient }: MonthlySummaryTabProps) {
-  const { t } = useTranslation('patient')
+  const [localSummaryYear, setLocalSummaryYear] = useState('2025')
+  const [localSummaryMonth, setLocalSummaryMonth] = useState('06')
+  const [isEditing, setIsEditing] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [data, setData] = useState<MonthlySummaryData | null>(null)
+  const [content, setContent] = useState<Record<string, string>>({})
 
-  // 状态管理
-  const [localSummaryYear, setLocalSummaryYear] = useState('2024')
-  const [localSummaryMonth, setLocalSummaryMonth] = useState('12')
-  const [isMonthlySummaryEditing, setIsMonthlySummaryEditing] = useState(false)
-  const [isMonthlySummaryPreviewOpen, setIsMonthlySummaryPreviewOpen] = useState(false)
+  const loadData = useCallback(async () => {
+    if (!patient.id) return
+    setLoading(true)
+    try {
+      const d = await getMonthlySummary(patient.id, parseInt(localSummaryYear), parseInt(localSummaryMonth))
+      setData(d)
+      setContent(typeof d.content === 'object' ? d.content as Record<string, string> : {})
+    } catch {
+      setData(null)
+      setContent({})
+    } finally {
+      setLoading(false)
+    }
+  }, [patient.id, localSummaryYear, localSummaryMonth])
+
+  useEffect(() => { setIsEditing(false); void loadData() }, [loadData])
+
+  const handleSave = async () => {
+    if (!patient.id) return
+    setSaving(true)
+    try {
+      const d = await saveMonthlySummary(patient.id, parseInt(localSummaryYear), parseInt(localSummaryMonth), content)
+      setData(d)
+      setIsEditing(false)
+      message.success('保存成功')
+    } catch {
+      message.error('保存失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const setVal = (key: string, val: string) => setContent(prev => ({ ...prev, [key]: val }))
+  const getVal = (key: string, def = '') => content[key] || def
+  const hasData = data && data.id > 0
+  const formKey = `${localSummaryYear}-${localSummaryMonth}-${hasData ? '1' : '0'}`
 
   return (
     <div className="flex gap-6 animate-fade-in pb-10 h-full">
-      {/* 左侧月份选择 */}
       <div className="w-24 shrink-0 flex flex-col gap-4 sticky top-0 h-fit">
-        {['2025', '2024'].map(year => (
+        {['2025', '2024', '2023'].map(year => (
           <div key={year} className="space-y-1">
-            <div className="text-[10px] font-black text-slate-300 uppercase px-2 mb-1 flex items-center justify-between">
-              {year}{t('monthlySummary.yearSuffix')} <div className="w-1.5 h-1.5 bg-slate-200 rounded-full"></div>
-            </div>
+            <div className="text-[10px] font-black text-slate-300 uppercase px-2 mb-1">{year}年</div>
             <div className="flex flex-col gap-1">
               {['12','11','10','09','08','07','06','05','04','03','02','01'].map(month => (
-                <button
-                  key={month}
-                  onClick={() => { setLocalSummaryYear(year); setLocalSummaryMonth(month); }}
-                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-black transition-all flex items-center justify-between group ${
-                    localSummaryYear === year && localSummaryMonth === month
-                      ? 'bg-blue-600 text-white shadow-lg'
-                      : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-100'
-                  }`}
-                >
-                  {month}{t('monthlySummary.monthSuffix')}
-                  {parseInt(month) < 6 && (
-                    <CheckCircle2 size={12} className={localSummaryYear === year && localSummaryMonth === month ? 'text-white' : 'text-slate-200 group-hover:text-slate-400'} />
-                  )}
-                </button>
+                <button key={month} onClick={() => { setLocalSummaryYear(year); setLocalSummaryMonth(month) }}
+                  className={`w-full py-2.5 px-3 rounded-xl text-xs font-black transition-all ${
+                    localSummaryYear === year && localSummaryMonth === month ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-100'}`}>
+                  {month}月</button>
               ))}
             </div>
           </div>
         ))}
       </div>
 
-      {/* 右侧内容区 */}
       <div className="flex-1 space-y-6">
-        {/* 顶部操作栏 */}
         <div className="flex justify-between items-center px-2">
-          <div className="flex items-center gap-4">
-            <h3 className="text-lg font-black text-slate-800 flex items-center">
-              <FileText size={22} className="mr-3 text-blue-600" /> {t('monthlySummary.title')}
-              <span className="ml-4 text-blue-600 font-mono">{localSummaryYear}-{localSummaryMonth}</span>
-            </h3>
-            <div className="flex items-center gap-2 px-3 py-1 bg-green-50 text-green-600 text-[10px] font-black rounded-full border border-green-100">
-              <CheckCircle2 size={12}/> {t('status.done')}
-            </div>
-          </div>
+          <h3 className="text-lg font-black text-slate-800">
+            <FileText size={22} className="mr-3 text-blue-600 inline" /> 月份小结
+            <span className="ml-4 text-blue-600 font-mono">{localSummaryYear}-{localSummaryMonth}</span>
+          </h3>
           <div className="flex gap-2">
-            <button onClick={() => setIsMonthlySummaryPreviewOpen(true)} className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-2xl text-sm font-black hover:bg-slate-50 transition-all flex items-center gap-2 shadow-sm">
-              <Eye size={18} className="text-blue-500"/> {t('monthlySummary.preview')}
-            </button>
-            {isMonthlySummaryEditing ? (
-              <button onClick={() => setIsMonthlySummaryEditing(false)} className="px-10 py-2.5 bg-blue-600 text-white rounded-2xl text-sm font-black shadow-xl shadow-blue-100 hover:bg-blue-700 transition-all flex items-center gap-2">
-                <Save size={18}/> {t('monthlySummary.save')}
-              </button>
+            {hasData && <button onClick={() => setIsPreviewOpen(true)} className="px-6 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-2xl text-sm font-black flex items-center gap-2 shadow-sm"><Eye size={18} /> 预览</button>}
+            {isEditing ? (
+              <button onClick={handleSave} disabled={saving} className="px-10 py-2.5 bg-blue-600 text-white rounded-2xl text-sm font-black flex items-center gap-2"><Save size={18} /> {saving ? '保存中...' : '保存'}</button>
             ) : (
-              <button onClick={() => setIsMonthlySummaryEditing(true)} className="px-10 py-2.5 bg-slate-900 text-white rounded-2xl text-sm font-black shadow-xl hover:bg-slate-800 transition-all flex items-center gap-2">
-                <Edit3 size={18}/> {t('action.edit')}
-              </button>
+              <button onClick={() => { if (!loading) setIsEditing(true) }} className="px-10 py-2.5 bg-slate-900 text-white rounded-2xl text-sm font-black flex items-center gap-2"><Edit3 size={18} /> 编辑</button>
             )}
           </div>
         </div>
 
-        <div className="space-y-6">
-          {/* 一般情况评估 */}
-          <DetailCard>
-            <SectionHeader icon={Activity} title={t('monthlySummary.generalAssessment')} />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-8 mt-4">
-              <RadioGroup label={t('monthlySummary.selfCare')} options={[t('monthlySummary.normal'), t('monthlySummary.dependent'), t('monthlySummary.partial'), t('monthlySummary.complete')]} defaultValue={t('monthlySummary.normal')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.sleep')} options={[t('monthlySummary.good'), t('monthlySummary.average'), t('monthlySummary.poor')]} defaultValue={t('monthlySummary.average')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.diet')} options={[t('monthlySummary.good'), t('monthlySummary.average'), t('monthlySummary.poor')]} defaultValue={t('monthlySummary.good')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.nutrition')} options={[t('monthlySummary.good'), t('monthlySummary.average'), t('monthlySummary.poor')]} defaultValue={t('monthlySummary.good')} disabled={!isMonthlySummaryEditing} />
-              <div className="flex items-end gap-2">
-                <div className="flex-1">
-                  <RadioGroup label={t('monthlySummary.urineOutput')} options={[t('monthlySummary.anuria'), t('monthlySummary.oliguria')]} defaultValue={t('monthlySummary.anuria')} disabled={!isMonthlySummaryEditing} />
-                </div>
-                <div className="w-24">
-                  <SmallInput label={t('monthlySummary.urineAmount')} suffix="ml/d" readOnly={!isMonthlySummaryEditing} />
-                </div>
-              </div>
-              <RadioGroup label={t('monthlySummary.medication')} options={[t('monthlySummary.compliant'), t('monthlySummary.nonCompliant')]} defaultValue={t('monthlySummary.compliant')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.bpMonitoring')} options={[t('monthlySummary.selfMonitor'), t('monthlySummary.regular'), t('monthlySummary.occasional'), t('monthlySummary.notSelfMonitor')]} defaultValue={t('monthlySummary.regular')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.bgMonitoring')} options={[t('monthlySummary.selfMonitor'), t('monthlySummary.regular'), t('monthlySummary.occasional'), t('monthlySummary.notSelfMonitor')]} defaultValue={t('monthlySummary.selfMonitor')} disabled={!isMonthlySummaryEditing} />
-            </div>
-          </DetailCard>
-
-          {/* 血透执行情况 */}
-          <DetailCard>
-            <SectionHeader icon={Zap} title={t('monthlySummary.dialysisExecution')} />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mt-4">
-              <div className="lg:col-span-1">
-                <SmallInput label={t('monthlySummary.avgBloodFlow')} suffix="ml/min" defaultValue="230" readOnly={!isMonthlySummaryEditing} />
-              </div>
-              <div className="lg:col-span-1">
-                <SmallInput label={t('info.dryWeight')} suffix="kg" defaultValue="67.5" readOnly={!isMonthlySummaryEditing} />
-              </div>
-              <RadioGroup label={t('monthlySummary.interdialyticWeightGain')} options={['>5kg', '<5kg']} defaultValue="<5kg" disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.treatmentCompliance')} options={[t('monthlySummary.good'), t('monthlySummary.average'), t('monthlySummary.poor')]} defaultValue={t('monthlySummary.good')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.interdialyticBP')} options={[t('monthlySummary.high'), t('monthlySummary.normalBP'), t('monthlySummary.low')]} defaultValue={t('monthlySummary.normalBP')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.intradialyticBP')} options={[t('monthlySummary.high'), t('monthlySummary.normalBP'), t('monthlySummary.low')]} defaultValue={t('monthlySummary.normalBP')} disabled={!isMonthlySummaryEditing} />
-              <RadioGroup label={t('monthlySummary.postDialysisBP')} options={[t('monthlySummary.high'), t('monthlySummary.normalBP'), t('monthlySummary.low')]} defaultValue={t('monthlySummary.normalBP')} disabled={!isMonthlySummaryEditing} />
-              <SmallInput label={t('monthlySummary.intradialyticComplications')} placeholder={t('monthlySummary.noneIfEmpty')} readOnly={!isMonthlySummaryEditing} />
-              <div className="flex items-end gap-3 lg:col-span-1">
-                <div className="shrink-0">
-                  <RadioGroup label={t('monthlySummary.interdialyticEdema')} options={[t('label.yes'), t('label.no')]} defaultValue={t('label.no')} disabled={!isMonthlySummaryEditing} />
-                </div>
-                <div className="flex-1">
-                  <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">{t('monthlySummary.edemaLocation')}</label>
-                  <select disabled={!isMonthlySummaryEditing} className="w-full h-9 px-2 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-slate-50">
-                    <option>{t('monthlySummary.none')}</option>
-                    <option>{t('monthlySummary.lowerLimbs')}</option>
-                    <option>{t('monthlySummary.wholeBody')}</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </DetailCard>
-
-          {/* 充分性与骨病指标 */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {loading ? <div className="text-center py-10"><Spin /></div> : (
+          <div key={formKey} className="space-y-6">
             <DetailCard>
-              <SectionHeader icon={ShieldCheck} title={t('monthlySummary.adequacyAnemia')} />
-              <div className="grid grid-cols-2 gap-6 mt-4">
-                <SmallInput label="CTR" suffix="%" readOnly={!isMonthlySummaryEditing} />
-                <SmallInput label="Hb" suffix="g/L" readOnly={!isMonthlySummaryEditing} />
-                <SmallInput label="URR" suffix="%" readOnly={!isMonthlySummaryEditing} />
-                <SmallInput label="Kt/V" suffix="%" readOnly={!isMonthlySummaryEditing} />
-                <div className="col-span-2">
-                  <RadioGroup label={t('monthlySummary.dialysisAdequacy')} options={[t('monthlySummary.adequate'), t('monthlySummary.inadequate')]} defaultValue={t('monthlySummary.adequate')} disabled={!isMonthlySummaryEditing} />
-                </div>
+              <SectionHeader icon={Activity} title="一般情况评估" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-12 gap-y-8 mt-4">
+                <RadioGroup label="自理能力" options={['正常','依赖','部分']} defaultValue={getVal('selfCare', '正常')} disabled={!isEditing} onChange={v => setVal('selfCare', v)} />
+                <RadioGroup label="睡眠" options={['良好','一般','差']} defaultValue={getVal('sleep', '一般')} disabled={!isEditing} onChange={v => setVal('sleep', v)} />
+                <RadioGroup label="饮食" options={['良好','一般','差']} defaultValue={getVal('diet', '良好')} disabled={!isEditing} onChange={v => setVal('diet', v)} />
+                <RadioGroup label="营养" options={['良好','一般','差']} defaultValue={getVal('nutrition', '良好')} disabled={!isEditing} onChange={v => setVal('nutrition', v)} />
+                <RadioGroup label="尿量" options={['无尿','少尿']} defaultValue={getVal('urineOutput', '无尿')} disabled={!isEditing} onChange={v => setVal('urineOutput', v)} />
+                <RadioGroup label="用药依从" options={['依从','不依从']} defaultValue={getVal('medication', '依从')} disabled={!isEditing} onChange={v => setVal('medication', v)} />
+                <RadioGroup label="血压监测" options={['自测','定期','偶尔']} defaultValue={getVal('bpMonitoring', '定期')} disabled={!isEditing} onChange={v => setVal('bpMonitoring', v)} />
+                <RadioGroup label="血糖监测" options={['自测','定期','偶尔']} defaultValue={getVal('bgMonitoring', '自测')} disabled={!isEditing} onChange={v => setVal('bgMonitoring', v)} />
               </div>
             </DetailCard>
+
             <DetailCard>
-              <SectionHeader icon={Beaker} title={t('monthlySummary.boneDisease')} />
-              <div className="grid grid-cols-1 gap-6 mt-4">
-                <SmallInput label="iPTH" suffix="pg/mL" defaultValue="235.4" readOnly={!isMonthlySummaryEditing} />
-                <div className="grid grid-cols-2 gap-4">
-                  <SmallInput label={t('monthlySummary.calcium')} suffix="mmol/L" defaultValue="2.25" readOnly={!isMonthlySummaryEditing} />
-                  <SmallInput label={t('monthlySummary.phosphorus')} suffix="mmol/L" defaultValue="1.42" readOnly={!isMonthlySummaryEditing} />
+              <SectionHeader icon={Zap} title="血透执行情况" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mt-4">
+                <SmallInput label="平均血流量" suffix="ml/min" defaultValue={getVal('avgBloodFlow')} readOnly={!isEditing} onChange={v => setVal('avgBloodFlow', v)} />
+                <SmallInput label="干体重" suffix="kg" defaultValue={getVal('dryWeight')} readOnly={!isEditing} onChange={v => setVal('dryWeight', v)} />
+                <RadioGroup label="间期增重" options={['>5kg','<5kg']} defaultValue={getVal('interdialyticWeightGain', '<5kg')} disabled={!isEditing} onChange={v => setVal('interdialyticWeightGain', v)} />
+                <RadioGroup label="治疗依从" options={['良好','一般','差']} defaultValue={getVal('treatmentCompliance', '良好')} disabled={!isEditing} onChange={v => setVal('treatmentCompliance', v)} />
+                <RadioGroup label="间期血压" options={['高','正常','低']} defaultValue={getVal('interdialyticBP', '正常')} disabled={!isEditing} onChange={v => setVal('interdialyticBP', v)} />
+                <RadioGroup label="透中血压" options={['高','正常','低']} defaultValue={getVal('intradialyticBP', '正常')} disabled={!isEditing} onChange={v => setVal('intradialyticBP', v)} />
+                <RadioGroup label="透后血压" options={['高','正常','低']} defaultValue={getVal('postDialysisBP', '正常')} disabled={!isEditing} onChange={v => setVal('postDialysisBP', v)} />
+                <SmallInput label="透中并发症" defaultValue={getVal('intradialyticComplications')} readOnly={!isEditing} onChange={v => setVal('intradialyticComplications', v)} />
+              </div>
+            </DetailCard>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <DetailCard>
+                <SectionHeader icon={ShieldCheck} title="充分性" />
+                <div className="grid grid-cols-2 gap-6 mt-4">
+                  <SmallInput label="CTR" suffix="%" defaultValue={getVal('ctr')} readOnly={!isEditing} onChange={v => setVal('ctr', v)} />
+                  <SmallInput label="Hb" suffix="g/L" defaultValue={getVal('hb')} readOnly={!isEditing} onChange={v => setVal('hb', v)} />
+                  <SmallInput label="URR" suffix="%" defaultValue={getVal('urr')} readOnly={!isEditing} onChange={v => setVal('urr', v)} />
+                  <SmallInput label="Kt/V" suffix="%" defaultValue={getVal('ktv')} readOnly={!isEditing} onChange={v => setVal('ktv', v)} />
                 </div>
-                <SmallInput label={t('label.notes')} placeholder={t('monthlySummary.specialNotesPlaceholder')} readOnly={!isMonthlySummaryEditing} />
+              </DetailCard>
+              <DetailCard>
+                <SectionHeader icon={Beaker} title="骨病/钙磷" />
+                <div className="grid grid-cols-1 gap-6 mt-4">
+                  <SmallInput label="iPTH" suffix="pg/mL" defaultValue={getVal('iPTH')} readOnly={!isEditing} onChange={v => setVal('iPTH', v)} />
+                  <div className="grid grid-cols-2 gap-4">
+                    <SmallInput label="钙" suffix="mmol/L" defaultValue={getVal('calcium')} readOnly={!isEditing} onChange={v => setVal('calcium', v)} />
+                    <SmallInput label="磷" suffix="mmol/L" defaultValue={getVal('phosphorus')} readOnly={!isEditing} onChange={v => setVal('phosphorus', v)} />
+                  </div>
+                </div>
+              </DetailCard>
+            </div>
+
+            <DetailCard>
+              <SectionHeader icon={Briefcase} title="就诊/转归" />
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-4">
+                <RadioGroup label="是否住院" options={['是','否']} defaultValue={getVal('hospitalized', '否')} disabled={!isEditing} onChange={v => setVal('hospitalized', v)} />
+                <SmallInput label="入院日期" suffix={<Calendar size={12}/>} defaultValue={getVal('admissionDate')} readOnly={!isEditing} onChange={v => setVal('admissionDate', v)} />
+                <SmallInput label="出院日期" suffix={<Calendar size={12}/>} defaultValue={getVal('dischargeDate')} readOnly={!isEditing} onChange={v => setVal('dischargeDate', v)} />
+                <RadioGroup label="急诊透析" options={['是','否']} defaultValue={getVal('emergencyDialysis', '否')} disabled={!isEditing} onChange={v => setVal('emergencyDialysis', v)} />
+              </div>
+            </DetailCard>
+
+            <DetailCard>
+              <SectionHeader icon={Edit3} title="总体评价及建议" />
+              <div className="mt-4">
+                <textarea readOnly={!isEditing}
+                  className={`w-full h-32 p-4 border rounded-2xl text-sm font-bold text-slate-800 outline-none transition-all resize-none ${isEditing ? 'bg-white border-slate-300' : 'bg-slate-50 border-slate-100 text-slate-700'}`}
+                  placeholder="请输入总体评价及治疗建议..."
+                  defaultValue={getVal('overallEvaluation')}
+                  onChange={e => setVal('overallEvaluation', e.target.value)}
+                />
               </div>
             </DetailCard>
           </div>
-
-          {/* 就诊转归与其他 */}
-          <DetailCard>
-            <SectionHeader icon={Briefcase} title={t('monthlySummary.visitOutcome')} />
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mt-4">
-              <RadioGroup label={t('monthlySummary.hospitalized')} options={[t('label.yes'), t('label.no')]} defaultValue={t('label.no')} disabled={!isMonthlySummaryEditing} />
-              <SmallInput label={t('monthlySummary.admissionDate')} suffix={<Calendar size={12}/>} readOnly={!isMonthlySummaryEditing} />
-              <SmallInput label={t('monthlySummary.dischargeDate')} suffix={<Calendar size={12}/>} readOnly={!isMonthlySummaryEditing} />
-              <div className="flex flex-col gap-2">
-                <label className="text-[11px] font-black text-slate-500 uppercase tracking-tighter">{t('monthlySummary.outcomeStatus')}</label>
-                <select disabled={!isMonthlySummaryEditing} className="h-9 px-3 border border-slate-200 rounded-lg text-xs font-bold outline-none bg-white">
-                  <option>{t('monthlySummary.maintainDialysis')}</option>
-                  <option>{t('monthlySummary.transfer')}</option>
-                  <option>{t('monthlySummary.kidneyTransplant')}</option>
-                  <option>{t('monthlySummary.death')}</option>
-                </select>
-              </div>
-              <div className="lg:col-span-2">
-                <SmallInput label={t('monthlySummary.mainVisitReason')} readOnly={!isMonthlySummaryEditing} />
-              </div>
-              <div className="flex items-end gap-3 lg:col-span-2">
-                <div className="shrink-0">
-                  <RadioGroup label={t('monthlySummary.emergencyDialysis')} options={[t('label.yes'), t('label.no')]} defaultValue={t('label.no')} disabled={!isMonthlySummaryEditing} />
-                </div>
-                <div className="flex-1">
-                  <RadioGroup label={t('monthlySummary.emergencyReason')} options={[t('monthlySummary.hyperkalemia'), t('monthlySummary.heartFailure'), t('monthlySummary.other')]} disabled={!isMonthlySummaryEditing} />
-                </div>
-              </div>
-            </div>
-          </DetailCard>
-
-          {/* 本阶段透析总评价以及治疗建议 */}
-          <DetailCard>
-            <SectionHeader icon={Edit3} title={t('monthlySummary.overallEvaluation')} />
-            <div className="mt-4">
-              <textarea
-                readOnly={!isMonthlySummaryEditing}
-                className={`w-full h-32 p-4 border rounded-2xl text-sm font-bold text-slate-800 outline-none transition-all resize-none leading-relaxed ${
-                  isMonthlySummaryEditing
-                    ? 'bg-white border-slate-300 focus:ring-1 focus:ring-blue-500'
-                    : 'bg-slate-50 border-slate-100 text-slate-700'
-                }`}
-                placeholder={t('monthlySummary.evaluationPlaceholder')}
-                defaultValue={t('monthlySummary.evaluationDefaultValue')}
-              />
-            </div>
-          </DetailCard>
-        </div>
+        )}
       </div>
 
-      {/* 打印预览 Modal */}
-      {isMonthlySummaryPreviewOpen && (
-        <SummaryPrintView
-          patient={patient}
-          year={localSummaryYear}
-          month={localSummaryMonth}
-          data={{}}
-          onClose={() => setIsMonthlySummaryPreviewOpen(false)}
-        />
+      {isPreviewOpen && (
+        <SummaryPrintView patient={patient} year={localSummaryYear} month={localSummaryMonth} data={content} onClose={() => setIsPreviewOpen(false)} />
       )}
     </div>
   )

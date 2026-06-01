@@ -183,6 +183,19 @@ func (s *PatientShiftService) Create(req PatientShiftCreateRequest, tenantId, cr
 		status = MapPatientShiftStatusNewToLegacy(*req.Status)
 	}
 
+	if req.BedId == nil || *req.BedId <= 0 {
+		return nil, errors.New("bedId 不能为空")
+	}
+	if req.WardId == nil || *req.WardId <= 0 {
+		return nil, errors.New("wardId 不能为空")
+	}
+	if req.PatientPlanId == nil || *req.PatientPlanId <= 0 {
+		return nil, errors.New("patientPlanId 不能为空")
+	}
+	if req.ShiftTiming == nil || *req.ShiftTiming <= 0 {
+		return nil, errors.New("shiftTiming 不能为空")
+	}
+
 	patientShift := models.PatientShift{
 		TenantId:      tenantId,
 		PatientId:     modeltypes.LegacyID(req.PatientId),

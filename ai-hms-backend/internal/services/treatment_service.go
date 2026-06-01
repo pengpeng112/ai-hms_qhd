@@ -1742,7 +1742,6 @@ func (s *TreatmentService) CreateDuringParam(treatmentID int64, req TreatmentDur
 		"UFQuantity":       req.UFVolume,
 		"MachineTmp":       req.Temperature,
 		"BF":               req.BloodFlow,
-		"Note":             req.Notes,
 		"CreatorId":        creatorID,
 		"CreateTime":       now,
 		"LastModifyTime":   now,
@@ -1840,7 +1839,6 @@ func (s *TreatmentService) UpdateDuringParam(treatmentID, paramID int64, req Tre
 	if req.BloodFlow != nil {
 		updates["BF"] = req.BloodFlow
 	}
-	updates["Note"] = req.Notes
 
 	result := s.db.Table(`"Treatment_DuringParam"`).
 		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, legacyTenantID).
@@ -1966,8 +1964,6 @@ func (s *TreatmentService) SaveAfterSigns(treatmentID int64, req TreatmentAfterS
 		"BodyTemp":      req.Temperature,
 		"RealIntake":    req.RealIntake,
 		"PressurePoint": strings.TrimSpace(req.PressurePos),
-		"Complication":  strings.TrimSpace(req.Complication),
-		"Symptoms":      strings.TrimSpace(req.Symptoms),
 		"Note":          strings.TrimSpace(req.Notes),
 	}
 	row, err := s.upsertTreatmentSigns(`"Treatment_AfterSigns"`, treatmentID, creatorID, values)

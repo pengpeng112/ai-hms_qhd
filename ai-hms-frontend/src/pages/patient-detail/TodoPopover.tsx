@@ -14,34 +14,10 @@ interface TodoPopoverProps {
   open: boolean
   onClose: () => void
   anchorRef: React.RefObject<HTMLElement | null>
+  tasks?: TodoItem[]
 }
 
-const MOCK_TASKS: TodoItem[] = [
-  {
-    id: '1',
-    title: '保存后同步处方',
-    description: '当前方案已修改，建议同步到处方',
-    time: '刚刚',
-    severity: 'medium',
-    icon: 'prescription',
-  },
-  {
-    id: '2',
-    title: '目标超滤待复核',
-    description: '目标 2.5L，建议与干体重联动校验',
-    time: '5分',
-    severity: 'high',
-    icon: 'alert',
-  },
-  {
-    id: '3',
-    title: '院感数据待同步',
-    description: '上次同步 15:40:13',
-    time: '15分',
-    severity: 'low',
-    icon: 'shield',
-  },
-]
+const MOCK_TASKS: TodoItem[] = []
 
 const iconMap = {
   alert: AlertCircle,
@@ -55,7 +31,7 @@ const severityColorMap = {
   low: 'text-[#10b981] bg-emerald-50',
 }
 
-export default function TodoPopover({ open, onClose, anchorRef }: TodoPopoverProps) {
+export default function TodoPopover({ open, onClose, anchorRef, tasks }: TodoPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null)
 
   // 点击外部关闭
@@ -101,13 +77,16 @@ export default function TodoPopover({ open, onClose, anchorRef }: TodoPopoverPro
           实时待办任务
         </h4>
         <span className="text-xs text-[#6f7f99] bg-[#f5f8fc] px-2.5 py-1 rounded-full font-medium">
-          {MOCK_TASKS.length}项
+          {(tasks || MOCK_TASKS).length}项
         </span>
       </div>
 
       {/* 任务列表 */}
       <div className="max-h-[400px] overflow-y-auto">
-        {MOCK_TASKS.map((task) => {
+        {(tasks || MOCK_TASKS).length === 0 ? (
+          <div className="px-5 py-8 text-center text-sm text-slate-500">暂无待办任务</div>
+        ) : (
+          (tasks || MOCK_TASKS).map((task) => {
           const Icon = iconMap[task.icon]
           return (
             <div
@@ -124,7 +103,8 @@ export default function TodoPopover({ open, onClose, anchorRef }: TodoPopoverPro
               <span className="text-xs text-[#6f7f99] shrink-0 mt-0.5">{task.time}</span>
             </div>
           )
-        })}
+        })
+        )}
       </div>
     </div>
   )

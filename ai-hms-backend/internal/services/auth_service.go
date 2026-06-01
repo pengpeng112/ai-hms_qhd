@@ -1,6 +1,7 @@
 package services
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/base64"
@@ -277,6 +278,25 @@ func VerifyASPNetIdentityV3Password(password, encodedHash string) bool {
 
 	derivedKey := pbkdf2.Key([]byte(password), salt, int(iterations), identityV3ExpectedSubk, sha256.New)
 	return subtle.ConstantTimeCompare(derivedKey, expectedSubkey) == 1
+}
+
+// HashASPNetIdentityV3Password 生成 ASP.NET Core Identity PasswordHasher V3 哈希。
+func HashASPNetIdentityV3Password(password string) (string, error) {
+	salt := make([]byte, identityV3ExpectedSalt)
+	if _, err := rand.Read(salt); err != nil {
+		return "", fmt.Errorf("generate salt: %w", err)
+	}
+	subkey := pbkdf2.Key([]byte(password), salt, int(identityV3ExpectedIter), identityV3ExpectedSubk, sha256.New)
+
+	header := make([]byte, 13)
+	header[0] = identityV3FormatMarker
+	binary.BigEndian.PutUint32(header[1:5], identityV3ExpectedPRF)
+	binary.BigEndian.PutUint32(header[5:9], identityV3ExpectedIter)
+	binary.BigEndian.PutUint32(header[9:13], identityV3ExpectedSalt)
+
+	payload := append(header, salt...)
+	payload = append(payload, subkey...)
+	return base64.StdEncoding.EncodeToString(payload), nil
 }
 
 func FormatUserID(userID int64) string {

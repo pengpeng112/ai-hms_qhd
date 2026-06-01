@@ -797,7 +797,7 @@ export default function Schedule() {
                     {title:'床位', dataIndex:['bed','name'], width:60, render:(_: unknown, record: RestPatientShift)=><span className="text-meta font-black">{record.bed?.name||'--'}</span>},
                     {title:'病区', dataIndex:['ward','name'], width:80, render:(_: unknown, record: RestPatientShift)=><span className="text-meta">{record.ward?.name||'--'}</span>},
                     {title:'状态', dataIndex:'status', width:70, render:(v:number)=>{
-                      const m:Record<number,{c:string;t:string}>={10:{c:'default',t:'待确认'},20:{c:'processing',t:'已确认'},30:{c:'success',t:'已完成'},50:{c:'error',t:'已取消'},60:{c:'warning',t:'转出'}}
+                      const m:Record<number,{c:string;t:string}>={0:{c:'default',t:'待确认'},1:{c:'processing',t:'已确认'},3:{c:'success',t:'已完成'},4:{c:'error',t:'已取消'},6:{c:'warning',t:'转出'}}
                       const s=m[v]||{c:'default',t:`${v}`}
                       return <Tag color={s.c} className="text-meta">{s.t}</Tag>
                     }},

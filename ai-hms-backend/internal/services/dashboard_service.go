@@ -43,14 +43,15 @@ type HourlyCount struct {
 
 // DashboardStats 看板统计汇总
 type DashboardStats struct {
-	ActivePatients   int64         `json:"activePatients"`   // 在透患者数
-	ShiftCount       int64         `json:"shiftCount"`       // 启用班次数量
-	EquipmentCount   int64         `json:"equipmentCount"`   // 启用设备数量
-	TodaySchedules   int64         `json:"todaySchedules"`   // 今日排班数量
-	TodayTreatments  int64         `json:"todayTreatments"`  // 今日透析次数
-	AlertItems       int64         `json:"alertItems"`       // 告警：库存不足 + 设备异常
-	TreatmentsByHour []HourlyCount `json:"treatmentsByHour"` // 今日按时段分布（用于图表）
-	QualityByHour    []HourlyCount `json:"qualityByHour"`    // 近7日每天完成次数（用于质量图表）
+	ActivePatients   int64         `json:"activePatients"`
+	ShiftCount       int64         `json:"shiftCount"`
+	EquipmentCount   int64         `json:"equipmentCount"`
+	TodaySchedules   int64         `json:"todaySchedules"`
+	TodayTreatments  int64         `json:"todayTreatments"`
+	AlertItems       int64         `json:"alertItems"`
+	TreatmentsByHour []HourlyCount `json:"treatmentsByHour"`
+	QualityByHour    []HourlyCount `json:"qualityByHour"`
+	AvgDialysisHours float64       `json:"avgDialysisHours"`
 }
 
 // GetStats 获取看板统计数据
@@ -73,7 +74,8 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 2. 在科患者数（真实表 Register_PatientInfomation）
 	activePatientsQuery := s.db.Table(legacyPatientTable).
-		Where(`"TenantId" = ?`, legacyTenantID)
+		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`COALESCE("TreatmentStatus", '') NOT IN ('出院', '死亡')`)
 	activePatients, err := countRows(activePatientsQuery)
 	if err != nil {
 		return nil, err
@@ -150,6 +152,15 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		qualityByDay = append(qualityByDay, HourlyCount{Name: label, Value: int(count)})
 	}
 
+	// 今日平均透析时长
+	var avgHours float64
+	var avgResult struct{ AvgMinutes float64 }
+	s.db.Table(legacyTreatmentTable).
+		Select(`COALESCE(AVG(COALESCE("RealDuration", 0)), 0) AS "AvgMinutes"`).
+		Where(`"TenantId" = ? AND DATE("StartTime") = ?`, legacyTenantID, today).
+		Scan(&avgResult)
+	avgHours = avgResult.AvgMinutes / 60.0
+
 	return &DashboardStats{
 		ActivePatients:   activePatients,
 		ShiftCount:       shiftCount,
@@ -159,5 +170,6 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		AlertItems:       alertItems,
 		TreatmentsByHour: byHour,
 		QualityByHour:    qualityByDay,
+		AvgDialysisHours: avgHours,
 	}, nil
 }

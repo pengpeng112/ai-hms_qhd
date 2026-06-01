@@ -184,9 +184,6 @@ func (s *PatientBasicService) UpdateBasicInfo(patientID string, req *PatientBasi
 		if req.VitalSocialInfo.Height != nil {
 			patientUpdates["Height"] = strings.TrimSpace(*req.VitalSocialInfo.Height)
 		}
-		if req.VitalSocialInfo.DryWeight != nil {
-			patientUpdates["Weight"] = *req.VitalSocialInfo.DryWeight
-		}
 		if req.VitalSocialInfo.ABOBloodType != nil {
 			patientUpdates["ABOType"] = strings.TrimSpace(*req.VitalSocialInfo.ABOBloodType)
 		}
