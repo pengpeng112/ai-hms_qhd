@@ -1213,14 +1213,16 @@ const createAxiosInstance = () => {
       return response
     },
     (error) => {
-      // Token 过期、无效或无权限时，直接跳转登录
-      if (error.response?.status === 401 || error.response?.status === 403) {
-        // 清除本地存储的认证信息
-        localStorage.removeItem('hdis_access_token')
-        localStorage.removeItem('hdis_user_info')
-        localStorage.removeItem('hdis_token_expiry')
-        // 触发重新登录
-        window.location.href = '/login'
+      // Token过期时清除认证并跳转登录（仅非登录页+已登录时执行，避免循环）
+      if (error.response?.status === 401) {
+        const isLoginPage = window.location.pathname === '/login'
+        const hasToken = !!localStorage.getItem('hdis_access_token')
+        if (!isLoginPage && hasToken) {
+          localStorage.removeItem('hdis_access_token')
+          localStorage.removeItem('hdis_user_info')
+          localStorage.removeItem('hdis_token_expiry')
+          window.location.href = '/login'
+        }
       }
       return Promise.reject(error)
     }
