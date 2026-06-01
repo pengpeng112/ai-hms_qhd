@@ -1213,7 +1213,7 @@ const createAxiosInstance = () => {
       return response
     },
     (error) => {
-      // Token过期时清除认证并跳转登录（仅非登录页+已登录时执行，避免循环）
+      // 仅在用户已登录且非登录页时，对401做token清理（不自动跳转，交由页面自行处理）
       if (error.response?.status === 401) {
         const isLoginPage = window.location.pathname === '/login'
         const hasToken = !!localStorage.getItem('hdis_access_token')
@@ -1221,7 +1221,6 @@ const createAxiosInstance = () => {
           localStorage.removeItem('hdis_access_token')
           localStorage.removeItem('hdis_user_info')
           localStorage.removeItem('hdis_token_expiry')
-          window.location.href = '/login'
         }
       }
       return Promise.reject(error)
