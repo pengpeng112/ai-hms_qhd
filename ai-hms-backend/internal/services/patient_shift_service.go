@@ -575,8 +575,8 @@ type BatchSaveResult struct {
 }
 
 type BatchSaveFailItem struct {
-	Index   int    `json:"index"`
-	Error   string `json:"error"`
+	Index int    `json:"index"`
+	Error string `json:"error"`
 }
 
 func (s *PatientShiftService) BatchSave(req BatchSaveRequest, tenantId, creatorId int64) (*BatchSaveResult, error) {
@@ -687,7 +687,10 @@ func (s *PatientShiftService) ApplyTemplate(targetDate string, tenantId, creator
 
 	created := 0
 	for _, tpl := range templates {
-		hasConflict, _ := s.CheckConflict(int64(tpl.PatientId), tenantId, targetTime, tpl.ShiftId, nil)
+		hasConflict, err := s.CheckConflict(int64(tpl.PatientId), tenantId, targetTime, tpl.ShiftId, nil)
+		if err != nil {
+			return created, err
+		}
 		if hasConflict {
 			continue
 		}
@@ -695,7 +698,10 @@ func (s *PatientShiftService) ApplyTemplate(targetDate string, tenantId, creator
 		if tpl.BedId != nil {
 			bedIdVal = *tpl.BedId
 		}
-		hasBedConflict, _ := s.CheckBedConflict(bedIdVal, tenantId, targetTime, tpl.ShiftId, nil)
+		hasBedConflict, err := s.CheckBedConflict(bedIdVal, tenantId, targetTime, tpl.ShiftId, nil)
+		if err != nil {
+			return created, err
+		}
 		if hasBedConflict {
 			continue
 		}
@@ -712,7 +718,7 @@ func (s *PatientShiftService) ApplyTemplate(targetDate string, tenantId, creator
 			CreatorId:     creatorId,
 		}
 		if err := s.db.Create(&newShift).Error; err != nil {
-			continue
+			return created, err
 		}
 		created++
 	}
