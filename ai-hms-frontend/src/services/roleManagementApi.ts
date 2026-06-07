@@ -27,8 +27,7 @@ export interface PermissionNodeApi {
 // ============ API 方法 ============
 
 async function getRoleList(): Promise<AppRoleApi[]> {
-  const data = await restGet<{ items: AppRoleApi[] }>('/api/v1/app-roles')
-  return data.items
+  return restGet<AppRoleApi[]>('/api/v1/app-roles')
 }
 
 async function createRole(data: Partial<AppRoleApi>): Promise<AppRoleApi> {

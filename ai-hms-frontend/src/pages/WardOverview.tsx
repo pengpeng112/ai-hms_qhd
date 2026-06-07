@@ -114,7 +114,7 @@ export default function WardOverview() {
 
       // 使用监测实时数据生成床位状态
       const beds: BedStatus[] = liveArray.map((d, i) => ({
-        id: `bed-${d.bedId || i}`,
+        id: `bed-${d.bedId || i}-${i}`,
         label: d.bedName || `A${String(i + 1).padStart(2, '0')}`,
         status: 'active' as BedStatus['status'],
       }))

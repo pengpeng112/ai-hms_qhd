@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Table, Button, message, Tag } from 'antd'
-import { RefreshCw, Edit3 } from 'lucide-react'
+import { RefreshCw, Edit3, Plus } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { restApi, getErrorMessage } from '@/services/restClient'
 import type { ScheduleTemplateResponse } from '@/services/restClient'
@@ -41,6 +41,7 @@ export default function ScheduleTemplateList() {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-h2 font-bold text-foreground">排班模板</h2>
         <div className="flex gap-2">
+          <Button onClick={() => navigate('/schedule-templates/edit')} icon={<Plus size={16} />} type="primary">新建模板</Button>
           <Button onClick={loadTemplates} icon={<RefreshCw size={16} />} loading={loading}>刷新</Button>
         </div>
       </div>
