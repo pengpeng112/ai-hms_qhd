@@ -315,3 +315,92 @@ func HashASPNetIdentityV3Password(password string) (string, error) {
 func FormatUserID(userID int64) string {
 	return fmt.Sprintf("%d", userID)
 }
+
+var adminSeededOnce bool
+
+// SeedAdminIfNeeded 启动时检查并创建默认管理员（TEST_AI_HMS_admin / Test@123456）
+func SeedAdminIfNeeded(db *gorm.DB) {
+	if adminSeededOnce {
+		return
+	}
+	adminSeededOnce = true
+
+	username := "TEST_AI_HMS_admin"
+	password := "Test@123456"
+
+	var count int64
+	db.Table(`"Identity_Users"`).Where(`"UserName" = ?`, username).Count(&count)
+	if count > 0 {
+		log.Println("[SEED] admin user already exists, skipping")
+		return
+	}
+
+	hash, err := HashASPNetIdentityV3Password(password)
+	if err != nil {
+		log.Printf("[SEED] failed to generate password hash: %v", err)
+		return
+	}
+
+	adminID := int64(300412)
+	now := time.Now()
+
+	// 创建 Identity_Users
+	if err := db.Table(`"Identity_Users"`).Create(map[string]interface{}{
+		`"Id"`:                   adminID,
+		`"UserName"`:             username,
+		`"NormalizedUserName"`:   strings.ToUpper(username),
+		`"PasswordHash"`:         hash,
+		`"SecurityStamp"`:        randomUUID(),
+		`"ConcurrencyStamp"`:     randomUUID(),
+		`"Email"`:                "test_admin@ai-hms.local",
+		`"NormalizedEmail"`:      "TEST_ADMIN@AI-HMS.LOCAL",
+		`"EmailConfirmed"`:       true,
+		`"PhoneNumberConfirmed"`: false,
+		`"TwoFactorEnabled"`:     false,
+		`"LockoutEnabled"`:       true,
+		`"AccessFailedCount"`:    0,
+	}).Error; err != nil {
+		log.Printf("[SEED] failed to create admin user: %v", err)
+		return
+	}
+
+	// 创建 Organ_Employee
+	if err := db.Table(`"Organ_Employee"`).Create(map[string]interface{}{
+		`"Id"`:                   adminID,
+		`"Name"`:                 "测试管理员",
+		`"Gender"`:               "男",
+		`"Birthdate"`:            "1990-01-01",
+		`"Avatar"`:               "/avatar.png",
+		`"Sort"`:                 1,
+		`"IsDisabled"`:           false,
+		`"IsDeleted"`:            false,
+		`"CreationTime"`:         now,
+		`"CreatorId"`:            adminID,
+		`"LastModificationTime"`: now,
+		`"LastModifierId"`:       adminID,
+		`"PhoneNumber"`:          "",
+		`"Email"`:                "test_admin@ai-hms.local",
+		`"IsCreateAccount"`:      false,
+	}).Error; err != nil {
+		log.Printf("[SEED] failed to create admin employee: %v", err)
+		return
+	}
+
+	// 赋予 ADMIN 角色
+	var adminRole struct{ Id int64 }
+	db.Table(`"Identity_Roles"`).Where(`"Name" = ?`, "ADMIN").Select(`"Id"`).First(&adminRole)
+	if adminRole.Id > 0 {
+		db.Table(`"Identity_UserRoles"`).Create(map[string]interface{}{
+			`"UserId"`: adminID,
+			`"RoleId"`: adminRole.Id,
+		})
+	}
+
+	log.Printf("[SEED] admin user created: %s / %s (ID=%d)", username, password, adminID)
+}
+
+func randomUUID() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}

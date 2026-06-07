@@ -47,6 +47,9 @@ func main() {
 		defer database.Close()
 		log.Println("[LEGACY-DB] startup in legacy database mode: AutoMigrate and startup seed initialization are disabled")
 
+		// 确保默认管理员账号存在
+		services.SeedAdminIfNeeded(database.GetDB())
+
 		// 启动过期临时医嘱定时任务（需显式配置 ORDER_CRON_ENABLED=true 开启）
 		if cfg.OrderCronEnabled {
 			services.StartOrderCron(cfg.LegacyTenantID)
