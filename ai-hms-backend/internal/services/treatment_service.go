@@ -2450,6 +2450,8 @@ func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creat
 		values["TenantId"] = LegacyTenantID
 		values["TreatmentId"] = treatmentID
 		values["CreatorId"] = creatorID
+		values["OperatorId"] = creatorID
+		values["OperateTime"] = now
 		values["CreateTime"] = now
 		values["LastModifyTime"] = now
 		if err := s.db.Table(table).Create(values).Error; err != nil {
@@ -2613,15 +2615,35 @@ func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisi
 		return nil, errors.New("database not available")
 	}
 
-	columns := map[string]interface{}{
-		`"TreatmentId"`:    treatmentID,
-		`"CreatorId"`:      creatorID,
+	newID, err := nextLegacyID()
+	if err != nil {
+		return nil, err
 	}
+	now := time.Now()
+
+	equipmentID := int64(0)
 	if req.EquipmentID != nil {
-		columns[`"EquipmentId"`] = *req.EquipmentID
+		equipmentID = *req.EquipmentID
 	}
+	disinfectUserID := creatorID
 	if req.DisinfectUserID != nil {
-		columns[`"DisinfectUserId"`] = *req.DisinfectUserID
+		disinfectUserID = *req.DisinfectUserID
+	}
+	startTime := now.Format("2006-01-02 15:04:05")
+	if req.StartTime != nil && *req.StartTime != "" {
+		startTime = *req.StartTime
+	}
+
+	columns := map[string]interface{}{
+		`"Id"`:              newID,
+		`"TenantId"`:        LegacyTenantID,
+		`"TreatmentId"`:     treatmentID,
+		`"EquipmentId"`:     equipmentID,
+		`"DisinfectUserId"`: disinfectUserID,
+		`"StartTime"`:       startTime,
+		`"CreatorId"`:       creatorID,
+		`"CreateTime"`:      now,
+		`"LastModifyTime"`:  now,
 	}
 	if req.DisinfectWay != nil {
 		columns[`"DisinfectWay"`] = *req.DisinfectWay
@@ -2637,9 +2659,6 @@ func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisi
 	}
 	if req.Note != nil {
 		columns[`"Note"`] = *req.Note
-	}
-	if req.StartTime != nil && *req.StartTime != "" {
-		columns[`"StartTime"`] = *req.StartTime
 	}
 	if req.EndTime != nil && *req.EndTime != "" {
 		columns[`"EndTime"`] = *req.EndTime

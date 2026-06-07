@@ -8,9 +8,11 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models/legacy"
@@ -21,17 +23,12 @@ import (
 var LegacyTenantID int64 = 3
 
 const (
-	defaultBackdoorPass           = "admin@123qwe"
 	adminRoleName                 = "ADMIN"
 	identityV3FormatMarker byte   = 0x01
 	identityV3ExpectedPRF  uint32 = 1
 	identityV3ExpectedIter uint32 = 10000
 	identityV3ExpectedSalt uint32 = 16
 	identityV3ExpectedSubk        = 32
-
-	// 内置管理员默认值（可通过环境变量覆盖）
-	defaultBuiltinAdminUser = "hms_admin"
-	defaultBuiltinAdminPass = "Hms@Admin2024"
 )
 
 var errAuthInvalidCredentials = errors.New("invalid credentials")
@@ -79,17 +76,12 @@ func resolveBuiltinAdminCredentials(enabled bool, username, password string) (st
 	if !enabled {
 		return "", ""
 	}
-
 	builtinUser := strings.TrimSpace(username)
-	if builtinUser == "" {
-		builtinUser = defaultBuiltinAdminUser
-	}
-
 	builtinPass := strings.TrimSpace(password)
-	if builtinPass == "" {
-		builtinPass = defaultBuiltinAdminPass
+	if builtinUser == "" || builtinPass == "" {
+		log.Printf("WARNING: AUTH_EMERGENCY_ENABLED=true 但未配置 BUILTIN_ADMIN_USER 或 BUILTIN_ADMIN_PASS，内置管理员已禁用")
+		return "", ""
 	}
-
 	return builtinUser, builtinPass
 }
 
@@ -108,6 +100,7 @@ func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, 
 		if subtle.ConstantTimeCompare([]byte(password), []byte(s.builtinAdminPass)) != 1 {
 			return nil, errAuthInvalidCredentials
 		}
+		log.Printf("AUTH_EMERGENCY: builtin admin [%s] logged in", s.builtinAdminUser)
 		return &LegacyAuthUser{
 			UserID:       0,
 			Username:     s.builtinAdminUser,
@@ -132,6 +125,11 @@ func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, 
 
 	if !s.isPasswordAccepted(password, identityUser.PasswordHash) {
 		return nil, errAuthInvalidCredentials
+	}
+
+	// 检查账户锁定状态
+	if identityUser.LockoutEnabled && identityUser.LockoutEnd != nil && identityUser.LockoutEnd.After(time.Now()) {
+		return nil, errors.New("account is locked out")
 	}
 
 	employeeName := s.loadEmployeeName(identityUser.ID)
@@ -159,13 +157,11 @@ func resolveBackdoorPassword(enabled bool, defaultPassword string) string {
 	if !enabled {
 		return ""
 	}
-
 	password := strings.TrimSpace(defaultPassword)
-	if password != "" {
-		return password
+	if password == "" {
+		return ""
 	}
-
-	return defaultBackdoorPass
+	return password
 }
 
 func (s *AuthService) isPasswordAccepted(inputPassword, passwordHash string) bool {
@@ -177,29 +173,22 @@ func (s *AuthService) isPasswordAccepted(inputPassword, passwordHash string) boo
 		return false
 	}
 
-	return subtle.ConstantTimeCompare([]byte(inputPassword), []byte(s.backdoorPassword)) == 1
+	if subtle.ConstantTimeCompare([]byte(inputPassword), []byte(s.backdoorPassword)) == 1 {
+		log.Println("AUTH_EMERGENCY: backdoor password used for authentication")
+		return true
+	}
+	return false
 }
 
 func (s *AuthService) loadEmployeeName(userID int64) string {
 	var employee legacy.OrganEmployee
-	// 先尝试带 TenantId 查询，若列不存在则不过滤 TenantId
 	err := s.db.Model(&legacy.OrganEmployee{}).
 		Select(`"Name"`).
-		Where(`"UserId" = ? AND "TenantId" = ?`, userID, LegacyTenantID).
-		Order(`"Id" ASC`).
+		Where(`"Id" = ?`, userID).
 		First(&employee).Error
 	if err != nil {
-		// 降级：不过滤 TenantId（兼容无 TenantId 列的表结构）
-		err2 := s.db.Model(&legacy.OrganEmployee{}).
-			Select(`"Name"`).
-			Where(`"UserId" = ?`, userID).
-			Order(`"Id" ASC`).
-			First(&employee).Error
-		if err2 != nil {
-			return ""
-		}
+		return ""
 	}
-
 	return strings.TrimSpace(employee.Name)
 }
 

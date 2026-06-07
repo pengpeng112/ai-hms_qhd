@@ -51,7 +51,7 @@ func TestResolveBackdoorPassword(t *testing.T) {
 	}{
 		{name: "disabled blocks fallback", enabled: false, defaultPassword: "custom-pass", want: ""},
 		{name: "explicit password takes priority when enabled", enabled: true, defaultPassword: "custom-pass", want: "custom-pass"},
-		{name: "enabled uses documented default fallback", enabled: true, defaultPassword: "", want: defaultBackdoorPass},
+		{name: "enabled without explicit password returns empty", enabled: true, defaultPassword: "", want: ""},
 	}
 
 	for _, tt := range tests {
@@ -93,10 +93,10 @@ func TestResolveBuiltinAdminCredentials(t *testing.T) {
 		}
 	})
 
-	t.Run("enabled uses defaults", func(t *testing.T) {
+	t.Run("enabled without explicit credentials returns empty", func(t *testing.T) {
 		user, pass := resolveBuiltinAdminCredentials(true, "", "")
-		if user != defaultBuiltinAdminUser || pass != defaultBuiltinAdminPass {
-			t.Fatalf("resolveBuiltinAdminCredentials() = (%q, %q), want (%q, %q)", user, pass, defaultBuiltinAdminUser, defaultBuiltinAdminPass)
+		if user != "" || pass != "" {
+			t.Fatalf("resolveBuiltinAdminCredentials() = (%q, %q), want empty (no defaults)", user, pass)
 		}
 	})
 

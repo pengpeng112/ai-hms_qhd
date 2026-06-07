@@ -416,7 +416,7 @@ COALESCE(bed."Name", '') AS bed_number,
 bed."Id" AS bed_id,
 ward."Id" AS ward_id,
 COALESCE(ward."Name", '') AS ward_name,
-COALESCE(NULLIF(rel."ParameterS", ''), ?) AS status,
+COALESCE(NULLIF(rel."ParameterS"::text, ''), ?) AS status,
 e."InstallDate" AS purchase_date,
 e."ManufactureDate" AS manufacture_date,
 e."InstallDate" AS install_date,
@@ -439,7 +439,7 @@ func (s *DeviceService) List(req DeviceListRequest) (*DeviceListResponse, error)
 
 	query := s.baseLegacyDeviceQuery()
 	if status := normalizeDeviceStatus(req.Status); strings.TrimSpace(req.Status) != "" {
-		query = query.Where(`COALESCE(NULLIF(rel."ParameterS", ''), ?) = ?`, models.DeviceStatusNormal, status)
+		query = query.Where(`COALESCE(NULLIF(rel."ParameterS"::text, ''), ?) = ?`, models.DeviceStatusNormal, status)
 	}
 	if req.BedNumber != "" {
 		query = query.Where(`bed."Name" LIKE ?`, "%"+strings.TrimSpace(req.BedNumber)+"%")
@@ -459,7 +459,22 @@ func (s *DeviceService) List(req DeviceListRequest) (*DeviceListResponse, error)
 
 	var rows []legacyDeviceRecord
 	offset := (req.Page - 1) * req.PageSize
-	if err := query.Select(s.legacyDeviceSelect(), models.DeviceStatusNormal).
+	// 注意：query.Distinct 会污染后续查询，这里重建查询避免 DISTINCT+ORDER BY 冲突
+	listQuery := s.baseLegacyDeviceQuery()
+	if status := normalizeDeviceStatus(req.Status); strings.TrimSpace(req.Status) != "" {
+		listQuery = listQuery.Where(`COALESCE(NULLIF(rel."ParameterS"::text, ''), ?) = ?`, models.DeviceStatusNormal, status)
+	}
+	if req.BedNumber != "" {
+		listQuery = listQuery.Where(`bed."Name" LIKE ?`, "%"+strings.TrimSpace(req.BedNumber)+"%")
+	}
+	if req.WardId != nil {
+		listQuery = listQuery.Where(`ward."Id" = ?`, *req.WardId)
+	}
+	if req.Keyword != "" {
+		like := "%" + strings.TrimSpace(req.Keyword) + "%"
+		listQuery = listQuery.Where(`(e."Name" LIKE ? OR e."IDNo" LIKE ? OR e."SerialNo" LIKE ? OR e."Brand" LIKE ? OR e."ModelNo" LIKE ?)`, like, like, like, like, like)
+	}
+	if err := listQuery.Select(s.legacyDeviceSelect(), models.DeviceStatusNormal).
 		Offset(offset).
 		Limit(req.PageSize).
 		Order(`ward."Id" ASC NULLS LAST`).

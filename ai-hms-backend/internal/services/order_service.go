@@ -277,7 +277,7 @@ func mapLegacyOrderStatus(item legacyPatientOrder, now time.Time, dayStatus *int
 	return models.OrderStatusExecuting
 }
 
-func (s *OrderService) loadLatestLegacyDayOrderStatus(orderIDs []int64) (map[int64]int, error) {
+func (s *OrderService) loadLatestLegacyDayOrderStatus(tenantID int64, orderIDs []int64) (map[int64]int, error) {
 	result := make(map[int64]int, len(orderIDs))
 	if len(orderIDs) == 0 {
 		return result, nil
@@ -285,7 +285,7 @@ func (s *OrderService) loadLatestLegacyDayOrderStatus(orderIDs []int64) (map[int
 	var rows []legacyPatientDayOrder
 	err := s.db.Table(`"Order_PatientDayOrder"`).
 		Select(`"Id", "PatientOrderId", "Status", "TreatmentTime", "LastModifyTime", "CreateTime"`).
-		Where(`"TenantId" = ? AND "PatientOrderId" IN ?`, LegacyTenantID, orderIDs).
+		Where(`"TenantId" = ? AND "PatientOrderId" IN ?`, tenantID, orderIDs).
 		Order(`"TreatmentTime" DESC NULLS LAST`).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"Id" DESC`).
@@ -386,7 +386,7 @@ func (s *OrderService) listLegacyOrders(req OrderListRequest) ([]models.Order, e
 			orderIDs = append(orderIDs, row.ID)
 		}
 	}
-	dayStatusMap, err := s.loadLatestLegacyDayOrderStatus(orderIDs)
+	dayStatusMap, err := s.loadLatestLegacyDayOrderStatus(tenantID, orderIDs)
 	if err != nil {
 		return nil, err
 	}
@@ -512,71 +512,79 @@ func (s *OrderService) Create(patientID string, tenantID int64, doctorID, doctor
 	content := resolveContent(req.Name, req.Content)
 	now := time.Now()
 
-	orderID, idErr := nextLegacyID()
-	if idErr != nil {
-		return nil, idErr
-	}
-	createRow := map[string]any{
-		"Id":             orderID,
-		"TenantId":       tenantID,
-		"PatientId":      legacyPatientID,
-		"OrderTPLId":     int64(0),
-		"OrderGroup":     orderGroup,
-		"Type":           legacyType,
-		"DrugId":         int64(0),
-		"Classification": strings.TrimSpace(req.Category),
-		"Content":        strings.TrimSpace(content),
-		"Dosage":         strings.TrimSpace(req.Dose),
-		"UseOpportunity": strings.TrimSpace(req.Timing),
-		"UseMethod":      strings.TrimSpace(req.Route),
-		"UseWay":         strings.TrimSpace(req.Route),
-		"Note":           strings.TrimSpace(req.Notes),
-		"OperatorId":     operatorID,
-		"StartTime":      startAt,
-		"EndTime":        endAt,
-		"IsDisabled":     false,
-		"CreatorId":      operatorID,
-		"CreateTime":     now,
-		"LastModifyTime": now,
-		"PatientPlanId":  patientPlanID,
-		"UseNum":         1.0,
-		"ChargeItemId":   int64(0),
-	}
-	if err := s.db.Table(`"Order_PatientOrder"`).Create(createRow).Error; err != nil {
-		return nil, err
-	}
+	var orderIDInt int64
+	txErr := s.db.Transaction(func(tx *gorm.DB) error {
+		orderID, idErr := nextLegacyID()
+		if idErr != nil {
+			return idErr
+		}
+		createRow := map[string]any{
+			"Id":             orderID,
+			"TenantId":       tenantID,
+			"PatientId":      legacyPatientID,
+			"OrderTPLId":     int64(0),
+			"OrderGroup":     orderGroup,
+			"Type":           legacyType,
+			"DrugId":         int64(0),
+			"Classification": strings.TrimSpace(req.Category),
+			"Content":        strings.TrimSpace(content),
+			"Dosage":         strings.TrimSpace(req.Dose),
+			"UseOpportunity": strings.TrimSpace(req.Timing),
+			"UseMethod":      strings.TrimSpace(req.Route),
+			"UseWay":         strings.TrimSpace(req.Route),
+			"Note":           strings.TrimSpace(req.Notes),
+			"OperatorId":     operatorID,
+			"StartTime":      startAt,
+			"EndTime":        endAt,
+			"IsDisabled":     false,
+			"CreatorId":      operatorID,
+			"CreateTime":     now,
+			"LastModifyTime": now,
+			"PatientPlanId":  patientPlanID,
+			"UseNum":         1.0,
+			"ChargeItemId":   int64(0),
+		}
+		if err := tx.Table(`"Order_PatientOrder"`).Create(createRow).Error; err != nil {
+			return err
+		}
 
-	dayOrderID, dayIDErr := nextLegacyID()
-	if dayIDErr != nil {
-		return nil, dayIDErr
-	}
-	dayRow := map[string]any{
-		"Id":              dayOrderID,
-		"TenantId":        tenantID,
-		"PatientId":       legacyPatientID,
-		"TreatmentTime":   startAt,
-		"PatientOrderId":  orderID,
-		"OrderGroup":      orderGroup,
-		"Status":          20,
-		"CaseStatus":      "",
-		"Classification":  strings.TrimSpace(req.Category),
-		"DrugId":          int64(0),
-		"Content":         strings.TrimSpace(content),
-		"Dosage":          strings.TrimSpace(req.Dose),
-		"UseOpportunity":  strings.TrimSpace(req.Timing),
-		"UseMethod":       strings.TrimSpace(req.Route),
-		"UseWay":          strings.TrimSpace(req.Route),
-		"Note":            strings.TrimSpace(req.Notes),
-		"OperatorId":      operatorID,
-		"CreatorId":       operatorID,
-		"CreateTime":      now,
-		"LastModifyTime":  now,
-		"UseNum":          1.0,
-		"DealOpportunity": mapDealOpportunityCode(req.ExecTiming, req.Type),
-		"ChargeItemId":    int64(0),
-	}
-	if err := s.db.Table(`"Order_PatientDayOrder"`).Create(dayRow).Error; err != nil {
-		return nil, err
+		dayOrderID, dayIDErr := nextLegacyID()
+		if dayIDErr != nil {
+			return dayIDErr
+		}
+		dayRow := map[string]any{
+			"Id":              dayOrderID,
+			"TenantId":        tenantID,
+			"PatientId":       legacyPatientID,
+			"TreatmentTime":   startAt,
+			"PatientOrderId":  orderID,
+			"OrderGroup":      orderGroup,
+			"Status":          20,
+			"CaseStatus":      "",
+			"Classification":  strings.TrimSpace(req.Category),
+			"DrugId":          int64(0),
+			"Content":         strings.TrimSpace(content),
+			"Dosage":          strings.TrimSpace(req.Dose),
+			"UseOpportunity":  strings.TrimSpace(req.Timing),
+			"UseMethod":       strings.TrimSpace(req.Route),
+			"UseWay":          strings.TrimSpace(req.Route),
+			"Note":            strings.TrimSpace(req.Notes),
+			"OperatorId":      operatorID,
+			"CreatorId":       operatorID,
+			"CreateTime":      now,
+			"LastModifyTime":  now,
+			"UseNum":          1.0,
+			"DealOpportunity": mapDealOpportunityCode(req.ExecTiming, req.Type),
+			"ChargeItemId":    int64(0),
+		}
+		if err := tx.Table(`"Order_PatientDayOrder"`).Create(dayRow).Error; err != nil {
+			return err
+		}
+		orderIDInt = orderID.Int64()
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
 	}
 
 	created, listErr := s.listLegacyOrders(OrderListRequest{
@@ -587,7 +595,7 @@ func (s *OrderService) Create(patientID string, tenantID int64, doctorID, doctor
 	if listErr != nil {
 		return nil, listErr
 	}
-	orderIDText := strconv.FormatInt(orderID.Int64(), 10)
+	orderIDText := strconv.FormatInt(orderIDInt, 10)
 	for i := range created {
 		if created[i].ID == orderIDText {
 			return &created[i], nil
@@ -650,62 +658,50 @@ func (s *OrderService) Update(patientID, orderID string, req OrderUpdateRequest)
 		return nil, err
 	}
 
-	updates := map[string]interface{}{}
-	if req.Category != nil {
-		updates["category"] = strings.TrimSpace(*req.Category)
+	updates := map[string]interface{}{
+		"LastModifyTime": time.Now(),
 	}
-	if req.Name != nil {
-		updates["name"] = strings.TrimSpace(*req.Name)
+	if req.Category != nil {
+		updates["Classification"] = strings.TrimSpace(*req.Category)
 	}
 	if req.Content != nil {
-		updates["content"] = strings.TrimSpace(*req.Content)
+		updates["Content"] = strings.TrimSpace(*req.Content)
 	}
 	if req.Dose != nil {
-		updates["dose"] = strings.TrimSpace(*req.Dose)
-	}
-	if req.Unit != nil {
-		updates["unit"] = strings.TrimSpace(*req.Unit)
+		updates["Dosage"] = strings.TrimSpace(*req.Dose)
 	}
 	if req.Route != nil {
-		updates["route"] = strings.TrimSpace(*req.Route)
+		v := strings.TrimSpace(*req.Route)
+		updates["UseMethod"] = v
+		updates["UseWay"] = v
 	}
 	if req.Timing != nil {
-		updates["timing"] = strings.TrimSpace(*req.Timing)
-	}
-	if req.ExecTiming != nil {
-		updates["exec_timing"] = strings.TrimSpace(*req.ExecTiming)
+		updates["UseOpportunity"] = strings.TrimSpace(*req.Timing)
 	}
 	if req.DrugID != nil {
-		updates["drug_id"] = *req.DrugID
-	}
-	if req.Spec != nil {
-		updates["spec"] = strings.TrimSpace(*req.Spec)
-	}
-	if req.GroupID != nil {
-		updates["group_id"] = *req.GroupID
-	}
-	if req.Frequency != nil {
-		updates["frequency"] = strings.TrimSpace(*req.Frequency)
-	}
-	if req.Priority != nil {
-		updates["priority"] = defaultOrderPriority(*req.Priority)
+		updates["DrugId"] = int64(*req.DrugID)
 	}
 	if req.StartTime != nil {
 		startAt, err := parseOptionalOrderTime(req.StartTime)
 		if err != nil {
 			return nil, badOrderRequest("开始时间格式错误，请使用 YYYY-MM-DD")
 		}
-		updates["start_time"] = startAt
+		updates["StartTime"] = startAt
 	}
 	if req.EndTime != nil {
 		endAt, err := parseOptionalStopDate(req.EndTime)
 		if err != nil {
 			return nil, badOrderRequest("停用日期格式错误，请使用 YYYY-MM-DD")
 		}
-		updates["end_time"] = endAt
+		updates["EndTime"] = endAt
 	}
 	if req.Notes != nil {
-		updates["notes"] = strings.TrimSpace(*req.Notes)
+		updates["Note"] = strings.TrimSpace(*req.Notes)
+	}
+	if req.GroupID != nil {
+		if parsed, parseErr := strconv.ParseInt(strings.TrimSpace(*req.GroupID), 10, 64); parseErr == nil {
+			updates["OrderGroup"] = parsed
+		}
 	}
 
 	if req.Name != nil || req.Content != nil {
@@ -720,15 +716,15 @@ func (s *OrderService) Update(patientID, orderID string, req OrderUpdateRequest)
 		if err := validateOrderContent(nextName, nextContent); err != nil {
 			return nil, err
 		}
-		updates["content"] = resolveContent(nextName, nextContent)
+		updates["Content"] = resolveContent(nextName, nextContent)
 	}
 
-	if len(updates) > 0 {
-		oid, _ := strconv.ParseInt(orderID, 10, 64)
-		updates["LastModifyTime"] = time.Now()
-		if err := s.db.Table(`"Order_PatientOrder"`).Where(`"Id" = ?`, oid).Updates(updates).Error; err != nil {
-			return nil, err
-		}
+	legacyPID, _ := parseLegacyID(patientID)
+	oid, _ := strconv.ParseInt(orderID, 10, 64)
+	if err := s.db.Table(`"Order_PatientOrder"`).
+		Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, oid, legacyPID, order.TenantID).
+		Updates(updates).Error; err != nil {
+		return nil, err
 	}
 
 	return s.getOrder(patientID, orderID)

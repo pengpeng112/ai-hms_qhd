@@ -2,22 +2,25 @@
 //
 // 用法：
 //
-//	go run ./cmd/create_admin -username admin -password YourPass123 -name 管理员
-//	go run ./cmd/create_admin -reset -username existingUser -password NewPass123
+//	go run ./cmd/server -dsn "host=... user=... password=... dbname=..." -username admin -password YourPass123 -tenant-id 3
+//	go run ./cmd/server -dsn "host=..." -reset -username existingUser -password NewPass123 -tenant-id 3
 //
-// 环境变量（优先级高于默认值）：
+// 环境变量（用于 DSN 拼装，优先级低于 -dsn）：
 //
-//	DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME / DB_SSLMODE
+//	DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME / DB_SSLMODE / DB_TIMEZONE
+//	LEGACY_TENANT_ID — 替代 -tenant-id
 //
-// 直接使用 -dsn 参数也可：
+// 直接使用 -dsn 参数可跳过所有环境变量：
 //
-//	go run ./cmd/create_admin -dsn "host=10.10.8.83 user=postgres ..." -username admin -password X
+//	go run ./cmd/server -dsn "host=10.10.8.83 user=postgres password=... dbname=dialysis" -username admin -password X
+//
+// 安全：新建用户场景建议提前通过老系统后台建好 Identity_Users 行，本工具仅用于重置密码。
+// 如需真正新建用户，请先用数据库原生工具创建基础用户行，再用本工具 -reset。
 package main
 
 import (
 	"crypto/rand"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
@@ -25,8 +28,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"strings"
-	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 	"gorm.io/driver/postgres"
@@ -35,25 +38,21 @@ import (
 )
 
 const (
-	tenantID  int64 = 3
-	prf       uint32 = 1     // HMACSHA256
+	prf        uint32 = 1 // HMACSHA256
 	iterations uint32 = 10000
 	saltLen    uint32 = 16
 	subkeyLen         = 32
 )
 
-// ── flags ──────────────────────────────────────────────────────────────────
-
 var (
 	flagDSN      = flag.String("dsn", "", "完整 DSN (可选，优先于环境变量)")
 	flagUsername = flag.String("username", "", "登录用户名 (必填)")
 	flagPassword = flag.String("password", "", "登录密码 (必填)")
-	flagName     = flag.String("name", "", "显示姓名，写入 Organ_Employee.Name (新建时使用，默认同 username)")
+	flagName     = flag.String("name", "", "显示姓名，写入 Organ_Employee.Name (重置时可覆盖)")
 	flagReset    = flag.Bool("reset", false, "仅重置已有用户密码，不新建用户")
-	flagList     = flag.Bool("list", false, "列出 TenantId=3 的所有用户后退出")
+	flagList     = flag.Bool("list", false, "列出指定 TenantId 的所有用户后退出")
+	flagTenantID = flag.Int64("tenant-id", 0, "租户 ID (必填，或用 LEGACY_TENANT_ID 环境变量)")
 )
-
-// ── Identity_Users minimal struct ─────────────────────────────────────────
 
 type IdentityUser struct {
 	ID                   int64  `gorm:"column:Id;primaryKey"`
@@ -75,23 +74,34 @@ type IdentityUser struct {
 func (IdentityUser) TableName() string { return "Identity_Users" }
 
 type OrganEmployee struct {
-	ID       int64  `gorm:"column:Id;primaryKey"`
-	TenantID int64  `gorm:"column:TenantId"`
-	UserID   int64  `gorm:"column:UserId"`
-	Name     string `gorm:"column:Name"`
+	ID   int64  `gorm:"column:Id;primaryKey"`
+	Name string `gorm:"column:Name"`
 }
 
 func (OrganEmployee) TableName() string { return "Organ_Employee" }
 
-// ── main ───────────────────────────────────────────────────────────────────
+type IdentityRole struct {
+	ID   int64  `gorm:"column:Id"`
+	Name string `gorm:"column:Name"`
+}
+
+func (IdentityRole) TableName() string { return "Identity_Roles" }
+
+type IdentityUserRole struct {
+	UserID int64 `gorm:"column:UserId"`
+	RoleID int64 `gorm:"column:RoleId"`
+}
+
+func (IdentityUserRole) TableName() string { return "Identity_UserRoles" }
 
 func main() {
 	flag.Parse()
 
+	tenantID := resolveTenantID()
 	db := mustConnect()
 
 	if *flagList {
-		listUsers(db)
+		listUsers(db, tenantID)
 		return
 	}
 
@@ -105,22 +115,103 @@ func main() {
 	hash := mustGenerateHash(*flagPassword)
 
 	if *flagReset {
-		resetPassword(db, *flagUsername, hash)
-	} else {
-		createUser(db, *flagUsername, *flagPassword, hash, *flagName)
+		resetPassword(db, *flagUsername, hash, tenantID)
+		if *flagName != "" {
+			updateEmployeeName(db, *flagUsername, *flagName, tenantID)
+		}
+		// 确保管理员角色
+		ensureAdminRole(db, *flagUsername, tenantID)
+		fmt.Println("✓ 操作完成")
+		return
 	}
+
+	// -reset 是推荐的账号管理方式；新建用户场景需先通过数据库原生工具或老系统
+	// 创建基础 Identity_Users 行，再运行本工具 -reset。
+	log.Println("直接创建新用户不被推荐：请先在老系统中创建用户记录，然后使用 -reset 重置密码。")
+	log.Println("如果确实需要本工具创建新用户，请确认 Identity_Users 表结构兼容。")
+	var existing IdentityUser
+	err := db.Where(`"UserName" = ? AND "TenantId" = ?`, *flagUsername, tenantID).First(&existing).Error
+	if err == nil {
+		fmt.Printf("用户 [%s] 已存在 (Id=%d)，改为重置密码...\n", *flagUsername, existing.ID)
+		resetPassword(db, *flagUsername, hash, tenantID)
+		if *flagName != "" {
+			updateEmployeeName(db, *flagUsername, *flagName, tenantID)
+		}
+		ensureAdminRole(db, *flagUsername, tenantID)
+		fmt.Println("✓ 操作完成")
+		return
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Fatalf("查询用户失败: %v", err)
+	}
+
+	// 新建用户（不推荐，仅作为应急 path；若无序列/PK 冲突请预先处理）
+	var maxID int64
+	db.Model(&IdentityUser{}).Select(`COALESCE(MAX("Id"), 10000)`).Scan(&maxID)
+	newID := maxID + 1
+
+	user := IdentityUser{
+		ID:                   newID,
+		TenantID:             tenantID,
+		UserName:             *flagUsername,
+		NormalizedUserName:   strings.ToUpper(*flagUsername),
+		PasswordHash:         hash,
+		SecurityStamp:        newUUID(),
+		ConcurrencyStamp:     newUUID(),
+		Email:                *flagUsername + "@ai-hms.local",
+		NormalizedEmail:      strings.ToUpper(*flagUsername + "@ai-hms.local"),
+		EmailConfirmed:       true,
+		PhoneNumberConfirmed: false,
+		TwoFactorEnabled:     false,
+		LockoutEnabled:       true,
+		AccessFailedCount:    0,
+	}
+
+	if err := db.Create(&user).Error; err != nil {
+		log.Fatalf("创建用户失败: %v\n提示：如果报 NOT NULL 或唯一约束错误，请改用 -reset 模式重置已有用户密码", err)
+	}
+	fmt.Printf("✓ 用户 [%s] 已创建 (Id=%d)\n", *flagUsername, newID)
+
+	// 写入 Organ_Employee
+	displayName := *flagName
+	if displayName == "" {
+		displayName = *flagUsername
+	}
+	emp := OrganEmployee{
+		ID:   newID,
+		Name: displayName,
+	}
+	if err := db.Create(&emp).Error; err != nil {
+		fmt.Printf("⚠  写入 Organ_Employee 失败: %v\n", err)
+	} else {
+		fmt.Printf("✓ Organ_Employee 已写入，显示姓名: %s\n", displayName)
+	}
+
+	ensureAdminRole(db, *flagUsername, tenantID)
+	fmt.Println("\n✓ 操作完成，请妥善保管密码。")
 }
 
-// ── connect ────────────────────────────────────────────────────────────────
+func resolveTenantID() int64 {
+	if *flagTenantID > 0 {
+		return *flagTenantID
+	}
+	if raw := os.Getenv("LEGACY_TENANT_ID"); raw != "" {
+		if v, err := strconv.ParseInt(raw, 10, 64); err == nil && v > 0 {
+			return v
+		}
+	}
+	log.Fatal("请通过 -tenant-id 或 LEGACY_TENANT_ID 环境变量指定租户 ID")
+	return 0
+}
 
 func mustConnect() *gorm.DB {
 	dsn := *flagDSN
 	if dsn == "" {
-		host := envOr("DB_HOST", "10.10.8.83")
-		port := envOr("DB_PORT", "5432")
-		user := envOr("DB_USER", "postgres")
-		pass := envOr("DB_PASSWORD", "admin123")
-		name := envOr("DB_NAME", "dialysis")
+		host := requireEnv("DB_HOST")
+		port := requireEnv("DB_PORT")
+		user := requireEnv("DB_USER")
+		pass := requireEnv("DB_PASSWORD")
+		name := requireEnv("DB_NAME")
 		ssl := envOr("DB_SSLMODE", "disable")
 		tz := envOr("DB_TIMEZONE", "Asia/Shanghai")
 		dsn = fmt.Sprintf(
@@ -143,9 +234,7 @@ func mustConnect() *gorm.DB {
 	return db
 }
 
-// ── list ───────────────────────────────────────────────────────────────────
-
-func listUsers(db *gorm.DB) {
+func listUsers(db *gorm.DB, tenantID int64) {
 	var users []IdentityUser
 	if err := db.Where(`"TenantId" = ?`, tenantID).Find(&users).Error; err != nil {
 		log.Fatalf("查询用户失败: %v", err)
@@ -158,9 +247,7 @@ func listUsers(db *gorm.DB) {
 	}
 }
 
-// ── reset password ─────────────────────────────────────────────────────────
-
-func resetPassword(db *gorm.DB, username, hash string) {
+func resetPassword(db *gorm.DB, username, hash string, tenantID int64) {
 	result := db.Model(&IdentityUser{}).
 		Where(`"UserName" = ? AND "TenantId" = ?`, username, tenantID).
 		Updates(map[string]interface{}{
@@ -177,76 +264,58 @@ func resetPassword(db *gorm.DB, username, hash string) {
 	fmt.Printf("✓ 用户 [%s] 密码已重置\n", username)
 }
 
-// ── create user ────────────────────────────────────────────────────────────
-
-func createUser(db *gorm.DB, username, password, hash, displayName string) {
-	// 检查是否已存在
-	var existing IdentityUser
-	err := db.Where(`"UserName" = ? AND "TenantId" = ?`, username, tenantID).First(&existing).Error
-	if err == nil {
-		fmt.Printf("用户 [%s] 已存在 (Id=%d)，改为重置密码...\n", username, existing.ID)
-		resetPassword(db, username, hash)
+func updateEmployeeName(db *gorm.DB, username, displayName string, tenantID int64) {
+	var user IdentityUser
+	if err := db.Where(`"UserName" = ? AND "TenantId" = ?`, username, tenantID).First(&user).Error; err != nil {
+		fmt.Printf("⚠  更新 Organ_Employee 前查用户失败: %v\n", err)
 		return
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		log.Fatalf("查询用户失败: %v", err)
+	result := db.Model(&OrganEmployee{}).
+		Where(`"Id" = ?`, user.ID).
+		Updates(map[string]interface{}{"Name": displayName})
+	if result.Error != nil {
+		fmt.Printf("⚠  Organ_Employee 更新失败: %v\n", result.Error)
+	} else if result.RowsAffected > 0 {
+		fmt.Printf("✓ 显示姓名已更新: %s\n", displayName)
 	}
-
-	// 生成新 ID（取当前最大值 +1，避免依赖序列）
-	var maxID int64
-	db.Model(&IdentityUser{}).Select(`COALESCE(MAX("Id"), 10000)`).Scan(&maxID)
-	newID := maxID + 1
-
-	now := time.Now()
-	_ = now // 暂未用到，但保留以便将来加 CreateTime 字段
-
-	user := IdentityUser{
-		ID:                   newID,
-		TenantID:             tenantID,
-		UserName:             username,
-		NormalizedUserName:   strings.ToUpper(username),
-		PasswordHash:         hash,
-		SecurityStamp:        newUUID(),
-		ConcurrencyStamp:     newUUID(),
-		Email:                username + "@ai-hms.local",
-		NormalizedEmail:      strings.ToUpper(username + "@ai-hms.local"),
-		EmailConfirmed:       true,
-		PhoneNumberConfirmed: false,
-		TwoFactorEnabled:     false,
-		LockoutEnabled:       true,
-		AccessFailedCount:    0,
-	}
-
-	if err := db.Create(&user).Error; err != nil {
-		log.Fatalf("创建用户失败: %v\n提示：如果报 NOT NULL 或列不存在错误，请改用 -reset 模式重置已有用户密码", err)
-	}
-	fmt.Printf("✓ 用户 [%s] 已创建 (Id=%d)\n", username, newID)
-
-	// 写入 Organ_Employee（显示姓名）
-	if displayName == "" {
-		displayName = username
-	}
-	var empMaxID int64
-	db.Model(&OrganEmployee{}).Select(`COALESCE(MAX("Id"), 10000)`).Scan(&empMaxID)
-	emp := OrganEmployee{
-		ID:       empMaxID + 1,
-		TenantID: tenantID,
-		UserID:   newID,
-		Name:     displayName,
-	}
-	if err := db.Create(&emp).Error; err != nil {
-		fmt.Printf("⚠  写入 Organ_Employee 失败（不影响登录）: %v\n", err)
-	} else {
-		fmt.Printf("✓ Organ_Employee 已写入，显示姓名: %s\n", displayName)
-	}
-
-	fmt.Printf("\n登录信息：\n  用户名: %s\n  密码:   %s\n", username, password)
 }
 
-// ── hash ───────────────────────────────────────────────────────────────────
+func ensureAdminRole(db *gorm.DB, username string, tenantID int64) {
+	var user IdentityUser
+	if err := db.Where(`"UserName" = ? AND "TenantId" = ?`, username, tenantID).First(&user).Error; err != nil {
+		fmt.Printf("⚠  查询用户失败，无法设置角色: %v\n", err)
+		return
+	}
 
-// mustGenerateHash 生成与 ASP.NET Core Identity PasswordHasher V3 兼容的哈希。
-// 格式: [0x01][PRF 4B][Iterations 4B][SaltLen 4B][Salt SaltLen B][DerivedKey 32B]
+	var adminRole IdentityRole
+	err := db.Where(`("Name" = ? OR "NormalizedName" = ?)`, "ADMIN", "ADMIN").First(&adminRole).Error
+	if err != nil {
+		fmt.Println("⚠  Identity_Roles 中未找到 ADMIN 角色，请手动关联")
+		return
+	}
+
+	var existing IdentityUserRole
+	rErr := db.Where(`"UserId" = ? AND "RoleId" = ?`, user.ID, adminRole.ID).First(&existing).Error
+	if rErr == nil {
+		fmt.Printf("✓ 用户已有 ADMIN 角色 (UserRole 已存在)\n")
+		return
+	}
+	if !errors.Is(rErr, gorm.ErrRecordNotFound) {
+		fmt.Printf("⚠  查询 UserRole 失败: %v\n", rErr)
+		return
+	}
+
+	userRole := IdentityUserRole{
+		UserID: user.ID,
+		RoleID: adminRole.ID,
+	}
+	if err := db.Create(&userRole).Error; err != nil {
+		fmt.Printf("⚠  写入 Identity_UserRoles 失败: %v\n", err)
+		return
+	}
+	fmt.Println("✓ 用户已被赋予 ADMIN 角色")
+}
+
 func mustGenerateHash(password string) string {
 	salt := make([]byte, saltLen)
 	if _, err := rand.Read(salt); err != nil {
@@ -266,20 +335,13 @@ func mustGenerateHash(password string) string {
 	return base64.StdEncoding.EncodeToString(buf)
 }
 
-// verifyHash 验证（仅用于自测）
-func verifyHash(password, encoded string) bool {
-	raw, err := base64.StdEncoding.DecodeString(encoded)
-	if err != nil || len(raw) < 13+subkeyLen || raw[0] != 0x01 {
-		return false
+func requireEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		log.Fatalf("缺少环境变量 %s，请设置或通过 -dsn 指定完整连接串", key)
 	}
-	sl := binary.BigEndian.Uint32(raw[9:13])
-	salt := raw[13 : 13+sl]
-	expected := raw[13+sl : 13+sl+subkeyLen]
-	derived := pbkdf2.Key([]byte(password), salt, int(iterations), subkeyLen, sha256.New)
-	return subtle.ConstantTimeCompare(derived, expected) == 1
+	return v
 }
-
-// ── helpers ────────────────────────────────────────────────────────────────
 
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

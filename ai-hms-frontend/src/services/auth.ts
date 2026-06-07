@@ -16,14 +16,11 @@ function isOAuthConfigured(): boolean {
   return !!(AUTH_CONFIG.authServer && AUTH_CONFIG.clientId)
 }
 
-// 生成随机字符串
+// 使用 crypto.getRandomValues 生成安全的随机字符串
 function generateRandomString(length: number = 16): string {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
-  let result = ''
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length))
-  }
-  return result
+  const array = new Uint8Array(length)
+  crypto.getRandomValues(array)
+  return Array.from(array, (byte) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 // 获取 redirect_uri
@@ -41,8 +38,9 @@ export function initiateOAuthLogin(): void {
   const state = generateRandomString()
   const nonce = generateRandomString()
 
-  // 保存 state 用于验证回调
+  // 保存 state / nonce 用于验证回调
   sessionStorage.setItem('oauth_state', state)
+  sessionStorage.setItem('oauth_nonce', nonce)
 
   const params = new URLSearchParams({
     client_id: AUTH_CONFIG.clientId,
@@ -54,8 +52,6 @@ export function initiateOAuthLogin(): void {
   })
 
   const authUrl = `${AUTH_CONFIG.authServer}/connect/authorize?${params.toString()}`
-
-  console.log('OAuth URL:', authUrl)
 
   // 跳转到认证服务器
   window.location.href = authUrl
@@ -75,8 +71,6 @@ export function handleOAuthCallback(): OAuthCallbackResult {
     return { success: false }
   }
 
-  console.log('OAuth callback hash:', hash.substring(0, 100))
-
   // 解析 hash 参数
   const params = new URLSearchParams(hash.substring(1))
 
@@ -88,7 +82,6 @@ export function handleOAuthCallback(): OAuthCallbackResult {
 
   // 检查错误
   if (error) {
-    console.error('OAuth error:', error, errorDescription)
     return {
       success: false,
       error: errorDescription || error
@@ -97,19 +90,22 @@ export function handleOAuthCallback(): OAuthCallbackResult {
 
   // 检查 token
   if (!accessToken) {
-    return { success: false }
+    return { success: false, error: '未收到 access_token' }
   }
 
-  // 验证 state
+  // 验证 state（必须存在且匹配）
   const savedState = sessionStorage.getItem('oauth_state')
-  if (state && savedState && state !== savedState) {
+  sessionStorage.removeItem('oauth_state')
+  if (!savedState || !state || state !== savedState) {
     return {
       success: false,
-      error: 'State 不匹配，可能存在安全风险'
+      error: 'State 验证失败，可能存在安全风险'
     }
   }
 
-  sessionStorage.removeItem('oauth_state')
+  // 验证 nonce（如果 IDP 返回 id_token 可校验）
+  // 当前方案使用 implicit flow，已保存 nonce 供后续 token 校验
+  sessionStorage.removeItem('oauth_nonce')
 
   // 解析用户信息
   const userInfo = parseJwtPayload(accessToken)
@@ -149,8 +145,7 @@ function parseJwtPayload(token: string): UserInfo | null {
       organId: payload.organ_id || '',
       tenantAddress: payload.tenant_internet_address || ''
     }
-  } catch (error) {
-    console.error('Failed to parse JWT:', error)
+  } catch {
     return null
   }
 }
@@ -163,8 +158,12 @@ export function logout(): void {
   window.location.href = '/login'
 }
 
-// 手动设置 Token（开发者模式）
+// 手动设置 Token（仅开发环境）
 export function setManualToken(token: string, expiresIn: number = 604800): boolean {
+  if (!import.meta.env.DEV) {
+    console.error('setManualToken is only available in development mode')
+    return false
+  }
   try {
     const userInfo = parseJwtPayload(token)
     if (!userInfo) {

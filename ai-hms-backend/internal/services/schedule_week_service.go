@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
@@ -288,13 +289,12 @@ func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64,
 	}
 
 	// 5) 待排班队列（频次差集）
-	// 计算当前周的 ISO 周号
+	// 使用科室配置的奇偶周锚定周一；若无配置则 fallback 到 ISO 周号
 	startTime, dateErr := time.Parse("2006-01-02", startDate)
 	if dateErr != nil {
 		return nil, errors.New("invalid startDate format, expected YYYY-MM-DD")
 	}
-	_, isoWeek := startTime.ISOWeek()
-	isOddWeek := isoWeek%2 == 1
+	isOddWeek := isOddDialysisWeek(s.db, tenantID, startTime)
 
 	type pendingRow struct {
 		ID                int64  `gorm:"column:Id"`
@@ -353,4 +353,33 @@ func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64,
 	}
 
 	return &resp, nil
+}
+
+// isOddDialysisWeek 判断指定日期属于科室定义的奇数透析周。
+// 优先使用 Schedule_TenantSetting 中配置的 OddEvenWeekAnchorMonday；
+// 若无配置则 fallback 到 ISO 周号判断奇偶周。
+func isOddDialysisWeek(db *gorm.DB, tenantID int64, date time.Time) bool {
+	var anchorStr string
+	row := db.Table(`"Schedule_TenantSetting"`).
+		Select(`"SettingValue"`).
+		Where(`"TenantId" = ? AND "SettingKey" = ?`, tenantID, "OddEvenWeekAnchorMonday").
+		Row()
+	if row != nil {
+		_ = row.Scan(&anchorStr)
+	}
+	anchorStr = strings.TrimSpace(anchorStr)
+	if anchorStr != "" {
+		anchor, err := time.Parse("2006-01-02", anchorStr)
+		if err == nil && !anchor.IsZero() {
+			days := int(date.Sub(anchor).Hours() / 24)
+			if days >= 0 {
+				weekNum := days / 7
+				return weekNum%2 == 0
+			}
+		}
+	}
+
+	// fallback: ISO week
+	_, isoWeek := date.ISOWeek()
+	return isoWeek%2 == 1
 }

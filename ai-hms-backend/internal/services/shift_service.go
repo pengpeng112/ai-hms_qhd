@@ -2,6 +2,9 @@ package services
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
@@ -82,26 +85,53 @@ func (s *ShiftService) Create(req ShiftCreateRequest, tenantId, creatorId int64)
 		return nil, errors.New("database not available")
 	}
 
-	shift := models.Shift{
-		TenantId:   tenantId,
-		Name:       req.Name,
-		StartTime:  req.StartTime,
-		EndTime:    req.EndTime,
-		Type:       req.Type,
-		IsDisabled: false,
-		Sort:       0,
-		Notes:      req.Notes,
-		CreatorId:  creatorId,
+	startTime, err := parseShiftTime(req.StartTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid startTime: %w", err)
+	}
+	endTime, err := parseShiftTime(req.EndTime)
+	if err != nil {
+		return nil, fmt.Errorf("invalid endTime: %w", err)
 	}
 
+	now := time.Now()
+	sortVal := 0
 	if req.Sort != nil {
-		shift.Sort = *req.Sort
+		sortVal = *req.Sort
 	}
 
-	if err := s.db.Create(&shift).Error; err != nil {
+	columns := map[string]interface{}{
+		`"TenantId"`:       tenantId,
+		`"Name"`:           req.Name,
+		`"StartTime"`:      startTime,
+		`"EndTime"`:        endTime,
+		`"Sort"`:           sortVal,
+		`"Note"`:           req.Notes,
+		`"IsDisabled"`:     false,
+		`"CreatorId"`:      creatorId,
+		`"CreateTime"`:     now,
+		`"LastModifyTime"`: now,
+	}
+	if req.Type != "" {
+		typeInt, _ := strconv.Atoi(req.Type)
+		columns[`"Type"`] = typeInt
+	}
+
+	result := s.db.Table(`"Schedule_Shift"`).Create(columns)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+
+	var newID int64
+	s.db.Raw(`SELECT LASTVAL()`).Scan(&newID)
+	if newID == 0 {
+		s.db.Table(`"Schedule_Shift"`).Select(`MAX("Id")`).Scan(&newID)
+	}
+
+	var shift models.Shift
+	if err := s.db.Where(`"Id" = ?`, newID).First(&shift).Error; err != nil {
 		return nil, err
 	}
-
 	return &shift, nil
 }
 
@@ -184,4 +214,19 @@ func (s *ShiftService) Delete(id, tenantId int64) error {
 	}
 
 	return nil
+}
+
+func parseShiftTime(t string) (time.Time, error) {
+	now := time.Now()
+	parsed, err := time.Parse("15:04", t)
+	if err != nil {
+		// 尝试完整的 datetime 格式
+		parsed, err = time.Parse("2006-01-02 15:04:05", t)
+		if err != nil {
+			return time.Time{}, fmt.Errorf("cannot parse time %q: %w", t, err)
+		}
+		return parsed, nil
+	}
+	return time.Date(now.Year(), now.Month(), now.Day(),
+		parsed.Hour(), parsed.Minute(), 0, 0, now.Location()), nil
 }

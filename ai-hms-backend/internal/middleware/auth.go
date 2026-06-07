@@ -140,15 +140,15 @@ func GetRoles(c *gin.Context) []string {
 }
 
 // GetCreatorID 从上下文获取创建者 ID（int64）
-// JWT 中 user_id 为 string，若可解析为 int64 则返回，否则返回默认值 1
+// 如果无法解析到有效用户 ID 则返回 0，调用方应决定如何处理（拒绝操作或使用系统用户 ID）
 func GetCreatorID(c *gin.Context) int64 {
 	userID := GetUserID(c)
 	if userID == "" {
-		return 1
+		return 0
 	}
 	id, err := strconv.ParseInt(userID, 10, 64)
 	if err != nil {
-		return 1
+		return 0
 	}
 	return id
 }

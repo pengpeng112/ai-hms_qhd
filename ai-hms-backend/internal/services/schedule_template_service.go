@@ -365,15 +365,16 @@ func (s *ScheduleTemplateService) ApplyTemplate(tenantID, creatorID int64, req S
 				shiftWardId = req.WardId
 			}
 			ps := models.PatientShift{
-				TenantId:     tenantID,
-				PatientId:    modeltypes.LegacyID(item.PatientId),
-				ScheduleDate: targetDate,
-				ShiftId:      *shiftId,
-				BedId:        bedID,
-				WardId:       shiftWardId,
-				ShiftTiming:  &[]int{20}[0],
-				Status:       10,
-				CreatorId:    creatorID,
+				TenantId:      tenantID,
+				PatientId:     modeltypes.LegacyID(item.PatientId),
+				ScheduleDate:  targetDate,
+				ShiftId:       *shiftId,
+				BedId:         bedID,
+				WardId:        shiftWardId,
+				PatientPlanId: &[]int64{0}[0],
+				ShiftTiming:   &[]int{20}[0],
+				Status:        10,
+				CreatorId:     creatorID,
 			}
 			if err := tx.Create(&ps).Error; err != nil {
 				if isPatientShiftUniqueViolation(err) {

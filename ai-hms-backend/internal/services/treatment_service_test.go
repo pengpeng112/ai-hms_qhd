@@ -99,6 +99,8 @@ func newTestTreatmentService(t *testing.T) *TreatmentService {
 			"RealIntake" REAL,
 			"PressurePoint" TEXT,
 			"CreatorId" INTEGER,
+			"OperatorId" INTEGER,
+			"OperateTime" DATETIME,
 			"CreateTime" DATETIME,
 			"LastModifyTime" DATETIME
 		)`,

@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"gorm.io/gorm"
@@ -163,10 +164,11 @@ func normalizeWardPatientType(v string) string {
 	return v
 }
 
-func (s *WardService) Create(req WardCreateRequest) (*WardDTO, error) {
+func (s *WardService) Create(req WardCreateRequest, tenantID, creatorID int64) (*WardDTO, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	now := time.Now()
 	columns := map[string]interface{}{
 		`"Name"`:             req.Name,
 		`"Sort"`:             req.Sort,
@@ -175,6 +177,10 @@ func (s *WardService) Create(req WardCreateRequest) (*WardDTO, error) {
 		`"Note"`:             req.Note,
 		`"IsDisabled"`:       req.IsDisabled,
 		`"ResponsibleUsers"`: req.ResponsibleUsers,
+		`"TenantId"`:         tenantID,
+		`"CreatorId"`:        creatorID,
+		`"CreateTime"`:       now,
+		`"LastModifyTime"`:   now,
 	}
 	result := s.db.Table(`"Schedule_Ward"`).Create(columns)
 	if result.Error != nil {

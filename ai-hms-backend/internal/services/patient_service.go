@@ -637,8 +637,6 @@ func (s *PatientService) Get(id modeltypes.LegacyID) (*models.Patient, error) {
 	var patient models.Patient
 	err := s.db.
 		Preload("VascularAccesses").
-		Preload("MedicalHistory").
-		Preload("TreatmentPlan").
 		Where(`"TenantId" = ?`, LegacyTenantID).
 		First(&patient, `"Id" = ?`, id).Error
 
@@ -982,8 +980,6 @@ func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*mod
 
 	if err := s.db.
 		Preload("VascularAccesses").
-		Preload("MedicalHistory").
-		Preload("TreatmentPlan").
 		First(&patient, `"Id" = ?`, id).Error; err != nil {
 		return nil, err
 	}
@@ -1608,6 +1604,7 @@ func (s *PatientService) LegacyCreateTreatmentPlan(patientID modeltypes.LegacyID
 		"AutoConfirmPrescription": boolToLegacyFlag(req.DialysisMode.AutoConfirm),
 		"Note":                    strings.TrimSpace(req.Notes),
 		"SubstituateFlow":         req.DialysisMode.SubstituteFlow,
+		"VascularAccessId":        0,
 	}
 
 	if err := s.db.Transaction(func(tx *gorm.DB) error {

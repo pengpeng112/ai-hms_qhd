@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"gorm.io/gorm"
@@ -209,10 +210,11 @@ func (s *BedService) GetByID(id int64) (*BedDTO, error) {
 	}, nil
 }
 
-func (s *BedService) Create(req BedCreateRequest) (*BedDTO, error) {
+func (s *BedService) Create(req BedCreateRequest, tenantID, creatorID int64) (*BedDTO, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	now := time.Now()
 	columns := map[string]interface{}{
 		`"Name"`:               req.Name,
 		`"WardId"`:             req.WardID,
@@ -221,6 +223,10 @@ func (s *BedService) Create(req BedCreateRequest) (*BedDTO, error) {
 		`"IsDisabled"`:         req.IsDisabled,
 		`"FEPId"`:              req.FEPId,
 		`"AcquisiteConnectId"`: req.AcquisiteConnectId,
+		`"TenantId"`:           tenantID,
+		`"CreatorId"`:          creatorID,
+		`"CreateTime"`:         now,
+		`"LastModifyTime"`:     now,
 	}
 	result := s.db.Table(`"Schedule_Bed"`).Create(columns)
 	if result.Error != nil {

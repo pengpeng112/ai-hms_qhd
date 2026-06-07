@@ -144,7 +144,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		label := fmt.Sprintf("%s", dayTime.Format("01/02"))
 		qualityByDayQuery := s.db.Table(legacyTreatmentTable).
 			Where(`"TenantId" = ?`, LegacyTenantID).
-			Where(`DATE("StartTime") = ? AND "Status" = ?`, day, 60)
+			Where(`DATE("StartTime") = ? AND "Status" = ?`, day, "60")
 		count, err := countRows(qualityByDayQuery)
 		if err != nil {
 			return nil, err

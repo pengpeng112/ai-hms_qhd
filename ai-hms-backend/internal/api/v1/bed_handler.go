@@ -3,6 +3,7 @@ package v1
 import (
 	"strconv"
 
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -56,7 +57,9 @@ func (h *BedHandler) Create(c *gin.Context) {
 		response.BadRequest(c, "invalid request: name and wardId are required")
 		return
 	}
-	item, err := h.service.Create(req)
+	tenantID := middleware.GetTenantID(c)
+	creatorID := middleware.GetCreatorID(c)
+	item, err := h.service.Create(req, tenantID, creatorID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
