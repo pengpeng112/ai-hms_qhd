@@ -300,7 +300,7 @@ func (s *TreatmentService) List(req TreatmentListRequest) (*TreatmentListRespons
 		req.PageSize = 20
 	}
 
-	query := s.db.Table(`"Treatment_Treatment"`).Where(`"TenantId" = ?`, legacyTenantID)
+	query := s.db.Table(`"Treatment_Treatment"`).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.PatientId != nil {
 		query = query.Where(`"PatientId" = ?`, *req.PatientId)
 	}
@@ -357,7 +357,7 @@ func (s *TreatmentService) Get(id int64) (*TreatmentRealtimeResponse, error) {
 	}
 	var row legacyTreatmentHistoryRow
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("treatment not found")
@@ -531,7 +531,7 @@ func (s *TreatmentService) loadTreatmentJSONSignsMap(rows []legacyTreatmentHisto
 	}
 	var items []legacyTreatmentJSONDataRow
 	if err := s.db.Table(`"Auxiliary_JsonData"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" = ?`, legacyTenantID, ids, code).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" = ?`, LegacyTenantID, ids, code).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -631,7 +631,7 @@ func (s *TreatmentService) loadTreatmentJSONSymptomItemsMaps(rows []legacyTreatm
 	}
 	var items []legacyTreatmentJSONDataRow
 	if err := s.db.Table(`"Auxiliary_JsonData"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" IN ?`, legacyTenantID, ids, []string{legacyJSONCodeBeforeSymptom, legacyJSONCodeAfterSymptom}).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" IN ?`, LegacyTenantID, ids, []string{legacyJSONCodeBeforeSymptom, legacyJSONCodeAfterSymptom}).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -671,7 +671,7 @@ func (s *TreatmentService) loadTreatmentModeMap(rows []legacyTreatmentHistoryRow
 		DialysisMethod string `gorm:"column:DialysisMethod"`
 	}
 	if err := s.db.Table(`"Plan_PatientPrescription"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"Id" DESC`).
 		Find(&items).Error; err != nil {
@@ -699,7 +699,7 @@ func (s *TreatmentService) loadActionMap(rows []legacyTreatmentHistoryRow) (map[
 		Code        string    `gorm:"column:Code"`
 	}
 	if err := s.db.Table(`"Treatment_Action"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" ASC`).
 		Order(`"Id" ASC`).
 		Find(&actions).Error; err != nil {
@@ -726,7 +726,7 @@ func (s *TreatmentService) loadSignsMap(rows []legacyTreatmentHistoryRow, table 
 		legacyTreatmentSigns
 	}
 	if err := s.db.Table(table).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Find(&signs).Error; err != nil {
 		return nil, err
 	}
@@ -745,7 +745,7 @@ func (s *TreatmentService) loadBeforeSignsDetailMap(rows []legacyTreatmentHistor
 
 	var signs []legacyBeforeSignsRow
 	if err := s.db.Table(`"Treatment_BeforeSigns"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" DESC`).
 		Order(`"Id" DESC`).
 		Find(&signs).Error; err != nil {
@@ -769,7 +769,7 @@ func (s *TreatmentService) loadBeforeCheckMap(rows []legacyTreatmentHistoryRow) 
 
 	var items []legacyBeforeCheckRow
 	if err := s.db.Table(`"Treatment_BeforeCheck"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" DESC`).
 		Order(`"Id" DESC`).
 		Find(&items).Error; err != nil {
@@ -850,7 +850,7 @@ func (s *TreatmentService) loadSecondCheckMap(rows []legacyTreatmentHistoryRow, 
 	var jsonRows []legacySecondCheckJSONRow
 	if err := s.db.Table(`"Auxiliary_JsonData"`).
 		Select(`"TreatmentId", "CreatorId", "CreateTime", "LastModifyTime", "Value"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" = ?`, legacyTenantID, ids, legacyJSONCodeAgainCheck).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ? AND "Code" = ?`, LegacyTenantID, ids, legacyJSONCodeAgainCheck).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -934,7 +934,7 @@ func (s *TreatmentService) loadSymptomItemMap(rows []legacyTreatmentHistoryRow, 
 	}
 	var items []legacySymptomRow
 	if err := s.db.Table(table).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" ASC`).
 		Order(`"Id" ASC`).
 		Find(&items).Error; err != nil {
@@ -963,7 +963,7 @@ func (s *TreatmentService) loadDuringParamMap(rows []legacyTreatmentHistoryRow) 
 
 	var params []legacyDuringParamRow
 	if err := s.db.Table(`"Treatment_DuringParam"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" ASC`).
 		Order(`"Id" ASC`).
 		Find(&params).Error; err != nil {
@@ -974,7 +974,7 @@ func (s *TreatmentService) loadDuringParamMap(rows []legacyTreatmentHistoryRow) 
 	for _, item := range params {
 		dto := TreatmentDuringParamDTO{
 			ID:               item.ID,
-			TenantID:         legacyTenantID,
+			TenantID:         LegacyTenantID,
 			TreatmentID:      item.TreatmentID,
 			RecordTime:       item.OperateTime,
 			Code:             "legacy",
@@ -1000,7 +1000,7 @@ func (s *TreatmentService) loadDuringParamMap(rows []legacyTreatmentHistoryRow) 
 
 	var signs []legacyDuringSignsRow
 	if err := s.db.Table(`"Treatment_DuringSigns"`).
-		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, legacyTenantID, ids).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, LegacyTenantID, ids).
 		Order(`"OperateTime" ASC`).
 		Order(`"Id" ASC`).
 		Find(&signs).Error; err != nil {
@@ -1409,7 +1409,7 @@ func (s *TreatmentService) Update(id int64, req TreatmentUpdateRequest) (*Treatm
 	}
 
 	result := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(updates)
 	if result.Error != nil {
 		return nil, result.Error
@@ -1424,7 +1424,7 @@ func (s *TreatmentService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).Delete(nil)
+	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).Delete(nil)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -1446,7 +1446,7 @@ func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 		updates["StartTime"] = gorm.Expr(`COALESCE("StartTime", ?)`, time.Now())
 	}
 	result := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(updates)
 	if result.Error != nil {
 		return result.Error
@@ -1463,7 +1463,7 @@ func (s *TreatmentService) GetByPatientAndDate(patientId modeltypes.LegacyID, da
 	}
 	var row legacyTreatmentHistoryRow
 	err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"PatientId" = ? AND "TenantId" = ? AND DATE(COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime")) = DATE(?)`, patientId, legacyTenantID, date).
+		Where(`"PatientId" = ? AND "TenantId" = ? AND DATE(COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime")) = DATE(?)`, patientId, LegacyTenantID, date).
 		Order(`COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime") DESC`).
 		Order(`"Id" DESC`).
 		First(&row).Error
@@ -1653,7 +1653,7 @@ func (s *TreatmentService) upsertDuringSignsByTime(treatmentID int64, oldTime *t
 	}
 	now := time.Now()
 	query := s.db.Table(`"Treatment_DuringSigns"`).
-		Where(`"TenantId" = ? AND "TreatmentId" = ?`, legacyTenantID, treatmentID)
+		Where(`"TenantId" = ? AND "TreatmentId" = ?`, LegacyTenantID, treatmentID)
 	if oldTime != nil && !oldTime.IsZero() {
 		query = query.Where(`"OperateTime" = ?`, *oldTime)
 	} else {
@@ -1687,7 +1687,7 @@ func (s *TreatmentService) upsertDuringSignsByTime(treatmentID int64, oldTime *t
 	}
 	if err == nil {
 		return s.db.Table(`"Treatment_DuringSigns"`).
-			Where(`"Id" = ? AND "TenantId" = ?`, existing.ID, legacyTenantID).
+			Where(`"Id" = ? AND "TenantId" = ?`, existing.ID, LegacyTenantID).
 			Updates(values).Error
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1698,7 +1698,7 @@ func (s *TreatmentService) upsertDuringSignsByTime(treatmentID int64, oldTime *t
 		return idErr
 	}
 	values["Id"] = newID
-	values["TenantId"] = legacyTenantID
+	values["TenantId"] = LegacyTenantID
 	values["TreatmentId"] = treatmentID
 	values["OperatorId"] = creatorID
 	values["CreatorId"] = creatorID
@@ -1712,7 +1712,7 @@ func (s *TreatmentService) CreateDuringParam(treatmentID int64, req TreatmentDur
 	}
 	var count int64
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -1732,7 +1732,7 @@ func (s *TreatmentService) CreateDuringParam(treatmentID int64, req TreatmentDur
 
 	values := map[string]any{
 		"Id":               paramID,
-		"TenantId":         legacyTenantID,
+		"TenantId":         LegacyTenantID,
 		"TreatmentId":      treatmentID,
 		"OperateTime":      recordTime,
 		"VenousPressure":   req.VenousPressure,
@@ -1770,7 +1770,7 @@ func (s *TreatmentService) CreateDuringParam(treatmentID int64, req TreatmentDur
 
 	return &TreatmentDuringParamDTO{
 		ID:               paramID.Int64(),
-		TenantID:         legacyTenantID,
+		TenantID:         LegacyTenantID,
 		TreatmentID:      treatmentID,
 		RecordTime:       recordTime,
 		Code:             strings.TrimSpace(req.Code),
@@ -1802,7 +1802,7 @@ func (s *TreatmentService) UpdateDuringParam(treatmentID, paramID int64, req Tre
 	var existing legacyDuringParamIdentityRow
 	if err := s.db.Table(`"Treatment_DuringParam"`).
 		Select(`"Id", "TreatmentId", "OperateTime", "CreatorId"`).
-		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, LegacyTenantID).
 		Take(&existing).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("during param not found")
@@ -1841,7 +1841,7 @@ func (s *TreatmentService) UpdateDuringParam(treatmentID, paramID int64, req Tre
 	}
 
 	result := s.db.Table(`"Treatment_DuringParam"`).
-		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, LegacyTenantID).
 		Updates(updates)
 	if result.Error != nil {
 		return nil, result.Error
@@ -1910,7 +1910,7 @@ func (s *TreatmentService) DeleteDuringParam(treatmentID, paramID int64) error {
 		return errors.New("database not available")
 	}
 	result := s.db.Table(`"Treatment_DuringParam"`).
-		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, paramID, treatmentID, LegacyTenantID).
 		Delete(map[string]any{})
 	if result.Error != nil {
 		return result.Error
@@ -2001,7 +2001,7 @@ func (s *TreatmentService) SaveFirstCheck(treatmentID int64, req TreatmentFirstC
 	}
 	var count int64
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -2064,7 +2064,7 @@ func (s *TreatmentService) SaveFirstCheck(treatmentID int64, req TreatmentFirstC
 	}
 	err := s.db.Table(`"Treatment_BeforeCheck"`).
 		Select(`"Id"`).
-		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Take(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -2076,7 +2076,7 @@ func (s *TreatmentService) SaveFirstCheck(treatmentID int64, req TreatmentFirstC
 			return nil, idErr
 		}
 		values["Id"] = newID
-		values["TenantId"] = legacyTenantID
+		values["TenantId"] = LegacyTenantID
 		values["TreatmentId"] = treatmentID
 		values["CreatorId"] = creatorID
 		values["CreateTime"] = now
@@ -2085,7 +2085,7 @@ func (s *TreatmentService) SaveFirstCheck(treatmentID int64, req TreatmentFirstC
 		}
 	} else {
 		if err := s.db.Table(`"Treatment_BeforeCheck"`).
-			Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, existing.ID, treatmentID, legacyTenantID).
+			Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, existing.ID, treatmentID, LegacyTenantID).
 			Updates(values).Error; err != nil {
 			return nil, err
 		}
@@ -2093,7 +2093,7 @@ func (s *TreatmentService) SaveFirstCheck(treatmentID int64, req TreatmentFirstC
 
 	var saved legacyBeforeCheckRow
 	if err := s.db.Table(`"Treatment_BeforeCheck"`).
-		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -2109,7 +2109,7 @@ func (s *TreatmentService) SaveSecondCheck(treatmentID int64, req TreatmentSecon
 	}
 	var count int64
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -2236,7 +2236,7 @@ func (s *TreatmentService) upsertLegacyAction(treatmentID int64, name, code stri
 	actionErr := s.db.Table(`"Treatment_Action"`).
 		Select(`"Id", "CreateTime"`).
 		Where(`"TenantId" = ? AND "TreatmentId" = ? AND ("Code" = ? OR "Name" = ?)`,
-			legacyTenantID, treatmentID, strings.TrimSpace(code), strings.TrimSpace(name)).
+			LegacyTenantID, treatmentID, strings.TrimSpace(code), strings.TrimSpace(name)).
 		Order(`"OperateTime" DESC`).
 		Order(`"Id" DESC`).
 		Take(&existingAction).Error
@@ -2250,7 +2250,7 @@ func (s *TreatmentService) upsertLegacyAction(treatmentID int64, name, code stri
 		}
 		row := map[string]any{
 			"Id":             newActionID,
-			"TenantId":       legacyTenantID,
+			"TenantId":       LegacyTenantID,
 			"TreatmentId":    treatmentID,
 			"Name":           strings.TrimSpace(name),
 			"OperatorId":     operatorID,
@@ -2267,7 +2267,7 @@ func (s *TreatmentService) upsertLegacyAction(treatmentID int64, name, code stri
 	}
 
 	if err := s.db.Table(`"Treatment_Action"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, existingAction.ID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, existingAction.ID, LegacyTenantID).
 		Updates(map[string]any{
 			"Name":           strings.TrimSpace(name),
 			"OperatorId":     operatorID,
@@ -2293,7 +2293,7 @@ func (s *TreatmentService) resolveTreatmentPatientID(treatmentID int64) (int64, 
 	}
 	err := s.db.Table(`"Treatment_Treatment"`).
 		Select(`"PatientId"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Limit(1).
 		First(&row).Error
 	if err != nil {
@@ -2323,14 +2323,14 @@ func (s *TreatmentService) upsertTreatmentSignsJSONSnapshot(treatmentID, creator
 	}
 	findErr := s.db.Table(`"Auxiliary_JsonData"`).
 		Select(`"Id"`).
-		Where(`"TenantId" = ? AND "TreatmentId" = ? AND "Code" = ?`, legacyTenantID, treatmentID, code).
+		Where(`"TenantId" = ? AND "TreatmentId" = ? AND "Code" = ?`, LegacyTenantID, treatmentID, code).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
 		First(&existing).Error
 	if findErr == nil {
 		return s.db.Table(`"Auxiliary_JsonData"`).
-			Where(`"Id" = ? AND "TenantId" = ?`, existing.ID, legacyTenantID).
+			Where(`"Id" = ? AND "TenantId" = ?`, existing.ID, LegacyTenantID).
 			Updates(map[string]any{
 				"PatientId":      patientID,
 				"Value":          json.RawMessage(data),
@@ -2346,7 +2346,7 @@ func (s *TreatmentService) upsertTreatmentSignsJSONSnapshot(treatmentID, creator
 	}
 	row := map[string]any{
 		"Id":             newID,
-		"TenantId":       legacyTenantID,
+		"TenantId":       LegacyTenantID,
 		"PatientId":      patientID,
 		"TreatmentId":    treatmentID,
 		"Code":           code,
@@ -2378,13 +2378,13 @@ func (s *TreatmentService) updateTreatmentSummaryFields(treatmentID int64, req T
 		updates["RealDuration"] = req.EndTime.Sub(*req.StartTime).Minutes()
 	}
 	return s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Updates(updates).Error
 }
 
 func (s *TreatmentService) replaceTreatmentSymptomItems(table string, treatmentID, creatorID int64, items []TreatmentSymptomItem) error {
 	if err := s.db.Table(table).
-		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Delete(map[string]any{}).Error; err != nil {
 		return err
 	}
@@ -2401,7 +2401,7 @@ func (s *TreatmentService) replaceTreatmentSymptomItems(table string, treatmentI
 		}
 		values := map[string]any{
 			"Id":             id,
-			"TenantId":       legacyTenantID,
+			"TenantId":       LegacyTenantID,
 			"TreatmentId":    treatmentID,
 			"OperatorId":     creatorID,
 			"OperateTime":    now,
@@ -2421,7 +2421,7 @@ func (s *TreatmentService) replaceTreatmentSymptomItems(table string, treatmentI
 func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creatorID int64, values map[string]any) (map[string]any, error) {
 	var count int64
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -2435,7 +2435,7 @@ func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creat
 	}
 	err := s.db.Table(table).
 		Select(`"Id"`).
-		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Take(&existing).Error
 	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
@@ -2447,7 +2447,7 @@ func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creat
 			return nil, idErr
 		}
 		values["Id"] = newID
-		values["TenantId"] = legacyTenantID
+		values["TenantId"] = LegacyTenantID
 		values["TreatmentId"] = treatmentID
 		values["CreatorId"] = creatorID
 		values["CreateTime"] = now
@@ -2464,12 +2464,12 @@ func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creat
 
 	values["LastModifyTime"] = now
 	if err := s.db.Table(table).
-		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, existing.ID, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TreatmentId" = ? AND "TenantId" = ?`, existing.ID, treatmentID, LegacyTenantID).
 		Updates(values).Error; err != nil {
 		return nil, err
 	}
 	values["Id"] = existing.ID
-	values["TenantId"] = legacyTenantID
+	values["TenantId"] = LegacyTenantID
 	values["TreatmentId"] = treatmentID
 	values["LastModifyTime"] = now
 	return values, nil
@@ -2478,7 +2478,7 @@ func (s *TreatmentService) upsertTreatmentSigns(table string, treatmentID, creat
 func mapBeforeSignsResponse(values map[string]any) *TreatmentSignsResponse {
 	return &TreatmentSignsResponse{
 		ID:             valueInt64(values["Id"]),
-		TenantID:       legacyTenantID,
+		TenantID:       LegacyTenantID,
 		TreatmentID:    valueInt64(values["TreatmentId"]),
 		Weight:         valueFloat64Ptr(values["Weight"]),
 		ExtraWeight:    valueFloat64Ptr(values["ExtraWeight"]),
@@ -2498,7 +2498,7 @@ func mapBeforeSignsResponse(values map[string]any) *TreatmentSignsResponse {
 func mapAfterSignsResponse(values map[string]any) *TreatmentSignsResponse {
 	return &TreatmentSignsResponse{
 		ID:             valueInt64(values["Id"]),
-		TenantID:       legacyTenantID,
+		TenantID:       LegacyTenantID,
 		TreatmentID:    valueInt64(values["TreatmentId"]),
 		Weight:         valueFloat64Ptr(values["Weight"]),
 		ExtraWeight:    valueFloat64Ptr(values["ExtraWeight"]),

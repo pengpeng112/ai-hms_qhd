@@ -28,6 +28,7 @@ import {
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
 import LoginGuard from '@/components/LoginGuard'
+import PermissionGuard from '@/components/PermissionGuard'
 
 const router = createBrowserRouter([
     {
@@ -80,7 +81,7 @@ const router = createBrowserRouter([
             },
             {
                 path: 'settings',
-                element: <Settings />,
+                element: <PermissionGuard><Settings /></PermissionGuard>,
             },
             {
                 path: 'ward-overview',
@@ -109,7 +110,7 @@ const router = createBrowserRouter([
             },
             {
                 path: 'dict-config',
-                element: <DictConfig />,
+                element: <PermissionGuard><DictConfig /></PermissionGuard>,
             },
             {
                 path: 'ward-management',
@@ -125,11 +126,11 @@ const router = createBrowserRouter([
             },
             {
                 path: 'user-management',
-                element: <UserManagement />,
+                element: <PermissionGuard><UserManagement /></PermissionGuard>,
             },
             {
                 path: 'role-management',
-                element: <RoleManagement />,
+                element: <PermissionGuard><RoleManagement /></PermissionGuard>,
             },
             {
                 path: 'education-management',

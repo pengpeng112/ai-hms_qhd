@@ -115,7 +115,7 @@ func (s *KeyIndicatorService) listLegacyByPatient(patientID string, req KeyIndic
 	var cfgRowsV2 []legacyKeyIndicatorConfigV2Row
 	err = s.db.Table(`"LIS_ExaminationItem_Config"`).
 		Select(`"RetItemName", "RetExaminationName", "Unit", "Reference"`).
-		Where(`COALESCE("TenantId", ?) = ? AND "RetExaminationName" = ?`, legacyTenantID, legacyTenantID, "重要指标").
+		Where(`COALESCE("TenantId", ?) = ? AND "RetExaminationName" = ?`, LegacyTenantID, LegacyTenantID, "重要指标").
 		Find(&cfgRowsV2).Error
 	if err != nil && !isIgnorableLegacyQueryError(err) {
 		return nil, err
@@ -133,7 +133,7 @@ func (s *KeyIndicatorService) listLegacyByPatient(patientID string, req KeyIndic
 		var fallbackRows []legacyKeyIndicatorConfigRowFallback
 		if err := s.db.Table(`"LIS_ExaminationItem_Ret"`).
 			Select(`"ItemCode", "ItemName", "RetItemName", "RetExaminationName", "ExaminationName"`).
-			Where(`COALESCE("TenantId", ?) = ?`, legacyTenantID, legacyTenantID).
+			Where(`COALESCE("TenantId", ?) = ?`, LegacyTenantID, LegacyTenantID).
 			Find(&fallbackRows).Error; err != nil {
 			if isIgnorableLegacyQueryError(err) {
 				return &KeyIndicatorListResponse{
@@ -203,7 +203,7 @@ func (s *KeyIndicatorService) listLegacyByPatient(patientID string, req KeyIndic
 
 	query := s.db.Table(`"LIS_ExaminationItem" AS i`).
 		Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
-		Where(`e."PatientId" = ? AND e."TenantId" = ?`, legacyPatientID, legacyTenantID)
+		Where(`e."PatientId" = ? AND e."TenantId" = ?`, legacyPatientID, LegacyTenantID)
 
 	if len(codes) > 0 && len(names) > 0 {
 		query = query.Where(`(i."ItemCode" IN ? OR i."ItemName" IN ?)`, codes, names)
@@ -406,18 +406,7 @@ func (s *KeyIndicatorService) SyncPatientKeyIndicators(patientID string) (*LabRe
 }
 
 func (s *KeyIndicatorService) getHDISPatientID(patientID string) (int, error) {
-	var basicInfo models.PatientBasicInfo
-	if err := s.db.Where("patient_id = ?", patientID).First(&basicInfo).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrSyncPatientBasicNotFound
-		}
-		return 0, err
-	}
-
-	if basicInfo.HdisPatientID == nil || *basicInfo.HdisPatientID <= 0 {
-		return 0, ErrSyncPatientHDISIDMissing
-	}
-	return *basicInfo.HdisPatientID, nil
+	return 0, errors.New("HDIS患者ID获取暂不可用：老库无HdisPatientID对应列，patient_basic_infos表已弃用")
 }
 
 func (s *KeyIndicatorService) findExistingRecord(patientID, externalRecordID string) (*models.PatientKeyIndicator, bool, error) {

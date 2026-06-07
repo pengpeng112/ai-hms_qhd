@@ -3,6 +3,8 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"gorm.io/gorm"
@@ -58,9 +60,10 @@ func (s *PermissionService) GetRolePermissionCodes(role string) ([]string, error
 		PermissionCode string `gorm:"column:PermissionCode"`
 	}
 	var rows []row
-	err := s.db.Table(`"Authorization_RolePermissions"`).
-		Select(`"PermissionCode"`).
-		Where(`"RoleId" = (SELECT "Id" FROM "Authorization_Roles" WHERE "Name" = ? LIMIT 1)`, role).
+	err := s.db.Table(`"Authorization_RolePermissions" AS rp`).
+		Select(`rp."PermissionCode"`).
+		Joins(`JOIN "Authorization_Roles" AS r ON r."Id" = rp."RoleId"`).
+		Where(`r."Name" = ?`, role).
 		Find(&rows).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -77,34 +80,51 @@ func (s *PermissionService) GetRolePermissionCodes(role string) ([]string, error
 	return codes, nil
 }
 
+type authorizationRoleRef struct {
+	ID      int64 `gorm:"column:Id"`
+	OrganID int64 `gorm:"column:OrganId"`
+}
+
+func authorizationRoleByName(db *gorm.DB, role string) (*authorizationRoleRef, error) {
+	var row authorizationRoleRef
+	if err := db.Table(`"Authorization_Roles"`).
+		Select(`"Id", "OrganId"`).
+		Where(`"Name" = ?`, role).
+		First(&row).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("authorization role not found for %s", role)
+		}
+		return nil, err
+	}
+	return &row, nil
+}
+
 func (s *PermissionService) SetRolePermissionCodes(role string, codes []string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	var roleID int64
-	s.db.Table(`"Authorization_Roles"`).
-		Select(`"Id"`).
-		Where(`"Name" = ?`, role).
-		Scan(&roleID)
-	if roleID == 0 {
-		s.db.Table(`"Authorization_Roles"`).
-			Create(map[string]interface{}{`"Name"`: role})
-		s.db.Table(`"Authorization_Roles"`).
-			Select(`"Id"`).
-			Where(`"Name" = ?`, role).
-			Scan(&roleID)
-	}
-	s.db.Table(`"Authorization_RolePermissions"`).
-		Where(`"RoleId" = ?`, roleID).
-		Delete(nil)
-	for _, code := range codes {
-		s.db.Table(`"Authorization_RolePermissions"`).
-			Create(map[string]interface{}{
-				`"RoleId"`:         roleID,
-				`"PermissionCode"`: code,
-			})
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		roleRef, err := authorizationRoleByName(tx, role)
+		if err != nil {
+			return err
+		}
+		if err := tx.Table(`"Authorization_RolePermissions"`).
+			Where(`"RoleId" = ?`, roleRef.ID).
+			Delete(nil).Error; err != nil {
+			return fmt.Errorf("delete role permissions failed: %w", err)
+		}
+		for _, code := range codes {
+			if err := tx.Table(`"Authorization_RolePermissions"`).
+				Create(map[string]interface{}{
+					`"RoleId"`:         roleRef.ID,
+					`"PermissionCode"`: code,
+					`"OrganId"`:        roleRef.OrganID,
+				}).Error; err != nil {
+				return fmt.Errorf("create role permission failed: %w", err)
+			}
+		}
+		return nil
+	})
 }
 
 type AppRole struct {
@@ -132,10 +152,14 @@ func (s *PermissionService) ListRoles() ([]AppRole, error) {
 	}
 	result := make([]AppRole, 0, len(rows))
 	for _, row := range rows {
+		trimmed := strings.TrimSpace(row.Name)
+		if trimmed == "" {
+			continue
+		}
 		result = append(result, AppRole{
 			ID:   fmt.Sprintf("%d", row.ID),
-			Code: row.Name,
-			Name: row.Name,
+			Code: trimmed,
+			Name: trimmed,
 		})
 	}
 	return result, nil
@@ -145,20 +169,32 @@ func (s *PermissionService) CreateRole(name string) (*AppRole, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	name = strings.TrimSpace(name)
 	if name == "" {
 		return nil, fmt.Errorf("role name is required")
 	}
-	columns := map[string]interface{}{`"Name"`: name}
+	var existing rawRoleRow
+	if err := s.db.Table(`"Authorization_Roles"`).Select(`"Id", "Name"`).Where(`"Name" = ?`, name).First(&existing).Error; err == nil {
+		return nil, fmt.Errorf("role already exists")
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("query role failed: %w", err)
+	}
+	var maxID int64
+	if err := s.db.Table(`"Authorization_Roles"`).Select(`COALESCE(MAX("Id"), 0)`).Scan(&maxID).Error; err != nil {
+		return nil, fmt.Errorf("query role id failed: %w", err)
+	}
+	newID := maxID + 1
+	now := time.Now()
+	columns := map[string]interface{}{
+		`"Id"`:             newID,
+		`"OrganId"`:        LegacyTenantID,
+		`"GroupId"`:        1,
+		`"Name"`:           name,
+		`"LastModifyTime"`: now,
+	}
 	result := s.db.Table(`"Authorization_Roles"`).Create(columns)
 	if result.Error != nil {
 		return nil, fmt.Errorf("create role failed: %w", result.Error)
-	}
-	var newID int64
-	s.db.Raw(`SELECT LASTVAL()`).Scan(&newID)
-	if newID == 0 {
-		var maxID int64
-		s.db.Table(`"Authorization_Roles"`).Select(`MAX("Id")`).Scan(&maxID)
-		newID = maxID
 	}
 	return &AppRole{ID: fmt.Sprintf("%d", newID), Code: name, Name: name}, nil
 }
@@ -167,9 +203,17 @@ func (s *PermissionService) UpdateRole(code string, name string) (*AppRole, erro
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
+	code = strings.TrimSpace(code)
+	name = strings.TrimSpace(name)
+	if code == "" || name == "" {
+		return nil, fmt.Errorf("role name is required")
+	}
 	result := s.db.Table(`"Authorization_Roles"`).
 		Where(`"Name" = ?`, code).
-		Updates(map[string]interface{}{`"Name"`: name})
+		Updates(map[string]interface{}{
+			`"Name"`:           name,
+			`"LastModifyTime"`: time.Now(),
+		})
 	if result.Error != nil {
 		return nil, fmt.Errorf("update role failed: %w", result.Error)
 	}
@@ -183,22 +227,37 @@ func (s *PermissionService) DeleteRole(code string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Authorization_Roles"`).
-		Where(`"Name" = ?`, code).
-		Delete(nil)
-	if result.Error != nil {
-		return fmt.Errorf("delete role failed: %w", result.Error)
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return fmt.Errorf("role code is required")
 	}
-	if result.RowsAffected == 0 {
-		return fmt.Errorf("role not found")
-	}
-	return nil
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		roleRef, err := authorizationRoleByName(tx, code)
+		if err != nil {
+			return err
+		}
+		if err := tx.Table(`"Authorization_RolePermissions"`).
+			Where(`"RoleId" = ?`, roleRef.ID).
+			Delete(nil).Error; err != nil {
+			return fmt.Errorf("delete role permissions failed: %w", err)
+		}
+		result := tx.Table(`"Authorization_Roles"`).
+			Where(`"Id" = ?`, roleRef.ID).
+			Delete(nil)
+		if result.Error != nil {
+			return fmt.Errorf("delete role failed: %w", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return fmt.Errorf("role not found")
+		}
+		return nil
+	})
 }
 
 type PermissionNode struct {
-	Code        string           `json:"code"`
-	Name        string           `json:"name"`
-	Children    []PermissionNode `json:"children,omitempty"`
+	Code     string           `json:"code"`
+	Name     string           `json:"name"`
+	Children []PermissionNode `json:"children,omitempty"`
 }
 
 func (s *PermissionService) GetPermissionTree() ([]PermissionNode, error) {

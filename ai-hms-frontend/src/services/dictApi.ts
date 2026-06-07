@@ -211,6 +211,7 @@ export const DICT_TYPES = {
   EDUCATION_LEVEL: 'EDUCATION_LEVEL',   // 文化程度
   MARITAL_STATUS: 'MARITAL_STATUS',     // 婚姻状况
   RELATIONSHIP_OPTIONS: 'RelationshipOptions', // 患者关系
+  INFECTION_TYPE: 'InfectionType',          // 感染类型
   DOCTOR: 'DOCTOR',                     // 医生列表
   NURSE: 'NURSE',                       // 护士列表
   HOSPITAL: 'HOSPITAL',                 // 手术医院

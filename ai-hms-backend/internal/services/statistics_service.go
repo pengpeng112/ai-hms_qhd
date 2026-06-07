@@ -1,12 +1,10 @@
 package services
 
 import (
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
-	"github.com/elliotxin/ai-hms-backend/internal/models"
 )
 
 type StatisticsService struct{}
@@ -53,20 +51,25 @@ func (s *StatisticsService) QualityByYear(tenantId int64, year int) ([]QualityIt
 	end := start.AddDate(1, 0, 0)
 
 	db := database.GetDB()
-	if db == nil || !db.Migrator().HasTable(&models.LabReportItem{}) {
+	if db == nil {
 		return items, nil
 	}
 
-	var rows []models.LabReportItem
-	query := db.Model(&models.LabReportItem{})
-	if db.Migrator().HasColumn(&models.LabReportItem{}, "tenant_id") {
-		query = query.Where("tenant_id = ?", tenantId)
+	type labRow struct {
+		Month      int    `gorm:"column:month"`
+		ItemName   string `gorm:"column:item_name"`
+		ItemCode   string `gorm:"column:item_code"`
+		ResultSign string `gorm:"column:result_sign"`
 	}
-	if !db.Migrator().HasColumn(&models.LabReportItem{}, "tested_at") {
+	var rows []labRow
+	err := db.Table(`"LIS_ExaminationItem" AS i`).
+		Select(`EXTRACT(MONTH FROM COALESCE(e."ResultTime", i."LastModifyTime"))::int AS month,
+			i."ItemName" AS item_name, i."ItemCode" AS item_code, i."ResultSign" AS result_sign`).
+		Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
+		Where(`e."TenantId" = ? AND COALESCE(e."ResultTime", i."LastModifyTime") >= ? AND COALESCE(e."ResultTime", i."LastModifyTime") < ?`, tenantId, start, end).
+		Find(&rows).Error
+	if err != nil {
 		return items, nil
-	}
-	if err := query.Where("tested_at >= ? AND tested_at < ?", start, end).Find(&rows).Error; err != nil {
-		return nil, err
 	}
 
 	type counter struct{ total, normal int }
@@ -75,34 +78,33 @@ func (s *StatisticsService) QualityByYear(tenantId int64, year int) ([]QualityIt
 	albCount := map[int]counter{}
 
 	for _, row := range rows {
-		if row.TestedAt == nil {
+		if row.Month < 1 || row.Month > 12 {
 			continue
 		}
-		month := int(row.TestedAt.Month())
 		name := strings.ToLower(row.ItemName + " " + row.ItemCode)
-		isNormal := strings.ToUpper(strings.TrimSpace(row.AbnormalFlag)) == "N" || row.AbnormalFlag == ""
+		isNormal := strings.ToUpper(strings.TrimSpace(row.ResultSign)) == "N" || row.ResultSign == ""
 		switch {
 		case strings.Contains(name, "kt/v") || strings.Contains(name, "ktv"):
-			c := ktvCount[month]
+			c := ktvCount[row.Month]
 			c.total++
 			if isNormal {
 				c.normal++
 			}
-			ktvCount[month] = c
+			ktvCount[row.Month] = c
 		case strings.Contains(name, "hb") || strings.Contains(name, "hemoglobin"):
-			c := hbCount[month]
+			c := hbCount[row.Month]
 			c.total++
 			if isNormal {
 				c.normal++
 			}
-			hbCount[month] = c
+			hbCount[row.Month] = c
 		case strings.Contains(name, "alb") || strings.Contains(name, "albumin"):
-			c := albCount[month]
+			c := albCount[row.Month]
 			c.total++
 			if isNormal {
 				c.normal++
 			}
-			albCount[month] = c
+			albCount[row.Month] = c
 		}
 	}
 
@@ -130,41 +132,39 @@ func (s *StatisticsService) InfectionByYear(tenantId int64, year int) ([]Infecti
 	end := start.AddDate(1, 0, 0)
 
 	db := database.GetDB()
-	if db == nil || !db.Migrator().HasTable(&models.InfectionInfo{}) {
+	if db == nil {
 		return items, nil
 	}
 
-	var rows []models.InfectionInfo
-	query := db.Model(&models.InfectionInfo{})
-	if db.Migrator().HasColumn(&models.InfectionInfo{}, "tenant_id") {
-		query = query.Where("tenant_id = ?", tenantId)
+	type infRow struct {
+		LastModifyTime time.Time `gorm:"column:LastModifyTime"`
+		InfectionDesc  string    `gorm:"column:InfectionDesc"`
 	}
-	if !db.Migrator().HasColumn(&models.InfectionInfo{}, "update_date") {
-		return items, nil
-	}
-	if err := query.Where("update_date >= ? AND update_date < ?", start, end).Find(&rows).Error; err != nil {
+	var rows []infRow
+	if err := db.Table(`"Register_Infection"`).
+		Select(`"LastModifyTime"`, `"InfectionDesc"`).
+		Where(`"TenantId" = ? AND "LastModifyTime" >= ? AND "LastModifyTime" < ?`, tenantId, start, end).
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
-	isPositive := func(v string) bool {
-		val := strings.ToLower(strings.TrimSpace(v))
-		return val == "positive" || val == "阳性"
-	}
+
 	for _, row := range rows {
-		month := int(row.UpdateDate.Month())
+		month := int(row.LastModifyTime.Month())
 		idx := month - 1
 		if idx < 0 || idx >= len(items) {
 			continue
 		}
-		if isPositive(row.HbsAg) {
+		lower := strings.ToLower(row.InfectionDesc)
+		if strings.Contains(lower, "hbs") || strings.Contains(lower, "乙肝") {
 			items[idx].HbsAg++
 		}
-		if isPositive(row.HcvAb) {
+		if strings.Contains(lower, "hcv") || strings.Contains(lower, "丙肝") {
 			items[idx].Hcv++
 		}
-		if isPositive(row.HivAb) {
+		if strings.Contains(lower, "hiv") || strings.Contains(lower, "艾滋") {
 			items[idx].Hiv++
 		}
-		if isPositive(row.TpaB) {
+		if strings.Contains(lower, "tp") || strings.Contains(lower, "梅毒") || strings.Contains(lower, "rpr") {
 			items[idx].Tp++
 		}
 	}
@@ -180,29 +180,24 @@ func (s *StatisticsService) VascularByYear(tenantId int64, year int) ([]Vascular
 	end := start.AddDate(1, 0, 0)
 
 	db := database.GetDB()
-	if db == nil || !db.Migrator().HasTable(&models.VascularAccess{}) {
+	if db == nil {
 		return items, nil
 	}
 
-	var rows []models.VascularAccess
-	query := db.Model(&models.VascularAccess{})
-	if db.Migrator().HasColumn(&models.VascularAccess{}, "tenant_id") {
-		query = query.Where("tenant_id = ?", tenantId)
+	type vascRow struct {
+		CreateTime time.Time `gorm:"column:CreateTime"`
+		AccessType string    `gorm:"column:AccessType"`
 	}
-	dateColumn := ""
-	switch {
-	case db.Migrator().HasColumn(&models.VascularAccess{}, "created_at"):
-		dateColumn = "created_at"
-	case db.Migrator().HasColumn(&models.VascularAccess{}, "create_time"):
-		dateColumn = "create_time"
-	default:
-		return items, nil
-	}
-	if err := query.Where(dateColumn+" >= ? AND "+dateColumn+" < ?", start, end).Find(&rows).Error; err != nil {
+	var rows []vascRow
+	if err := db.Table(`"Register_VascularAccess"`).
+		Select(`"CreateTime"`, `"AccessType"`).
+		Where(`"TenantId" = ? AND "CreateTime" >= ? AND "CreateTime" < ?`, tenantId, start, end).
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
+
 	for _, row := range rows {
-		month := int(row.CreatedAt.Month())
+		month := int(row.CreateTime.Month())
 		idx := month - 1
 		if idx < 0 || idx >= len(items) {
 			continue
@@ -213,7 +208,7 @@ func (s *StatisticsService) VascularByYear(tenantId int64, year int) ([]Vascular
 			items[idx].Avf++
 		case strings.Contains(accessType, "avg"):
 			items[idx].Avg++
-		case strings.Contains(accessType, "tcc") || strings.Contains(accessType, "导管"):
+		case strings.Contains(accessType, "tcc") || strings.Contains(accessType, "导管") || strings.Contains(accessType, "ncc"):
 			items[idx].Tcc++
 		}
 	}
@@ -228,53 +223,33 @@ func (s *StatisticsService) WorkloadByYearMonth(tenantId int64, yearMonth string
 	end := start.AddDate(0, 1, 0)
 
 	db := database.GetDB()
-	if db == nil || !db.Migrator().HasTable(&models.Treatment{}) {
+	if db == nil {
 		return []WorkloadItem{}, nil
 	}
 
-	var treatments []models.Treatment
-	treatmentQuery := db.Model(&models.Treatment{})
-	if db.Migrator().HasColumn(&models.Treatment{}, "tenant_id") {
-		treatmentQuery = treatmentQuery.Where("tenant_id = ?", tenantId)
+	type wlRow struct {
+		CreatorID int64  `gorm:"column:CreatorId"`
+		RealName  string `gorm:"column:RealName"`
+		Count     int    `gorm:"column:cnt"`
 	}
-	if err := treatmentQuery.Where("treatment_date >= ? AND treatment_date < ?", start, end).Find(&treatments).Error; err != nil {
+	var rows []wlRow
+	if err := db.Table(`"Treatment_Treatment" AS t`).
+		Select(`t."CreatorId", COALESCE(e."Name", '') AS "RealName", COUNT(*) AS cnt`).
+		Joins(`LEFT JOIN "Organ_Employee" AS e ON e."Id" = t."CreatorId"`).
+		Where(`t."TenantId" = ? AND t."StartTime" >= ? AND t."StartTime" < ?`, tenantId, start, end).
+		Group(`t."CreatorId", e."Name"`).
+		Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	workloads := map[int64]*WorkloadItem{}
-	for _, treatment := range treatments {
-		item, ok := workloads[treatment.CreatorId]
-		if !ok {
-			item = &WorkloadItem{UserID: treatment.CreatorId, Name: "", Treatments: 0, Punctures: 0}
-			workloads[treatment.CreatorId] = item
-		}
-		item.Treatments++
-		item.Punctures++
-	}
-
-	var users []models.User
-	userQuery := db.Model(&models.User{})
-	if db.Migrator().HasColumn(&models.User{}, "tenant_id") {
-		userQuery = userQuery.Where("tenant_id = ?", tenantId)
-	}
-	if err := userQuery.Find(&users).Error; err == nil {
-		nameMap := map[int64]string{}
-		for _, user := range users {
-			id, parseErr := strconv.ParseInt(user.ID, 10, 64)
-			if parseErr == nil {
-				nameMap[id] = user.RealName
-			}
-		}
-		for id, item := range workloads {
-			if name, ok := nameMap[id]; ok {
-				item.Name = name
-			}
-		}
-	}
-
-	result := make([]WorkloadItem, 0, len(workloads))
-	for _, item := range workloads {
-		result = append(result, *item)
+	result := make([]WorkloadItem, 0, len(rows))
+	for _, r := range rows {
+		result = append(result, WorkloadItem{
+			UserID:     r.CreatorID,
+			Name:       r.RealName,
+			Treatments: r.Count,
+			Punctures:  r.Count,
+		})
 	}
 	return result, nil
 }

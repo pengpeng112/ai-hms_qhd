@@ -137,3 +137,9 @@ func NotFound(c *gin.Context, message string) {
 func InternalError(c *gin.Context, message string) {
 	Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", message)
 }
+
+// InternalErrorSafe 500 脱敏错误：对外返回固定消息，避免泄露 SQL/表名/堆栈。
+// 真实错误需要在调用前通过服务端日志记录。
+func InternalErrorSafe(c *gin.Context) {
+	Error(c, http.StatusInternalServerError, "INTERNAL_ERROR", "服务器内部错误，请稍后重试")
+}

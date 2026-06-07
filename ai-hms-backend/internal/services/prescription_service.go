@@ -117,7 +117,7 @@ func (s *PrescriptionService) loadLegacyPrescriptionTreatmentDate(treatmentID in
 	}
 	err := s.db.Table(`"Treatment_Treatment"`).
 		Select(`"StartTime", "ReceptionTime", "CreateTime"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
 		Limit(1).
 		First(&row).Error
 	if err != nil {
@@ -200,9 +200,9 @@ func (s *PrescriptionService) resolveLegacyUserID(userIDRaw, fallbackName string
 		whereSQL  string
 		args      []any
 	}{
-		{`"Id", "UserId", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, legacyTenantID}},
+		{`"Id", "UserId", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, LegacyTenantID}},
 		{`"Id", "UserId", "Name"`, `"Name" = ?`, []any{fallbackName}},
-		{`"Id", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, legacyTenantID}},
+		{`"Id", "Name"`, `"Name" = ? AND "TenantId" = ?`, []any{fallbackName, LegacyTenantID}},
 		{`"Id", "Name"`, `"Name" = ?`, []any{fallbackName}},
 	}
 	var lastErr error
@@ -246,9 +246,9 @@ func (s *PrescriptionService) lookupLegacyUserDisplayName(userID int64) (string,
 		whereSQL string
 		args     []any
 	}{
-		{`"UserId" = ? AND "TenantId" = ?`, []any{userID, legacyTenantID}},
+		{`"UserId" = ? AND "TenantId" = ?`, []any{userID, LegacyTenantID}},
 		{`"UserId" = ?`, []any{userID}},
-		{`"Id" = ? AND "TenantId" = ?`, []any{userID, legacyTenantID}},
+		{`"Id" = ? AND "TenantId" = ?`, []any{userID, LegacyTenantID}},
 		{`"Id" = ?`, []any{userID}},
 	}
 	var err error
@@ -379,7 +379,7 @@ func (s *PrescriptionService) syncLegacyPrescriptionMaterials(tx *gorm.DB, presc
 		}
 		row := map[string]any{
 			"Id":                    id,
-			"TenantId":              legacyTenantID,
+			"TenantId":              LegacyTenantID,
 			"PatientPrescriptionId": prescriptionID,
 			"MaterialId":            materialID,
 			"MaterialGroup":         idx + 1,
@@ -516,7 +516,7 @@ func (s *PrescriptionService) loadLegacyPrescription(patientID, prescriptionID s
 	}
 
 	var item legacyPatientPrescription
-	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, id, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, id, legacyPatientID, LegacyTenantID).
 		First(&item).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -565,7 +565,7 @@ func (s *PrescriptionService) LegacyList(patientID string) ([]models.Prescriptio
 	}
 
 	var rows []legacyPatientPrescription
-	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
 		Find(&rows).Error; err != nil {
@@ -694,7 +694,7 @@ func (s *PrescriptionService) LegacyCreate(patientID, doctorID, doctorName strin
 
 	row := map[string]any{
 		"Id":                           prescriptionIDValue,
-		"TenantId":                     legacyTenantID,
+		"TenantId":                     LegacyTenantID,
 		"PatientId":                    legacyPatientID,
 		"TreatmentId":                  0,
 		"PatientPlanId":                plan.ID,
@@ -951,7 +951,7 @@ func (s *PrescriptionService) LegacyExtractFromLongTermOrders(patientID, doctorI
 
 	orders, err := (&OrderService{db: s.db}).listLegacyOrders(OrderListRequest{
 		PatientID: patientID,
-		TenantID:  legacyTenantID,
+		TenantID:  LegacyTenantID,
 		Type:      models.OrderTypeLongTerm,
 		Statuses:  strings.Join([]string{models.OrderStatusPending, models.OrderStatusExecuting}, ","),
 	})

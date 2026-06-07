@@ -1,0 +1,66 @@
+// Package service 编排排班用例:加载快照 → 跑引擎 → 事务回写。
+package service
+
+import (
+	"time"
+
+	"gorm.io/gorm"
+
+	"github.com/sdsph/dialysis-scheduling/internal/config"
+	"github.com/sdsph/dialysis-scheduling/internal/repo"
+	"github.com/sdsph/dialysis-scheduling/internal/sched"
+)
+
+// GenerateResult 生成结果摘要。
+type GenerateResult struct {
+	StartDate      string `json:"startDate"`
+	Weeks          int    `json:"weeks"`
+	DialysisDays   int    `json:"dialysisDays"`
+	Drafts         int    `json:"drafts"`
+	Conflicts      int    `json:"conflicts"`
+	ParityAssigned int    `json:"parityAssigned"`
+}
+
+// GenerateSchedule 生成未来 weeks 周(2 或 4)的草稿排班(规范 §6,决策 11)。
+// 流程:读锚点 → 取生效模板项 → 加载 Board → 引擎两轮分配 → 事务回写草稿/冲突/奇偶周。
+func GenerateSchedule(g *gorm.DB, tenant int64, start time.Time, weeks int) (*GenerateResult, error) {
+	anchor := config.AnchorMonday(g, tenant)
+
+	items, err := repo.GetActiveTemplateItems(g, tenant)
+	if err != nil {
+		return nil, err
+	}
+
+	end := start.AddDate(0, 0, weeks*7)
+	board, err := repo.LoadBoard(g, tenant, anchor, start, end)
+	if err != nil {
+		return nil, err
+	}
+
+	eng := sched.NewEngine(board)
+	assignments := eng.AssignHdfWeekParity(items) // 先定奇偶周并捕获,供持久化
+	dates := eng.ExpandDialysisDates(start, weeks)
+	eng.Generate(items, dates) // 内部再调一次 AssignHdfWeekParity,已分配者幂等跳过
+
+	err = g.Transaction(func(tx *gorm.DB) error {
+		if err := repo.PersistParity(tx, tenant, assignments); err != nil {
+			return err
+		}
+		if err := repo.SaveDrafts(tx, tenant, board.Drafts); err != nil {
+			return err
+		}
+		return repo.SaveConflicts(tx, tenant, board.Conflicts)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &GenerateResult{
+		StartDate:      start.Format("2006-01-02"),
+		Weeks:          weeks,
+		DialysisDays:   len(dates),
+		Drafts:         len(board.Drafts),
+		Conflicts:      len(board.Conflicts),
+		ParityAssigned: len(assignments),
+	}, nil
+}

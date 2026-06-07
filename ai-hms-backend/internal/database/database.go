@@ -16,7 +16,7 @@ import (
 var DB *gorm.DB
 
 // Initialize initializes the database connection.
-func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig) error {
+func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig, parameterizedQueries bool) error {
 	var dsn string
 	if cfg.Password != "" {
 		dsn = fmt.Sprintf(
@@ -42,7 +42,7 @@ func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig) error 
 				SlowThreshold:             slowThreshold,
 				LogLevel:                  parseGormLogMode(logCfg),
 				IgnoreRecordNotFoundError: true,
-				ParameterizedQueries:      false,
+				ParameterizedQueries:      parameterizedQueries,
 				Colorful:                  false,
 			},
 		),
@@ -65,9 +65,18 @@ func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig) error 
 		return fmt.Errorf("failed to get database instance: %w", err)
 	}
 
-	sqlDB.SetMaxIdleConns(10)
-	sqlDB.SetMaxOpenConns(100)
-	sqlDB.SetConnMaxLifetime(time.Hour)
+	maxLife := time.Hour
+	if cfg.ConnMaxLifeMin > 0 {
+		maxLife = time.Duration(cfg.ConnMaxLifeMin) * time.Minute
+	}
+	maxIdle := 5 * time.Minute
+	if cfg.ConnMaxIdleMin > 0 {
+		maxIdle = time.Duration(cfg.ConnMaxIdleMin) * time.Minute
+	}
+	sqlDB.SetMaxIdleConns(cfg.MaxIdleConns)
+	sqlDB.SetMaxOpenConns(cfg.MaxOpenConns)
+	sqlDB.SetConnMaxLifetime(maxLife)
+	sqlDB.SetConnMaxIdleTime(maxIdle)
 
 	if err := sqlDB.Ping(); err != nil {
 		return fmt.Errorf("failed to ping database: %w", err)

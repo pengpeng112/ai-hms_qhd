@@ -114,14 +114,8 @@ export function performLocalPreviewLogin() {
  * 登出
  */
 export function performLogout(): void {
-  // 清除本地存储
-  localStorage.removeItem('hdis_access_token')
-  localStorage.removeItem('hdis_user_info')
-  localStorage.removeItem('hdis_token_expiry')
-  localStorage.removeItem('selected_role')
-  localStorage.removeItem('selected_role_user')
-
-  // 清除会话存储
+  tokenStorage.clearToken()
+  clearSelectedRole()
   sessionStorage.removeItem('oauth_state')
   sessionStorage.removeItem('oauth_nonce')
 }

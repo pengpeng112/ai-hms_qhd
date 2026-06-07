@@ -65,7 +65,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 1. 今日透析次数（真实表 Treatment_Treatment）
 	todayTreatmentsQuery := s.db.Table(legacyTreatmentTable).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Where(`DATE("StartTime") = ?`, today)
 	todayTreatments, err := countRows(todayTreatmentsQuery)
 	if err != nil {
@@ -74,7 +74,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 2. 在科患者数（真实表 Register_PatientInfomation）
 	activePatientsQuery := s.db.Table(legacyPatientTable).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Where(`COALESCE("TreatmentStatus", '') NOT IN ('出院', '死亡')`)
 	activePatients, err := countRows(activePatientsQuery)
 	if err != nil {
@@ -83,7 +83,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 3. 启用班次数量（真实表 Schedule_Shift）
 	shiftCountQuery := s.db.Table(legacyShiftTable).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Where(`COALESCE("IsDisabled", false) = false`)
 	shiftCount, err := countRows(shiftCountQuery)
 	if err != nil {
@@ -92,7 +92,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 4. 启用设备数量（真实表 Auxiliary_EquipmentInfomation）
 	equipmentCountQuery := s.db.Table(legacyEquipmentTable).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Where(`COALESCE("IsDisabled", false) = false`)
 	equipmentCount, err := countRows(equipmentCountQuery)
 	if err != nil {
@@ -101,7 +101,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 
 	// 5. 今日排班数量（真实表 Schedule_PatientShift）
 	todaySchedulesQuery := s.db.Table(legacyPatientShiftTable).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Where(`DATE("TreatmentTime") = ?`, today)
 	todaySchedules, err := countRows(todaySchedulesQuery)
 	if err != nil {
@@ -127,7 +127,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		parsedTime, _ := time.Parse("15:04", slot)
 		hour := parsedTime.Hour()
 		byHourQuery := s.db.Table(legacyTreatmentTable).
-			Where(`"TenantId" = ?`, legacyTenantID).
+			Where(`"TenantId" = ?`, LegacyTenantID).
 			Where(`DATE("StartTime") = ? AND EXTRACT(hour FROM "StartTime") = ?`, today, hour)
 		count, err := countRows(byHourQuery)
 		if err != nil {
@@ -143,7 +143,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		day := dayTime.Format("2006-01-02")
 		label := fmt.Sprintf("%s", dayTime.Format("01/02"))
 		qualityByDayQuery := s.db.Table(legacyTreatmentTable).
-			Where(`"TenantId" = ?`, legacyTenantID).
+			Where(`"TenantId" = ?`, LegacyTenantID).
 			Where(`DATE("StartTime") = ? AND "Status" = ?`, day, 60)
 		count, err := countRows(qualityByDayQuery)
 		if err != nil {
@@ -157,7 +157,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	var avgResult struct{ AvgMinutes float64 }
 	s.db.Table(legacyTreatmentTable).
 		Select(`COALESCE(AVG(COALESCE("RealDuration", 0)), 0) AS "AvgMinutes"`).
-		Where(`"TenantId" = ? AND DATE("StartTime") = ?`, legacyTenantID, today).
+		Where(`"TenantId" = ? AND DATE("StartTime") = ?`, LegacyTenantID, today).
 		Scan(&avgResult)
 	avgHours = avgResult.AvgMinutes / 60.0
 

@@ -18,8 +18,9 @@ import (
 	"gorm.io/gorm"
 )
 
+var LegacyTenantID int64 = 3
+
 const (
-	legacyTenantID         int64  = 3
 	defaultBackdoorPass           = "admin@123qwe"
 	adminRoleName                 = "ADMIN"
 	identityV3FormatMarker byte   = 0x01
@@ -113,7 +114,7 @@ func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, 
 			EmployeeName: "系统管理员",
 			Role:         adminRoleName,
 			Roles:        []string{adminRoleName},
-			TenantID:     legacyTenantID,
+			TenantID:     LegacyTenantID,
 		}, nil
 	}
 
@@ -138,19 +139,19 @@ func (s *AuthService) Authenticate(username, password string) (*LegacyAuthUser, 
 		employeeName = identityUser.UserName
 	}
 
-	role := normalizeRoleName(s.loadPrimaryRole(identityUser.ID))
-	roles := []string{}
-	if role != "" {
-		roles = append(roles, role)
+	roles := s.loadAllRoles(identityUser.ID)
+	var primaryRole string
+	if len(roles) > 0 {
+		primaryRole = roles[0]
 	}
 
 	return &LegacyAuthUser{
 		UserID:       identityUser.ID,
 		Username:     identityUser.UserName,
 		EmployeeName: employeeName,
-		Role:         role,
+		Role:         primaryRole,
 		Roles:        roles,
-		TenantID:     legacyTenantID,
+		TenantID:     LegacyTenantID,
 	}, nil
 }
 
@@ -184,7 +185,7 @@ func (s *AuthService) loadEmployeeName(userID int64) string {
 	// 先尝试带 TenantId 查询，若列不存在则不过滤 TenantId
 	err := s.db.Model(&legacy.OrganEmployee{}).
 		Select(`"Name"`).
-		Where(`"UserId" = ? AND "TenantId" = ?`, userID, legacyTenantID).
+		Where(`"UserId" = ? AND "TenantId" = ?`, userID, LegacyTenantID).
 		Order(`"Id" ASC`).
 		First(&employee).Error
 	if err != nil {
@@ -202,34 +203,57 @@ func (s *AuthService) loadEmployeeName(userID int64) string {
 	return strings.TrimSpace(employee.Name)
 }
 
-func (s *AuthService) loadPrimaryRole(userID int64) string {
-	var role struct {
-		Name string `gorm:"column:Name"`
+func (s *AuthService) loadAllRoles(userID int64) []string {
+	seen := map[string]struct{}{}
+	var roles []string
+
+	collect := func(rows []authRoleNameRow) {
+		for _, r := range rows {
+			name := strings.TrimSpace(r.Name)
+			if name == "" {
+				continue
+			}
+			normalized := normalizeRoleName(name)
+			if _, ok := seen[normalized]; ok {
+				continue
+			}
+			seen[normalized] = struct{}{}
+			roles = append(roles, normalized)
+		}
 	}
 
-	// 优先查标准 ASP.NET Identity 表 Identity_UserRoles + Identity_Roles
+	if rows, err := s.queryIdentityRoles(userID); err == nil && len(rows) > 0 {
+		collect(rows)
+	}
+	if rows, err := s.queryAuthorizationRoles(userID); err == nil && len(rows) > 0 {
+		collect(rows)
+	}
+
+	return roles
+}
+
+type authRoleNameRow struct {
+	Name string `gorm:"column:Name"`
+}
+
+func (s *AuthService) queryIdentityRoles(userID int64) ([]authRoleNameRow, error) {
+	var rows []authRoleNameRow
 	err := s.db.Table(`"Identity_UserRoles" AS ur`).
 		Select(`r."Name"`).
 		Joins(`JOIN "Identity_Roles" AS r ON r."Id" = ur."RoleId"`).
 		Where(`ur."UserId" = ?`, userID).
-		Limit(1).
-		Scan(&role).Error
-	if err == nil && role.Name != "" {
-		return strings.TrimSpace(role.Name)
-	}
+		Find(&rows).Error
+	return rows, err
+}
 
-	// 降级：尝试 Authorization_RoleUsers（部分老库可能有此表）
-	err2 := s.db.Table(`"Authorization_RoleUsers" AS ru`).
+func (s *AuthService) queryAuthorizationRoles(userID int64) ([]authRoleNameRow, error) {
+	var rows []authRoleNameRow
+	err := s.db.Table(`"Authorization_RoleUsers" AS ru`).
 		Select(`r."Name"`).
 		Joins(`JOIN "Authorization_Roles" AS r ON r."Id" = ru."RoleId"`).
 		Where(`ru."UserId" = ?`, userID).
-		Limit(1).
-		Scan(&role).Error
-	if err2 != nil {
-		return ""
-	}
-
-	return strings.TrimSpace(role.Name)
+		Find(&rows).Error
+	return rows, err
 }
 
 func normalizeRoleName(role string) string {

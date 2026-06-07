@@ -2116,32 +2116,32 @@ class RestApiService {
     return response.data
   }
 
-  // ============ 排班模板 API ============
+  // ============ 排班模板 API (阶段 3: Schedule_ScheduleTemplate) ============
 
-  async listScheduleTemplateEntries(wardId?: number): Promise<RestScheduleWeekShift[]> {
-    const params: Record<string, unknown> = {}
-    if (wardId) params.wardId = wardId
-    const response = await apiClient.get<ApiSuccessResponse<RestScheduleWeekShift[]>>('/api/v1/schedule/template', { params })
+  async listScheduleTemplates(wardId?: number): Promise<ScheduleTemplateResponse[]> {
+    const params: Record<string, string> = {}
+    if (wardId) params.wardId = String(wardId)
+    const response = await apiClient.get<ApiSuccessResponse<ScheduleTemplateResponse[]>>('/api/v1/patient-shifts/templates', { params })
     if (!response.data.success) {
       throw new Error('获取排班模板失败')
     }
-    return response.data.data
+    return response.data.data ?? []
   }
 
-  async applyScheduleTemplate(targetDate: string, wardId?: number): Promise<{ createdCount: number; skippedCount: number }> {
-    const response = await apiClient.post<ApiSuccessResponse<{ createdCount: number; skippedCount: number }>>(
-      '/api/v1/schedule/template/apply',
-      { targetDate, wardId }
-    )
+  async applyScheduleTemplate(req: ScheduleTemplateApplyRequest): Promise<ScheduleTemplateApplyResponse> {
+    const response = await apiClient.post<ApiSuccessResponse<ScheduleTemplateApplyResponse>>('/api/v1/schedule/template/apply', req)
     if (!response.data.success) {
       throw new Error('应用模板失败')
     }
     return response.data.data
   }
 
-  async saveScheduleTemplate(items: { patientId: number; shiftId: number; wardId: number; bedId: number; patientPlanId: number; weekday: number }[]): Promise<unknown> {
-    const response = await apiClient.post<unknown>('/api/v1/schedule/template/save', { items })
-    return response.data
+  async saveScheduleTemplate(req: ScheduleTemplateSaveRequest): Promise<ScheduleTemplateResponse> {
+    const response = await apiClient.post<ApiSuccessResponse<ScheduleTemplateResponse>>('/api/v1/schedule/template/save', req)
+    if (!response.data.success) {
+      throw new Error('保存模板失败')
+    }
+    return response.data.data
   }
 
   // ============ 治疗记录管理 ============
@@ -2358,7 +2358,82 @@ class RestApiService {
   }
 }
 
-// 瀵煎嚭鍗曚緥
+// ============ 排班模板类型定义 (阶段 3) ============
+
+export interface ScheduleTemplateData {
+  id: number
+  tenantId: number
+  name: string
+  scope: string
+  wardId: number | null
+  isActive: boolean
+  version: number
+  creatorId: number
+  createTime: string
+  lastModifyTime: string
+}
+
+export interface ScheduleTemplateItemData {
+  id: number
+  tenantId: number
+  templateId: number
+  patientId: number
+  zoneTag: string
+  wardId: number | null
+  shiftId: number | null
+  freqPattern: number
+  fixedHdBedId: number | null
+  fixedHdfBedId: number | null
+  hdfEnabled: boolean
+  hdfWeekday: number | null
+  hdfWeekParity: number | null
+  templateVersion: number
+  creatorId: number
+  createTime: string
+  lastModifyTime: string
+}
+
+export interface ScheduleTemplateResponse {
+  template: ScheduleTemplateData
+  items: ScheduleTemplateItemData[]
+  itemCount: number
+}
+
+export interface ScheduleTemplateItemRequest {
+  patientId: number
+  zoneTag: string
+  wardId?: number | null
+  shiftId?: number | null
+  freqPattern?: number
+  fixedHdBedId?: number | null
+  fixedHdfBedId?: number | null
+  hdfEnabled?: boolean
+  hdfWeekday?: number | null
+  hdfWeekParity?: number | null
+}
+
+export interface ScheduleTemplateSaveRequest {
+  id?: number
+  name: string
+  scope?: string
+  wardId?: number | null
+  items: ScheduleTemplateItemRequest[]
+}
+
+export interface ScheduleTemplateApplyRequest {
+  templateId: number
+  targetDate: string
+  wardId?: number | null
+  itemIds?: number[]
+}
+
+export interface ScheduleTemplateApplyResponse {
+  createdShifts: number[]
+  createdShiftExts: number[]
+  count: number
+}
+
+// 导出单例
 export const restApi = new RestApiService()
 
 export type RequestErrorKind = 'auth' | 'forbidden' | 'not_found' | 'server' | 'network' | 'unknown'

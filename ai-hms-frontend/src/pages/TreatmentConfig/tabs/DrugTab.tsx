@@ -11,6 +11,7 @@ import {
   type DrugCatalog
 } from '@/services/treatmentConfigApi'
 import { dictApi, DICT_TYPES } from '@/services/dictApi'
+import { getToken } from '@/utils/token'
 import { usePagination } from '../hooks/usePagination'
 import { useSelection } from '../hooks/useSelection'
 import { useSearch } from '../hooks/useSearch'
@@ -309,7 +310,7 @@ function DrugTabComponent({ dictOptions, onRefreshDict }: DrugTabProps) {
     autoAddCategories = false,
     onProgress?: (percent: number) => void
   ) => {
-    const token = localStorage.getItem('hdis_access_token')
+    const token = getToken()
     if (!token) {
       return {
         success: 0,

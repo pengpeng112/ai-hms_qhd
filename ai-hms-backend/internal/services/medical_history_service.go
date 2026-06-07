@@ -156,7 +156,7 @@ type OutcomeRecordRequest struct {
 func (s *MedicalHistoryService) ensurePatientExists(patientID modeltypes.LegacyID) error {
 	var count int64
 	if err := s.db.Model(&models.Patient{}).
-		Where(`"Id" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, patientID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return err
 	}
@@ -169,7 +169,7 @@ func (s *MedicalHistoryService) ensurePatientExists(patientID modeltypes.LegacyI
 func (s *MedicalHistoryService) latestNamedHistory(table string, patientID modeltypes.LegacyID) (*legacyHistoryNamedRow, error) {
 	var row legacyHistoryNamedRow
 	err := s.db.Table(table).
-		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, LegacyTenantID).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -219,7 +219,7 @@ func (s *MedicalHistoryService) GetMedicalHistory(patientID string) (*MedicalHis
 	resp := &MedicalHistoryResponse{}
 
 	var main legacyMedicalHistory
-	err = s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -305,7 +305,7 @@ func (s *MedicalHistoryService) SaveMedicalHistory(patientID string, req *Medica
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var main legacyMedicalHistory
-		findErr := tx.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+		findErr := tx.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 			Order(`"LastModifyTime" DESC`).
 			Order(`"CreateTime" DESC`).
 			Order(`"Id" DESC`).
@@ -322,7 +322,7 @@ func (s *MedicalHistoryService) SaveMedicalHistory(patientID string, req *Medica
 			}
 			main = legacyMedicalHistory{
 				ID:         id,
-				TenantID:   legacyTenantID,
+				TenantID:   LegacyTenantID,
 				PatientID:  legacyPatientID,
 				CreateTime: now,
 			}
@@ -408,7 +408,7 @@ func (s *MedicalHistoryService) SaveMedicalHistory(patientID string, req *Medica
 func (s *MedicalHistoryService) getBloodTransfusionHistoryFromJSON(patientID modeltypes.LegacyID) (string, error) {
 	var row legacyJsonDataRow
 	err := s.db.Table(`"Auxiliary_JsonData"`).
-		Where(`"TenantId" = ? AND "PatientId" = ? AND "Code" = ?`, legacyTenantID, patientID, legacyJSONCodeBloodTransfusion).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND "Code" = ?`, LegacyTenantID, patientID, legacyJSONCodeBloodTransfusion).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -450,7 +450,7 @@ func (s *MedicalHistoryService) upsertBloodTransfusionHistoryJSON(tx *gorm.DB, p
 	}
 	var existing legacyJsonDataRow
 	findErr := tx.Table(`"Auxiliary_JsonData"`).
-		Where(`"TenantId" = ? AND "PatientId" = ? AND "Code" = ?`, legacyTenantID, patientID, legacyJSONCodeBloodTransfusion).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND "Code" = ?`, LegacyTenantID, patientID, legacyJSONCodeBloodTransfusion).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -472,7 +472,7 @@ func (s *MedicalHistoryService) upsertBloodTransfusionHistoryJSON(tx *gorm.DB, p
 	}
 	row := map[string]any{
 		"Id":             newID,
-		"TenantId":       legacyTenantID,
+		"TenantId":       LegacyTenantID,
 		"PatientId":      patientID,
 		"TreatmentId":    0,
 		"Code":           legacyJSONCodeBloodTransfusion,
@@ -487,7 +487,7 @@ func (s *MedicalHistoryService) upsertBloodTransfusionHistoryJSON(tx *gorm.DB, p
 func (s *MedicalHistoryService) upsertNamedHistory(tx *gorm.DB, table string, patientID modeltypes.LegacyID, req *HistoryNamedContent, contentColumn string) error {
 	var existing legacyHistoryNamedRow
 	findErr := tx.Table(table).
-		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, LegacyTenantID).
 		Order(`"LastModifyTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Order(`"Id" DESC`).
@@ -517,7 +517,7 @@ func (s *MedicalHistoryService) upsertNamedHistory(tx *gorm.DB, table string, pa
 			return err
 		}
 		values["Id"] = id
-		values["TenantId"] = legacyTenantID
+		values["TenantId"] = LegacyTenantID
 		values["PatientId"] = patientID
 		values["CreateTime"] = now
 		return tx.Table(table).Create(values).Error
@@ -537,7 +537,7 @@ func (s *MedicalHistoryService) ListOutcomeRecords(patientID string) ([]OutcomeR
 	}
 
 	var records []legacyOutcomeRecord
-	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+	if err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 		Order(`"OutComeTime" DESC`).
 		Order(`"CreateTime" DESC`).
 		Find(&records).Error; err != nil {
@@ -581,7 +581,7 @@ func (s *MedicalHistoryService) CreateOutcomeRecord(patientID string, req *Outco
 	now := time.Now()
 	row := legacyOutcomeRecord{
 		ID:             recordID,
-		TenantID:       legacyTenantID,
+		TenantID:       LegacyTenantID,
 		PatientID:      legacyPatientID,
 		Type:           strings.TrimSpace(req.Type),
 		Reason:         strings.TrimSpace(req.Reason),
@@ -617,7 +617,7 @@ func (s *MedicalHistoryService) UpdateOutcomeRecord(patientID, recordID string, 
 	}
 
 	var record legacyOutcomeRecord
-	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyRecordID, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyRecordID, legacyPatientID, LegacyTenantID).
 		First(&record).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("outcome record not found")
@@ -681,7 +681,7 @@ func (s *MedicalHistoryService) DeleteOutcomeRecord(patientID, recordID string) 
 	}
 
 	result := s.db.Table(`"Register_OutCome"`).
-		Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyRecordID, legacyPatientID, legacyTenantID).
+		Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyRecordID, legacyPatientID, LegacyTenantID).
 		Delete(&legacyOutcomeRecord{})
 	if result.Error != nil {
 		return result.Error

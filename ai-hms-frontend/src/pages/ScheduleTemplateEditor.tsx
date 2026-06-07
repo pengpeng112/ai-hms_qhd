@@ -1,53 +1,79 @@
-import { message } from 'antd'
-import { ArrowLeft, RefreshCw, Save } from 'lucide-react'
+import { Button, Input, Select, message } from 'antd'
+import { ArrowLeft, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { getErrorMessage } from '@/services/restClient'
 import { restApi } from '@/services'
-import type { RestScheduleWeekShift } from '@/services/restClient'
+import type { ScheduleTemplateResponse, ScheduleTemplateItemRequest } from '@/services/restClient'
 
 export default function ScheduleTemplateEditor() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const editId = searchParams.get('id') ? Number(searchParams.get('id')) : undefined
+
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [name, setName] = useState('')
+  const [scope, setScope] = useState('A')
   const [wardId, setWardId] = useState<number | undefined>(undefined)
-  const [entries, setEntries] = useState<RestScheduleWeekShift[]>([])
+  const [items, setItems] = useState<ScheduleTemplateItemRequest[]>([])
 
-  const loadEntries = async () => {
+  const loadTemplate = async () => {
+    if (!editId) return
     setLoading(true)
     try {
-      const res = await restApi.listScheduleTemplateEntries(wardId)
-      setEntries(Array.isArray(res) ? res : [])
-    } catch (error) {
-      console.error('[ScheduleTemplateEditor] load failed', error)
-      message.error(getErrorMessage(error))
+      const data = await restApi.listScheduleTemplates()
+      const found = data.find((t: ScheduleTemplateResponse) => t.template.id === editId)
+      if (found) {
+        setName(found.template.name)
+        setScope(found.template.scope || 'A')
+        setWardId(found.template.wardId ?? undefined)
+        setItems(found.items.map((it) => ({
+          patientId: it.patientId,
+          zoneTag: it.zoneTag,
+          wardId: it.wardId,
+          shiftId: it.shiftId,
+          freqPattern: it.freqPattern,
+          fixedHdBedId: it.fixedHdBedId,
+          fixedHdfBedId: it.fixedHdfBedId,
+          hdfEnabled: it.hdfEnabled,
+          hdfWeekday: it.hdfWeekday,
+          hdfWeekParity: it.hdfWeekParity,
+        })))
+      } else {
+        message.error('模板不存在')
+        navigate('/schedule-templates')
+      }
+    } catch (e) {
+      message.error(getErrorMessage(e))
     } finally {
       setLoading(false)
     }
   }
 
-  useEffect(() => { void loadEntries() }, [wardId])
+  useEffect(() => { void loadTemplate() }, [editId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSave = async () => {
-    if (entries.length === 0) {
-      message.warning('无可保存的模板数据')
+    if (!name.trim()) {
+      message.warning('请输入模板名称')
+      return
+    }
+    if (items.length === 0) {
+      message.warning('模板项不能为空')
       return
     }
     try {
       setSaving(true)
-      await restApi.saveScheduleTemplate(
-        entries.map((e) => ({
-          patientId: e.patientId,
-          shiftId: e.shiftId,
-          wardId: e.wardId,
-          bedId: e.bedId,
-          patientPlanId: e.patientPlanId,
-          weekday: 1,
-        }))
-      )
+      await restApi.saveScheduleTemplate({
+        id: editId,
+        name: name.trim(),
+        scope,
+        wardId: wardId ?? null,
+        items,
+      })
       message.success('模板已保存')
+      navigate('/schedule-templates')
     } catch (error) {
-      console.error('[ScheduleTemplateEditor] save failed', error)
       message.error(getErrorMessage(error))
     } finally {
       setSaving(false)
@@ -61,57 +87,61 @@ export default function ScheduleTemplateEditor() {
           <button onClick={() => navigate('/schedule-templates')} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors">
             <ArrowLeft size={18} />
           </button>
-          <h2 className="text-h2 font-bold text-foreground">编辑排班模板</h2>
+          <h2 className="text-h2 font-bold text-foreground">{editId ? '编辑排班模板' : '新建排班模板'}</h2>
         </div>
-        <div className="flex items-center gap-3">
-          <button onClick={loadEntries} disabled={loading} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-50">
-            <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />刷新
-          </button>
-          <button onClick={() => void handleSave()} disabled={saving || entries.length === 0} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-50">
-            <Save size={15} />{saving ? '保存中...' : '保存模板'}
-          </button>
+        <Button onClick={() => void handleSave()} loading={saving} icon={<Save size={15} />} type="primary">{saving ? '保存中...' : '保存模板'}</Button>
+      </div>
+
+      <div className="rounded-lg border border-slate-200 bg-white p-6 mb-6 space-y-4">
+        <div className="flex items-center gap-4">
+          <label className="text-sm text-slate-500 w-20">模板名称:</label>
+          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="输入模板名称" className="max-w-[300px]" />
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="text-sm text-slate-500 w-20">范围:</label>
+          <Select value={scope} onChange={(v) => setScope(v)} options={[
+            { value: 'ALL', label: '全局' },
+            { value: 'A', label: 'A区' },
+            { value: 'B', label: 'B区' },
+            { value: 'C', label: 'C区' },
+          ]} className="w-32" />
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="text-sm text-slate-500 w-20">病区ID:</label>
+          <Input type="number" value={wardId ?? ''} onChange={(e) => setWardId(e.target.value ? Number(e.target.value) : undefined)} placeholder="全局留空" className="max-w-[200px]" />
+        </div>
+        <div className="flex items-center gap-4">
+          <label className="text-sm text-slate-500 w-20">模板项:</label>
+          <span className="text-sm text-slate-400">{items.length} 项</span>
         </div>
       </div>
 
-      <div className="mb-4 flex items-center gap-4">
-        <label className="flex items-center gap-2 text-sm text-slate-500">
-          病区过滤:
-          <input type="number" value={wardId ?? ''} onChange={(e) => setWardId(e.target.value ? Number(e.target.value) : undefined)} placeholder="输入病区ID..." className="h-9 w-32 rounded-lg border border-slate-200 px-3 text-sm outline-none focus:border-blue-400" />
-        </label>
-        <span className="text-xs text-slate-400">共 {entries.length} 条排班条目</span>
-      </div>
-
-      {loading ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500">正在加载模板...</div>
-      ) : entries.length === 0 ? (
-        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center">
-          <p className="text-slate-500 mb-2">暂未加载模板数据</p>
-          <p className="text-xs text-slate-400">输入病区ID后点击刷新获取排班模板条目。</p>
-        </div>
-      ) : (
+      {items.length > 0 && (
         <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
           <table className="w-full min-w-[900px] text-left">
             <thead className="bg-slate-50 text-xs text-slate-500">
               <tr>
                 <th className="px-4 py-3">#</th>
-                <th className="px-4 py-3">患者</th>
-                <th className="px-4 py-3">班次</th>
+                <th className="px-4 py-3">患者ID</th>
+                <th className="px-4 py-3">分区</th>
                 <th className="px-4 py-3">病区</th>
-                <th className="px-4 py-3">床位</th>
-                <th className="px-4 py-3">透析模式</th>
-                <th className="px-4 py-3">状态</th>
+                <th className="px-4 py-3">班次</th>
+                <th className="px-4 py-3">频率</th>
+                <th className="px-4 py-3">固定HD床</th>
+                <th className="px-4 py-3">HDF</th>
               </tr>
             </thead>
             <tbody>
-              {entries.map((entry, idx) => (
-                <tr key={entry.id || idx} className="border-t border-slate-100 text-sm">
+              {items.map((it, idx) => (
+                <tr key={idx} className="border-t border-slate-100 text-sm">
                   <td className="px-4 py-3 text-slate-500">{idx + 1}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-800">{entry.patientName || `患者${entry.patientId}`}</td>
-                  <td className="px-4 py-3 text-slate-600">班次 {entry.shiftId}</td>
-                  <td className="px-4 py-3 text-slate-600">病区 {entry.wardId}</td>
-                  <td className="px-4 py-3 text-slate-600">{entry.bedName || `床${entry.bedId}`}</td>
-                  <td className="px-4 py-3 text-slate-600">{entry.dialysisMode || '--'}</td>
-                  <td className="px-4 py-3"><span className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{entry.statusName || '待排'}</span></td>
+                  <td className="px-4 py-3 font-semibold text-slate-800">{it.patientId}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.zoneTag}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.wardId ?? '--'}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.shiftId ?? '--'}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.freqPattern || 10}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.fixedHdBedId ?? '--'}</td>
+                  <td className="px-4 py-3 text-slate-600">{it.hdfEnabled ? `是(床${it.fixedHdfBedId ?? '--'})` : '否'}</td>
                 </tr>
               ))}
             </tbody>
@@ -119,10 +149,12 @@ export default function ScheduleTemplateEditor() {
         </div>
       )}
 
-      <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-xs text-slate-500">
-        <p className="font-semibold mb-1">使用说明</p>
-        <p>数据来源：旧系统排班数据，可在此预览和重新保存为模板。</p>
-      </div>
+      {!loading && items.length === 0 && (
+        <div className="rounded-lg border border-slate-200 bg-white p-10 text-center">
+          <p className="text-slate-500 mb-2">暂未添加模板项</p>
+          <p className="text-xs text-slate-400">请在排班管理页面将患者添加到模板。</p>
+        </div>
+      )}
     </div>
   )
 }

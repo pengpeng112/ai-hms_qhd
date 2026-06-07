@@ -307,7 +307,7 @@ func (s *HealthEducationService) DeleteContent(id string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Auxiliary_HealthEducation"`).Where(`"Id" = ?`, id).Delete(nil)
+	result := s.db.Table(`"Auxiliary_HealthEducation"`).Where(`"Id" = ?`, id).Update(`"IsDisabled"`, true)
 	if result.Error != nil {
 		return fmt.Errorf("删除宣教内容失败: %w", result.Error)
 	}

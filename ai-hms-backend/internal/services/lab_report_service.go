@@ -163,7 +163,7 @@ func (s *LabReportService) listLegacyByPatient(patientID string, req LabReportLi
 	}
 
 	query := s.db.Model(&legacyLabExamination{}).
-		Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID)
+		Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID)
 
 	if strings.TrimSpace(req.StartDate) != "" {
 		startDate, err := parseOptionalTime(req.StartDate)

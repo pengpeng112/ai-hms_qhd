@@ -16,9 +16,12 @@ func (legacyPatientOrderCron) TableName() string {
 	return "Order_PatientOrder"
 }
 
+var orderCronTenantID int64
+
 // StartOrderCron 启动医嘱自动停用任务
 // TODO: 当前假设单实例部署。多实例时需加分布式锁或 advisory lock
-func StartOrderCron() {
+func StartOrderCron(tenantID int64) {
+	orderCronTenantID = tenantID
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
 		defer ticker.Stop()
@@ -28,7 +31,7 @@ func StartOrderCron() {
 			runOrderCronOnce()
 		}
 	}()
-	log.Println("Order cron job started: marking expired orders every 5 minutes")
+	log.Printf("Order cron job started: marking expired orders every 5 minutes (tenant %d)", tenantID)
 }
 
 func runOrderCronOnce() {
@@ -36,14 +39,14 @@ func runOrderCronOnce() {
 	if db == nil {
 		return
 	}
-	if err := disableExpiredLegacyOrders(db, time.Now()); err != nil {
+	if err := disableExpiredLegacyOrders(db, time.Now(), orderCronTenantID); err != nil {
 		log.Printf("Warning: failed to disable expired legacy orders: %v", err)
 	}
 }
 
-func disableExpiredLegacyOrders(db *gorm.DB, now time.Time) error {
+func disableExpiredLegacyOrders(db *gorm.DB, now time.Time, tenantID int64) error {
 	result := db.Model(&legacyPatientOrderCron{}).
-		Where(`"EndTime" IS NOT NULL AND "EndTime" < ? AND COALESCE("IsDisabled", false) = false`, now).
+		Where(`"TenantId" = ? AND "EndTime" IS NOT NULL AND "EndTime" < ? AND COALESCE("IsDisabled", false) = false`, tenantID, now).
 		Updates(map[string]interface{}{
 			"IsDisabled":     true,
 			"LastModifyTime": now,

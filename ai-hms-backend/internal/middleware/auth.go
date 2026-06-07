@@ -94,7 +94,7 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 
 		userRoleList, ok := userRoles.([]string)
 		if !ok {
-			response.Forbidden(c, "鏉冮檺鏍煎紡閿欒")
+			response.Forbidden(c, "权限格式错误")
 			c.Abort()
 			return
 		}

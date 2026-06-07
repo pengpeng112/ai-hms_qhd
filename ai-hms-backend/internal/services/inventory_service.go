@@ -3,13 +3,12 @@ package services
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
-	"github.com/elliotxin/ai-hms-backend/internal/models"
 	"gorm.io/gorm"
 )
 
-// InventoryService 库存服务
 type InventoryService struct {
 	db *gorm.DB
 }
@@ -18,13 +17,12 @@ func NewInventoryService() *InventoryService {
 	return &InventoryService{db: database.GetDB()}
 }
 
-// ─────────────── InventoryItem ───────────────
+// ─────────────── DTOs ───────────────
 
 type InventoryListRequest struct {
 	Page     int    `form:"page"`
 	PageSize int    `form:"pageSize"`
 	Category string `form:"category"`
-	Alert    *bool  `form:"alert"` // 仅返回告警项
 	Keyword  string `form:"keyword"`
 }
 
@@ -36,11 +34,60 @@ type InventoryListResponse struct {
 	TotalPage int                 `json:"totalPage"`
 }
 
-// InventoryItemView 在 InventoryItem 基础上增加计算字段
 type InventoryItemView struct {
-	models.InventoryItem
-	Alert       bool   `json:"alert"`       // stock < minStock
-	LastUpdated string `json:"lastUpdated"` // UpdatedAt 格式化
+	ID          int64   `json:"id"`
+	Name        string  `json:"name"`
+	Spec        string  `json:"spec"`
+	Category    string  `json:"category"`
+	Unit        string  `json:"unit"`
+	Supplier    string  `json:"supplier"`
+	Stock       float64 `json:"stock"`
+	MinStock    float64 `json:"minStock"`
+	Price       float64 `json:"price"`
+	Position    string  `json:"position"`
+	Location    string  `json:"location"`
+	IsDisabled  bool    `json:"isDisabled"`
+	Alert       bool    `json:"alert"`
+	LastUpdated string  `json:"lastUpdated"`
+}
+
+type StockLogRequest struct {
+	Page     int    `form:"page"`
+	PageSize int    `form:"pageSize"`
+	Type     string `form:"type"`
+}
+
+type StockLogResponse struct {
+	Items     []StockLogView `json:"items"`
+	Total     int64          `json:"total"`
+	Page      int            `json:"page"`
+	PageSize  int            `json:"pageSize"`
+	TotalPage int            `json:"totalPage"`
+}
+
+type StockLogView struct {
+	ID          int64   `json:"id"`
+	Type        string  `json:"type"`
+	ItemName    string  `json:"itemName"`
+	Quantity    float64 `json:"quantity"`
+	Unit        string  `json:"unit"`
+	Operator    string  `json:"operator"`
+	Note        string  `json:"note"`
+	CreatedAt   string  `json:"createdAt"`
+	OperateTime string  `json:"operateTime"`
+}
+
+// ─────────────── List Items ───────────────
+
+type legacyStockItemRow struct {
+	ID        int64     `gorm:"column:Id"`
+	Name      string    `gorm:"column:Name"`
+	Batch     string    `gorm:"column:Batch"`
+	Num       float64   `gorm:"column:Num"`
+	Price     float64   `gorm:"column:Price"`
+	Unit      string    `gorm:"column:Unit"`
+	Location  string    `gorm:"column:Location"`
+	UpdatedAt time.Time `gorm:"column:LastModifyTime"`
 }
 
 func (s *InventoryService) ListItems(req InventoryListRequest) (*InventoryListResponse, error) {
@@ -54,36 +101,47 @@ func (s *InventoryService) ListItems(req InventoryListRequest) (*InventoryListRe
 		req.PageSize = 50
 	}
 
-	query := s.db.Model(&models.InventoryItem{}).Where("is_disabled = ?", false)
-	if req.Category != "" {
-		query = query.Where("category = ?", req.Category)
-	}
+	baseQuery := s.db.Table(`"Stock_Stock" AS s`).
+		Select(`s."Id", COALESCE(c."Name", '') AS "Name", s."Batch", COALESCE(s."Num", 0) AS "Num",
+			COALESCE(s."Price", c."Price", 0) AS "Price", COALESCE(c."Unit", '') AS "Unit",
+			COALESCE(st."Name", st."Position", '') AS "Location", s."LastModifyTime"`).
+		Joins(`LEFT JOIN "Stock_ChargeItem" AS c ON c."Id" = s."ChargeItemId" AND c."TenantId" = s."TenantId"`).
+		Joins(`LEFT JOIN "Stock_Storage" AS st ON st."Id" = s."StorageId" AND st."TenantId" = s."TenantId"`).
+		Where(`s."TenantId" = ?`, LegacyTenantID)
+
+	countQuery := s.db.Table(`"Stock_Stock" AS s`).
+		Joins(`LEFT JOIN "Stock_ChargeItem" AS c ON c."Id" = s."ChargeItemId" AND c."TenantId" = s."TenantId"`).
+		Where(`s."TenantId" = ?`, LegacyTenantID)
+
 	if req.Keyword != "" {
 		like := "%" + req.Keyword + "%"
-		query = query.Where("name LIKE ? OR spec LIKE ? OR supplier LIKE ?", like, like, like)
+		baseQuery = baseQuery.Where(`c."Name" LIKE ?`, like)
+		countQuery = countQuery.Where(`c."Name" LIKE ?`, like)
 	}
 
 	var total int64
-	if err := query.Count(&total).Error; err != nil {
+	if err := countQuery.Count(&total).Error; err != nil {
 		return nil, err
 	}
 
-	var items []models.InventoryItem
+	var rows []legacyStockItemRow
 	offset := (req.Page - 1) * req.PageSize
-	if err := query.Offset(offset).Limit(req.PageSize).Order("category, name").Find(&items).Error; err != nil {
+	if err := baseQuery.Offset(offset).Limit(req.PageSize).Order(`c."Name"`).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 
-	views := make([]InventoryItemView, 0, len(items))
-	for _, item := range items {
-		alert := item.MinStock > 0 && item.Stock < item.MinStock
-		if req.Alert != nil && *req.Alert != alert {
-			continue
-		}
-		views = append(views, InventoryItemView{
-			InventoryItem: item,
-			Alert:         alert,
-			LastUpdated:   item.UpdatedAt.Format("2006-01-02 15:04"),
+	items := make([]InventoryItemView, 0, len(rows))
+	for _, r := range rows {
+		items = append(items, InventoryItemView{
+			ID:          r.ID,
+			Name:        r.Name,
+			Spec:        r.Batch,
+			Stock:       r.Num,
+			Price:       r.Price,
+			Unit:        r.Unit,
+			Position:    r.Location,
+			Location:    r.Location,
+			LastUpdated: r.UpdatedAt.Format("2006-01-02 15:04"),
 		})
 	}
 
@@ -93,152 +151,29 @@ func (s *InventoryService) ListItems(req InventoryListRequest) (*InventoryListRe
 	}
 
 	return &InventoryListResponse{
-		Items: views, Total: total,
-		Page: req.Page, PageSize: req.PageSize, TotalPage: totalPage,
+		Items:     items,
+		Total:     total,
+		Page:      req.Page,
+		PageSize:  req.PageSize,
+		TotalPage: totalPage,
 	}, nil
 }
 
-type InventoryCreateRequest struct {
-	Name     string `json:"name" binding:"required"`
-	Spec     string `json:"spec"`
-	Category string `json:"category"`
-	Stock    int    `json:"stock"`
-	Unit     string `json:"unit"`
-	MinStock int    `json:"minStock"`
-	MaxStock int    `json:"maxStock"`
-	Location string `json:"location"`
-	Supplier string `json:"supplier"`
+// ─────────────── Stock Logs ───────────────
+
+type legacyInOutRow struct {
+	ID          int64     `gorm:"column:Id"`
+	BillNo      string    `gorm:"column:BillNo"`
+	BillType    int64     `gorm:"column:BillType"`
+	ItemName    string    `gorm:"column:ItemName"`
+	Num         float64   `gorm:"column:Num"`
+	Unit        string    `gorm:"column:Unit"`
+	Note        string    `gorm:"column:Note"`
+	HandlerName string    `gorm:"column:HandlerName"`
+	CreateTime  time.Time `gorm:"column:CreateTime"`
 }
 
-func (s *InventoryService) CreateItem(req InventoryCreateRequest, tenantId, creatorId int64) (*InventoryItemView, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var count int64
-	s.db.Model(&models.InventoryItem{}).Count(&count)
-
-	item := models.InventoryItem{
-		ID:        fmt.Sprintf("INV-%04d", count+1),
-		TenantId:  tenantId,
-		Name:      req.Name,
-		Spec:      req.Spec,
-		Category:  req.Category,
-		Stock:     req.Stock,
-		Unit:      req.Unit,
-		MinStock:  req.MinStock,
-		MaxStock:  req.MaxStock,
-		Location:  req.Location,
-		Supplier:  req.Supplier,
-		CreatorId: creatorId,
-	}
-
-	if err := s.db.Create(&item).Error; err != nil {
-		return nil, err
-	}
-
-	view := &InventoryItemView{
-		InventoryItem: item,
-		Alert:         item.MinStock > 0 && item.Stock < item.MinStock,
-		LastUpdated:   item.UpdatedAt.Format("2006-01-02 15:04"),
-	}
-	return view, nil
-}
-
-type InventoryUpdateRequest struct {
-	Name     *string `json:"name"`
-	Spec     *string `json:"spec"`
-	Category *string `json:"category"`
-	Unit     *string `json:"unit"`
-	MinStock *int    `json:"minStock"`
-	MaxStock *int    `json:"maxStock"`
-	Location *string `json:"location"`
-	Supplier *string `json:"supplier"`
-}
-
-func (s *InventoryService) UpdateItem(id string, req InventoryUpdateRequest) (*InventoryItemView, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var item models.InventoryItem
-	if err := s.db.First(&item, "id = ?", id).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("item not found")
-		}
-		return nil, err
-	}
-
-	updates := map[string]interface{}{}
-	if req.Name != nil {
-		updates["name"] = *req.Name
-	}
-	if req.Spec != nil {
-		updates["spec"] = *req.Spec
-	}
-	if req.Category != nil {
-		updates["category"] = *req.Category
-	}
-	if req.Unit != nil {
-		updates["unit"] = *req.Unit
-	}
-	if req.MinStock != nil {
-		updates["min_stock"] = *req.MinStock
-	}
-	if req.MaxStock != nil {
-		updates["max_stock"] = *req.MaxStock
-	}
-	if req.Location != nil {
-		updates["location"] = *req.Location
-	}
-	if req.Supplier != nil {
-		updates["supplier"] = *req.Supplier
-	}
-
-	if err := s.db.Model(&item).Updates(updates).Error; err != nil {
-		return nil, err
-	}
-
-	view := &InventoryItemView{
-		InventoryItem: item,
-		Alert:         item.MinStock > 0 && item.Stock < item.MinStock,
-		LastUpdated:   item.UpdatedAt.Format("2006-01-02 15:04"),
-	}
-	return view, nil
-}
-
-func (s *InventoryService) DeleteItem(id string) error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-	result := s.db.Model(&models.InventoryItem{}).Where("id = ?", id).Update("is_disabled", true)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("item not found")
-	}
-	return nil
-}
-
-// ─────────────── StockLog ───────────────
-
-type StockLogListRequest struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"pageSize"`
-	ItemId   string `form:"itemId"`
-	Type     string `form:"type"` // in | out
-}
-
-type StockLogListResponse struct {
-	Items     []models.StockLog `json:"items"`
-	Total     int64             `json:"total"`
-	Page      int               `json:"page"`
-	PageSize  int               `json:"pageSize"`
-	TotalPage int               `json:"totalPage"`
-}
-
-func (s *InventoryService) ListLogs(req StockLogListRequest) (*StockLogListResponse, error) {
+func (s *InventoryService) ListLogs(req StockLogRequest) (*StockLogResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -249,12 +184,22 @@ func (s *InventoryService) ListLogs(req StockLogListRequest) (*StockLogListRespo
 		req.PageSize = 50
 	}
 
-	query := s.db.Model(&models.StockLog{})
-	if req.ItemId != "" {
-		query = query.Where("item_id = ?", req.ItemId)
-	}
+	query := s.db.Table(`"Stock_InOutStorage" AS io`).
+		Select(`d."Id", io."BillNo", io."BillType", COALESCE(c."Name", io."BillNo", '') AS "ItemName",
+			COALESCE(d."Num", 0) AS "Num", COALESCE(c."Unit", '') AS "Unit",
+			COALESCE(io."Note", '') AS "Note", COALESCE(e."Name", '') AS "HandlerName", io."CreateTime"`).
+		Joins(`JOIN "Stock_InOutStorageDetail" AS d ON d."InOutStorageId" = io."Id" AND d."TenantId" = io."TenantId"`).
+		Joins(`LEFT JOIN "Stock_ChargeItem" AS c ON c."Id" = d."ChargeItemId" AND c."TenantId" = d."TenantId"`).
+		Joins(`LEFT JOIN "Organ_Employee" AS e ON e."Id" = io."HandlerId"`).
+		Where(`io."TenantId" = ?`, LegacyTenantID)
+
 	if req.Type != "" {
-		query = query.Where("type = ?", req.Type)
+		switch req.Type {
+		case "in", "入库":
+			query = query.Where(`io."BillType" = ?`, 10)
+		case "out", "出库":
+			query = query.Where(`io."BillType" = ?`, 20)
+		}
 	}
 
 	var total int64
@@ -262,10 +207,30 @@ func (s *InventoryService) ListLogs(req StockLogListRequest) (*StockLogListRespo
 		return nil, err
 	}
 
-	var items []models.StockLog
+	var rows []legacyInOutRow
 	offset := (req.Page - 1) * req.PageSize
-	if err := query.Offset(offset).Limit(req.PageSize).Order("created_at DESC").Find(&items).Error; err != nil {
+	if err := query.Offset(offset).Limit(req.PageSize).Order(`io."CreateTime" DESC`).Find(&rows).Error; err != nil {
 		return nil, err
+	}
+
+	items := make([]StockLogView, 0, len(rows))
+	for _, r := range rows {
+		logType := "in"
+		if r.BillType == 20 {
+			logType = "out"
+		}
+		createdAt := r.CreateTime.Format("2006-01-02 15:04")
+		items = append(items, StockLogView{
+			ID:          r.ID,
+			Type:        logType,
+			ItemName:    r.ItemName,
+			Quantity:    r.Num,
+			Unit:        r.Unit,
+			Operator:    r.HandlerName,
+			Note:        r.Note,
+			CreatedAt:   createdAt,
+			OperateTime: createdAt,
+		})
 	}
 
 	totalPage := int(total) / req.PageSize
@@ -273,186 +238,29 @@ func (s *InventoryService) ListLogs(req StockLogListRequest) (*StockLogListRespo
 		totalPage++
 	}
 
-	return &StockLogListResponse{
-		Items: items, Total: total,
-		Page: req.Page, PageSize: req.PageSize, TotalPage: totalPage,
+	return &StockLogResponse{
+		Items:     items,
+		Total:     total,
+		Page:      req.Page,
+		PageSize:  req.PageSize,
+		TotalPage: totalPage,
 	}, nil
 }
 
-// AdjustStockRequest 出入库操作请求
-type AdjustStockRequest struct {
-	ItemId   string `json:"itemId" binding:"required"`
-	Type     string `json:"type" binding:"required"` // in | out
-	Quantity int    `json:"quantity" binding:"required,min=1"`
-	Operator string `json:"operator"`
-	Note     string `json:"note"`
+// ─────────────── CRUD (stub) ───────────────
+
+type CreateInventoryItemRequest struct {
+	Name string  `json:"name"`
+	Spec string  `json:"spec"`
+	Unit string  `json:"unit"`
+	Num  float64 `json:"num"`
+	Note string  `json:"note"`
 }
 
-// AdjustStock 出入库（事务：更新库存 + 创建记录）
-func (s *InventoryService) AdjustStock(req AdjustStockRequest, tenantId int64) (*models.StockLog, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-	if req.Type != "in" && req.Type != "out" {
-		return nil, errors.New("type must be 'in' or 'out'")
-	}
-
-	var log models.StockLog
-
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		var item models.InventoryItem
-		if err := tx.First(&item, "id = ? AND is_disabled = ?", req.ItemId, false).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return errors.New("item not found")
-			}
-			return err
-		}
-
-		newStock := item.Stock
-		if req.Type == "in" {
-			newStock += req.Quantity
-		} else {
-			if item.Stock < req.Quantity {
-				return fmt.Errorf("库存不足，当前库存 %d %s", item.Stock, item.Unit)
-			}
-			newStock -= req.Quantity
-		}
-
-		if err := tx.Model(&item).Update("stock", newStock).Error; err != nil {
-			return err
-		}
-
-		var logCount int64
-		tx.Model(&models.StockLog{}).Count(&logCount)
-
-		log = models.StockLog{
-			ID:       fmt.Sprintf("LOG-%06d", logCount+1),
-			TenantId: tenantId,
-			ItemId:   item.ID,
-			ItemName: item.Name,
-			Type:     req.Type,
-			Quantity: req.Quantity,
-			Unit:     item.Unit,
-			Operator: req.Operator,
-			Note:     req.Note,
-		}
-		return tx.Create(&log).Error
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	return &log, nil
+func (s *InventoryService) CreateItem(req CreateInventoryItemRequest, tenantID, creatorID int64) (*InventoryItemView, error) {
+	return nil, fmt.Errorf("库存新增需通过 HIS 同步或采购流程，暂不支持直接新增")
 }
 
-// ─────────────── LabelTask ───────────────
-
-type LabelTaskListRequest struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"pageSize"`
-	Status   string `form:"status"`
-}
-
-type LabelTaskListResponse struct {
-	Items     []models.LabelTask `json:"items"`
-	Total     int64              `json:"total"`
-	Page      int                `json:"page"`
-	PageSize  int                `json:"pageSize"`
-	TotalPage int                `json:"totalPage"`
-}
-
-func (s *InventoryService) ListLabelTasks(req LabelTaskListRequest) (*LabelTaskListResponse, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-	if req.Page <= 0 {
-		req.Page = 1
-	}
-	if req.PageSize <= 0 {
-		req.PageSize = 50
-	}
-
-	query := s.db.Model(&models.LabelTask{})
-	if req.Status != "" {
-		query = query.Where("status = ?", req.Status)
-	}
-
-	var total int64
-	if err := query.Count(&total).Error; err != nil {
-		return nil, err
-	}
-
-	var items []models.LabelTask
-	offset := (req.Page - 1) * req.PageSize
-	if err := query.Offset(offset).Limit(req.PageSize).Order("created_at DESC").Find(&items).Error; err != nil {
-		return nil, err
-	}
-
-	totalPage := int(total) / req.PageSize
-	if int(total)%req.PageSize > 0 {
-		totalPage++
-	}
-
-	return &LabelTaskListResponse{
-		Items: items, Total: total,
-		Page: req.Page, PageSize: req.PageSize, TotalPage: totalPage,
-	}, nil
-}
-
-type LabelTaskCreateRequest struct {
-	ItemId   string `json:"itemId" binding:"required"`
-	Quantity int    `json:"quantity" binding:"required,min=1"`
-}
-
-func (s *InventoryService) CreateLabelTask(req LabelTaskCreateRequest, tenantId, creatorId int64) (*models.LabelTask, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	var item models.InventoryItem
-	if err := s.db.First(&item, "id = ? AND is_disabled = ?", req.ItemId, false).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("item not found")
-		}
-		return nil, err
-	}
-
-	var count int64
-	s.db.Model(&models.LabelTask{}).Count(&count)
-
-	task := models.LabelTask{
-		ID:        fmt.Sprintf("LBL-%04d", count+1),
-		TenantId:  tenantId,
-		ItemId:    item.ID,
-		ItemName:  item.Name,
-		Spec:      item.Spec,
-		Quantity:  req.Quantity,
-		Status:    "pending",
-		CreatorId: creatorId,
-	}
-
-	if err := s.db.Create(&task).Error; err != nil {
-		return nil, err
-	}
-	return &task, nil
-}
-
-func (s *InventoryService) UpdateLabelTaskStatus(id, status string) error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-
-	validStatuses := map[string]bool{"pending": true, "printing": true, "completed": true}
-	if !validStatuses[status] {
-		return fmt.Errorf("invalid status: %s", status)
-	}
-
-	result := s.db.Model(&models.LabelTask{}).Where("id = ?", id).Update("status", status)
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("label task not found")
-	}
-	return nil
+func (s *InventoryService) DeleteItem(id, tenantID int64) error {
+	return fmt.Errorf("库存删除暂不支持")
 }

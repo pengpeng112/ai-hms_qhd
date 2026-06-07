@@ -24,6 +24,9 @@ const routeMetaMap: Record<string, RouteMeta> = {
   '/dict-config': { title: '字典配置', breadcrumb: ['系统设置', '字典配置'] },
   '/user-management': { title: '用户管理', breadcrumb: ['系统设置', '用户管理'] },
   '/role-management': { title: '角色管理', breadcrumb: ['系统设置', '角色管理'] },
+  '/schedule-templates': { title: '排班模板', breadcrumb: ['排班管理', '排班模板'] },
+  '/schedule-templates/edit': { title: '编辑模板', breadcrumb: ['排班管理', '排班模板', '编辑模板'], parentPath: '/schedule-templates' },
+  '/shift-config': { title: '班次设置', breadcrumb: ['排班管理', '班次设置'] },
 }
 
 export function getRouteMeta(pathname: string): RouteMeta {

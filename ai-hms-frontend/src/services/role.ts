@@ -296,6 +296,8 @@ export function getMenuKeyByPath(pathname: string): string | null {
   if (path === '/role-management') return 'role_management'
   if (path === '/settings') return 'settings'
   if (path === '/statistics') return 'statistics'
+  if (path === '/schedule-templates' || path.startsWith('/schedule-templates/')) return 'schedule'
+  if (path === '/shift-config') return 'schedule'
   return null
 }
 

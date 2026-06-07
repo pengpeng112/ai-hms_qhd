@@ -4,11 +4,13 @@ import { Plus, Edit3, Trash2, RefreshCw } from 'lucide-react'
 import { getErrorMessage } from '@/services/restClient'
 import { wardManagementApi, type WardItem, type WardPayload } from '@/services/managementApi'
 import { userApi, type RestUser } from '@/services/userApi'
+import { dictCache, DICT_TYPES, type DictItem } from '@/services/dictApi'
 
 export default function WardManagement() {
   const [loading, setLoading] = useState(false)
   const [wards, setWards] = useState<WardItem[]>([])
   const [userOptions, setUserOptions] = useState<Array<{ label: string; value: string }>>([])
+  const [infectionTypeDict, setInfectionTypeDict] = useState<DictItem[]>([])
   const [editVisible, setEditVisible] = useState(false)
   const [editingWard, setEditingWard] = useState<WardItem | null>(null)
   const [form] = Form.useForm()
@@ -39,6 +41,15 @@ export default function WardManagement() {
     }
     void loadUsers()
   }, [])
+
+  const loadInfectionTypes = useCallback(async () => {
+    try {
+      const items = await dictCache.getItems(DICT_TYPES.INFECTION_TYPE)
+      setInfectionTypeDict(items)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => { void loadInfectionTypes() }, [loadInfectionTypes])
 
   const handleCreate = () => {
     setEditingWard(null)
@@ -150,19 +161,16 @@ export default function WardManagement() {
             </Form.Item>
             <Form.Item name="patientType" label="患者类型" className="flex-1">
               <Select placeholder="请选择" allowClear options={[
-                { label: '普通患者', value: '普通患者' },
-                { label: '隔离患者', value: '隔离患者' },
+                { label: '长期患者', value: '长期患者' },
+                { label: '临时患者', value: '临时患者' },
               ]} />
             </Form.Item>
           </Space>
           <Space className="w-full" size="middle">
             <Form.Item name="infectionType" label="感染类型" className="flex-1">
-              <Select placeholder="请选择" allowClear options={[
-                { label: '乙肝', value: '乙肝' },
-                { label: '丙肝', value: '丙肝' },
-                { label: '梅毒', value: '梅毒' },
-                { label: 'HIV', value: 'HIV' },
-              ]} />
+              <Select placeholder="请选择" allowClear options={
+                infectionTypeDict.map((d) => ({ label: d.name, value: d.name }))
+              } />
             </Form.Item>
             <Form.Item name="responsibleUsers" label="负责医护" className="flex-1">
               <Select mode="multiple" placeholder="请选择负责医护" options={userOptions} allowClear />

@@ -45,6 +45,9 @@ func RequestLogger() gin.HandlerFunc {
 		if tenantID := GetTenantID(c); tenantID > 0 {
 			attrs = append(attrs, "tenant_id", tenantID)
 		}
+		if roles := GetRoles(c); len(roles) > 0 {
+			attrs = append(attrs, "roles", roles)
+		}
 		if len(c.Errors) > 0 {
 			attrs = append(attrs, "errors", c.Errors.String())
 		}

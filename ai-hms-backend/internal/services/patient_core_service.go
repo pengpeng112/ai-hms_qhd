@@ -227,7 +227,7 @@ func (s *PatientCoreService) buildOverview(patient models.Patient) (*PatientCore
 // buildInfection 构建感染信息
 func (s *PatientCoreService) buildInfection(patientID modeltypes.LegacyID) (*PatientCoreInfection, error) {
 	var infection legacyCoreInfection
-	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, legacyTenantID).First(&infection).Error
+	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, LegacyTenantID).First(&infection).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 没有感染记录时，返回 nil
@@ -250,7 +250,7 @@ func (s *PatientCoreService) buildInfection(patientID modeltypes.LegacyID) (*Pat
 // buildCurrentPlan 构建当前治疗方案，如果没有治疗方案返回 nil
 func (s *PatientCoreService) buildCurrentPlan(patient models.Patient) *PatientCoreCurrentPlan {
 	var treatmentPlan legacyCorePlan
-	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patient.ID, legacyTenantID).
+	err := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, patient.ID, LegacyTenantID).
 		Order("\"LastModifyTime\" DESC").
 		Order("\"CreateTime\" DESC").
 		First(&treatmentPlan).Error
@@ -292,7 +292,7 @@ func (s *PatientCoreService) buildCurrentPlan(patient models.Patient) *PatientCo
 // buildActiveOrders 构建活跃医嘱列表
 func (s *PatientCoreService) buildActiveOrders(patientID modeltypes.LegacyID) ([]PatientCoreOrder, error) {
 	var orders []legacyCoreOrder
-	err := s.db.Where("\"PatientId\" = ? AND \"TenantId\" = ? AND COALESCE(\"IsDisabled\", false) = false", patientID, legacyTenantID).
+	err := s.db.Where("\"PatientId\" = ? AND \"TenantId\" = ? AND COALESCE(\"IsDisabled\", false) = false", patientID, LegacyTenantID).
 		Order("\"StartTime\" DESC").
 		Limit(10).
 		Find(&orders).Error
@@ -344,7 +344,7 @@ func (s *PatientCoreService) buildLabTrends(patientID modeltypes.LegacyID) ([]Pa
 			Select(`i."ItemCode" AS item_code, i."ItemName" AS item_name, i."Result" AS result_value, i."Unit" AS unit, i."Reference" AS reference_range, i."ResultSign" AS result_sign, COALESCE(e."ResultTime", i."LastModifyTime") AS tested_at`).
 			Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
 			Where(`e."PatientId" = ? AND e."TenantId" = ? AND e."ResultTime" >= ? AND (i."ItemCode" IN ? OR i."ItemName" IN ?)`,
-				patientID, legacyTenantID, sixMonthsAgo, indicator.codes, indicator.names).
+				patientID, LegacyTenantID, sixMonthsAgo, indicator.codes, indicator.names).
 			Order(`COALESCE(e."ResultTime", i."LastModifyTime") ASC`).
 			Limit(12).
 			Find(&items).Error
@@ -395,7 +395,7 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 		Select(`i."ItemCode" AS item_code, i."ItemName" AS item_name, i."Result" AS result_value, i."Unit" AS unit, i."Reference" AS reference_range, i."ResultSign" AS result_sign, COALESCE(e."ResultTime", i."LastModifyTime") AS tested_at`).
 		Joins(`JOIN "LIS_Examination" AS e ON e."Id" = i."ExaminationId"`).
 		Where(`e."PatientId" = ? AND e."TenantId" = ? AND COALESCE(e."ResultTime", i."LastModifyTime") >= ? AND COALESCE(i."ResultSign", '') <> ''`,
-			patient.ID, legacyTenantID, thirtyDaysAgo).
+			patient.ID, LegacyTenantID, thirtyDaysAgo).
 		Order(`COALESCE(e."ResultTime", i."LastModifyTime") DESC`).
 		Limit(5).
 		Find(&abnormalItems).Error
@@ -447,7 +447,7 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 func (s *PatientCoreService) buildNavigation(patientID modeltypes.LegacyID) (*PatientCoreNavigation, error) {
 	// legacy 患者主表没有 bed_number / active 状态语义，按患者主键稳定排序即可
 	var patients []models.Patient
-	err := s.db.Where("\"TenantId\" = ?", legacyTenantID).Order("\"Id\" ASC").Find(&patients).Error
+	err := s.db.Where("\"TenantId\" = ?", LegacyTenantID).Order("\"Id\" ASC").Find(&patients).Error
 	if err != nil {
 		// 某些 legacy 库可能缺少 TenantId 过滤语义，回退到全量患者排序
 		if fallbackErr := s.db.Order("\"Id\" ASC").Find(&patients).Error; fallbackErr != nil {

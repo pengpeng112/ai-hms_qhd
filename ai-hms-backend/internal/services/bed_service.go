@@ -280,14 +280,14 @@ func (s *BedService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Schedule_Bed"`).Where(`"Id" = ?`, id).Delete(nil)
+	result := s.db.Table(`"Schedule_Bed"`).Where(`"Id" = ?`, id).Update(`"IsDisabled"`, true)
 	if result.Error != nil {
 		return fmt.Errorf("删除床位失败: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("bed not found")
 	}
-	s.db.Table(`"Schedule_BedEquipmentRel"`).Where(`"BedId" = ?`, id).Delete(nil)
+	s.db.Table(`"Schedule_BedEquipmentRel"`).Where(`"BedId" = ?`, id).Update(`"IsDisabled"`, true)
 	return nil
 }
 

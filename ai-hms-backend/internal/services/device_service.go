@@ -390,7 +390,7 @@ func toDeviceDTO(row legacyDeviceRecord) models.Device {
 func (s *DeviceService) baseLegacyDeviceQuery() *gorm.DB {
 	lastMaintSubquery := s.db.Table(`"Auxiliary_EquipmentMaintenance"`).
 		Select(`"EquipmentId", MAX("OperateTime") AS last_maintained`).
-		Where(`"TenantId" = ?`, legacyTenantID).
+		Where(`"TenantId" = ?`, LegacyTenantID).
 		Group(`"EquipmentId"`)
 
 	return s.db.Table(`"Auxiliary_EquipmentInfomation" AS e`).
@@ -398,7 +398,7 @@ func (s *DeviceService) baseLegacyDeviceQuery() *gorm.DB {
 		Joins(`LEFT JOIN "Schedule_Bed" AS bed ON bed."Id" = rel."BedId" AND bed."TenantId" = e."TenantId"`).
 		Joins(`LEFT JOIN "Schedule_Ward" AS ward ON ward."Id" = bed."WardId" AND ward."TenantId" = e."TenantId"`).
 		Joins(`LEFT JOIN (?) AS maint ON maint."EquipmentId" = e."Id"`, lastMaintSubquery).
-		Where(`e."TenantId" = ? AND COALESCE(e."IsDisabled", false) = false`, legacyTenantID)
+		Where(`e."TenantId" = ? AND COALESCE(e."IsDisabled", false) = false`, LegacyTenantID)
 }
 
 func (s *DeviceService) legacyDeviceSelect() string {
@@ -496,7 +496,7 @@ func (s *DeviceService) Create(req DeviceCreateRequest, tenantId, creatorId int6
 		return nil, errors.New("database not available")
 	}
 	if tenantId == 0 {
-		tenantId = legacyTenantID
+		tenantId = LegacyTenantID
 	}
 
 	var createdID int64
@@ -566,7 +566,7 @@ func (s *DeviceService) Update(id string, req DeviceUpdateRequest) (*models.Devi
 
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		var equipment legacyEquipment
-		if err := tx.Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, legacyTenantID).First(&equipment).Error; err != nil {
+		if err := tx.Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, LegacyTenantID).First(&equipment).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("device not found")
 			}
@@ -679,7 +679,7 @@ func (s *DeviceService) Delete(id string) error {
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		result := tx.Model(&legacyEquipment{}).
-			Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, legacyTenantID).
+			Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, LegacyTenantID).
 			Updates(map[string]interface{}{
 				`IsDisabled`:     true,
 				`LastModifyTime`: time.Now().UTC(),
@@ -716,7 +716,7 @@ func (s *DeviceService) UpdateStatus(id, status string) error {
 	}
 	return s.db.Transaction(func(tx *gorm.DB) error {
 		var equipment legacyEquipment
-		if err := tx.Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, legacyTenantID).First(&equipment).Error; err != nil {
+		if err := tx.Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("IsDisabled", false) = false`, deviceID, LegacyTenantID).First(&equipment).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return errors.New("device not found")
 			}
@@ -738,7 +738,7 @@ func (s *DeviceService) ListUsageLogs(id string, req DeviceLogListRequest) (*Dev
 		return nil, err
 	}
 	req.Page, req.PageSize = normalizeDevicePage(req.Page, req.PageSize, 20)
-	query := s.db.Model(&legacyEquipmentUsageLog{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, legacyTenantID, equipmentID)
+	query := s.db.Model(&legacyEquipmentUsageLog{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, LegacyTenantID, equipmentID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
@@ -781,7 +781,7 @@ func (s *DeviceService) ListMaintenanceRecords(id string, req DeviceLogListReque
 		return nil, err
 	}
 	req.Page, req.PageSize = normalizeDevicePage(req.Page, req.PageSize, 20)
-	query := s.db.Model(&legacyEquipmentMaintenance{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, legacyTenantID, equipmentID)
+	query := s.db.Model(&legacyEquipmentMaintenance{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, LegacyTenantID, equipmentID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
@@ -826,7 +826,7 @@ func (s *DeviceService) ListDisinfectionRecords(id string, req DeviceLogListRequ
 		return nil, err
 	}
 	req.Page, req.PageSize = normalizeDevicePage(req.Page, req.PageSize, 20)
-	query := s.db.Model(&legacyEquipmentDisinfection{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, legacyTenantID, equipmentID)
+	query := s.db.Model(&legacyEquipmentDisinfection{}).Where(`"TenantId" = ? AND "EquipmentId" = ?`, LegacyTenantID, equipmentID)
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
 		return nil, err
@@ -876,7 +876,7 @@ func (s *DeviceService) resolveLegacyBedID(tx *gorm.DB, bedNumber string, wardID
 	if bedNumber == "" {
 		return nil, nil
 	}
-	query := tx.Model(&legacyBed{}).Where(`"TenantId" = ? AND "Name" = ? AND COALESCE("IsDisabled", false) = false`, legacyTenantID, bedNumber)
+	query := tx.Model(&legacyBed{}).Where(`"TenantId" = ? AND "Name" = ? AND COALESCE("IsDisabled", false) = false`, LegacyTenantID, bedNumber)
 	if wardID != nil {
 		query = query.Where(`"WardId" = ?`, *wardID)
 	}
@@ -955,11 +955,11 @@ func (s *DeviceService) upsertLegacyBedRelation(tx *gorm.DB, tenantID, equipment
 func (s *DeviceService) disableLegacyBedRelation(tx *gorm.DB, equipmentID int64) error {
 	now := time.Now().UTC()
 	var relation legacyBedEquipmentRel
-	if err := tx.Where(`"EquipmentId" = ? AND "TenantId" = ? AND "IsDefault" = true`, equipmentID, legacyTenantID).First(&relation).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+	if err := tx.Where(`"EquipmentId" = ? AND "TenantId" = ? AND "IsDefault" = true`, equipmentID, LegacyTenantID).First(&relation).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return err
 	}
 	if err := tx.Model(&legacyBedEquipmentRel{}).
-		Where(`"EquipmentId" = ? AND "TenantId" = ?`, equipmentID, legacyTenantID).
+		Where(`"EquipmentId" = ? AND "TenantId" = ?`, equipmentID, LegacyTenantID).
 		Updates(map[string]interface{}{`IsDisabled`: true, `LastModifyTime`: now}).Error; err != nil {
 		return err
 	}
@@ -978,7 +978,7 @@ func (s *DeviceService) currentLegacyBedInfo(tx *gorm.DB, equipmentID int64) (st
 	}
 	err := tx.Table(`"Schedule_BedEquipmentRel" AS rel`).
 		Joins(`JOIN "Schedule_Bed" AS bed ON bed."Id" = rel."BedId"`).
-		Where(`rel."EquipmentId" = ? AND rel."TenantId" = ? AND COALESCE(rel."IsDisabled", false) = false AND rel."IsDefault" = true`, equipmentID, legacyTenantID).
+		Where(`rel."EquipmentId" = ? AND rel."TenantId" = ? AND COALESCE(rel."IsDisabled", false) = false AND rel."IsDefault" = true`, equipmentID, LegacyTenantID).
 		Select(`bed."Name" AS bed_name, bed."WardId" AS ward_id`).
 		Limit(1).
 		Scan(&row).Error
@@ -990,7 +990,7 @@ func (s *DeviceService) currentLegacyBedInfo(tx *gorm.DB, equipmentID int64) (st
 
 func (s *DeviceService) updateLegacyDeviceStatus(tx *gorm.DB, equipmentID int64, status string) error {
 	var relation legacyBedEquipmentRel
-	err := tx.Where(`"EquipmentId" = ? AND "TenantId" = ? AND "IsDefault" = true`, equipmentID, legacyTenantID).First(&relation).Error
+	err := tx.Where(`"EquipmentId" = ? AND "TenantId" = ? AND "IsDefault" = true`, equipmentID, LegacyTenantID).First(&relation).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil
 	}

@@ -10,6 +10,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var ErrPatientShiftDuplicate = errors.New("患者或床位同日同班已有排班")
+
 // PatientShiftService 患者排班服务
 type PatientShiftService struct {
 	db *gorm.DB
@@ -212,6 +214,9 @@ func (s *PatientShiftService) Create(req PatientShiftCreateRequest, tenantId, cr
 	}
 
 	if err := s.db.Create(&patientShift).Error; err != nil {
+		if isPatientShiftUniqueViolation(err) {
+			return nil, ErrPatientShiftDuplicate
+		}
 		return nil, err
 	}
 	patientShift.Status = MapPatientShiftStatusLegacyToNew(patientShift.Status)
@@ -614,6 +619,9 @@ func (s *PatientShiftService) BatchSave(req BatchSaveRequest, tenantId, creatorI
 
 // ─── S-8/S-9 模板功能（Status=60） ───
 
+// Deprecated: 阶段 3 — 模板已迁移到 ScheduleTemplateService，路由不再调用此方法。
+// Status=60 仅保留审计，不可继续写入或作为模板数据源。
+// 请使用 ScheduleTemplateService.ListTemplates 替代。
 func (s *PatientShiftService) ListTemplates(tenantId int64, wardID *int64) ([]models.PatientShift, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
@@ -633,6 +641,9 @@ func (s *PatientShiftService) ListTemplates(tenantId int64, wardID *int64) ([]mo
 	return items, nil
 }
 
+// Deprecated: 阶段 3 — 模板已迁移到 ScheduleTemplateService，路由不再调用此方法。
+// Status=60 仅保留审计，禁止再删除或写入。
+// 请使用 ScheduleTemplateService.SaveTemplate 替代。
 func (s *PatientShiftService) SaveTemplate(items []PatientShiftCreateRequest, tenantId, creatorId int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
@@ -666,6 +677,9 @@ func (s *PatientShiftService) SaveTemplate(items []PatientShiftCreateRequest, te
 	})
 }
 
+// Deprecated: 阶段 3 — 模板已迁移到 ScheduleTemplateService，路由不再调用此方法。
+// 旧实现从 Status=60 读取模板并写入 Status=20，不符合新规则。
+// 请使用 ScheduleTemplateService.ApplyTemplate 替代。
 func (s *PatientShiftService) ApplyTemplate(targetDate string, tenantId, creatorId int64, wardID *int64) (int, error) {
 	if s.db == nil {
 		return 0, errors.New("database not available")

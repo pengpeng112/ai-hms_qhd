@@ -18,6 +18,12 @@ type Config struct {
 	CORS      CORSConfig
 	Hdis      HdisConfig
 	AppSecret string
+
+	OrderCronEnabled bool
+
+	LegacyTenantID int64
+
+	ParameterizedQueries bool
 }
 
 // ServerConfig 服务器配置
@@ -36,6 +42,11 @@ type DatabaseConfig struct {
 	DBName   string
 	SSLMode  string
 	TimeZone string
+
+	MaxOpenConns   int
+	MaxIdleConns   int
+	ConnMaxLifeMin int
+	ConnMaxIdleMin int
 }
 
 // LoggingConfig 日志配置
@@ -91,6 +102,11 @@ func Load() (*Config, error) {
 			DBName:   mustGetEnvAny("LEGACY_DB_NAME", "DB_NAME"),
 			SSLMode:  getEnvAny("disable", "LEGACY_DB_SSLMODE", "DB_SSLMODE", "DB_SSL_MODE"),
 			TimeZone: getEnvAny("Asia/Shanghai", "LEGACY_DB_TIMEZONE", "DB_TIMEZONE"),
+
+			MaxOpenConns:   getEnvInt("DB_MAX_OPEN_CONNS", 100),
+			MaxIdleConns:   getEnvInt("DB_MAX_IDLE_CONNS", 10),
+			ConnMaxLifeMin: getEnvInt("DB_CONN_MAX_LIFE", 60),
+			ConnMaxIdleMin: getEnvInt("DB_CONN_MAX_IDLE", 5),
 		},
 		Logging: LoggingConfig{
 			RequestEnabled:   getEnvBool("LOG_REQUESTS", false),
@@ -121,6 +137,10 @@ func Load() (*Config, error) {
 			Secret:                mustGetEnv("APP_SECRET"),
 		},
 		AppSecret: mustGetEnv("APP_SECRET"),
+
+		OrderCronEnabled:     getEnvBool("ORDER_CRON_ENABLED", false),
+		LegacyTenantID:       int64(getEnvInt("LEGACY_TENANT_ID", 3)),
+		ParameterizedQueries: getEnvBool("SQL_PARAMETERIZED_QUERIES", true),
 	}
 
 	// 验证必要配置

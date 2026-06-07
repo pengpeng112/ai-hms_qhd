@@ -183,17 +183,6 @@ func (s *DictService) ListTypes() (*DictTypeListResponse, error) {
 		return nil, err
 	}
 
-	newTypes, err := s.listNewSchemaDictTypes()
-	if err == nil {
-		for _, item := range newTypes {
-			if _, exists := typesByCode[item.Code]; !exists {
-				typesByCode[item.Code] = item
-			}
-		}
-	} else if !isMissingRelationError(err) {
-		return nil, err
-	}
-
 	if len(typesByCode) == 0 {
 		for _, item := range legacyFallbackDictTypes() {
 			typesByCode[item.Code] = item
@@ -246,12 +235,6 @@ func (s *DictService) GetItemsByTypeCode(typeCode string, isEnabledOnly bool) (*
 	items, err := s.listLegacyCodeDictionaryItems(typeCode, isEnabledOnly)
 	if err != nil && !isMissingRelationError(err) {
 		return nil, err
-	}
-	if len(items) == 0 {
-		items, err = s.listNewSchemaDictItems(typeCode, isEnabledOnly)
-		if err != nil && !isMissingRelationError(err) {
-			return nil, err
-		}
 	}
 	if len(items) == 0 {
 		items = legacyFallbackDictItems(typeCode, isEnabledOnly)
@@ -336,12 +319,6 @@ func (s *DictService) listLegacyCodeDictionaryTypes() ([]models.DictType, error)
 	return result, nil
 }
 
-func (s *DictService) listNewSchemaDictTypes() ([]models.DictType, error) {
-	var types []models.DictType
-	err := s.db.Order("sort_order ASC").Find(&types).Error
-	return types, err
-}
-
 func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOnly bool) ([]models.DictItem, error) {
 	legacyTypes := unifiedCodeToLegacyTypes[typeCode]
 	if len(legacyTypes) == 0 {
@@ -365,7 +342,7 @@ func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOn
 
 	now := time.Now()
 	items := make([]models.DictItem, 0, len(rows))
-	for idx, row := range rows {
+	for _, row := range rows {
 		enabled := !row.IsDisabled
 		if isEnabledOnly && !enabled {
 			continue
@@ -379,7 +356,7 @@ func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOn
 			itemName = itemCode
 		}
 		items = append(items, models.DictItem{
-			ID:          fmt.Sprintf("%s|%s|%d", typeCode, row.Type, idx+1),
+			ID:          fmt.Sprintf("%s|%s|%s", typeCode, row.Type, itemCode),
 			TypeCode:    typeCode,
 			Code:        itemCode,
 			Name:        itemName,
@@ -392,16 +369,6 @@ func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOn
 		})
 	}
 	return items, nil
-}
-
-func (s *DictService) listNewSchemaDictItems(typeCode string, isEnabledOnly bool) ([]models.DictItem, error) {
-	query := s.db.Where("type_code = ?", typeCode)
-	if isEnabledOnly {
-		query = query.Where("is_enabled = ?", true)
-	}
-	var items []models.DictItem
-	err := query.Order("sort_order ASC").Find(&items).Error
-	return items, err
 }
 
 func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictItem, error) {
@@ -434,7 +401,7 @@ func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictIt
 		}
 		parentCodeSet[code] = struct{}{}
 		items = append(items, models.DictItem{
-			ID:         fmt.Sprintf("%s|%s", models.DictTypeOutcome, code),
+			ID:         fmt.Sprintf("%s|%s|%s", models.DictTypeOutcome, row.Type, code),
 			TypeCode:   models.DictTypeOutcome,
 			Code:       code,
 			Name:       name,
@@ -463,7 +430,7 @@ func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictIt
 			parentCode = ""
 		}
 		items = append(items, models.DictItem{
-			ID:         fmt.Sprintf("%s|REASON|%d", models.DictTypeOutcome, idx+1),
+			ID:         fmt.Sprintf("%s|%s|%s", models.DictTypeOutcome, row.Type, reasonCode),
 			TypeCode:   models.DictTypeOutcome,
 			Code:       reasonCode,
 			Name:       reasonName,
@@ -497,6 +464,30 @@ func parseLegacyOutcomeReason(raw string) (parentCode, reasonName string) {
 		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
 	}
 	return "", raw
+}
+
+func parseLegacyDictItemID(id string) (string, string, error) {
+	parts := strings.SplitN(id, "|", 3)
+	if len(parts) < 3 {
+		return "", "", fmt.Errorf("invalid legacy dict item id: %s", id)
+	}
+	return strings.TrimSpace(parts[1]), strings.TrimSpace(parts[2]), nil
+}
+
+func (s *DictService) queryLegacyDictItem(legacyType, code string) (name string, sortOrder int, isDisabled bool, err error) {
+	type row struct {
+		Name       string `gorm:"column:Name"`
+		Sort       int    `gorm:"column:Sort"`
+		IsDisabled bool   `gorm:"column:IsDisabled"`
+	}
+	var r row
+	if err := s.db.Table(`"CodeDictionary_CodeDictionarys"`).
+		Select(`"Name", "Sort", COALESCE("IsDisabled", false) AS "IsDisabled"`).
+		Where(`"Type" = ? AND "Code" = ?`, legacyType, code).
+		First(&r).Error; err != nil {
+		return "", 0, false, err
+	}
+	return r.Name, r.Sort, r.IsDisabled, nil
 }
 
 func legacyTypeDisplayName(legacyType string) string {
@@ -585,333 +576,137 @@ func buildTree(items []models.DictItem, parentCode string) []models.DictItem {
 	return result
 }
 
-// CreateType 创建字典类型
+// CreateType 创建字典类型 — 老库 CodeDictionary_CodeDictionarys 无独立类型表，类型通过条目 Type 列隐式管理
 func (s *DictService) CreateType(dictType *models.DictType) error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-
-	dictType.ID = uuid.New().String()
-	return s.db.Create(dictType).Error
+	return errors.New("字典类型创建暂不可用：老库 CodeDictionary_CodeDictionarys 无独立类型表，类型由条目 Type 列隐式定义")
 }
 
-// UpdateType 更新字典类型（code 变更时级联更新 dict_items.type_code）
+// UpdateType 更新字典类型 — 老库无独立类型表，类型由条目 Type 列隐式管理
 func (s *DictService) UpdateType(id string, updates map[string]interface{}) error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-
-	// 未修改 code，直接更新
-	newCodeRaw, codeChanged := updates["code"]
-	if !codeChanged {
-		return s.db.Model(&models.DictType{}).Where("id = ?", id).Updates(updates).Error
-	}
-
-	// code 修改时需要级联更新 dict_items.type_code
-	var dictType models.DictType
-	if err := s.db.Where("id = ?", id).First(&dictType).Error; err != nil {
-		return errors.New("字典类型不存在")
-	}
-
-	oldCode := dictType.Code
-	newCode, ok := newCodeRaw.(string)
-	if !ok {
-		return errors.New("字典类型代码格式错误")
-	}
-	newCode = strings.TrimSpace(newCode)
-	if newCode == "" {
-		return errors.New("字典类型代码不能为空")
-	}
-	updates["code"] = newCode
-
-	// code 未变化，直接更新其他字段
-	if oldCode == newCode {
-		return s.db.Model(&models.DictType{}).Where("id = ?", id).Updates(updates).Error
-	}
-
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 先更新字典类型本身（受唯一约束保护）
-		if err := tx.Model(&models.DictType{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			return err
-		}
-
-		// 再级联更新该类型下所有字典项的 type_code
-		if err := tx.Model(&models.DictItem{}).
-			Where("type_code = ?", oldCode).
-			Update("type_code", newCode).Error; err != nil {
-			return err
-		}
-		return nil
-	})
+	return errors.New("字典类型更新暂不可用：老库 CodeDictionary_CodeDictionarys 无独立类型表，请直接修改该类型下所有条目的 Type 列")
 }
 
-// DeleteType 删除字典类型（级联删除关联的字典项）
+// DeleteType 删除字典类型 — 老库无独立类型表
 func (s *DictService) DeleteType(id string) error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-
-	// 先获取字典类型的 code
-	var dictType models.DictType
-	if err := s.db.Where("id = ?", id).First(&dictType).Error; err != nil {
-		return errors.New("字典类型不存在")
-	}
-
-	// 使用事务确保数据一致性
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 先删除该类型下的所有字典项
-		if err := tx.Where("type_code = ?", dictType.Code).Delete(&models.DictItem{}).Error; err != nil {
-			return err
-		}
-
-		// 再删除字典类型
-		if err := tx.Delete(&models.DictType{}, "id = ?", id).Error; err != nil {
-			return err
-		}
-
-		return nil
-	})
+	return errors.New("字典类型删除暂不可用：老库 CodeDictionary_CodeDictionarys 无独立类型表，请直接禁用/删除该类型下所有条目")
 }
 
-// CreateItem 创建字典项
+// CreateItem 创建字典项 — 写入老库 CodeDictionary_CodeDictionarys，返回可复用的 legacy ID
 func (s *DictService) CreateItem(item *models.DictItem) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-
-	// 验证字典类型是否存在
-	var dictType models.DictType
-	if err := s.db.Where("code = ?", item.TypeCode).First(&dictType).Error; err != nil {
-		return errors.New("字典类型不存在")
+	if item.TypeCode == "" || item.Code == "" {
+		return errors.New("字典类型代码和字典编码不能为空")
 	}
-
-	item.ID = uuid.New().String()
-	if err := s.db.Create(item).Error; err != nil {
+	isDisabled := true
+	if item.IsEnabled {
+		isDisabled = false
+	}
+	if err := s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, isDisabled); err != nil {
 		return err
 	}
-	s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, !item.IsEnabled)
+	item.ID = fmt.Sprintf("%s|%s|%s", item.TypeCode, item.TypeCode, item.Code)
 	return nil
 }
 
-// UpdateItem 更新字典项（code 变更时级联更新后代 code/parent_code）
+// UpdateItem 更新字典项 — 通过 legacy ID 定位老库 CodeDictionary_CodeDictionarys 条目
 func (s *DictService) UpdateItem(id string, updates map[string]interface{}) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	// 检查是否修改了 code 字段
-	newCode, codeChanged := updates["code"]
-	if !codeChanged {
-		if err := s.db.Model(&models.DictItem{}).Where("id = ?", id).Updates(updates).Error; err != nil {
+	legacyType, code, err := parseLegacyDictItemID(id)
+	if err != nil {
+		return err
+	}
+
+	name, sortOrder, isDisabled, err := s.queryLegacyDictItem(legacyType, code)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("字典项不存在")
+		}
+		return err
+	}
+
+	if v, ok := updates["name"].(string); ok && v != "" {
+		name = v
+	} else if v, ok := updates["Name"].(string); ok && v != "" {
+		name = v
+	}
+
+	if v, ok := updates["sort_order"]; ok {
+		switch sv := v.(type) {
+		case float64:
+			sortOrder = int(sv)
+		case int:
+			sortOrder = sv
+		}
+	} else if v, ok := updates["SortOrder"]; ok {
+		switch sv := v.(type) {
+		case float64:
+			sortOrder = int(sv)
+		case int:
+			sortOrder = sv
+		}
+	}
+
+	if v, ok := updates["is_enabled"].(bool); ok {
+		isDisabled = !v
+	} else if v, ok := updates["IsEnabled"].(bool); ok {
+		isDisabled = !v
+	}
+
+	newCode := code
+	if v, ok := updates["code"].(string); ok && v != "" {
+		newCode = v
+	} else if v, ok := updates["Code"].(string); ok && v != "" {
+		newCode = v
+	}
+
+	if newCode != code {
+		if err := s.legacyDictDisable(legacyType, code); err != nil {
 			return err
 		}
-		var item models.DictItem
-		if err := s.db.Where("id = ?", id).First(&item).Error; err == nil {
-			isDisabled := true
-			if v, ok := updates["is_enabled"].(bool); ok {
-				isDisabled = !v
-			} else if v, ok := updates["IsEnabled"].(bool); ok {
-				isDisabled = !v
-			}
-			s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, isDisabled)
-		}
-		return nil
 	}
 
-	// code 被修改，需要级联更新子项
-	var item models.DictItem
-	if err := s.db.Where("id = ?", id).First(&item).Error; err != nil {
-		return errors.New("字典项不存在")
-	}
-
-	oldCode := item.Code
-	newCodeStr, ok := newCode.(string)
-	if !ok {
-		return errors.New("字典编码格式错误")
-	}
-	newCodeStr = strings.TrimSpace(newCodeStr)
-	if newCodeStr == "" {
-		return errors.New("字典编码不能为空")
-	}
-	updates["code"] = newCodeStr
-
-	// code 未变化，直接更新
-	if oldCode == newCodeStr {
-		return s.db.Model(&models.DictItem{}).Where("id = ?", id).Updates(updates).Error
-	}
-
-	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 先取出全部后代，再按前缀改写 code/parent_code，避免只级联一层
-		descendants, err := collectDescendantItems(tx, item.TypeCode, oldCode)
-		if err != nil {
-			return err
-		}
-
-		for _, descendant := range descendants {
-			nextCode := replaceCodePrefix(descendant.Code, oldCode, newCodeStr)
-			nextParentCode := replaceCodePrefix(descendant.ParentCode, oldCode, newCodeStr)
-			descendantUpdates := map[string]interface{}{}
-			if nextCode != descendant.Code {
-				descendantUpdates["code"] = nextCode
-			}
-			if nextParentCode != descendant.ParentCode {
-				descendantUpdates["parent_code"] = nextParentCode
-			}
-			if len(descendantUpdates) > 0 {
-				if err := tx.Model(&models.DictItem{}).
-					Where("id = ?", descendant.ID).
-					Updates(descendantUpdates).Error; err != nil {
-					return err
-				}
-			}
-		}
-
-		// 最后更新当前项，避免和后代更新顺序互相影响
-		if err := tx.Model(&models.DictItem{}).Where("id = ?", id).Updates(updates).Error; err != nil {
-			return err
-		}
-		return nil
-	})
+	return s.legacyDictUpsert(legacyType, newCode, name, sortOrder, isDisabled)
 }
 
-// DeleteItem 删除字典项（递归级联删除所有后代子项）
+// DeleteItem 删除字典项 — 通过 legacy ID 定位，软删除老库 CodeDictionary_CodeDictionarys 条目
 func (s *DictService) DeleteItem(id string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	// 先查出该字典项，获取 code 和 type_code
-	var item models.DictItem
-	if err := s.db.Where("id = ?", id).First(&item).Error; err != nil {
-		return errors.New("字典项不存在")
+	legacyType, code, err := parseLegacyDictItemID(id)
+	if err != nil {
+		return err
 	}
 
-	txErr := s.db.Transaction(func(tx *gorm.DB) error {
-		// 收集所有后代的 code
-		descendantCodes, err := collectDescendantCodes(tx, item.TypeCode, item.Code)
-		if err != nil {
-			return err
-		}
-		// 删除所有后代子项
-		if len(descendantCodes) > 0 {
-			if err := tx.Where("type_code = ? AND code IN ?", item.TypeCode, descendantCodes).Delete(&models.DictItem{}).Error; err != nil {
-				return err
-			}
-		}
-		// 删除该项本身
-		if err := tx.Delete(&models.DictItem{}, "id = ?", id).Error; err != nil {
-			return err
-		}
-		return nil
-	})
-	if txErr != nil {
-		return txErr
-	}
-	s.legacyDictDisable(item.TypeCode, item.Code)
-	return nil
+	return s.legacyDictDisable(legacyType, code)
 }
 
-// collectDescendantCodes 收集所有后代的 code（单次查询 + 内存 BFS）
-func collectDescendantCodes(tx *gorm.DB, typeCode string, parentCode string) ([]string, error) {
-	// 一次性加载该类型下所有项的 code 和 parent_code
-	type codePair struct {
-		Code       string
-		ParentCode string
-	}
-	var pairs []codePair
-	if err := tx.Model(&models.DictItem{}).
-		Where("type_code = ?", typeCode).
-		Select("code, parent_code").
-		Scan(&pairs).Error; err != nil {
-		return nil, err
-	}
-
-	// 构建 parentCode -> childCodes 映射
-	childMap := make(map[string][]string)
-	for _, p := range pairs {
-		if p.ParentCode != "" {
-			childMap[p.ParentCode] = append(childMap[p.ParentCode], p.Code)
-		}
-	}
-
-	// BFS 收集所有后代（visited 防循环）
-	var result []string
-	visited := make(map[string]bool)
-	queue := childMap[parentCode]
-	for len(queue) > 0 {
-		code := queue[0]
-		queue = queue[1:]
-		if visited[code] {
-			continue
-		}
-		visited[code] = true
-		result = append(result, code)
-		queue = append(queue, childMap[code]...)
-	}
-	return result, nil
-}
-
-// collectDescendantItems 收集所有后代字典项（单次查询 + 内存 BFS）
-func collectDescendantItems(tx *gorm.DB, typeCode string, parentCode string) ([]models.DictItem, error) {
-	// 一次性加载该类型下所有项
-	var allItems []models.DictItem
-	if err := tx.Where("type_code = ?", typeCode).Find(&allItems).Error; err != nil {
-		return nil, err
-	}
-
-	// 构建 parentCode -> items 映射
-	childMap := make(map[string][]models.DictItem)
-	for _, item := range allItems {
-		if item.ParentCode != "" {
-			childMap[item.ParentCode] = append(childMap[item.ParentCode], item)
-		}
-	}
-
-	// BFS 收集所有后代（visited 防循环）
-	var result []models.DictItem
-	visited := make(map[string]bool)
-	queue := childMap[parentCode]
-	for len(queue) > 0 {
-		item := queue[0]
-		queue = queue[1:]
-		if visited[item.Code] {
-			continue
-		}
-		visited[item.Code] = true
-		result = append(result, item)
-		queue = append(queue, childMap[item.Code]...)
-	}
-	return result, nil
-}
-
-// replaceCodePrefix 替换 code 的父前缀（仅匹配完整 code 或 code- 子级）
-func replaceCodePrefix(value string, oldCode string, newCode string) string {
-	if value == oldCode {
-		return newCode
-	}
-	prefix := oldCode + "-"
-	if strings.HasPrefix(value, prefix) {
-		return newCode + strings.TrimPrefix(value, oldCode)
-	}
-	return value
-}
-
-// ToggleItemEnabled 切换字典项启用状态
+// ToggleItemEnabled 切换字典项启用状态 — 通过 legacy ID 定位，读写老库 CodeDictionary_CodeDictionarys
 func (s *DictService) ToggleItemEnabled(id string) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
 
-	var item models.DictItem
-	if err := s.db.Where("id = ?", id).First(&item).Error; err != nil {
+	legacyType, code, err := parseLegacyDictItemID(id)
+	if err != nil {
 		return err
 	}
 
-	if err := s.db.Model(&item).Update("is_enabled", !item.IsEnabled).Error; err != nil {
+	name, sortOrder, isDisabled, err := s.queryLegacyDictItem(legacyType, code)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("字典项不存在")
+		}
 		return err
 	}
-	s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, !item.IsEnabled)
-	return nil
+
+	return s.legacyDictUpsert(legacyType, code, name, sortOrder, !isDisabled)
 }
 
 // ImportData 导入字典数据
@@ -928,314 +723,17 @@ type ImportResult struct {
 	ItemsUpdated int `json:"itemsUpdated"`
 }
 
-// ImportDicts 批量导入字典数据
+// ImportDicts 批量导入字典数据 — 暂不可用（dict_types/dict_items 表已弃用）
 func (s *DictService) ImportDicts(data *ImportData) (*ImportResult, error) {
-	if s.db == nil {
-		return nil, errors.New("database not available")
-	}
-
-	result := &ImportResult{}
-
-	// 使用事务确保数据一致性
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// 导入字典类型
-		for _, dt := range data.Types {
-			var existing models.DictType
-			err := tx.Where("code = ?", dt.Code).First(&existing).Error
-
-			switch err {
-			case gorm.ErrRecordNotFound:
-				// 创建新类型
-				dt.ID = uuid.New().String()
-				if err := tx.Create(&dt).Error; err != nil {
-					return err
-				}
-				result.TypesCreated++
-			case nil:
-				// 更新现有类型
-				updates := map[string]interface{}{
-					"name":        dt.Name,
-					"description": dt.Description,
-					"icon":        dt.Icon,
-					"sort_order":  dt.SortOrder,
-					"is_enabled":  dt.IsEnabled,
-				}
-				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
-					return err
-				}
-				result.TypesUpdated++
-			default:
-				return err
-			}
-		}
-
-		// 导入字典项
-		for _, di := range data.Items {
-			var existing models.DictItem
-			err := tx.Where("type_code = ? AND code = ?", di.TypeCode, di.Code).First(&existing).Error
-
-			switch err {
-			case gorm.ErrRecordNotFound:
-				// 创建新项
-				di.ID = uuid.New().String()
-				if err := tx.Create(&di).Error; err != nil {
-					return err
-				}
-				result.ItemsCreated++
-			case nil:
-				// 更新现有项
-				updates := map[string]interface{}{
-					"name":        di.Name,
-					"description": di.Description,
-					"sort_order":  di.SortOrder,
-					"is_enabled":  di.IsEnabled,
-					"extra":       di.Extra,
-					"parent_code": di.ParentCode,
-				}
-				if err := tx.Model(&existing).Updates(updates).Error; err != nil {
-					return err
-				}
-				result.ItemsUpdated++
-			default:
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return result, nil
+	return nil, errors.New("批量导入暂不可用：dict_types/dict_items 表已弃用，请直接写入老库 CodeDictionary_CodeDictionarys")
 }
 
 // InitDefaultDicts 初始化默认字典数据
 func (s *DictService) InitDefaultDicts() error {
-	if s.db == nil {
-		return errors.New("database not available")
-	}
-
-	// 初始化字典类型
-	dictTypes := []models.DictType{
-		{Code: models.DictTypeDialysisMode, Name: "透析方式", Description: "血液透析治疗方式", SortOrder: 1},
-		{Code: models.DictTypeAnticoagulant, Name: "抗凝剂类型", Description: "透析抗凝剂类型", SortOrder: 2},
-		{Code: models.DictTypeDialysateType, Name: "透析液类型", Description: "透析液配方类型", SortOrder: 3},
-		{Code: models.DictTypeDialysateGroup, Name: "透析液组", Description: "透析液离子组分", SortOrder: 4},
-		{Code: models.DictTypeDialysateFlow, Name: "透析液流量", Description: "透析液流速", SortOrder: 5},
-		{Code: models.DictTypeGlucose, Name: "葡萄糖类型", Description: "透析液葡萄糖含量", SortOrder: 6},
-		{Code: models.DictTypeMaterialCat, Name: "材料分类", Description: "透析耗材分类", SortOrder: 7},
-		{Code: models.DictTypeDrugCat, Name: "药品分类", Description: "透析药品分类", SortOrder: 8},
-		{Code: models.DictTypeOrderType, Name: "医嘱类型", Description: "医嘱类型", SortOrder: 9},
-		{Code: models.DictTypeOrderCategory, Name: "医嘱分类", Description: "医嘱分类", SortOrder: 10},
-		{Code: models.DictTypeVascularAccess, Name: "血管通路类型", Description: "血管通路类型", SortOrder: 11},
-		{Code: models.DictTypeVascularSite, Name: "血管通路部位", Description: "血管通路部位", SortOrder: 12},
-		{Code: models.DictTypeVeinType, Name: "静脉类型", Description: "静脉类型", SortOrder: 13},
-		{Code: models.DictTypeArteryType, Name: "动脉类型", Description: "动脉类型", SortOrder: 14},
-		{Code: models.DictTypeDoctor, Name: "医生列表", Description: "透析中心医生", SortOrder: 15},
-		{Code: models.DictTypeHospital, Name: "手术医院", Description: "血管通路手术医院", SortOrder: 16},
-		{Code: models.DictTypeSurgeryType, Name: "手术类型", Description: "血管通路干预手术类型", SortOrder: 17},
-		{Code: models.DictTypeOrderRoute, Name: "用法", Description: "医嘱用法/给药途径", SortOrder: 23},
-		{Code: models.DictTypeOrderFrequency, Name: "频次", Description: "医嘱执行频次", SortOrder: 24},
-		{Code: models.DictTypeOrderTiming, Name: "使用时机", Description: "透析中用药时机", SortOrder: 25},
-	}
-
-	for _, dt := range dictTypes {
-		// 幂等操作：不存在则创建，存在则更新
-		var existing models.DictType
-		s.db.Where(models.DictType{Code: dt.Code}).
-			Assign(models.DictType{
-				Name:        dt.Name,
-				Description: dt.Description,
-				SortOrder:   dt.SortOrder,
-			}).
-			FirstOrCreate(&existing)
-	}
-
-	// 初始化字典项
-	dictItems := []models.DictItem{
-		// 透析方式
-		{TypeCode: models.DictTypeDialysisMode, Code: "HD", Name: "血液透析", Description: "Hemodialysis", SortOrder: 1},
-		{TypeCode: models.DictTypeDialysisMode, Code: "HDF", Name: "血液透析滤过", Description: "Hemodiafiltration", SortOrder: 2},
-		{TypeCode: models.DictTypeDialysisMode, Code: "HF", Name: "血液过滤", Description: "Hemofiltration", SortOrder: 3},
-		{TypeCode: models.DictTypeDialysisMode, Code: "HP", Name: "血液灌流", Description: "Hemoperfusion", SortOrder: 4},
-		{TypeCode: models.DictTypeDialysisMode, Code: "CRRT", Name: "连续肾脏替代治疗", Description: "Continuous Renal Replacement Therapy", SortOrder: 5},
-
-		// 抗凝剂类型
-		{TypeCode: models.DictTypeAnticoagulant, Code: "HEPARIN", Name: "肝素钠", Description: "普通肝素", SortOrder: 1},
-		{TypeCode: models.DictTypeAnticoagulant, Code: "NADROPARIN", Name: "那屈肝素钙", Description: "低分子肝素", SortOrder: 2},
-		{TypeCode: models.DictTypeAnticoagulant, Code: "LMWH", Name: "低分子肝素", Description: "Low Molecular Weight Heparin", SortOrder: 3},
-		{TypeCode: models.DictTypeAnticoagulant, Code: "NO_HEPARIN", Name: "无肝素", Description: "无抗凝剂透析", SortOrder: 4},
-		{TypeCode: models.DictTypeAnticoagulant, Code: "CITRATE", Name: "枸橼酸钠", Description: "局部枸橼酸抗凝", SortOrder: 5},
-
-		// 透析液类型
-		{TypeCode: models.DictTypeDialysateType, Code: "A_B", Name: "A液+B液", Description: "碳酸氢盐透析液", SortOrder: 1},
-		{TypeCode: models.DictTypeDialysateType, Code: "POWDER", Name: "干粉A+干粉B", Description: "干粉装透析液", SortOrder: 2},
-		{TypeCode: models.DictTypeDialysateType, Code: "BAG", Name: "成品袋装", Description: "袋装透析液", SortOrder: 3},
-
-		// 透析液组
-		{TypeCode: models.DictTypeDialysateGroup, Code: "A16_K2_CA1.25", Name: "A16-K2/Ca1.25", Description: "钠140 钾2.0 钙1.25", SortOrder: 1},
-		{TypeCode: models.DictTypeDialysateGroup, Code: "A18_K3_CA1.5", Name: "A18-K3/Ca1.5", Description: "钠140 钾3.0 钙1.5", SortOrder: 2},
-		{TypeCode: models.DictTypeDialysateGroup, Code: "A20_K1.5_CA1.0", Name: "A20-K1.5/Ca1.0", Description: "钠140 钾1.5 钙1.0", SortOrder: 3},
-		{TypeCode: models.DictTypeDialysateGroup, Code: "STANDARD", Name: "标准组", Description: "标准配方", SortOrder: 4},
-
-		// 透析液流量
-		{TypeCode: models.DictTypeDialysateFlow, Code: "300", Name: "300 ml/min", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeDialysateFlow, Code: "500", Name: "500 ml/min", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeDialysateFlow, Code: "700", Name: "700 ml/min", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeDialysateFlow, Code: "800", Name: "800 ml/min", Description: "", SortOrder: 4},
-
-		// 葡萄糖类型
-		{TypeCode: models.DictTypeGlucose, Code: "NO_GLUCOSE", Name: "无糖", Description: "0 mmol/L", SortOrder: 1},
-		{TypeCode: models.DictTypeGlucose, Code: "GLUCOSE_1.1", Name: "含糖 (1.1)", Description: "5.5 mmol/L", SortOrder: 2},
-		{TypeCode: models.DictTypeGlucose, Code: "GLUCOSE_2.0", Name: "含糖 (2.0)", Description: "11.1 mmol/L", SortOrder: 3},
-		{TypeCode: models.DictTypeGlucose, Code: "CUSTOM", Name: "自定义", Description: "自定义葡萄糖浓度", SortOrder: 4},
-
-		// 材料分类
-		{TypeCode: models.DictTypeMaterialCat, Code: "DIALYZER", Name: "透析器", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeMaterialCat, Code: "BLOODLINE", Name: "血液管路", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeMaterialCat, Code: "NEEDLE", Name: "穿刺针", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeMaterialCat, Code: "CARE_KIT", Name: "护理包", Description: "", SortOrder: 4},
-		{TypeCode: models.DictTypeMaterialCat, Code: "DISINFECTANT", Name: "消毒液", Description: "", SortOrder: 5},
-		{TypeCode: models.DictTypeMaterialCat, Code: "OTHER", Name: "其他耗材", Description: "", SortOrder: 6},
-
-		// 药品分类
-		{TypeCode: models.DictTypeDrugCat, Code: "ANTICOAGULANT", Name: "抗凝药", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeDrugCat, Code: "EPO", Name: "促红素", Description: "红细胞生成刺激剂", SortOrder: 2},
-		{TypeCode: models.DictTypeDrugCat, Code: "VITAMIN", Name: "维生素类", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeDrugCat, Code: "ELECTROLYTE", Name: "电解质调节", Description: "", SortOrder: 4},
-		{TypeCode: models.DictTypeDrugCat, Code: "ANTIHYPERTENSIVE", Name: "降压药", Description: "", SortOrder: 5},
-		{TypeCode: models.DictTypeDrugCat, Code: "EMERGENCY", Name: "紧急用药", Description: "", SortOrder: 6},
-		{TypeCode: models.DictTypeDrugCat, Code: "OTHER_DRUG", Name: "其他药品", Description: "", SortOrder: 7},
-
-		// 医嘱类型
-		{TypeCode: models.DictTypeOrderType, Code: "LONG_TERM", Name: "长期", Description: "长期医嘱", SortOrder: 1},
-		{TypeCode: models.DictTypeOrderType, Code: "TEMPORARY", Name: "临时", Description: "临时医嘱", SortOrder: 2},
-
-		// 医嘱分类
-		{TypeCode: models.DictTypeOrderCategory, Code: "BASIC", Name: "基础类", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeOrderCategory, Code: "MEDICATION", Name: "用药类", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeOrderCategory, Code: "EMERGENCY", Name: "应急类", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeOrderCategory, Code: "EXAMINATION", Name: "检查类", Description: "", SortOrder: 4},
-
-		// 血管通路类型
-		{TypeCode: models.DictTypeVascularAccess, Code: "AVF", Name: "内瘘 - AVF", Description: "自体动静脉内瘘", SortOrder: 1},
-		{TypeCode: models.DictTypeVascularAccess, Code: "AVG", Name: "内瘘 - AVG", Description: "移植物动静脉内瘘", SortOrder: 2},
-		{TypeCode: models.DictTypeVascularAccess, Code: "TCC", Name: "导管 - TCC", Description: "带隧道和涤纶套的透析导管", SortOrder: 3},
-		{TypeCode: models.DictTypeVascularAccess, Code: "NCC", Name: "导管 - NCC", Description: "无隧道和涤纶套的透析导管", SortOrder: 4},
-
-		// 血管通路部位
-		{TypeCode: models.DictTypeVascularSite, Code: "FOREARM", Name: "前臂", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeVascularSite, Code: "FOREARM_MID", Name: "前臂中段", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeVascularSite, Code: "WRIST", Name: "腕部", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeVascularSite, Code: "ELBOW", Name: "肘部", Description: "", SortOrder: 4},
-		{TypeCode: models.DictTypeVascularSite, Code: "UPPER_ARM", Name: "上臂", Description: "", SortOrder: 5},
-		{TypeCode: models.DictTypeVascularSite, Code: "NECK", Name: "颈部", Description: "", SortOrder: 6},
-		{TypeCode: models.DictTypeVascularSite, Code: "SUBCLAVIAN", Name: "锁骨下", Description: "", SortOrder: 7},
-		{TypeCode: models.DictTypeVascularSite, Code: "GROIN", Name: "腹股沟", Description: "", SortOrder: 8},
-		{TypeCode: models.DictTypeVascularSite, Code: "LOWER_LIMB", Name: "下肢", Description: "", SortOrder: 9},
-
-		// 静脉类型
-		{TypeCode: models.DictTypeVeinType, Code: "CEPHALIC", Name: "头静脉", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeVeinType, Code: "BASILIC", Name: "贵要静脉", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeVeinType, Code: "MEDIAN_CUBITAL", Name: "肘正中静脉", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeVeinType, Code: "JUGULAR", Name: "颈内静脉", Description: "", SortOrder: 4},
-		{TypeCode: models.DictTypeVeinType, Code: "SUBCLAVIAN", Name: "锁骨下静脉", Description: "", SortOrder: 5},
-		{TypeCode: models.DictTypeVeinType, Code: "FEMORAL", Name: "股静脉", Description: "", SortOrder: 6},
-		{TypeCode: models.DictTypeVeinType, Code: "MEDIAN_ANTEBRACHIAL", Name: "前臂正中静脉", Description: "", SortOrder: 7},
-
-		// 动脉类型
-		{TypeCode: models.DictTypeArteryType, Code: "RADIAL", Name: "桡动脉", Description: "", SortOrder: 1},
-		{TypeCode: models.DictTypeArteryType, Code: "BRACHIAL", Name: "肱动脉", Description: "", SortOrder: 2},
-		{TypeCode: models.DictTypeArteryType, Code: "ULNAR", Name: "尺动脉", Description: "", SortOrder: 3},
-		{TypeCode: models.DictTypeArteryType, Code: "FEMORAL", Name: "股动脉", Description: "", SortOrder: 4},
-
-		// 医生列表
-		{TypeCode: models.DictTypeDoctor, Code: "DR_WANG", Name: "王医生", Description: "主任医师", SortOrder: 1},
-		{TypeCode: models.DictTypeDoctor, Code: "DR_LI", Name: "李医生", Description: "主治医师", SortOrder: 2},
-		{TypeCode: models.DictTypeDoctor, Code: "DR_ZHANG", Name: "张医生", Description: "副主任医师", SortOrder: 3},
-		{TypeCode: models.DictTypeDoctor, Code: "DR_CHEN", Name: "陈医生", Description: "住院医师", SortOrder: 4},
-		{TypeCode: models.DictTypeDoctor, Code: "DR_LIU", Name: "刘医生", Description: "主治医师", SortOrder: 5},
-		{TypeCode: models.DictTypeDoctor, Code: "DR_ZHAO", Name: "赵医生", Description: "住院医师", SortOrder: 6},
-
-		// 手术医院
-		{TypeCode: models.DictTypeHospital, Code: "H_LOCAL", Name: "本院", Description: "本透析中心", SortOrder: 1},
-		{TypeCode: models.DictTypeHospital, Code: "H_PEK_UNION", Name: "北京协和医院", Description: "血管外科", SortOrder: 2},
-		{TypeCode: models.DictTypeHospital, Code: "H_PEK_301", Name: "解放军总医院（301医院）", Description: "血管外科", SortOrder: 3},
-		{TypeCode: models.DictTypeHospital, Code: "H_SHANGHAI_HUA_SHAN", Name: "复旦大学附属华山医院", Description: "血管外科", SortOrder: 4},
-		{TypeCode: models.DictTypeHospital, Code: "H_GUANG_ZHONG_FIRST", Name: "中山大学附属第一医院", Description: "血管外科", SortOrder: 5},
-		{TypeCode: models.DictTypeHospital, Code: "H_ZHE_DA_FIRST", Name: "浙江大学附属第一医院", Description: "血管外科", SortOrder: 6},
-		{TypeCode: models.DictTypeHospital, Code: "H_SICHUAN_PROVINCIAL", Name: "四川省人民医院", Description: "血管外科", SortOrder: 7},
-		{TypeCode: models.DictTypeHospital, Code: "H_XIJING", Name: "西京医院", Description: "血管外科", SortOrder: 8},
-		{TypeCode: models.DictTypeHospital, Code: "H_OTHER", Name: "其他医院", Description: "其他医疗机构", SortOrder: 9},
-
-		// 手术类型（血管通路干预）
-		{TypeCode: models.DictTypeSurgeryType, Code: "PTA", Name: "PTA（经皮腔内血管成形术）", Description: "Percutaneous Transluminal Angioplasty", SortOrder: 1},
-		{TypeCode: models.DictTypeSurgeryType, Code: "THROMBECTOMY", Name: "血栓清除术", Description: "Fogarty导管取栓", SortOrder: 2},
-		{TypeCode: models.DictTypeSurgeryType, Code: "REVISION", Name: "修复术", Description: "内瘘修复手术", SortOrder: 3},
-		{TypeCode: models.DictTypeSurgeryType, Code: "LIGATION", Name: "结扎术", Description: "血管结扎手术", SortOrder: 4},
-		{TypeCode: models.DictTypeSurgeryType, Code: "CATHETER_EXCHANGE", Name: "导管更换", Description: "透析导管更换", SortOrder: 5},
-		{TypeCode: models.DictTypeSurgeryType, Code: "CATHETER_REPOSITIONING", Name: "导管重新定位", Description: "导管位置调整", SortOrder: 6},
-		{TypeCode: models.DictTypeSurgeryType, Code: "STENT", Name: "支架植入", Description: "血管支架植入术", SortOrder: 7},
-		{TypeCode: models.DictTypeSurgeryType, Code: "BALLOON", Name: "球囊扩张", Description: "球囊扩张术", SortOrder: 8},
-		{TypeCode: models.DictTypeSurgeryType, Code: "OTHER", Name: "其他", Description: "其他手术类型", SortOrder: 9},
-
-		// 药品分类 - 方法
-		{TypeCode: models.DictTypeDrugCat, Code: "METHOD", Name: "方法", Description: "非药品方法项目", SortOrder: 8, IsEnabled: true},
-
-		// 用法（给药途径）
-		{TypeCode: models.DictTypeOrderRoute, Code: "IV_PUSH", Name: "静脉推注", SortOrder: 1, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "IV_DRIP", Name: "静脉滴注", SortOrder: 2, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "SC", Name: "皮下注射", SortOrder: 3, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "IM", Name: "肌肉注射", SortOrder: 4, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "PO", Name: "口服", SortOrder: 5, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "IV_PUMP", Name: "静脉泵入", SortOrder: 6, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "SUBLINGUAL_DISSOLVE", Name: "含化", SortOrder: 7, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "TUBE_LOCK", Name: "封管", SortOrder: 8, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "SUBLINGUAL", Name: "舌下给药", SortOrder: 9, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "RECTAL", Name: "直肠给药", SortOrder: 10, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "MUCOSAL", Name: "皮肤黏膜给药", SortOrder: 11, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "INHALATION", Name: "呼吸道给药（雾化吸入）", SortOrder: 12, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderRoute, Code: "TOPICAL", Name: "经皮给药（外用）", SortOrder: 13, IsEnabled: true},
-
-		// 频次
-		{TypeCode: models.DictTypeOrderFrequency, Code: "STAT", Name: "临时一次", SortOrder: 1, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderFrequency, Code: "QW", Name: "每周一次", SortOrder: 2, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderFrequency, Code: "BIW", Name: "每周两次", SortOrder: 3, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderFrequency, Code: "TIW", Name: "每周三次", SortOrder: 4, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderFrequency, Code: "Q2W", Name: "两周一次", SortOrder: 5, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderFrequency, Code: "QM", Name: "一月一次", SortOrder: 6, IsEnabled: true},
-
-		// 使用时机
-		{TypeCode: models.DictTypeOrderTiming, Code: "ALL", Name: "首+中+末", SortOrder: 1, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "MID_END", Name: "中+末", SortOrder: 2, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "START_MID", Name: "首+中", SortOrder: 3, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "START_END", Name: "首+末", SortOrder: 4, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "START", Name: "首", SortOrder: 5, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "MID", Name: "中", SortOrder: 6, IsEnabled: true},
-		{TypeCode: models.DictTypeOrderTiming, Code: "END", Name: "末", SortOrder: 7, IsEnabled: true},
-	}
-
-	for _, di := range dictItems {
-		// 幂等操作：不存在则创建，存在则更新
-		var existing models.DictItem
-		s.db.Where(models.DictItem{TypeCode: di.TypeCode, Code: di.Code}).
-			Assign(models.DictItem{
-				Name:        di.Name,
-				Description: di.Description,
-				SortOrder:   di.SortOrder,
-				IsEnabled:   di.IsEnabled,
-				Extra:       di.Extra,
-				ParentCode:  di.ParentCode,
-			}).
-			FirstOrCreate(&existing)
-	}
-
-	return nil
+	return errors.New("默认字典初始化暂不可用：dict_types/dict_items 表已弃用，字典数据请直接写入老库 CodeDictionary_CodeDictionarys")
 }
 
-// InitClinicalDicts 初始化临床诊疗分类字典数据
+// InitClinicalDicts 初始化临床诊疗分类字典数据 — 暂不可用
 func (s *DictService) InitClinicalDicts() error {
 	if s.db == nil {
 		return errors.New("database not available")

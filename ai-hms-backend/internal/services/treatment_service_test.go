@@ -179,7 +179,7 @@ func mustCreateLegacyTreatment(t *testing.T, db *gorm.DB, row map[string]any) in
 	baseTime := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
 	defaults := map[string]any{
 		"Id":               int64(1),
-		"TenantId":         legacyTenantID,
+		"TenantId":         LegacyTenantID,
 		"PatientId":        int64(1001),
 		"QueueNo":          "A01",
 		"ShiftName":        "上午",
@@ -210,7 +210,7 @@ func fetchTreatmentTimes(t *testing.T, db *gorm.DB, id int64) (*time.Time, *time
 	}
 	if err := db.Table(`"Treatment_Treatment"`).
 		Select(`"StartTime", "EndTime", "Status"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Take(&row).Error; err != nil {
 		t.Fatalf("fetch treatment failed: %v", err)
 	}

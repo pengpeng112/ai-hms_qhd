@@ -1,28 +1,47 @@
-import { Modal, Button, message } from 'antd'
-import { useState } from 'react'
-import { getErrorMessage } from '@/services/restClient'
+import { Modal, Button, Select, DatePicker, message } from 'antd'
+import { useState, useEffect } from 'react'
+import { restApi, getErrorMessage } from '@/services/restClient'
+import type { ScheduleTemplateResponse } from '@/services/restClient'
+import dayjs from 'dayjs'
 
 interface ApplyTemplateModalProps {
   open: boolean
   onClose: () => void
   onSuccess: () => void
+  wardId?: number
 }
 
-export default function ApplyTemplateModal({ open, onClose, onSuccess }: ApplyTemplateModalProps) {
+export default function ApplyTemplateModal({ open, onClose, onSuccess, wardId }: ApplyTemplateModalProps) {
   const [loading, setLoading] = useState(false)
+  const [templates, setTemplates] = useState<ScheduleTemplateResponse[]>([])
+  const [templateId, setTemplateId] = useState<number | undefined>(undefined)
+  const [targetDate, setTargetDate] = useState(dayjs())
+
+  useEffect(() => {
+    if (open) {
+      restApi.listScheduleTemplates(wardId)
+        .then(setTemplates)
+        .catch((error) => {
+          message.error(getErrorMessage(error))
+          setTemplates([])
+        })
+    }
+  }, [open, wardId])
 
   const handleApply = async () => {
+    if (!templateId) {
+      message.warning('请选择模板')
+      return
+    }
     setLoading(true)
     try {
-      const token = localStorage.getItem('auth_token') || ''
-      const res = await fetch('/api/v1/schedule/template/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      })
-      if (!res.ok) throw new Error(`模板应用失败 (${res.status})`)
-      const data = await res.json()
-      message.success(`模板应用成功: 创建 ${data.createdCount || 0} 条，跳过 ${data.skippedCount || 0} 条`)
+      const req: { templateId: number; targetDate: string; wardId?: number } = {
+        templateId,
+        targetDate: targetDate.format('YYYY-MM-DD'),
+      }
+      if (wardId) req.wardId = wardId
+      const data = await restApi.applyScheduleTemplate(req)
+      message.success(`模板应用成功: 创建 ${data.count} 条排班`)
       onSuccess()
       onClose()
     } catch (error) {
@@ -42,8 +61,25 @@ export default function ApplyTemplateModal({ open, onClose, onSuccess }: ApplyTe
         <Button key="apply" type="primary" loading={loading} onClick={handleApply}>应用模板</Button>,
       ]}
     >
-      <p className="text-sm text-gray-600">将已保存的排班模板应用到当前周。</p>
-      <p className="text-meta text-gray-400 mt-2">TODO: 模板选择 + 预览（待后端接口完善）</p>
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">选择模板</label>
+          <Select
+            value={templateId}
+            onChange={(v) => setTemplateId(v)}
+            placeholder="选择排班模板..."
+            className="w-full"
+            options={templates.map((t) => ({
+              value: t.template.id,
+              label: `${t.template.name} (v${t.template.version}, ${t.itemCount}项)`,
+            }))}
+          />
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">目标日期</label>
+          <DatePicker value={targetDate} onChange={(d) => d && setTargetDate(d)} className="w-full" allowClear={false} />
+        </div>
+      </div>
     </Modal>
   )
 }

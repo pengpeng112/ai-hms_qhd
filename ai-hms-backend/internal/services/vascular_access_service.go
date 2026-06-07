@@ -104,7 +104,7 @@ func (s *VascularAccessService) List(patientID string) ([]VascularAccessResponse
 	}
 
 	var accesses []models.VascularAccess
-	err = s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "IsDefault"}, Desc: true}).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "CreateTime"}, Desc: true}).
 		Find(&accesses).Error
@@ -139,7 +139,7 @@ func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequ
 
 	var count int64
 	if err := s.db.Model(&models.Patient{}).
-		Where(`"Id" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequ
 	now := time.Now()
 	access := models.VascularAccess{
 		ID:                accessID,
-		TenantID:          legacyTenantID,
+		TenantID:          LegacyTenantID,
 		PatientID:         legacyPatientID,
 		AccessType:        req.AccessType,
 		Site:              req.Site,
@@ -185,7 +185,7 @@ func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequ
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if req.IsDefault {
 			if err := tx.Model(&models.VascularAccess{}).
-				Where(`"PatientId" = ? AND "TenantId" = ? AND "IsDefault" = ?`, legacyPatientID, legacyTenantID, true).
+				Where(`"PatientId" = ? AND "TenantId" = ? AND "IsDefault" = ?`, legacyPatientID, LegacyTenantID, true).
 				Update("IsDefault", false).Error; err != nil {
 				return err
 			}
@@ -203,7 +203,7 @@ func (s *VascularAccessService) Create(patientID string, req *VascularAccessRequ
 		access.PictureID = pictureID
 
 		return tx.Model(&models.VascularAccess{}).
-			Where(`"Id" = ? AND "TenantId" = ?`, access.ID, legacyTenantID).
+			Where(`"Id" = ? AND "TenantId" = ?`, access.ID, LegacyTenantID).
 			Updates(map[string]any{
 				"LastModifyTime": now,
 			}).Error
@@ -231,7 +231,7 @@ func (s *VascularAccessService) Update(patientID, accessID string, req *Vascular
 	}
 
 	var access models.VascularAccess
-	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, LegacyTenantID).
 		First(&access).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("vascular access not found")
@@ -268,7 +268,7 @@ func (s *VascularAccessService) Update(patientID, accessID string, req *Vascular
 	err = s.db.Transaction(func(tx *gorm.DB) error {
 		if req.IsDefault {
 			if err := tx.Model(&models.VascularAccess{}).
-				Where(`"PatientId" = ? AND "TenantId" = ? AND "Id" <> ? AND "IsDefault" = ?`, legacyPatientID, legacyTenantID, legacyAccessID, true).
+				Where(`"PatientId" = ? AND "TenantId" = ? AND "Id" <> ? AND "IsDefault" = ?`, legacyPatientID, LegacyTenantID, legacyAccessID, true).
 				Update("IsDefault", false).Error; err != nil {
 				return err
 			}
@@ -282,7 +282,7 @@ func (s *VascularAccessService) Update(patientID, accessID string, req *Vascular
 		access.PictureID = pictureID
 
 		return tx.Model(&models.VascularAccess{}).
-			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, LegacyTenantID).
 			Updates(map[string]any{
 				"AccessType":        access.AccessType,
 				"AccessPosition":    access.Site,
@@ -329,11 +329,11 @@ func (s *VascularAccessService) Delete(patientID, accessID string) error {
 	}
 
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, legacyAccessID, legacyTenantID).
+		if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, legacyAccessID, LegacyTenantID).
 			Delete(&models.VascularAccessImage{}).Error; err != nil {
 			return err
 		}
-		result := tx.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, legacyTenantID).
+		result := tx.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyAccessID, legacyPatientID, LegacyTenantID).
 			Delete(&models.VascularAccess{})
 		if result.Error != nil {
 			return result.Error
@@ -451,7 +451,7 @@ func (s *VascularAccessService) loadImagesByAccessIDs(accesses []models.Vascular
 	}
 
 	var images []models.VascularAccessImage
-	if err := s.db.Where(`"TenantId" = ? AND "VascularAccessId" IN ?`, legacyTenantID, ids).
+	if err := s.db.Where(`"TenantId" = ? AND "VascularAccessId" IN ?`, LegacyTenantID, ids).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "Sort"}, Desc: false}).
 		Order(clause.OrderByColumn{Column: clause.Column{Name: "CreateTime"}, Desc: false}).
 		Find(&images).Error; err != nil {
@@ -471,7 +471,7 @@ func (s *VascularAccessService) loadImagesByAccessIDs(accesses []models.Vascular
 
 func (s *VascularAccessService) replaceAccessImages(tx *gorm.DB, accessID modeltypes.LegacyID, creatorID int64, images []string) ([]string, *modeltypes.LegacyID, error) {
 	cleaned := compactStrings(images)
-	if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, accessID, legacyTenantID).
+	if err := tx.Where(`"VascularAccessId" = ? AND "TenantId" = ?`, accessID, LegacyTenantID).
 		Delete(&models.VascularAccessImage{}).Error; err != nil {
 		return nil, nil, err
 	}
@@ -493,7 +493,7 @@ func (s *VascularAccessService) replaceAccessImages(tx *gorm.DB, accessID modelt
 		}
 		rows = append(rows, models.VascularAccessImage{
 			ID:                imageID,
-			TenantID:          legacyTenantID,
+			TenantID:          LegacyTenantID,
 			VascularAccessID:  accessID,
 			ImageName:         fmt.Sprintf("vascular-access-%s-%d", legacyIDString(accessID), idx+1),
 			ImageBase64String: payload,
@@ -548,7 +548,7 @@ func (s *VascularAccessService) ListInterventions(patientID, vascularAccessID st
 		return nil, errors.New("invalid patient id")
 	}
 
-	query := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, legacyTenantID)
+	query := s.db.Where(`"PatientId" = ? AND "TenantId" = ?`, legacyPatientID, LegacyTenantID)
 	if vascularAccessID != "" {
 		legacyVascularAccessID, parseErr := parseLegacyID(vascularAccessID)
 		if parseErr != nil {
@@ -587,7 +587,7 @@ func (s *VascularAccessService) CreateIntervention(patientID string, req *Vascul
 	}
 
 	var access models.VascularAccess
-	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, legacyTenantID).
+	err = s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, LegacyTenantID).
 		First(&access).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("vascular access not found")
@@ -609,7 +609,7 @@ func (s *VascularAccessService) CreateIntervention(patientID string, req *Vascul
 	now := time.Now()
 	intervention := models.VascularAccessIntervention{
 		ID:                 interventionID,
-		TenantID:           legacyTenantID,
+		TenantID:           LegacyTenantID,
 		VascularAccessID:   legacyVascularAccessID,
 		PatientID:          legacyPatientID,
 		AccessType:         req.AccessType,
@@ -632,7 +632,7 @@ func (s *VascularAccessService) CreateIntervention(patientID string, req *Vascul
 			return err
 		}
 		return tx.Model(&models.VascularAccess{}).
-			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, legacyTenantID).
+			Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyVascularAccessID, legacyPatientID, LegacyTenantID).
 			Updates(map[string]any{
 				"InterveneCount": access.InterventionCount + 1,
 				"InterveneTime":  interventionDate,
@@ -664,7 +664,7 @@ func (s *VascularAccessService) DeleteIntervention(patientID, interventionID str
 		return errors.New("invalid intervention id")
 	}
 
-	result := s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyInterventionID, legacyPatientID, legacyTenantID).
+	result := s.db.Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, legacyInterventionID, legacyPatientID, LegacyTenantID).
 		Delete(&models.VascularAccessIntervention{})
 	if result.Error != nil {
 		return result.Error

@@ -2,13 +2,18 @@
 
 import { saveToken, clearToken, type TokenData, type UserInfo } from '@/utils/token'
 import { apiCache } from '@/utils/cache'
+import { clearSelectedRole } from './role'
 
 // OAuth 配置
 const AUTH_CONFIG = {
-  authServer: 'https://auth.aihhd.com',
-  clientId: 'yanshi7779',
+  authServer: import.meta.env.VITE_OAUTH_AUTH_SERVER || '',
+  clientId: import.meta.env.VITE_OAUTH_CLIENT_ID || '',
   responseType: 'id_token token',
   scope: 'openid profile api1',
+}
+
+function isOAuthConfigured(): boolean {
+  return !!(AUTH_CONFIG.authServer && AUTH_CONFIG.clientId)
 }
 
 // 生成随机字符串
@@ -29,6 +34,10 @@ function getRedirectUri(): string {
 
 // 发起 OAuth 登录跳转
 export function initiateOAuthLogin(): void {
+  if (!isOAuthConfigured()) {
+    console.error('OAuth is not configured (set VITE_OAUTH_AUTH_SERVER and VITE_OAUTH_CLIENT_ID)')
+    return
+  }
   const state = generateRandomString()
   const nonce = generateRandomString()
 
@@ -149,9 +158,8 @@ function parseJwtPayload(token: string): UserInfo | null {
 // 登出
 export function logout(): void {
   clearToken()
+  clearSelectedRole()
   apiCache.invalidate()
-  localStorage.removeItem('selected_role')
-  localStorage.removeItem('selected_role_user')
   window.location.href = '/login'
 }
 

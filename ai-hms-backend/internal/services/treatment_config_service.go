@@ -190,7 +190,7 @@ func (s *PlanTemplateService) loadLegacyPlanTemplateMaterials(templateIDs []int6
 	}
 
 	var rows []legacyPlanTemplateMaterial
-	if err := s.db.Where(`"TenantId" = ? AND "PlanTPLId" IN ?`, legacyTenantID, templateIDs).
+	if err := s.db.Where(`"TenantId" = ? AND "PlanTPLId" IN ?`, LegacyTenantID, templateIDs).
 		Order(`"MaterialGroup" ASC`).
 		Order(`"Id" ASC`).
 		Find(&rows).Error; err != nil {
@@ -212,7 +212,7 @@ func (s *PlanTemplateService) loadLegacyPlanTemplateMaterials(templateIDs []int6
 
 	var materials []legacyMaterialCatalogRow
 	if len(materialIDs) > 0 {
-		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, legacyTenantID, materialIDs).Find(&materials).Error; err != nil {
+		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, LegacyTenantID, materialIDs).Find(&materials).Error; err != nil {
 			return nil, err
 		}
 	}
@@ -257,7 +257,7 @@ func (s *PlanTemplateService) loadLegacyDrugNames(ids ...int64) (map[int64]strin
 	}
 
 	var rows []legacyDrugCatalog
-	if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, legacyTenantID, unique).Find(&rows).Error; err != nil {
+	if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, LegacyTenantID, unique).Find(&rows).Error; err != nil {
 		return nil, err
 	}
 	for _, row := range rows {
@@ -311,7 +311,7 @@ func toPlanTemplateDTO(item legacyPlanTemplate, materials []models.PlanTemplateM
 }
 
 func (s *PlanTemplateService) syncLegacyPlanTemplateMaterials(tx *gorm.DB, templateID int64, materials []models.PlanTemplateMaterial) error {
-	if err := tx.Where(`"PlanTPLId" = ? AND "TenantId" = ?`, templateID, legacyTenantID).
+	if err := tx.Where(`"PlanTPLId" = ? AND "TenantId" = ?`, templateID, LegacyTenantID).
 		Delete(&legacyPlanTemplateMaterial{}).Error; err != nil {
 		return err
 	}
@@ -339,7 +339,7 @@ func (s *PlanTemplateService) syncLegacyPlanTemplateMaterials(tx *gorm.DB, templ
 		}
 		row := map[string]any{
 			"Id":             id,
-			"TenantId":       legacyTenantID,
+			"TenantId":       LegacyTenantID,
 			"PlanTPLId":      templateID,
 			"MaterialId":     materialID,
 			"MaterialGroup":  idx,
@@ -370,7 +370,7 @@ func (s *PlanTemplateService) buildLegacyPlanTemplateValues(req PlanTemplateCrea
 	anticoagulant := req.TemplateContent.Anticoagulant
 	now := time.Now()
 	values := map[string]any{
-		"TenantId":              legacyTenantID,
+		"TenantId":              LegacyTenantID,
 		"Name":                  strings.TrimSpace(req.Name),
 		"CreatorId":             int64(0),
 		"CreateTime":            now,
@@ -499,7 +499,7 @@ func (s *PlanTemplateService) LegacyList(req PlanTemplateListRequest) (*PlanTemp
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&legacyPlanTemplate{}).Where(`"TenantId" = ?`, legacyTenantID)
+	query := s.db.Model(&legacyPlanTemplate{}).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.Search != "" {
 		query = query.Where(`"Name" LIKE ?`, "%"+strings.TrimSpace(req.Search)+"%")
 	}
@@ -577,7 +577,7 @@ func (s *PlanTemplateService) LegacyGet(id string) (*models.PlanTemplate, error)
 	}
 
 	var row legacyPlanTemplate
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("plan template not found")
 		}
@@ -734,7 +734,7 @@ func (s *PlanTemplateService) LegacyUpdate(id string, req PlanTemplateUpdateRequ
 		return nil, errors.New("database not available")
 	}
 	var current legacyPlanTemplate
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&current).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&current).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("plan template not found")
 		}
@@ -775,7 +775,7 @@ func (s *PlanTemplateService) LegacyUpdate(id string, req PlanTemplateUpdateRequ
 
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table(`"Plan_PlanTPL"`).
-			Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+			Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 			Updates(values).Error; err != nil {
 			return err
 		}
@@ -811,7 +811,7 @@ func (s *PlanTemplateService) LegacyDelete(id string) error {
 		return errors.New("database not available")
 	}
 	result := s.db.Table(`"Plan_PlanTPL"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(map[string]any{
 			"IsDisabled":     true,
 			"LastModifyTime": time.Now(),
@@ -852,7 +852,7 @@ func (s *PlanTemplateService) LegacyToggleEnabled(id string) (bool, error) {
 		return false, errors.New("database not available")
 	}
 	var row legacyPlanTemplate
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, errors.New("plan template not found")
 		}
@@ -860,7 +860,7 @@ func (s *PlanTemplateService) LegacyToggleEnabled(id string) (bool, error) {
 	}
 	newIsDisabled := !row.IsDisabled
 	if err := s.db.Table(`"Plan_PlanTPL"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(map[string]any{
 			"IsDisabled":     newIsDisabled,
 			"LastModifyTime": time.Now(),
@@ -998,7 +998,7 @@ func (s *MaterialCatalogService) LegacyList(req MaterialCatalogListRequest) (*Ma
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&legacyMaterialCatalogRow{}).Where(`"TenantId" = ?`, legacyTenantID)
+	query := s.db.Model(&legacyMaterialCatalogRow{}).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.Search != "" {
 		like := "%" + strings.TrimSpace(req.Search) + "%"
 		query = query.Where(`("Name" LIKE ? OR "Code" LIKE ? OR "Spell" LIKE ?)`, like, like, like)
@@ -1061,7 +1061,7 @@ func (s *MaterialCatalogService) LegacyGet(id string) (*models.MaterialCatalog, 
 		return nil, errors.New("database not available")
 	}
 	var row legacyMaterialCatalogRow
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("material catalog not found")
 		}
@@ -1246,7 +1246,7 @@ func (s *MaterialCatalogService) LegacyCreate(req MaterialCatalogCreateRequest) 
 	now := time.Now()
 	row := map[string]any{
 		"Id":             id,
-		"TenantId":       legacyTenantID,
+		"TenantId":       LegacyTenantID,
 		"Name":           strings.TrimSpace(req.Name),
 		"Spell":          strings.TrimSpace(req.Mnemonic),
 		"Classification": strings.TrimSpace(req.Category),
@@ -1380,7 +1380,7 @@ func (s *MaterialCatalogService) LegacyUpdate(id uint, req MaterialCatalogUpdate
 		return nil, errors.New("database not available")
 	}
 	var row legacyMaterialCatalogRow
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("material catalog not found")
 		}
@@ -1431,7 +1431,7 @@ func (s *MaterialCatalogService) LegacyUpdate(id uint, req MaterialCatalogUpdate
 		updates["Note"] = strings.TrimSpace(*req.Notes)
 	}
 	if err := s.db.Table(`"Auxiliary_MaterialInfomation"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(updates).Error; err != nil {
 		return nil, err
 	}
@@ -1460,7 +1460,7 @@ func (s *MaterialCatalogService) LegacyDelete(id uint) error {
 		return errors.New("database not available")
 	}
 	result := s.db.Table(`"Auxiliary_MaterialInfomation"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(map[string]any{"IsDisabled": true, "LastModifyTime": time.Now()})
 	if result.Error != nil {
 		return result.Error
@@ -1498,7 +1498,7 @@ func (s *MaterialCatalogService) LegacyToggleEnabled(id uint) (bool, error) {
 		return false, errors.New("database not available")
 	}
 	var row legacyMaterialCatalogRow
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, errors.New("material catalog not found")
 		}
@@ -1506,7 +1506,7 @@ func (s *MaterialCatalogService) LegacyToggleEnabled(id uint) (bool, error) {
 	}
 	newIsDisabled := !row.IsDisabled
 	if err := s.db.Table(`"Auxiliary_MaterialInfomation"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).
+		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).
 		Updates(map[string]any{"IsDisabled": newIsDisabled, "LastModifyTime": time.Now()}).Error; err != nil {
 		return false, err
 	}
@@ -1535,7 +1535,7 @@ func (s *MaterialCatalogService) LegacyGetCategories() ([]string, error) {
 	}
 	var categories []string
 	if err := s.db.Model(&legacyMaterialCatalogRow{}).
-		Where(`"TenantId" = ? AND COALESCE("IsDisabled", false) = false`, legacyTenantID).
+		Where(`"TenantId" = ? AND COALESCE("IsDisabled", false) = false`, LegacyTenantID).
 		Distinct(`"Classification"`).
 		Pluck(`"Classification"`, &categories).Error; err != nil {
 		return nil, err
@@ -2100,7 +2100,7 @@ func (s *DrugCatalogService) LegacyList(req DrugCatalogListRequest) (*DrugCatalo
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&legacyDrugCatalog{}).Where(`"TenantId" = ?`, legacyTenantID)
+	query := s.db.Model(&legacyDrugCatalog{}).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.Search != "" {
 		like := "%" + req.Search + "%"
 		query = query.Where(`("Name" LIKE ? OR "Code" LIKE ? OR "Spell" LIKE ?)`, like, like, like)
@@ -2154,7 +2154,7 @@ func (s *DrugCatalogService) LegacyGet(id string) (*models.DrugCatalog, error) {
 	}
 
 	var row legacyDrugCatalog
-	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, legacyTenantID).First(&row).Error; err != nil {
+	if err := s.db.Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("drug catalog not found")
 		}
@@ -2172,7 +2172,7 @@ func (s *DrugCatalogService) LegacyGetCategories() ([]string, error) {
 
 	var categories []string
 	if err := s.db.Model(&legacyDrugCatalog{}).
-		Where(`"TenantId" = ? AND COALESCE("IsDisabled", false) = false`, legacyTenantID).
+		Where(`"TenantId" = ? AND COALESCE("IsDisabled", false) = false`, LegacyTenantID).
 		Distinct(`"Classification"`).
 		Pluck(`"Classification"`, &categories).Error; err != nil {
 		return nil, err
@@ -2210,7 +2210,7 @@ func (s *DrugCatalogService) LegacyCreate(req DrugCatalogCreateRequest) (*models
 	code := ensureDrugCatalogCode(req.Code)
 	var count int64
 	if err := s.db.Model(&legacyDrugCatalog{}).
-		Where(`"TenantId" = ? AND "Code" = ?`, legacyTenantID, code).
+		Where(`"TenantId" = ? AND "Code" = ?`, LegacyTenantID, code).
 		Count(&count).Error; err != nil {
 		return nil, err
 	}
@@ -2227,7 +2227,7 @@ func (s *DrugCatalogService) LegacyCreate(req DrugCatalogCreateRequest) (*models
 		now := time.Now().UTC()
 		created = legacyDrugCatalog{
 			ID:                nextID,
-			TenantID:          legacyTenantID,
+			TenantID:          LegacyTenantID,
 			Name:              strings.TrimSpace(req.Name),
 			Classification:    strings.TrimSpace(req.Category),
 			Code:              code,
@@ -2265,7 +2265,7 @@ func (s *DrugCatalogService) LegacyUpdate(id uint, req DrugCatalogUpdateRequest)
 	}
 
 	var current legacyDrugCatalog
-	if err := s.db.Where(`"TenantId" = ? AND "Id" = ?`, legacyTenantID, id).First(&current).Error; err != nil {
+	if err := s.db.Where(`"TenantId" = ? AND "Id" = ?`, LegacyTenantID, id).First(&current).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("drug catalog not found")
 		}
@@ -2328,7 +2328,7 @@ func (s *DrugCatalogService) LegacyUpdate(id uint, req DrugCatalogUpdateRequest)
 	}
 
 	if err := s.db.Model(&legacyDrugCatalog{}).
-		Where(`"TenantId" = ? AND "Id" = ?`, legacyTenantID, id).
+		Where(`"TenantId" = ? AND "Id" = ?`, LegacyTenantID, id).
 		Updates(updates).Error; err != nil {
 		return nil, err
 	}
@@ -2342,7 +2342,7 @@ func (s *DrugCatalogService) LegacyDelete(id uint) error {
 	}
 
 	result := s.db.Model(&legacyDrugCatalog{}).
-		Where(`"TenantId" = ? AND "Id" = ?`, legacyTenantID, id).
+		Where(`"TenantId" = ? AND "Id" = ?`, LegacyTenantID, id).
 		Updates(map[string]interface{}{
 			"IsDisabled":     true,
 			"LastModifyTime": time.Now().UTC(),
@@ -2362,7 +2362,7 @@ func (s *DrugCatalogService) LegacyToggleEnabled(id uint) (bool, error) {
 	}
 
 	var current legacyDrugCatalog
-	if err := s.db.Where(`"TenantId" = ? AND "Id" = ?`, legacyTenantID, id).First(&current).Error; err != nil {
+	if err := s.db.Where(`"TenantId" = ? AND "Id" = ?`, LegacyTenantID, id).First(&current).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, errors.New("drug catalog not found")
 		}
@@ -2371,7 +2371,7 @@ func (s *DrugCatalogService) LegacyToggleEnabled(id uint) (bool, error) {
 
 	newEnabled := current.IsDisabled
 	if err := s.db.Model(&legacyDrugCatalog{}).
-		Where(`"TenantId" = ? AND "Id" = ?`, legacyTenantID, id).
+		Where(`"TenantId" = ? AND "Id" = ?`, LegacyTenantID, id).
 		Updates(map[string]interface{}{
 			"IsDisabled":     !newEnabled,
 			"LastModifyTime": time.Now().UTC(),
@@ -2484,7 +2484,7 @@ func (s *OrderTemplateService) LegacyList(req OrderTemplateListRequest) (*OrderT
 		req.PageSize = 20
 	}
 
-	query := s.db.Model(&legacyOrderTemplateRow{}).Where(`"TenantId" = ?`, legacyTenantID)
+	query := s.db.Model(&legacyOrderTemplateRow{}).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.Search != "" {
 		like := "%" + strings.TrimSpace(req.Search) + "%"
 		query = query.Where(`("Name" LIKE ? OR "Content" LIKE ?)`, like, like)
@@ -2532,7 +2532,7 @@ func (s *OrderTemplateService) LegacyList(req OrderTemplateListRequest) (*OrderT
 	drugMap := make(map[int64]legacyDrugCatalog)
 	if len(drugIDs) > 0 {
 		var drugs []legacyDrugCatalog
-		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, legacyTenantID, drugIDs).Find(&drugs).Error; err != nil {
+		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, LegacyTenantID, drugIDs).Find(&drugs).Error; err != nil {
 			return nil, err
 		}
 		for _, drug := range drugs {
@@ -2597,7 +2597,7 @@ func (s *OrderTemplateService) LegacyGet(id string) (*models.OrderTemplate, erro
 	}
 
 	var rows []legacyOrderTemplateRow
-	if err := s.db.Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, legacyTenantID, key, key, key).
+	if err := s.db.Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, LegacyTenantID, key, key, key).
 		Order(`"Id" ASC`).
 		Find(&rows).Error; err != nil {
 		return nil, err
@@ -2615,7 +2615,7 @@ func (s *OrderTemplateService) LegacyGet(id string) (*models.OrderTemplate, erro
 	drugMap := make(map[int64]legacyDrugCatalog)
 	if len(drugIDs) > 0 {
 		var drugs []legacyDrugCatalog
-		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, legacyTenantID, drugIDs).Find(&drugs).Error; err != nil {
+		if err := s.db.Where(`"TenantId" = ? AND "Id" IN ?`, LegacyTenantID, drugIDs).Find(&drugs).Error; err != nil {
 			return nil, err
 		}
 		for _, drug := range drugs {
@@ -2918,7 +2918,7 @@ func resolveLegacyOrderTemplateGroupKey(id int64, row legacyOrderTemplateRow) in
 }
 
 func (s *OrderTemplateService) replaceLegacyOrderTemplateRows(tx *gorm.DB, groupKey int64, req OrderTemplateCreateRequest) error {
-	deleteQuery := tx.Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, legacyTenantID, groupKey, groupKey, groupKey)
+	deleteQuery := tx.Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, LegacyTenantID, groupKey, groupKey, groupKey)
 	if err := deleteQuery.Delete(&legacyOrderTemplateRow{}).Error; err != nil {
 		return err
 	}
@@ -2956,7 +2956,7 @@ func (s *OrderTemplateService) replaceLegacyOrderTemplateRows(tx *gorm.DB, group
 
 		row := legacyOrderTemplateRow{
 			ID:             nextID,
-			TenantID:       legacyTenantID,
+			TenantID:       LegacyTenantID,
 			Name:           name,
 			Classification: strings.TrimSpace(req.Category),
 			OrderGroup:     groupKey,
@@ -3087,7 +3087,7 @@ func (s *OrderTemplateService) LegacyDelete(id string) error {
 	}
 
 	result := s.db.Model(&legacyOrderTemplateRow{}).
-		Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, legacyTenantID, key, key, key).
+		Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, LegacyTenantID, key, key, key).
 		Updates(map[string]interface{}{
 			"IsDisabled":     true,
 			"LastModifyTime": time.Now().UTC(),
@@ -3117,7 +3117,7 @@ func (s *OrderTemplateService) LegacyToggleEnabled(id string) (bool, error) {
 
 	newEnabled := !template.IsEnabled
 	if err := s.db.Model(&legacyOrderTemplateRow{}).
-		Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, legacyTenantID, key, key, key).
+		Where(`"TenantId" = ? AND ("OrderGroup" = ? OR ("OrderGroup" IS NULL AND "Id" = ?) OR ("OrderGroup" = 0 AND "Id" = ?))`, LegacyTenantID, key, key, key).
 		Updates(map[string]interface{}{
 			"IsDisabled":     !newEnabled,
 			"LastModifyTime": time.Now().UTC(),

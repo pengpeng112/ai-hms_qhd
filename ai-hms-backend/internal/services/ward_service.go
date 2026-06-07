@@ -16,11 +16,23 @@ func NewWardService() *WardService {
 	return &WardService{db: database.GetDB()}
 }
 
+var wardPatientTypeReverseMap = map[string]string{
+	"10": "长期患者", "20": "临时患者",
+}
+
+func wardPatientTypeLabel(code string) string {
+	if label, ok := wardPatientTypeReverseMap[code]; ok {
+		return label
+	}
+	return code
+}
+
 type WardDTO struct {
 	ID                   int64  `json:"id"`
 	Name                 string `json:"name"`
 	Sort                 int    `json:"sort"`
 	PatientType          string `json:"patientType"`
+	PatientTypeLabel     string `json:"patientTypeLabel"`
 	InfectionType        string `json:"infectionType"`
 	IsDisabled           bool   `json:"isDisabled"`
 	Note                 string `json:"note"`
@@ -70,6 +82,7 @@ type wardRawRow struct {
 	IsDisabled       bool   `gorm:"column:IsDisabled"`
 	Note             string `gorm:"column:Note"`
 	ResponsibleUsers string `gorm:"column:ResponsibleUsers"`
+	BedCount         int64  `gorm:"column:BedCount"`
 }
 
 func (s *WardService) List(includeDisabled bool) ([]WardDTO, error) {
@@ -78,7 +91,8 @@ func (s *WardService) List(includeDisabled bool) ([]WardDTO, error) {
 	}
 
 	query := s.db.Table(`"Schedule_Ward"`).Select(
-		`"Id", "Name", "Sort", "PatientType", "InfectionType", "IsDisabled", "Note", "ResponsibleUsers"`,
+		`"Id", "Name", "Sort", "PatientType", "InfectionType", "IsDisabled", "Note", "ResponsibleUsers", ` +
+			`COALESCE((SELECT COUNT(*) FROM "Schedule_Bed" WHERE "WardId" = "Schedule_Ward"."Id" AND COALESCE("IsDisabled", false) = false), 0) AS "BedCount"`,
 	)
 	if !includeDisabled {
 		query = query.Where(`"IsDisabled" = false`)
@@ -96,10 +110,12 @@ func (s *WardService) List(includeDisabled bool) ([]WardDTO, error) {
 			Name:             row.Name,
 			Sort:             row.Sort,
 			PatientType:      row.PatientType,
+			PatientTypeLabel: wardPatientTypeLabel(row.PatientType),
 			InfectionType:    row.InfectionType,
 			IsDisabled:       row.IsDisabled,
 			Note:             row.Note,
 			ResponsibleUsers: row.ResponsibleUsers,
+			BedCount:         row.BedCount,
 		}
 		result = append(result, dto)
 	}
@@ -111,7 +127,10 @@ func (s *WardService) GetByID(id int64) (*WardDTO, error) {
 		return nil, errors.New("database not available")
 	}
 	var row wardRawRow
-	if err := s.db.Table(`"Schedule_Ward"`).Where(`"Id" = ?`, id).First(&row).Error; err != nil {
+	if err := s.db.Table(`"Schedule_Ward"`).Select(
+		`"Id", "Name", "Sort", "PatientType", "InfectionType", "IsDisabled", "Note", "ResponsibleUsers", `+
+			`COALESCE((SELECT COUNT(*) FROM "Schedule_Bed" WHERE "WardId" = "Schedule_Ward"."Id" AND COALESCE("IsDisabled", false) = false), 0) AS "BedCount"`,
+	).Where(`"Id" = ?`, id).First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, fmt.Errorf("ward not found")
 		}
@@ -122,11 +141,26 @@ func (s *WardService) GetByID(id int64) (*WardDTO, error) {
 		Name:             row.Name,
 		Sort:             row.Sort,
 		PatientType:      row.PatientType,
+		PatientTypeLabel: wardPatientTypeLabel(row.PatientType),
 		InfectionType:    row.InfectionType,
 		IsDisabled:       row.IsDisabled,
 		Note:             row.Note,
 		ResponsibleUsers: row.ResponsibleUsers,
+		BedCount:         row.BedCount,
 	}, nil
+}
+
+var wardPatientTypeMap = map[string]string{
+	"长期患者": "10", "临时患者": "20",
+	"长期": "10", "临时": "20",
+	"10": "10", "20": "20",
+}
+
+func normalizeWardPatientType(v string) string {
+	if mapped, ok := wardPatientTypeMap[v]; ok {
+		return mapped
+	}
+	return v
 }
 
 func (s *WardService) Create(req WardCreateRequest) (*WardDTO, error) {
@@ -136,7 +170,7 @@ func (s *WardService) Create(req WardCreateRequest) (*WardDTO, error) {
 	columns := map[string]interface{}{
 		`"Name"`:             req.Name,
 		`"Sort"`:             req.Sort,
-		`"PatientType"`:      req.PatientType,
+		`"PatientType"`:      normalizeWardPatientType(req.PatientType),
 		`"InfectionType"`:    req.InfectionType,
 		`"Note"`:             req.Note,
 		`"IsDisabled"`:       req.IsDisabled,
@@ -166,7 +200,7 @@ func (s *WardService) Update(id int64, req WardUpdateRequest) (*WardDTO, error) 
 		columns[`"Sort"`] = *req.Sort
 	}
 	if req.PatientType != nil {
-		columns[`"PatientType"`] = *req.PatientType
+		columns[`"PatientType"`] = normalizeWardPatientType(*req.PatientType)
 	}
 	if req.InfectionType != nil {
 		columns[`"InfectionType"`] = *req.InfectionType
@@ -197,7 +231,7 @@ func (s *WardService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Schedule_Ward"`).Where(`"Id" = ?`, id).Delete(nil)
+	result := s.db.Table(`"Schedule_Ward"`).Where(`"Id" = ?`, id).Update(`"IsDisabled"`, true)
 	if result.Error != nil {
 		return fmt.Errorf("删除病区失败: %w", result.Error)
 	}

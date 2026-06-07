@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -166,13 +167,14 @@ func (h *ShiftHandler) Delete(c *gin.Context) {
 
 // PatientShiftHandler 患者排班控制器
 type PatientShiftHandler struct {
-	service *services.PatientShiftService
+	service         *services.PatientShiftService
+	templateService *services.ScheduleTemplateService
 }
 
-// NewPatientShiftHandler 创建患者排班控制器
 func NewPatientShiftHandler() *PatientShiftHandler {
 	return &PatientShiftHandler{
-		service: services.NewPatientShiftService(),
+		service:         services.NewPatientShiftService(),
+		templateService: services.NewScheduleTemplateService(),
 	}
 }
 
@@ -294,6 +296,10 @@ func (h *PatientShiftHandler) Create(c *gin.Context) {
 
 	patientShift, err := h.service.Create(req, tenantId, creatorId)
 	if err != nil {
+		if errors.Is(err, services.ErrPatientShiftDuplicate) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
@@ -445,10 +451,10 @@ func (h *PatientShiftHandler) GetByPatientAndDate(c *gin.Context) {
 
 // MoveRequest 换床请求
 type MoveRequest struct {
-	BedID         *int64    `json:"bedId"`
-	WardID        *int64    `json:"wardId"`
-	TreatmentTime *string   `json:"treatmentTime"`
-	ShiftID       *int64    `json:"shiftId"`
+	BedID         *int64  `json:"bedId"`
+	WardID        *int64  `json:"wardId"`
+	TreatmentTime *string `json:"treatmentTime"`
+	ShiftID       *int64  `json:"shiftId"`
 }
 
 // Move 换床/移动排班（支持跨日期/跨班次）
@@ -596,7 +602,7 @@ func (h *PatientShiftHandler) BatchSave(c *gin.Context) {
 	response.Success(c, result)
 }
 
-// ListTemplates 模板列表
+// ListTemplates 模板列表 — 阶段 3: 改为读取 Schedule_ScheduleTemplate
 func (h *PatientShiftHandler) ListTemplates(c *gin.Context) {
 	tenantId := middleware.GetTenantID(c)
 	var wardID *int64
@@ -606,7 +612,7 @@ func (h *PatientShiftHandler) ListTemplates(c *gin.Context) {
 			wardID = &parsed
 		}
 	}
-	items, err := h.service.ListTemplates(tenantId, wardID)
+	items, err := h.templateService.ListTemplates(tenantId, wardID)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
@@ -614,42 +620,46 @@ func (h *PatientShiftHandler) ListTemplates(c *gin.Context) {
 	response.Success(c, items)
 }
 
-// SaveTemplate 保存模板
+// SaveTemplate 保存模板 — 阶段 3: 改为写入 Schedule_ScheduleTemplate/Item
 func (h *PatientShiftHandler) SaveTemplate(c *gin.Context) {
-	var req struct {
-		Items []services.PatientShiftCreateRequest `json:"items"`
-	}
+	var req services.ScheduleTemplateSaveRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
 	tenantId := middleware.GetTenantID(c)
 	creatorId := middleware.GetCreatorID(c)
-	if err := h.service.SaveTemplate(req.Items, tenantId, creatorId); err != nil {
+	result, err := h.templateService.SaveTemplate(tenantId, creatorId, req)
+	if err != nil {
+		if services.IsTemplateBusinessError(err) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"success": true})
+	response.Success(c, result)
 }
 
-// ApplyTemplateHandler 应用模板
+// ApplyTemplateHandler 应用模板 — 阶段 3: 从 Schedule_ScheduleTemplateItem 生成 Status=10 草稿
 func (h *PatientShiftHandler) ApplyTemplateHandler(c *gin.Context) {
-	var req struct {
-		TargetDate string `json:"targetDate"`
-		WardId     *int64 `json:"wardId"`
-	}
+	var req services.ScheduleTemplateApplyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
 	tenantId := middleware.GetTenantID(c)
 	creatorId := middleware.GetCreatorID(c)
-	count, err := h.service.ApplyTemplate(req.TargetDate, tenantId, creatorId, req.WardId)
+	result, err := h.templateService.ApplyTemplate(tenantId, creatorId, req)
 	if err != nil {
+		if services.IsTemplateBusinessError(err) || errors.Is(err, services.ErrPatientShiftDuplicate) {
+			response.BadRequest(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"created": count})
+	response.Success(c, result)
 }
 
 // RegisterScheduleRoutes 注册排班管理路由

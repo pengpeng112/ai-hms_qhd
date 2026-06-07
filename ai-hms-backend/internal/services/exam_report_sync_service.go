@@ -115,19 +115,7 @@ func (s *ExamReportSyncService) SyncPatientExamReports(patientID string) (*LabRe
 }
 
 func (s *ExamReportSyncService) getHDISPatientID(patientID string) (int, error) {
-	var basicInfo models.PatientBasicInfo
-	if err := s.db.Where("patient_id = ?", patientID).First(&basicInfo).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return 0, ErrSyncPatientBasicNotFound
-		}
-		return 0, err
-	}
-
-	if basicInfo.HdisPatientID == nil || *basicInfo.HdisPatientID <= 0 {
-		return 0, ErrSyncPatientHDISIDMissing
-	}
-
-	return *basicInfo.HdisPatientID, nil
+	return 0, errors.New("HDIS患者ID获取暂不可用：老库无HdisPatientID对应列，patient_basic_infos表已弃用")
 }
 
 func (s *ExamReportSyncService) syncGraphQLExams(patientID string, exams []hdis.GraphQLExamination, result *LabReportSyncResult) {

@@ -52,17 +52,16 @@ export default function BasicInfoTab({ patient }: BasicInfoTabProps) {
   const genderToChinese = (gender: string | undefined): string => {
     if (gender === 'M') return '男'
     if (gender === 'F') return '女'
+    if (gender === '男') return '男'
+    if (gender === '女') return '女'
     return gender || ''
   }
 
   const chineseToGender = (value: string | undefined | null): string | null => {
     if (!value) return null
     const trimmed = value.trim()
-    if (trimmed === '男') return 'M'
-    if (trimmed === '女') return 'F'
-    // 如果已经是 M/F，直接返回
-    if (trimmed === 'M' || trimmed === 'F') return trimmed
-    return null
+    // 老库存储 男/女，直接保存中文值
+    return trimmed
   }
 
   // 状态

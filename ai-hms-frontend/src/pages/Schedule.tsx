@@ -815,6 +815,7 @@ export default function Schedule() {
         open={applyTemplateOpen}
         onClose={() => setApplyTemplateOpen(false)}
         onSuccess={() => void loadWeek()}
+        wardId={wardFilter === 'ALL' ? undefined : Number(wardFilter)}
       />
     </div>
   )

@@ -12,6 +12,7 @@ import {
   type MaterialCatalog
 } from '@/services/treatmentConfigApi'
 import { DICT_TYPES } from '@/services/dictApi'
+import { getToken } from '@/utils/token'
 import { usePagination } from '../hooks/usePagination'
 import { useSelection } from '../hooks/useSelection'
 import { useSearch } from '../hooks/useSearch'
@@ -176,7 +177,7 @@ function MaterialTabComponent({ dictOptions, onRefreshDict }: MaterialTabProps) 
 
   // 检查用户是否已登录 (js-cache-storage)
   const checkAuthStatus = useCallback(() => {
-    const token = localStorage.getItem('hdis_access_token')
+    const token = getToken()
     if (!token) {
       return false
     }

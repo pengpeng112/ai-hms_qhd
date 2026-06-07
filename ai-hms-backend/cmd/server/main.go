@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/elliotxin/ai-hms-backend/config"
 	v1api "github.com/elliotxin/ai-hms-backend/internal/api/v1"
@@ -25,6 +26,8 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	services.LegacyTenantID = cfg.LegacyTenantID
+
 	// 设置 Gin 模式
 	gin.SetMode(cfg.Server.Mode)
 
@@ -38,14 +41,18 @@ func main() {
 	}
 
 	// 初始化数据库
-	if err := database.Initialize(&cfg.Database, &cfg.Logging); err != nil {
+	if err := database.Initialize(&cfg.Database, &cfg.Logging, cfg.ParameterizedQueries); err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	} else {
 		defer database.Close()
 		log.Println("[LEGACY-DB] startup in legacy database mode: AutoMigrate and startup seed initialization are disabled")
 
-		// 启动过期临时医嘱定时任务
-		services.StartOrderCron()
+		// 启动过期临时医嘱定时任务（需显式配置 ORDER_CRON_ENABLED=true 开启）
+		if cfg.OrderCronEnabled {
+			services.StartOrderCron(cfg.LegacyTenantID)
+		} else {
+			log.Println("[CRON] order cron is disabled (set ORDER_CRON_ENABLED=true to enable)")
+		}
 	}
 
 	// 创建 JWT 管理器
@@ -61,10 +68,20 @@ func main() {
 	// 全局中间件
 	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
 
-	// 健康检查（无需认证）
+	// 健康检查（无需认证，含数据库连通性）
 	r.GET("/health", func(c *gin.Context) {
+		sqlDB, err := database.GetDB().DB()
+		if err != nil || sqlDB.Ping() != nil {
+			c.JSON(503, gin.H{
+				"success":   false,
+				"error":     gin.H{"code": "SERVICE_UNAVAILABLE", "message": "数据库连接异常"},
+				"timestamp": time.Now().Format(time.RFC3339),
+			})
+			return
+		}
 		response.Success(c, gin.H{
 			"status":  "ok",
+			"db":      "ok",
 			"service": "ai-hms-backend",
 			"version": "1.0.0",
 		})
@@ -79,7 +96,7 @@ func main() {
 			v1api.RegisterAuthRoutes(public, jwtManager)
 		}
 
-		// 需要认证的路由
+		// 需要认证的路由（所有已登录用户可访问）
 		protected := v1.Group("")
 		protected.Use(middleware.AuthMiddleware(jwtManager))
 		{
@@ -104,16 +121,16 @@ func main() {
 			v1api.RegisterKeyIndicatorRoutes(protected, cfg.Hdis)
 			// 检验报告外部同步路由（HDIS/LIS）
 			v1api.RegisterLisSyncRoutes(protected, cfg.Hdis)
-			// HDIS 集成配置路由（Settings > Integration）
-			v1api.RegisterHDISSettingsRoutes(protected, cfg.Hdis)
-			// 系统日志读取路由（Settings > Logs）
-			v1api.RegisterLogRoutes(protected)
 
 			// 住院信息路由
 			v1api.RegisterHospitalizationRoutes(protected)
 
 			// 排班管理路由
 			v1api.RegisterScheduleRoutes(protected)
+			// 排班配置路由（读接口已登录可访问，写接口需管理员）
+			v1api.RegisterScheduleConfigRoutes(protected)
+			// 排班规则路由（只读预检/Board/冲突，已登录可访问）
+			v1api.RegisterScheduleRulesRoutes(protected)
 
 			// 治疗管理路由
 			v1api.RegisterTreatmentRoutes(protected)
@@ -124,23 +141,14 @@ func main() {
 			// 诊疗配置路由
 			v1api.RegisterTreatmentConfigRoutes(protected)
 
-		// 字典管理路由
-		v1api.RegisterDictRoutes(protected)
+			// 健康宣教路由
+			v1api.RegisterHealthEducationRoutes(protected)
 
-		// 用户管理路由（角色选择）
-		v1api.RegisterUserRoutes(protected)
+			// 病区管理路由
+			v1api.RegisterWardRoutes(protected)
 
-		// 健康宣教路由
-		v1api.RegisterHealthEducationRoutes(protected)
-
-		// 角色管理路由
-		v1api.RegisterRoleManagementRoutes(protected)
-
-		// 病区管理路由
-		v1api.RegisterWardRoutes(protected)
-
-		// 床位管理路由
-		v1api.RegisterBedRoutes(protected)
+			// 床位管理路由
+			v1api.RegisterBedRoutes(protected)
 
 			// 设备管理路由
 			v1api.RegisterDeviceRoutes(protected)
@@ -152,10 +160,35 @@ func main() {
 			v1api.RegisterDashboardRoutes(protected)
 			v1api.RegisterClinicalTaskRoutes(protected)
 			v1api.RegisterStatisticsRoutes(protected)
-			v1api.RegisterPermissionRoutes(protected)
 			v1api.RegisterMonitoringRoutes(protected)
 			v1api.RegisterMonthlySummaryRoutes(protected)
 			v1api.RegisterConsumableRoutes(protected)
+		}
+
+		admin := v1.Group("")
+		admin.Use(middleware.AuthMiddleware(jwtManager), middleware.RequireRoles(
+			"ADMIN",
+			"管理员",
+			"安全管理员",
+			"运维管理员",
+		))
+		{
+			// HDIS 集成配置路由（Settings > Integration）
+			v1api.RegisterHDISSettingsRoutes(admin, cfg.Hdis)
+			// 系统日志读取路由（Settings > Logs）
+			v1api.RegisterLogRoutes(admin)
+
+			// 字典管理路由（含写操作）
+			v1api.RegisterDictRoutes(admin)
+
+			// 用户管理路由
+			v1api.RegisterUserRoutes(admin)
+
+			// 角色管理路由
+			v1api.RegisterRoleManagementRoutes(admin)
+
+			// 权限管理路由
+			v1api.RegisterPermissionRoutes(admin)
 		}
 	}
 

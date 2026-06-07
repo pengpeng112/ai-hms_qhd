@@ -7,7 +7,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// InventoryHandler 库存处理器
 type InventoryHandler struct {
 	service *services.InventoryService
 }
@@ -16,22 +15,17 @@ func NewInventoryHandler() *InventoryHandler {
 	return &InventoryHandler{service: services.NewInventoryService()}
 }
 
-// ─────────────── InventoryItem ───────────────
-
-// ListItems GET /api/v1/inventory/items
 func (h *InventoryHandler) ListItems(c *gin.Context) {
 	var req services.InventoryListRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
-
 	result, err := h.service.ListItems(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-
 	response.Success(c, gin.H{
 		"items":     result.Items,
 		"total":     result.Total,
@@ -41,81 +35,41 @@ func (h *InventoryHandler) ListItems(c *gin.Context) {
 	})
 }
 
-// CreateItem POST /api/v1/inventory/items
 func (h *InventoryHandler) CreateItem(c *gin.Context) {
-	var req services.InventoryCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "无效的请求参数: "+err.Error())
-		return
-	}
-
-	tenantId := middleware.GetTenantID(c)
-	creatorId := middleware.GetCreatorID(c)
-
-	item, err := h.service.CreateItem(req, tenantId, creatorId)
-	if err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.SuccessCreated(c, item)
-}
-
-// UpdateItem PUT /api/v1/inventory/items/:id
-func (h *InventoryHandler) UpdateItem(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "库存ID不能为空")
-		return
-	}
-
-	var req services.InventoryUpdateRequest
+	var req services.CreateInventoryItemRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
-
-	item, err := h.service.UpdateItem(id, req)
+	tenantID := middleware.GetTenantID(c)
+	creatorID := middleware.GetCreatorID(c)
+	item, err := h.service.CreateItem(req, tenantID, creatorID)
 	if err != nil {
-		response.InternalError(c, err.Error())
+		response.BadRequest(c, err.Error())
 		return
 	}
-
-	response.Success(c, item)
+	response.SuccessCreated(c, item)
 }
 
-// DeleteItem DELETE /api/v1/inventory/items/:id
+func (h *InventoryHandler) UpdateItem(c *gin.Context) {
+	response.BadRequest(c, "库存修改暂不支持")
+}
+
 func (h *InventoryHandler) DeleteItem(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "库存ID不能为空")
-		return
-	}
-
-	if err := h.service.DeleteItem(id); err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "删除成功"})
+	response.BadRequest(c, "库存删除暂不支持")
 }
 
-// ─────────────── StockLog ───────────────
-
-// ListLogs GET /api/v1/inventory/logs
 func (h *InventoryHandler) ListLogs(c *gin.Context) {
-	var req services.StockLogListRequest
+	var req services.StockLogRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
-
 	result, err := h.service.ListLogs(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-
 	response.Success(c, gin.H{
 		"items":     result.Items,
 		"total":     result.Total,
@@ -125,110 +79,32 @@ func (h *InventoryHandler) ListLogs(c *gin.Context) {
 	})
 }
 
-// AdjustStock POST /api/v1/inventory/adjust
 func (h *InventoryHandler) AdjustStock(c *gin.Context) {
-	var req services.AdjustStockRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "无效的请求参数: "+err.Error())
-		return
-	}
-
-	tenantId := middleware.GetTenantID(c)
-
-	log, err := h.service.AdjustStock(req, tenantId)
-	if err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	response.SuccessCreated(c, log)
+	response.BadRequest(c, "库存调整暂不支持")
 }
 
-// ─────────────── LabelTask ───────────────
-
-// ListLabelTasks GET /api/v1/inventory/labels
 func (h *InventoryHandler) ListLabelTasks(c *gin.Context) {
-	var req services.LabelTaskListRequest
-	if err := c.ShouldBindQuery(&req); err != nil {
-		response.BadRequest(c, "无效的请求参数")
-		return
-	}
-
-	result, err := h.service.ListLabelTasks(req)
-	if err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{
-		"items":     result.Items,
-		"total":     result.Total,
-		"page":      result.Page,
-		"pageSize":  result.PageSize,
-		"totalPage": result.TotalPage,
-	})
+	response.Success(c, gin.H{"items": []interface{}{}, "total": 0, "page": 1, "pageSize": 50, "totalPage": 0})
 }
 
-// CreateLabelTask POST /api/v1/inventory/labels
 func (h *InventoryHandler) CreateLabelTask(c *gin.Context) {
-	var req services.LabelTaskCreateRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "无效的请求参数: "+err.Error())
-		return
-	}
-
-	tenantId := middleware.GetTenantID(c)
-	creatorId := middleware.GetCreatorID(c)
-
-	task, err := h.service.CreateLabelTask(req, tenantId, creatorId)
-	if err != nil {
-		response.InternalError(c, err.Error())
-		return
-	}
-
-	response.SuccessCreated(c, task)
+	response.BadRequest(c, "标签打印暂不支持")
 }
 
-// UpdateLabelTaskStatus PUT /api/v1/inventory/labels/:id/status
 func (h *InventoryHandler) UpdateLabelTaskStatus(c *gin.Context) {
-	id := c.Param("id")
-	if id == "" {
-		response.BadRequest(c, "标签任务ID不能为空")
-		return
-	}
-
-	var req struct {
-		Status string `json:"status" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		response.BadRequest(c, "无效的请求参数")
-		return
-	}
-
-	if err := h.service.UpdateLabelTaskStatus(id, req.Status); err != nil {
-		response.BadRequest(c, err.Error())
-		return
-	}
-
-	response.Success(c, gin.H{"message": "状态已更新"})
+	response.BadRequest(c, "标签打印暂不支持")
 }
 
-// RegisterInventoryRoutes 注册库存管理路由
 func RegisterInventoryRoutes(rg *gin.RouterGroup) {
 	h := NewInventoryHandler()
 	inv := rg.Group("/inventory")
 	{
-		// 库存品目
 		inv.GET("/items", h.ListItems)
 		inv.POST("/items", h.CreateItem)
 		inv.PUT("/items/:id", h.UpdateItem)
 		inv.DELETE("/items/:id", h.DeleteItem)
-
-		// 出入库操作 + 记录
 		inv.POST("/adjust", h.AdjustStock)
 		inv.GET("/logs", h.ListLogs)
-
-		// 标签打印任务
 		inv.GET("/labels", h.ListLabelTasks)
 		inv.POST("/labels", h.CreateLabelTask)
 		inv.PUT("/labels/:id/status", h.UpdateLabelTaskStatus)

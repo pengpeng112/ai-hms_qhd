@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, memo, type ChangeEvent, type MouseEvent } from 'react'
 import { X, Upload, CheckCircle2, XCircle, AlertCircle, Loader2, FileSpreadsheet, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
+import { getToken } from '@/utils/token'
 
 // 导入状态类型
 type ImportStatus = 'idle' | 'validating' | 'ready' | 'importing' | 'success' | 'error' | 'partial' | 'confirm_categories'
@@ -217,7 +218,7 @@ export const BatchImportModal = memo(function BatchImportModal({
     if (!selectedFile || status !== 'ready') return
 
     // 检查登录状态
-    const token = localStorage.getItem('hdis_access_token')
+    const token = getToken()
     if (!token) {
       setValidationErrors([{ row: 0, field: 'auth', message: '用户未登录，请先登录后再试' }])
       setStatus('error')
