@@ -2,7 +2,7 @@
 
 > 测试时间：2026-06-07
 > 代码分支：`fix/legacy-ui-restore`
-> 提交号：`4f375a7884727807a0ac87f100ea0c7d8b8848e9`
+> 提交号：`349802e1df104b2dd07cb6374421437c93580d55`
 
 ---
 
@@ -96,7 +96,11 @@
   2. 登录失败时增加 `AccessFailedCount` 计数
   3. 登录成功时重置 `AccessFailedCount`
 - **是否阻断试运行**：否（不影响核心业务流程）
-- **当前状态**：已修复（添加 LockoutEnd/LockoutEnabled 检查，已通过测试验证）：MedicalHistory 模型映射到不存在的表导致患者详情 500
+- **当前状态**：已修复（添加 LockoutEnd/LockoutEnabled 检查，已通过测试验证）
+
+---
+
+## ISSUE-003：MedicalHistory 模型映射到不存在的表导致患者详情 500
 
 - **级别**：P1
 - **模块**：患者模块（PatientService）
@@ -192,7 +196,11 @@
 - **初步原因**：Create 请求处理时 Note 字段映射遗漏或字段名不匹配
 - **建议修复**：检查 VascularAccessHandler Create 中的 Note 列映射
 - **是否阻断试运行**：否
-- **当前状态**：测试输入错误（JSON 字段应为 `notes` 而非 `note`，非代码 bug，已验证正确落库）：WardService.Create 缺少 NOT NULL 字段导致 500
+- **当前状态**：已澄清（非代码问题 — JSON 字段名为 `notes`（复数），测试输入误用了 `note`（单数），使用正确字段名后已验证落库正常）
+
+---
+
+## ISSUE-007：WardService.Create 缺少 NOT NULL 字段导致 500
 
 - **级别**：P1
 - **模块**：排班配置（WardService）
