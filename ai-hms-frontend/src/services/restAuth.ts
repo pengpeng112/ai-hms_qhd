@@ -35,6 +35,7 @@ export async function performLogin(credentials: { username: string; password: st
     clearSelectedRole()
 
     // 保存 token
+    const jwtRoles = parseJwtRoles(loginResult.token)
     tokenStorage.saveToken({
       accessToken: loginResult.token,
       expiresIn: 86400, // 24 小时（后端 JWT 设置）
@@ -43,6 +44,7 @@ export async function performLogin(credentials: { username: string; password: st
         name: loginResult.realName || loginResult.username,
         nickname: loginResult.username,
         role: normalizedRole,
+        roles: jwtRoles,
         organId: '',
         tenantAddress: '',
       },
@@ -99,6 +101,7 @@ export function performLocalPreviewLogin() {
       name: previewUser.name,
       nickname: 'local-preview',
       role: previewUser.role,
+      roles: [previewUser.role],
       organId: '',
       tenantAddress: '',
     },
@@ -118,4 +121,21 @@ export function performLogout(): void {
   clearSelectedRole()
   sessionStorage.removeItem('oauth_state')
   sessionStorage.removeItem('oauth_nonce')
+}
+
+/**
+ * 从 JWT token 中解析 roles 数组
+ */
+function parseJwtRoles(token: string): string[] {
+  try {
+    const payload = token.split('.')[1]
+    if (!payload) return []
+    let b64 = payload.replace(/-/g, '+').replace(/_/g, '/')
+    const pad = b64.length % 4
+    if (pad) b64 += '='.repeat(4 - pad)
+    const obj = JSON.parse(atob(b64))
+    return Array.isArray(obj.roles) ? obj.roles : []
+  } catch {
+    return []
+  }
 }
