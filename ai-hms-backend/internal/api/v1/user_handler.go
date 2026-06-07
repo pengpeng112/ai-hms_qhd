@@ -186,7 +186,7 @@ func (h *UserHandler) SetRoles(c *gin.Context) {
 }
 
 func (h *UserHandler) GetMyRoles(c *gin.Context) {
-	userIDStr, exists := c.Get("userID")
+	userIDStr, exists := c.Get("user_id")
 	if !exists {
 		response.Unauthorized(c, "未登录")
 		return
