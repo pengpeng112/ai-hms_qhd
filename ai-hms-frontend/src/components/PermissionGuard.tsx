@@ -5,19 +5,20 @@ import { getUserInfo } from '@/utils/token'
 const ADMIN_ROLES = new Set(['ADMIN', '管理员', '安全管理员', '运维管理员'])
 
 function isAdminRole(): boolean {
-  const selected = getSelectedRole()
-  if (!selected) return false
-
-  // 后端返回的真实角色列表优先；若不可用则 fallback 到本地 selectedRole
+  // JWT 解析后的 roles 数组优先
   const userInfo = getUserInfo()
-  if (userInfo) {
-    const roles = (userInfo as unknown as Record<string, unknown>).roles as string[] | undefined
-    if (roles) {
-      return roles.some((r) => ADMIN_ROLES.has(r))
-    }
+  if (userInfo?.roles && userInfo.roles.length > 0) {
+    return userInfo.roles.some((r) => ADMIN_ROLES.has(r))
   }
 
-  return ADMIN_ROLES.has(selected)
+  // 兼容旧格式：role 单字段
+  if (userInfo?.role && ADMIN_ROLES.has(userInfo.role)) {
+    return true
+  }
+
+  // fallback 到本地缓存的 selectedRole
+  const selected = getSelectedRole()
+  return selected ? ADMIN_ROLES.has(selected) : false
 }
 
 interface PermissionGuardProps {

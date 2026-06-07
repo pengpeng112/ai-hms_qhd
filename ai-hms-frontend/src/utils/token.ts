@@ -9,6 +9,7 @@ export interface UserInfo {
   name: string
   nickname: string
   role?: string
+  roles?: string[]
   organId: string
   tenantAddress: string
 }

@@ -139,9 +139,10 @@ function parseJwtPayload(token: string): UserInfo | null {
     const payload = JSON.parse(atob(base64))
 
     return {
-      id: payload.sub || '',
-      name: payload.name || '',
-      nickname: payload.nickname || '',
+      id: payload.user_id || payload.sub || '',
+      name: payload.username || payload.name || '',
+      nickname: payload.employee_name || payload.nickname || '',
+      roles: payload.roles || [],
       organId: payload.organ_id || '',
       tenantAddress: payload.tenant_internet_address || ''
     }
