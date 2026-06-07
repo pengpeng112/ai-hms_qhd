@@ -47,6 +47,7 @@ export interface LoginResponse {
   username: string
   realName: string
   role: string
+  roles?: string[]
 }
 
 // 分页响应元数据

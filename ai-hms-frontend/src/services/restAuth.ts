@@ -34,8 +34,10 @@ export async function performLogin(credentials: { username: string; password: st
 
     clearSelectedRole()
 
-    // 保存 token
-    const jwtRoles = parseJwtRoles(loginResult.token)
+    // 保存 token：优先使用后端返回的 roles，兜底解析 JWT
+    const backendRoles = loginResult.roles && loginResult.roles.length > 0
+      ? loginResult.roles
+      : parseJwtRoles(loginResult.token)
     tokenStorage.saveToken({
       accessToken: loginResult.token,
       expiresIn: 86400, // 24 小时（后端 JWT 设置）
@@ -44,7 +46,7 @@ export async function performLogin(credentials: { username: string; password: st
         name: loginResult.realName || loginResult.username,
         nickname: loginResult.username,
         role: normalizedRole,
-        roles: jwtRoles,
+        roles: backendRoles,
         organId: '',
         tenantAddress: '',
       },

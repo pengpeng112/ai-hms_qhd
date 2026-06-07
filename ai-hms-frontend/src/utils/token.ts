@@ -44,7 +44,16 @@ export function getUserInfo(): UserInfo | null {
   if (!userStr) return null
 
   try {
-    return JSON.parse(userStr)
+    const user: UserInfo = JSON.parse(userStr)
+    // 兼容旧缓存：如果 roles 缺失但 role 存在，自动补全
+    if (!user.roles || user.roles.length === 0) {
+      if (user.role) {
+        user.roles = [user.role]
+      } else {
+        user.roles = []
+      }
+    }
+    return user
   } catch {
     return null
   }

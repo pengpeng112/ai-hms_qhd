@@ -17,11 +17,12 @@ type LoginRequest struct {
 
 // LoginResponse 登录响应
 type LoginResponse struct {
-	Token    string `json:"token"`
-	UserID   string `json:"userId"`
-	Username string `json:"username"`
-	RealName string `json:"realName"`
-	Role     string `json:"role"`
+	Token    string   `json:"token"`
+	UserID   string   `json:"userId"`
+	Username string   `json:"username"`
+	RealName string   `json:"realName"`
+	Role     string   `json:"role"`
+	Roles    []string `json:"roles"`
 }
 
 // AuthHandler 认证处理器
@@ -71,6 +72,7 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		Username: user.Username,
 		RealName: user.EmployeeName,
 		Role:     user.Role,
+		Roles:    user.Roles,
 	})
 }
 

@@ -8,7 +8,11 @@ function isAdminRole(): boolean {
   // JWT 解析后的 roles 数组优先
   const userInfo = getUserInfo()
   if (userInfo?.roles && userInfo.roles.length > 0) {
-    return userInfo.roles.some((r) => ADMIN_ROLES.has(r))
+    const hasAdmin = userInfo.roles.some((r) => ADMIN_ROLES.has(r))
+    if (!hasAdmin) {
+      console.warn('[PermissionGuard] roles 数组中无管理员角色:', userInfo.roles)
+    }
+    return hasAdmin
   }
 
   // 兼容旧格式：role 单字段
@@ -18,7 +22,12 @@ function isAdminRole(): boolean {
 
   // fallback 到本地缓存的 selectedRole
   const selected = getSelectedRole()
-  return selected ? ADMIN_ROLES.has(selected) : false
+  if (selected && ADMIN_ROLES.has(selected)) {
+    return true
+  }
+
+  console.warn('[PermissionGuard] 无管理员权限。userInfo:', userInfo, 'selectedRole:', selected)
+  return false
 }
 
 interface PermissionGuardProps {
