@@ -44,35 +44,30 @@
 | ISSUE-016 | 缺 Equipment 表 | 已创建 ✓ |
 | ISSUE-017 | Dashboard Status int→text | "60" 字符串 ✓ |
 
-## 4. 测试数据概览
+## 4. 测试数据清理验证
 
-| 表 | TEST_AI_HMS_% 行数 |
-|----|-------------------|
-| Identity_Users | 4 |
-| Identity_Roles | 3 |
-| Organ_Employee | 4 |
-| Identity_UserRoles | 4 |
-| Register_VascularAccess | ~5 |
-| Plan_PatientPlan | ~3 |
-| Order_PatientOrder | ~2 |
-| Schedule_Ward | 1 |
-| Schedule_Bed | 1 |
-| Schedule_Shift | 1 |
-| Schedule_WardExt | 1 |
-| Schedule_BedMachineExt | 1 |
-| Schedule_PatientProfile | 1 |
-| Schedule_TenantSetting | 1 |
-| Schedule_ScheduleTemplate | 1 |
-| Schedule_ScheduleTemplateItem | 1 |
-| Schedule_PatientShift | ~2 |
-| Treatment_Treatment | ~5 |
-| Auxiliary_EquipmentInfomation | ~2 |
+> 已执行清理 SQL，测试库中 TEST_AI_HMS_% 和 REGRESSION_% 数据全部清零：
 
-> 测试数据未清理，保留供后续审查使用。**正式试运行前必须清理。**
+| 检查表 | 剩余记录 |
+|--------|----------|
+| Identity_Users | 0 |
+| Schedule_Ward | 0 |
+| Schedule_Bed | 0 |
+| Schedule_Shift | 0 |
+| Order_PatientOrder | 0 |
+| Register_VascularAccess | 0 |
+| Schedule_PatientShift | 0 |
+| Treatment_Treatment | 0 |
+| Auxiliary_EquipmentInfomation | 0 |
+| Auxiliary_EquipmentDisinfection | 0 |
+| Schedule_TenantSetting | 0 |
+
+> 共 25 张表全部清零，测试数据已彻底清理。
 
 ## 5. 结论
 
 - **P0 = 0**，**P1 全部已修复**（14/14），**P2 全部已澄清/修复**（3/3）
 - **go test 全部通过**，**前端 lint 0 错误**，**npm build 通过**
 - **5 项 API 回归全部通过**
+- **安全测试通过，并发测试未执行（扩大试运行前必须补充）**
 - **建议进入受控小范围科室试运行**
