@@ -274,6 +274,20 @@ export interface RestScheduleWeekResponse {
   pendingPatients: RestSchedulePendingPatient[]
 }
 
+export interface CreatePatientShiftRequest {
+  patientId: number
+  scheduleDate: string
+  shiftId: number
+  bedId?: number
+  wardId?: number
+  bedNumber?: string
+  dialysisMode?: string
+  patientPlanId?: number
+  shiftTiming?: number
+  status?: number
+  notes?: string
+}
+
 // ============ 娌荤枟璁板綍绫诲瀷 ============
 
 export interface RestDuringParam {
@@ -2057,19 +2071,7 @@ class RestApiService {
 
   /**
    * 鍒涘缓鎮ｈ€呮帓鐝?   */
-  async createPatientShift(data: {
-    patientId: number
-    scheduleDate: string
-    shiftId: number
-    bedId?: number
-    wardId?: number
-    bedNumber?: string
-    dialysisMode?: string
-    patientPlanId?: number
-    shiftTiming?: number
-    status?: number
-    notes?: string
-  }): Promise<unknown> {
+  async createPatientShift(data: CreatePatientShiftRequest): Promise<unknown> {
     const response = await apiClient.post<unknown>('/api/v1/patient-shifts', data)
     return response.data
   }

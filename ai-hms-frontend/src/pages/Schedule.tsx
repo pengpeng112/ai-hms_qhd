@@ -17,6 +17,7 @@ import {
   type RestPatientShift,
 } from '@/services'
 import ApplyTemplateModal from '@/components/schedule/ApplyTemplateModal'
+import CreateScheduleModal from '@/components/schedule/CreateScheduleModal'
 import { useScheduleModals } from '@/hooks/useScheduleModals'
 import { useScheduleDragDrop } from '@/hooks/useScheduleDragDrop'
 
@@ -94,6 +95,16 @@ export default function Schedule() {
     shiftHistory, setShiftHistory,
     historyLoading, setHistoryLoading,
   } = useScheduleModals()
+
+  // 创建排班弹窗状态
+  const [createModalOpen, setCreateModalOpen] = useState(false)
+  const [createInitial, setCreateInitial] = useState<{
+    date?: string
+    wardId?: number
+    bedId?: number
+    shiftId?: number
+    patientId?: number
+  }>({})
 
   // 使用自定义 hook 管理拖拽状态
   const {
@@ -339,6 +350,17 @@ export default function Schedule() {
             <button onClick={()=>setViewMode('day')} className={`flex items-center gap-1 rounded px-2.5 py-1 text-meta font-black transition ${viewMode==='day'?'bg-white text-blue-600 shadow-sm':'text-slate-400 hover:text-slate-600'}`}><List size={12}/>日</button>
           </div>
           <button onClick={()=>void loadWeek()} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1 text-meta font-black text-slate-600 hover:bg-slate-50"><RefreshCw size={12}/>刷新</button>
+          <button
+            onClick={() => {
+              setCreateInitial({
+                date: viewMode === 'day' ? selectedDay : toDateString(new Date()),
+                patientId: selectedQueuePatient ?? undefined,
+                wardId: wardFilter === 'ALL' ? undefined : Number(wardFilter),
+              })
+              setCreateModalOpen(true)
+            }}
+            className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-meta font-black text-blue-600 hover:bg-blue-100 hover:border-blue-400 transition"
+          ><Plus size={12}/>新建排班</button>
           <div className="text-meta text-foreground-muted">
             本周完成度：<span className="font-semibold text-foreground">--</span>
           </div>
@@ -519,7 +541,17 @@ export default function Schedule() {
                                               ? 'border-red-200 text-red-200 hover:border-red-300 hover:bg-red-50/40 hover:text-red-300 cursor-pointer'
                                               : 'border-slate-200 text-slate-200 hover:border-blue-300 hover:bg-blue-50/50 hover:text-blue-400 cursor-pointer',
                                     ].join(' ')}
-                                    onClick={()=>!isDateLocked(dt) && openModal(bed,dt,shift)}
+                                    onClick={() => {
+                                      if (isDateLocked(dt)) return
+                                      setCreateInitial({
+                                        date: dt,
+                                        wardId: Number(bed.wardId),
+                                        bedId: Number(bed.id),
+                                        shiftId: shift.id,
+                                        patientId: selectedQueuePatient ?? undefined,
+                                      })
+                                      setCreateModalOpen(true)
+                                    }}
                                     onDrop={(e)=>!isDateLocked(dt) && void onDropOnEmpty(e, bed, dt, shift, loadWeek)}
                                   >
                                     <Plus size={11}/>
@@ -816,6 +848,22 @@ export default function Schedule() {
         onClose={() => setApplyTemplateOpen(false)}
         onSuccess={() => void loadWeek()}
         wardId={wardFilter === 'ALL' ? undefined : Number(wardFilter)}
+      />
+
+      {/* 创建排班弹窗 */}
+      <CreateScheduleModal
+        open={createModalOpen}
+        onClose={() => setCreateModalOpen(false)}
+        onSuccess={() => void loadWeek()}
+        initialDate={createInitial.date}
+        initialWardId={createInitial.wardId}
+        initialBedId={createInitial.bedId}
+        initialShiftId={createInitial.shiftId}
+        initialPatientId={createInitial.patientId}
+        wards={wards}
+        beds={beds}
+        shifts={shifts}
+        pendingPatients={pending}
       />
     </div>
   )
