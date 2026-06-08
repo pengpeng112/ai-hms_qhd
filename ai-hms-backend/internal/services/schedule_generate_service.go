@@ -64,7 +64,7 @@ func (s *ScheduleGenerateService) Generate(tenantID, creatorID int64, req Genera
 		return nil, err
 	}
 	if len(items) == 0 {
-		return nil, errors.New("没有可用的模板项,请先创建排班模板")
+		return nil, errors.New("没有可用的排班骨架数据，请先创建排班模板或在患者管理中配置排班骨架(PatientProfile)")
 	}
 
 	// 4) HDF奇偶周分配
@@ -244,19 +244,154 @@ func (s *ScheduleGenerateService) buildBoard(tenantID int64, anchor time.Time, s
 	return board, nil
 }
 
-// buildSessionItems 从模板项构建待排SessionItem
+// buildSessionItems 从模板项或PatientProfile构建待排SessionItem
+// 若指定templateID则只用该模板项，否则从所有PatientProfile加载
 func (s *ScheduleGenerateService) buildSessionItems(tenantID int64, templateID, wardID *int64) ([]schedule_engine.SessionItem, error) {
-	var tmplItems []models.ScheduleTemplateItem
-	q := s.db.Where(`"TenantId" = ?`, tenantID)
+	// 指定模板时从模板项加载
 	if templateID != nil && *templateID > 0 {
-		// 验证模板存在且激活
-		var tmpl models.ScheduleTemplate
-		if err := s.db.Where(`"TenantId" = ? AND "Id" = ? AND "IsActive" = ?`, tenantID, *templateID, true).
-			First(&tmpl).Error; err != nil {
-			return nil, errors.New("模板不存在或已禁用")
-		}
-		q = q.Where(`"TemplateId" = ?`, *templateID)
+		return s.buildFromTemplate(tenantID, *templateID, wardID)
 	}
+
+	// 无模板指定时从PatientProfile加载，若为空则兜底从Plan_PatientPlan读取
+	var items []schedule_engine.SessionItem
+
+	var profiles []models.PatientProfile
+	s.db.Where(`"TenantId" = ?`, tenantID).Find(&profiles)
+
+	if len(profiles) == 0 {
+		// 兜底: 从老表 Plan_PatientPlan 读取患者骨架
+		return s.buildFromLegacyPlan(tenantID, wardID)
+	}
+
+	for _, p := range profiles {
+		if p.FreqPattern == schedule_engine.FreqTemporary {
+			continue
+		}
+		if p.HomeWardId == nil || p.ShiftId == nil {
+			continue
+		}
+		items = append(items, schedule_engine.SessionItem{
+			PatientID:     p.PatientId,
+			FreqPattern:   p.FreqPattern,
+			FixedHdBedID:  p.FixedHdBedId,
+			FixedHdfBedID: p.FixedHdfBedId,
+			HdfEnabled:    p.HdfEnabled,
+			HdfWeekday:    p.HdfWeekday,
+			HdfWeekParity: p.HdfWeekParity,
+			WardID:        p.HomeWardId,
+			ShiftID:       p.ShiftId,
+			PatientPlanID: &p.PatientId,
+		})
+	}
+	if len(items) == 0 {
+		return nil, errors.New("没有可用的患者排班骨架データ，请先创建排班模板或在患者管理中配置排班骨架")
+	}
+	return items, nil
+}
+
+// buildFromLegacyPlan 从老表 Plan_PatientPlan 兜底构建 SessionItem
+func (s *ScheduleGenerateService) buildFromLegacyPlan(tenantID int64, wardID *int64) ([]schedule_engine.SessionItem, error) {
+	type planRow struct {
+		ID                int64  `gorm:"column:Id"`
+		PatientID         int64  `gorm:"column:PatientId"`
+		DialysisMethod    string `gorm:"column:DialysisMethod"`
+		OddWeekFrequency  int    `gorm:"column:OddWeekFrequency"`
+		EvenWeekFrequency int    `gorm:"column:EvenWeekFrequency"`
+	}
+	var rows []planRow
+	q := s.db.Table(`"Plan_PatientPlan"`).
+		Select(`"Id", "PatientId", COALESCE("DialysisMethod", 'HD') AS "DialysisMethod",
+			COALESCE("OddWeekFrequency", 0) AS "OddWeekFrequency",
+			COALESCE("EvenWeekFrequency", 0) AS "EvenWeekFrequency"`).
+		Where(`"TenantId" = ? AND "IsDisabled" = false`, tenantID)
+	if err := q.Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	// 从本工具周视图中获取的班次默认取第一个活跃班次=上午班(shift 1)
+	var shifts []models.Shift
+	s.db.Where(`"TenantId" = ? AND "IsDisabled" = ?`, tenantID, false).Order(`"Sort" ASC`).Limit(1).Find(&shifts)
+	defaultShiftID := int64(0)
+	if len(shifts) > 0 {
+		defaultShiftID = shifts[0].Id
+	}
+
+	// 取各患者所在病区
+	type bedWard struct {
+		BedID  int64 `gorm:"column:BedId"`
+		WardID int64 `gorm:"column:WardId"`
+	}
+	var bw []bedWard
+	s.db.Table(`"Schedule_Bed"`).Select(`"Id" AS "BedId", "WardId"`).
+		Where(`"TenantId" = ? AND "IsDisabled" = false`, tenantID).Find(&bw)
+	wardByBed := map[int64]int64{}
+	for _, x := range bw {
+		wardByBed[x.BedID] = x.WardID
+	}
+
+	// 取各个病区首个床位作为默认
+	type wardBed struct{ WardID, BedID int64 }
+	var wb []wardBed
+	s.db.Table(`"Schedule_Bed"`).Select(`"WardId", MIN("Id") AS "BedId"`).
+		Where(`"TenantId" = ? AND "IsDisabled" = false`, tenantID).
+		Group(`"WardId"`).Find(&wb)
+	defaultBed := map[int64]int64{}
+	for _, x := range wb {
+		defaultBed[x.WardID] = x.BedID
+	}
+
+	var items []schedule_engine.SessionItem
+	for _, r := range rows {
+		freq := freqFromPlan(r.OddWeekFrequency, r.EvenWeekFrequency)
+		if freq == schedule_engine.FreqTemporary {
+			continue
+		}
+
+		wid := int64(1)
+		if wardID != nil && *wardID > 0 {
+			wid = *wardID
+		}
+		planID := r.ID
+		items = append(items, schedule_engine.SessionItem{
+			PatientID:    r.PatientID,
+			FreqPattern:  freq,
+			WardID:       &wid,
+			ShiftID:      &defaultShiftID,
+			PatientPlanID: &planID,
+		})
+	}
+	return items, nil
+}
+
+func freqFromPlan(odd, even int) int16 {
+	switch odd {
+	case 6:
+		return schedule_engine.FreqMonWedFri
+	case 5:
+		return schedule_engine.FreqTwoPerWk
+	case 3:
+		return schedule_engine.FreqTwoPerWk
+	case 1:
+		return schedule_engine.FreqOnePerWk
+	}
+	if even == 6 {
+		return schedule_engine.FreqTueThuSat
+	}
+	if even == 3 || odd == 3 {
+		return schedule_engine.FreqTwoPerWk
+	}
+	return schedule_engine.FreqTemporary
+}
+
+func (s *ScheduleGenerateService) buildFromTemplate(tenantID, templateID int64, wardID *int64) ([]schedule_engine.SessionItem, error) {
+	var tmpl models.ScheduleTemplate
+	if err := s.db.Where(`"TenantId" = ? AND "Id" = ? AND "IsActive" = ?`, tenantID, templateID, true).
+		First(&tmpl).Error; err != nil {
+		return nil, errors.New("模板不存在或已禁用")
+	}
+
+	var tmplItems []models.ScheduleTemplateItem
+	q := s.db.Where(`"TenantId" = ? AND "TemplateId" = ?`, tenantID, templateID)
 	if wardID != nil && *wardID > 0 {
 		q = q.Where(`"WardId" = ?`, *wardID)
 	}
