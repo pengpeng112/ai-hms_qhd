@@ -634,7 +634,7 @@ export default function Schedule() {
                   ].join(' ')}
                   draggable
                   onDragStart={(e) => {
-                    selectedQueuePatient !== p.id && setSelectedQueuePatient(p.id)
+                    if (selectedQueuePatient !== p.id) setSelectedQueuePatient(p.id)
                     e.dataTransfer.effectAllowed = 'move'
                     e.dataTransfer.setData('text/plain', `patient:${p.id}:${p.name}:${p.dialysisMode || 'HD'}`)
                   }}
