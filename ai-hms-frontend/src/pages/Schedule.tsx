@@ -174,14 +174,12 @@ export default function Schedule() {
 
   const loadMap = useMemo(() => {
     const m = new Map<string,{used:number;total:number}>()
-    beds.forEach(() => {
-      days.forEach(d => {
-        const dt = toDateString(d)
-        shifts.forEach(s => {
-          const k = `${dt}-${s.id}`
-          const c = m.get(k) || {used:0,total:0}
-          m.set(k, {...c, total: c.total+1})
-        })
+    // 每个(日期,班次)格子的容量=该病区病床数，只计算一次而非每床重复
+    const bedCount = beds.length
+    days.forEach(d => {
+      const dt = toDateString(d)
+      shifts.forEach(s => {
+        m.set(`${dt}-${s.id}`, {used:0, total:bedCount})
       })
     })
     pShifts.forEach(s => {
@@ -561,7 +559,23 @@ export default function Schedule() {
                                       })
                                       setCreateModalOpen(true)
                                     }}
-                                    onDrop={(e)=>!isDateLocked(dt) && void onDropOnEmpty(e, bed, dt, shift, loadWeek)}
+                                    onDrop={(e) => {
+                                      if (isDateLocked(dt)) return
+                                      e.preventDefault()
+                                      // 检测是否为患者拖放——解析 dataTransfer 格式 "patient:id:name:mode"
+                                      const raw = e.dataTransfer.getData('text/plain')
+                                      const parts = raw.split(':')
+                                      if (parts[0] === 'patient' && parts.length >= 3) {
+                                        const pid = Number(parts[1])
+                                        if (!isNaN(pid) && pid > 0) {
+                                          setCreateInitial({ date: dt, wardId: Number(bed.wardId), bedId: Number(bed.id), shiftId: shift.id, patientId: pid })
+                                          setCreateModalOpen(true)
+                                          return
+                                        }
+                                      }
+                                      // 否则走排班卡片拖放逻辑
+                                      void onDropOnEmpty(e, bed, dt, shift, loadWeek)
+                                    }}
                                   >
                                     <Plus size={11}/>
                                   </div>
@@ -613,11 +627,18 @@ export default function Schedule() {
                 <div
                   key={p.id}
                   className={[
-                    'relative overflow-hidden rounded border px-1 py-0.5 cursor-pointer transition-all',
+                    'relative overflow-hidden rounded border px-1 py-0.5 cursor-grab active:cursor-grabbing transition-all',
                     selectedQueuePatient === p.id
                       ? 'border-green-500 bg-green-50 shadow-sm'
                       : 'border-slate-200 bg-white hover:bg-surface-sunken',
                   ].join(' ')}
+                  draggable
+                  onDragStart={(e) => {
+                    selectedQueuePatient !== p.id && setSelectedQueuePatient(p.id)
+                    e.dataTransfer.effectAllowed = 'move'
+                    e.dataTransfer.setData('text/plain', `patient:${p.id}:${p.name}:${p.dialysisMode || 'HD'}`)
+                  }}
+                  onDragEnd={() => { /* 拖放结束后不自动取消选中, 方便连续拖放 */ }}
                   onClick={() => {
                     if (selectedQueuePatient === p.id) {
                       setSelectedQueuePatient(null)
