@@ -249,7 +249,34 @@ export default function Schedule() {
         await restApi.createPatientShift({ patientId:selPatient, scheduleDate:toApi(date), shiftId:shift.id, bedId:Number(bed.id), wardId:Number(bed.wardId), dialysisMode:p?.dialysisMode||'HD', patientPlanId:p?.patientPlanId, shiftTiming:20, status:1 })
         message.success('排班已创建')
       }
-      closeModal(); await loadWeek()
+      closeModal()
+      // 局部更新：不刷新整周，直接修改本地数据
+      setData(prev => {
+        if (!prev) return prev
+        const shifts = [...prev.patientShifts]
+        if (existing) {
+          // 编辑：替换旧排班
+          const idx = shifts.findIndex(s => s.id === existing.id)
+          if (idx >= 0) {
+            shifts[idx] = { ...shifts[idx], shiftId: shift.id, bedId: Number(bed.id), bedName: bed.name, wardId: Number(bed.wardId), treatmentTime: toApi(date) }
+          }
+        } else {
+          // 新建：追加（后端id未知，用-1占位，下次刷新区分）
+          const p = pending.find(x => x.id === selPatient)
+          const newShift: RestScheduleWeekShift = {
+            id: -(Date.now() % 100000), patientId: selPatient!, patientName: p?.name || '',
+            bedId: Number(bed.id), bedName: bed.name, wardId: Number(bed.wardId),
+            shiftId: shift.id, patientPlanId: p?.patientPlanId || 0,
+            dialysisMode: p?.dialysisMode || 'HD',
+            oddWeekFrequency: p?.oddWeekFrequency || 0, evenWeekFrequency: p?.evenWeekFrequency || 0,
+            shiftTiming: 20, status: 1, statusName: '已确认',
+            treatmentTime: toApi(date), lastModifyTime: new Date().toISOString(),
+            sourceType: 'manual' as const, isManualAdjusted: false,
+          }
+          shifts.push(newShift)
+        }
+        return { ...prev, patientShifts: shifts }
+      })
     } catch(e) { message.error(getErrorMessage(e)) }
   }
 
@@ -257,7 +284,9 @@ export default function Schedule() {
     if (isDateLocked(item.treatmentTime.split('T')[0])) { message.warning('历史排班不可修改'); return }
     const ok = await new Promise<boolean>(r => Modal.confirm({ title:'取消排班', content:`确认取消 ${item.patientName} 的排班？`, okText:'确认', okButtonProps:{danger:true}, onOk:()=>r(true), onCancel:()=>r(false) }))
     if(!ok) return
-    try { await restApi.deletePatientShift(item.id); message.success('已取消'); setActionMenu({visible:false,x:0,y:0,item:null}); await loadWeek() }
+    try { await restApi.deletePatientShift(item.id); message.success('已取消'); setActionMenu({visible:false,x:0,y:0,item:null})
+      // 局部更新：直接从本地列表移除
+      setData(prev => prev ? { ...prev, patientShifts: prev.patientShifts.filter(s => s.id !== item.id) } : prev) }
     catch(e) { message.error(getErrorMessage(e)) }
   }
 

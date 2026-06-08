@@ -183,8 +183,8 @@ func (s *ScheduleBoardService) LoadBoard(tenantID int64, start, end time.Time) (
 
 	// 8. 批量加载已有排班占用 (Schedule_PatientShift)
 	var occupancies []models.PatientShift
-	if err := s.db.Where(`"TenantId" = ? AND DATE("TreatmentTime") >= DATE(?) AND DATE("TreatmentTime") <= DATE(?)`,
-		tenantID, start, end).Find(&occupancies).Error; err != nil {
+	if err := s.db.Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ?`,
+		tenantID, start.Format("2006-01-02")+" 00:00:00", endExclusive.Format("2006-01-02")+" 00:00:00").Find(&occupancies).Error; err != nil {
 		errs = append(errs, err)
 	} else {
 		psIDs := make([]int64, len(occupancies))

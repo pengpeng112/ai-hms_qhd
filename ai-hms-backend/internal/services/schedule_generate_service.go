@@ -187,8 +187,8 @@ func (s *ScheduleGenerateService) buildBoard(tenantID int64, anchor time.Time, s
 
 	// 已有占用
 	var occs []models.PatientShift
-	s.db.Where(`"TenantId" = ? AND DATE("TreatmentTime") >= DATE(?) AND DATE("TreatmentTime") <= DATE(?) AND "Status" NOT IN ?`,
-		tenantID, startDate, endDate,
+	s.db.Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "Status" NOT IN ?`,
+		tenantID, startDate.Format("2006-01-02")+" 00:00:00", endDate.Format("2006-01-02")+" 00:00:00",
 		[]int{
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusCancelled),
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusUserCancelled),

@@ -84,10 +84,12 @@ func (s *PatientShiftService) List(req PatientShiftListRequest) (*PatientShiftLi
 		query = query.Where("\"Status\" = ?", MapPatientShiftStatusNewToLegacy(*req.Status))
 	}
 	if req.StartDate != nil {
-		query = query.Where("DATE(\"TreatmentTime\") >= DATE(?)", *req.StartDate)
+		start := *req.StartDate
+		query = query.Where("\"TreatmentTime\" >= ?", start.Format("2006-01-02")+" 00:00:00")
 	}
 	if req.EndDate != nil {
-		query = query.Where("DATE(\"TreatmentTime\") <= DATE(?)", *req.EndDate)
+		end := req.EndDate.AddDate(0, 0, 1)
+		query = query.Where("\"TreatmentTime\" < ?", end.Format("2006-01-02")+" 00:00:00")
 	}
 
 	// 获取总数
@@ -433,7 +435,8 @@ func (s *PatientShiftService) GetByPatientAndDate(patientId, tenantId int64, dat
 	var patientShift models.PatientShift
 	err := s.db.
 		Where("\"TenantId\" = ?", tenantId).
-		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?)", patientId, date).
+		Where("\"PatientId\" = ? AND \"TreatmentTime\" >= ? AND \"TreatmentTime\" < ?",
+			patientId, date.Format("2006-01-02")+" 00:00:00", date.AddDate(0, 0, 1).Format("2006-01-02")+" 00:00:00").
 		Preload("Shift").
 		Preload("Bed").
 		Preload("Ward").
@@ -458,7 +461,8 @@ func (s *PatientShiftService) CheckConflict(patientId, tenantId int64, date time
 
 	query := s.db.Model(&models.PatientShift{}).
 		Where("\"TenantId\" = ?", tenantId).
-		Where("\"PatientId\" = ? AND DATE(\"TreatmentTime\") = DATE(?) AND \"ShiftId\" = ?", patientId, date, shiftId).
+		Where("\"PatientId\" = ? AND \"TreatmentTime\" >= ? AND \"TreatmentTime\" < ? AND \"ShiftId\" = ?",
+			patientId, date.Format("2006-01-02")+" 00:00:00", date.AddDate(0, 0, 1).Format("2006-01-02")+" 00:00:00", shiftId).
 		Where("\"Status\" NOT IN (?)", []int{
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusCancelled),
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusUserCancelled),
@@ -485,7 +489,8 @@ func (s *PatientShiftService) CheckBedConflict(bedId, tenantId int64, date time.
 
 	query := s.db.Model(&models.PatientShift{}).
 		Where("\"TenantId\" = ?", tenantId).
-		Where("\"BedId\" = ? AND DATE(\"TreatmentTime\") = DATE(?) AND \"ShiftId\" = ?", bedId, date, shiftId).
+		Where("\"BedId\" = ? AND \"TreatmentTime\" >= ? AND \"TreatmentTime\" < ? AND \"ShiftId\" = ?",
+			bedId, date.Format("2006-01-02")+" 00:00:00", date.AddDate(0, 0, 1).Format("2006-01-02")+" 00:00:00", shiftId).
 		Where("\"Status\" NOT IN (?)", []int{
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusCancelled),
 			MapPatientShiftStatusNewToLegacy(models.PatientShiftStatusUserCancelled),

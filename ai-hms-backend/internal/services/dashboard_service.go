@@ -102,7 +102,8 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	// 5. 今日排班数量（真实表 Schedule_PatientShift）
 	todaySchedulesQuery := s.db.Table(legacyPatientShiftTable).
 		Where(`"TenantId" = ?`, LegacyTenantID).
-		Where(`DATE("TreatmentTime") = ?`, today)
+		Where(`"TreatmentTime" >= ? AND "TreatmentTime" < ?`,
+			today+" 00:00:00", today+" 23:59:59")
 	todaySchedules, err := countRows(todaySchedulesQuery)
 	if err != nil {
 		return nil, err

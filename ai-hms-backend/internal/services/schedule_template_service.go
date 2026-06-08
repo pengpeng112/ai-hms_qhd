@@ -420,8 +420,8 @@ func (s *ScheduleTemplateService) ApplyTemplate(tenantID, creatorID int64, req S
 func checkConflictTx(db *gorm.DB, patientID, tenantID int64, date time.Time, shiftID int64, excludeID *int64) (bool, error) {
 	var count int64
 	q := db.Model(&models.PatientShift{}).
-		Where(`"TenantId" = ? AND "PatientId" = ? AND DATE("TreatmentTime") = DATE(?) AND "ShiftId" = ?`,
-			tenantID, patientID, date, shiftID).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "ShiftId" = ?`,
+			tenantID, patientID, date.Format("2006-01-02")+" 00:00:00", date.AddDate(0, 0, 1).Format("2006-01-02")+" 00:00:00", shiftID).
 		Where(`"Status" NOT IN ?`, inactivePatientShiftLegacyStatuses)
 	if excludeID != nil {
 		q = q.Where(`"Id" <> ?`, *excludeID)
@@ -435,8 +435,8 @@ func checkConflictTx(db *gorm.DB, patientID, tenantID int64, date time.Time, shi
 func checkBedConflictTx(db *gorm.DB, bedID, tenantID int64, date time.Time, shiftID int64, excludeID *int64) (bool, error) {
 	var count int64
 	q := db.Model(&models.PatientShift{}).
-		Where(`"TenantId" = ? AND "BedId" = ? AND DATE("TreatmentTime") = DATE(?) AND "ShiftId" = ?`,
-			tenantID, bedID, date, shiftID).
+		Where(`"TenantId" = ? AND "BedId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "ShiftId" = ?`,
+			tenantID, bedID, date.Format("2006-01-02")+" 00:00:00", date.AddDate(0, 0, 1).Format("2006-01-02")+" 00:00:00", shiftID).
 		Where(`"Status" NOT IN ?`, inactivePatientShiftLegacyStatuses)
 	if excludeID != nil {
 		q = q.Where(`"Id" <> ?`, *excludeID)

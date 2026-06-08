@@ -320,7 +320,8 @@ func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64,
 			COALESCE(pl."EvenWeekFrequency", 0) AS "EvenWeekFrequency"`).
 		Joins(`INNER JOIN "Register_PatientInfomation" p ON p."Id" = pl."PatientId" AND p."TenantId" = pl."TenantId"`).
 		Where(`pl."TenantId" = ? AND pl."IsDisabled" = false`, tenantID).
-		Order(`p."Id" ASC`)
+		Order(`p."Id" ASC`).
+		Limit(200) // 待排患者最多返回200条, 避免接口体量膨胀
 
 	if err := pendingQuery.Find(&pendingList).Error; err != nil {
 		return nil, err
