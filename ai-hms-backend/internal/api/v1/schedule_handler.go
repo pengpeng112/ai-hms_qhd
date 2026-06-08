@@ -730,15 +730,12 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	// 排班生成(2/4周草稿)
 	r.POST("/schedule/generate", GenerateScheduleHandler)
 
-	// 冲突队列
-	scheduleOps := r.Group("/schedule")
-	{
-		scheduleOps.GET("/conflicts", ListConflictsHandler)
-		scheduleOps.POST("/conflicts/:id/resolve", ResolveConflictHandler)
-		scheduleOps.POST("/conflicts/:id/ignore", IgnoreConflictHandler)
-		scheduleOps.POST("/patient-shifts/:id/cancel", CancelShiftHandler)
-		scheduleOps.POST("/patient-shifts/:id/absent", MarkAbsentHandler)
-	}
+	// 冲突队列管理(新接口, 不与旧/conflicts冲突)
+	r.GET("/schedule/conflict-queue", ListConflictsHandler)
+	r.POST("/schedule/conflict-queue/:id/resolve", ResolveConflictHandler)
+	r.POST("/schedule/conflict-queue/:id/ignore", IgnoreConflictHandler)
+	r.POST("/schedule/shift-cancel/:id", CancelShiftHandler)
+	r.POST("/schedule/shift-absent/:id", MarkAbsentHandler)
 }
 
 // ===== 冲突队列 Handler =====
