@@ -2147,6 +2147,14 @@ class RestApiService {
     return response.data.data
   }
 
+  async generateSchedule(req: { templateId?: number; startDate: string; weeks: number; wardId?: number }): Promise<ScheduleGenerateResponse> {
+    const response = await apiClient.post<ApiSuccessResponse<ScheduleGenerateResponse>>('/api/v1/schedule/generate', req)
+    if (!response.data.success) {
+      throw new Error('生成排班失败')
+    }
+    return response.data.data
+  }
+
   // ============ 治疗记录管理 ============
 
   /**
@@ -2434,6 +2442,15 @@ export interface ScheduleTemplateApplyResponse {
   createdShifts: number[]
   createdShiftExts: number[]
   count: number
+}
+
+export interface ScheduleGenerateResponse {
+  startDate: string
+  weeks: number
+  dialysisDays: number
+  drafts: number
+  conflicts: number
+  parityAssigned: number
 }
 
 // 导出单例

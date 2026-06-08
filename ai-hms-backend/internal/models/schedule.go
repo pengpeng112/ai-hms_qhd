@@ -141,15 +141,27 @@ func (PatientShift) TableName() string {
 	return "Schedule_PatientShift"
 }
 
-// PatientShiftStatus 患者排班状态常量
+// PatientShiftStatus 患者排班状态常量（当前系统内部使用）
 // 老库 Schedule_PatientShift.Status 对应关系：
 //   10 草稿 / 20 已确认 / 30 用户确认 / 40 用户取消 / 50 排班取消 / 60 转出人员
 const (
-	PatientShiftStatusPending       = 0 // 待执行 -> 老库 10 草稿
-	PatientShiftStatusConfirmed     = 1 // 已确认 -> 老库 20 已确认
-	PatientShiftStatusInProgress    = 2 // 进行中 -> 老库 20 已确认
-	PatientShiftStatusCompleted     = 3 // 已完成 -> 老库 30 用户确认
-	PatientShiftStatusCancelled     = 4 // 系统取消 -> 老库 50 排班取消
-	PatientShiftStatusUserCancelled = 5 // 用户取消 -> 老库 40 用户取消
-	PatientShiftStatusTransferred   = 6 // 转出人员 -> 老库 60 转出人员
+	PatientShiftStatusPending       = 0  // 待执行 -> 老库 10 草稿
+	PatientShiftStatusConfirmed     = 1  // 已确认 -> 老库 20 已确认
+	PatientShiftStatusInProgress    = 2  // 进行中 -> 老库 20 已确认
+	PatientShiftStatusCompleted     = 3  // 已完成 -> 老库 30 用户确认
+	PatientShiftStatusCancelled     = 4  // 系统取消 -> 老库 50 排班取消
+	PatientShiftStatusUserCancelled = 5  // 用户取消 -> 老库 40 用户取消
+	PatientShiftStatusTransferred   = 6  // 转出人员 -> 老库 60 转出人员
+)
+
+// PatientShiftStandardStatus 排班标准化状态（规范 v1 §7.1）
+//  0=待排 10=草稿 20=已确认 50=透析中 60=已完成 70=已取消 80=缺席
+const (
+	StdStatusPending    = 0
+	StdStatusDraft      = 10
+	StdStatusConfirmed  = 20
+	StdStatusInDialysis = 50
+	StdStatusCompleted  = 60
+	StdStatusCancelled  = 70
+	StdStatusAbsent     = 80
 )

@@ -17,6 +17,7 @@ import {
   type RestPatientShift,
 } from '@/services'
 import ApplyTemplateModal from '@/components/schedule/ApplyTemplateModal'
+import GenerateScheduleModal from '@/components/schedule/GenerateScheduleModal'
 import CreateScheduleModal from '@/components/schedule/CreateScheduleModal'
 import { useScheduleModals } from '@/hooks/useScheduleModals'
 import { useScheduleDragDrop } from '@/hooks/useScheduleDragDrop'
@@ -105,6 +106,9 @@ export default function Schedule() {
     shiftId?: number
     patientId?: number
   }>({})
+
+  // 生成草稿弹窗状态
+  const [generateOpen, setGenerateOpen] = useState(false)
 
   // 使用自定义 hook 管理拖拽状态
   const {
@@ -359,11 +363,9 @@ export default function Schedule() {
               })
               setCreateModalOpen(true)
             }}
-            className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-meta font-black text-blue-600 hover:bg-blue-100 hover:border-blue-400 transition"
+          className="inline-flex items-center gap-1 rounded-lg border border-blue-300 bg-blue-50 px-2.5 py-1 text-meta font-black text-blue-600 hover:bg-blue-100 hover:border-blue-400 transition"
           ><Plus size={12}/>新建排班</button>
-          <div className="text-meta text-foreground-muted">
-            本周完成度：<span className="font-semibold text-foreground">--</span>
-          </div>
+          <button onClick={() => setGenerateOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-teal-300 bg-teal-50 px-2 py-1 text-meta font-black text-teal-600 hover:bg-teal-100 hover:border-teal-400 transition"><ClipboardList size={12}/>生成草稿</button>
           <button onClick={()=>setApplyTemplateOpen(true)} className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-meta font-black text-slate-600 hover:bg-slate-50"><ClipboardList size={12}/>应用模板</button>
           <button onClick={()=>setQueueVisible(v=>!v)} className={`inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-meta font-black transition ${queueVisible?'border-blue-300 bg-blue-50 text-blue-600':'border-slate-200 text-slate-500 hover:bg-slate-50'}`} title={queueVisible?'隐藏待排班':'显示待排班'}>
             {queueVisible ? <PanelRightClose size={13}/> : <PanelRightOpen size={13}/>}
@@ -516,7 +518,14 @@ export default function Schedule() {
                                     <div className="text-center leading-tight w-full select-none">
                                       <div className="truncate text-body font-medium">{item.patientName}</div>
                                       <div className="text-meta text-foreground-muted">{item.dialysisMode||''}</div>
-                                    </div>
+      {/* 生成草稿弹窗 */}
+      <GenerateScheduleModal
+        open={generateOpen}
+        onClose={() => setGenerateOpen(false)}
+        onSuccess={() => void loadWeek()}
+        wardId={wardFilter === 'ALL' ? undefined : Number(wardFilter)}
+      />
+    </div>
                                     {item.sourceType === 'temporary' ? (
                                       <span className="absolute -top-1 -right-1 text-[7px] bg-orange-500 text-white rounded px-0.5 font-bold">临</span>
                                     ) : item.isManualAdjusted ? (

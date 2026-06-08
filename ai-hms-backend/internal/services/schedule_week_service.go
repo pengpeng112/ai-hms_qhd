@@ -82,12 +82,15 @@ type WeekScheduleResponse struct {
 }
 
 var statusNames = map[int]string{
+	0:  "待排",
 	10: "草稿",
 	20: "已确认",
 	30: "用户确认",
 	40: "用户取消",
 	50: "排班取消",
 	60: "转出",
+	70: "已取消",
+	80: "缺席",
 }
 
 func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64, wardID *int64) (*WeekScheduleResponse, error) {

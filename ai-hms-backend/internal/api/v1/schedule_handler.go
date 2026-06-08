@@ -662,6 +662,28 @@ func (h *PatientShiftHandler) ApplyTemplateHandler(c *gin.Context) {
 	response.Success(c, result)
 }
 
+// GenerateScheduleHandler 生成2/4周排班草稿
+func GenerateScheduleHandler(c *gin.Context) {
+	var req services.GenerateScheduleRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数")
+		return
+	}
+	if req.Weeks != 2 && req.Weeks != 4 {
+		response.BadRequest(c, "weeks必须为2或4")
+		return
+	}
+	tenantID := middleware.GetTenantID(c)
+	creatorID := middleware.GetCreatorID(c)
+	svc := services.NewScheduleGenerateService()
+	result, err := svc.Generate(tenantID, creatorID, req)
+	if err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, result)
+}
+
 // RegisterScheduleRoutes 注册排班管理路由
 func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	shiftHandler := NewShiftHandler()
@@ -704,6 +726,109 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 		templateGroup.POST("/save", patientShiftHandler.SaveTemplate)
 		templateGroup.POST("/apply", patientShiftHandler.ApplyTemplateHandler)
 	}
+
+	// 排班生成(2/4周草稿)
+	r.POST("/schedule/generate", GenerateScheduleHandler)
+
+	// 冲突队列
+	scheduleOps := r.Group("/schedule")
+	{
+		scheduleOps.GET("/conflicts", ListConflictsHandler)
+		scheduleOps.POST("/conflicts/:id/resolve", ResolveConflictHandler)
+		scheduleOps.POST("/conflicts/:id/ignore", IgnoreConflictHandler)
+		scheduleOps.POST("/patient-shifts/:id/cancel", CancelShiftHandler)
+		scheduleOps.POST("/patient-shifts/:id/absent", MarkAbsentHandler)
+	}
+}
+
+// ===== 冲突队列 Handler =====
+
+func ListConflictsHandler(c *gin.Context) {
+	tenantID := middleware.GetTenantID(c)
+	page := queryInt(c, "page", 1)
+	pageSize := queryInt(c, "pageSize", 20)
+	conflictType := c.Query("type")
+	svc := services.NewScheduleConflictService()
+	items, total, err := svc.ListConflicts(tenantID, page, pageSize, conflictType, nil)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"items": items, "total": total, "page": page, "pageSize": pageSize})
+}
+
+func ResolveConflictHandler(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	tenantID := middleware.GetTenantID(c)
+	resolverID := middleware.GetCreatorID(c)
+	var req struct {
+		Note string `json:"note"`
+	}
+	c.ShouldBindJSON(&req)
+	svc := services.NewScheduleConflictService()
+	if err := svc.ResolveConflict(tenantID, id, resolverID, req.Note); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, "已解决")
+}
+
+func IgnoreConflictHandler(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	tenantID := middleware.GetTenantID(c)
+	resolverID := middleware.GetCreatorID(c)
+	var req struct {
+		Note string `json:"note"`
+	}
+	c.ShouldBindJSON(&req)
+	svc := services.NewScheduleConflictService()
+	if err := svc.IgnoreConflict(tenantID, id, resolverID, req.Note); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, "已忽略")
+}
+
+func CancelShiftHandler(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	tenantID := middleware.GetTenantID(c)
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.ShouldBindJSON(&req)
+	svc := services.NewScheduleConflictService()
+	if err := svc.CancelPatientShift(tenantID, id, req.Reason); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, "已取消")
+}
+
+func MarkAbsentHandler(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	tenantID := middleware.GetTenantID(c)
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	c.ShouldBindJSON(&req)
+	svc := services.NewScheduleConflictService()
+	if err := svc.MarkAbsent(tenantID, id, req.Reason); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, "已标记缺席")
+}
+
+func queryInt(c *gin.Context, key string, defaultVal int) int {
+	v := c.Query(key)
+	if v == "" {
+		return defaultVal
+	}
+	parsed, err := strconv.Atoi(v)
+	if err != nil {
+		return defaultVal
+	}
+	return parsed
 }
 
 // ScheduleWeekHandler 周视图聚合
