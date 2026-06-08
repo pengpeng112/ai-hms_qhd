@@ -21,13 +21,13 @@ interface CreateScheduleModalProps {
   pendingPatients: RestSchedulePendingPatient[]
 }
 
-function pad(n: number) {
-  return n < 10 ? `0${n}` : `${n}`
+function timeOnly(ts: string): string {
+  const m = ts.match(/(\d{2}):(\d{2})/)
+  return m ? `${m[1]}:${m[2]}` : ts
 }
 
-function toDateString(d: Date) {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
+function pad(n: number) { return n < 10 ? `0${n}` : `${n}` }
+function toDateString(d: Date) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}` }
 
 export default function CreateScheduleModal({
   open,
@@ -241,7 +241,7 @@ export default function CreateScheduleModal({
               className="w-full"
               options={shifts.map((s) => ({
                 value: s.id,
-                label: `${s.name} (${s.startTime}-${s.endTime})`,
+                label: `${s.name} (${timeOnly(s.startTime)}-${timeOnly(s.endTime)})`,
               }))}
             />
           </div>
