@@ -176,6 +176,7 @@ const SUPPORTED_MENU_KEYS = new Set([
   'monitoring',
   'dialysis_processing',
   'schedule',
+  'smart_schedule',
   'inventory',
   'device_binding',
   'ward_management',
@@ -197,6 +198,7 @@ const PERMISSION_TO_MENU_KEY: Record<string, string> = {
   'menu.monitoring': 'monitoring',
   'menu.dialysis_processing': 'dialysis_processing',
   'menu.schedule': 'schedule',
+  'menu.smart_schedule': 'smart_schedule',
   'menu.inventory': 'inventory',
   'menu.device_binding': 'device_binding',
   'menu.ward_management': 'ward_management',
@@ -247,7 +249,7 @@ export async function getRolePermissionCodes(role: AppRole): Promise<string[]> {
 // 所有菜单 key（与 Sidebar.tsx roleMenuMap 保持一致）
 const ALL_MENU_KEYS = [
   'dashboard', 'ward_overview', 'patients', 'monitoring',
-  'dialysis_processing', 'schedule', 'inventory', 'device_binding',
+  'dialysis_processing', 'schedule', 'smart_schedule', 'inventory', 'device_binding',
   'ward_management', 'bed_management', 'education_management',
   'statistics', 'master_data', 'treatment_config', 'dict_config', 'settings',
   'user_management', 'role_management',
@@ -283,6 +285,7 @@ export function getMenuKeyByPath(pathname: string): string | null {
   if (path === '/monitoring') return 'monitoring'
   if (path === '/dialysis-processing') return 'dialysis_processing'
   if (path === '/schedule') return 'schedule'
+  if (path === '/smart-schedule') return 'smart_schedule'
   if (path === '/patients' || path.startsWith('/patients/')) return 'patients'
   if (path === '/education-management') return 'education_management'
   if (path === '/inventory') return 'inventory'

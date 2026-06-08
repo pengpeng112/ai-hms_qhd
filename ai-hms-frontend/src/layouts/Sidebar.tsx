@@ -21,6 +21,7 @@ import {
   Bed,
   GraduationCap,
   ChevronDown,
+  Sparkles,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -47,6 +48,7 @@ const menuItems: MenuItem[] = [
   { key: 'monitoring', path: '/monitoring', icon: Monitor },
   { key: 'dialysisProcessing', path: '/dialysis-processing', icon: ClipboardCheck },
   { key: 'schedule', path: '/schedule', icon: Calendar },
+  { key: 'smartSchedule', path: '/smart-schedule', icon: Sparkles },
   { key: 'inventory', path: '/inventory', icon: Package },
   { key: 'deviceBinding', path: '/device-binding', icon: Server },
   { key: 'wardManagement', path: '/ward-management', icon: Building2 },
@@ -64,7 +66,7 @@ const menuItems: MenuItem[] = [
 const menuGroups: MenuGroup[] = [
   { key: 'dailyWork', itemKeys: ['dashboard', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
-  { key: 'schedule', itemKeys: ['schedule'] },
+  { key: 'schedule', itemKeys: ['schedule', 'smartSchedule'] },
   { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardManagement', 'bedManagement'] },
   { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics'] },
 ]
@@ -78,6 +80,7 @@ const roleMenuMap: Record<string, string[]> = {
   monitoring: ['monitoring'],
   dialysis_processing: ['dialysisProcessing'],
   schedule: ['schedule'],
+  smart_schedule: ['smartSchedule'],
   inventory: ['inventory'],
   device_binding: ['deviceBinding'],
   ward_management: ['wardManagement'],

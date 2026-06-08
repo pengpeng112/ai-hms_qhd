@@ -5,6 +5,7 @@
   "monitoring": "Monitoring",
   "dialysisProcessing": "Dialysis Processing",
   "schedule": "Schedule",
+  "smartSchedule": "Smart Schedule",
   "inventory": "Inventory",
   "deviceBinding": "Device Management",
   "statistics": "Statistics",

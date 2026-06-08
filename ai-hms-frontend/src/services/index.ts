@@ -201,3 +201,48 @@ export {
   RoleGroups,
 } from './role'
 export type { RoleUser, RoleGroup } from './role'
+
+// ============ 智能排班 v1.3 ============
+export {
+  getBoard,
+  getWeek,
+  generateSchedule,
+  confirmPlan,
+  confirmDay,
+  cancelShift,
+  absentShift,
+  moveShift,
+  insertTemporary,
+  insertCrrt,
+  listCrrt,
+  machineOutage,
+  setHoliday,
+  planChange,
+  makeup,
+  listConflicts,
+  resolveConflict,
+  getDiffs,
+  getQuality,
+  listPatients,
+  upsertPatient,
+  listProfiles,
+  getProfile,
+  upsertProfile,
+  listTemplates,
+  rebuildTemplate,
+  listIncompleteProfiles,
+  dischargePatient,
+  placePatient,
+  setInfectionStatus,
+  waiveInfection,
+  seedDemo,
+} from './smartScheduleApi'
+export type {
+  WeekBoard,
+  GenerateResult,
+  QualityResult,
+  ConflictItem,
+  DiffItem,
+  CrrtItem,
+  IncompleteItem,
+} from './smartScheduleApi'

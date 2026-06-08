@@ -5,6 +5,7 @@
   "monitoring": "实时监控",
   "dialysisProcessing": "透析执行",
   "schedule": "排班管理",
+  "smartSchedule": "智能排班",
   "inventory": "耗材管理",
   "deviceBinding": "设备管理",
   "wardManagement": "病区管理",

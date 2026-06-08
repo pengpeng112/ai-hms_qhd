@@ -24,6 +24,7 @@ import {
     EducationManagement,
     ScheduleTemplateList,
     ScheduleTemplateEditor,
+    SmartSchedulePage,
 } from '@/pages'
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
@@ -74,6 +75,10 @@ const router = createBrowserRouter([
             {
                 path: 'schedule',
                 element: <Schedule />,
+            },
+            {
+                path: 'smart-schedule',
+                element: <SmartSchedulePage />,
             },
             {
                 path: 'statistics',

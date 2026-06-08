@@ -14,6 +14,7 @@ import (
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
+	smartapi "github.com/elliotxin/ai-hms-backend/internal/smart_schedule/api"
 	"github.com/elliotxin/ai-hms-backend/internal/utils"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
 	"github.com/gin-gonic/gin"
@@ -89,6 +90,11 @@ func main() {
 			"version": "1.0.0",
 		})
 	})
+
+	// 智能排班 v2 路由组（需要认证）
+	smartSchedule := r.Group("/api/v2")
+	smartSchedule.Use(middleware.AuthMiddleware(jwtManager))
+	smartapi.NewServer(database.GetDB()).Register(smartSchedule)
 
 	// API v1 路由组
 	v1 := r.Group("/api/v1")
