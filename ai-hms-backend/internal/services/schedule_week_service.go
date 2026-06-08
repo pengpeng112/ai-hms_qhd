@@ -326,7 +326,12 @@ func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64,
 		return nil, err
 	}
 
+	// 去重：同一患者可能有多条Plan_PatientPlan记录，只保留首条（频率最高者优先）
+	seenPatients := map[int64]bool{}
 	for _, pr := range pendingList {
+		if seenPatients[pr.ID] {
+			continue
+		}
 		expected := pr.EvenWeekFrequency
 		if isOddWeek {
 			expected = pr.OddWeekFrequency
@@ -340,6 +345,7 @@ func (s *ScheduleWeekService) GetWeek(startDate, endDate string, tenantID int64,
 			continue
 		}
 
+		seenPatients[pr.ID] = true
 		resp.PendingPatients = append(resp.PendingPatients, PendingPatientItem{
 			ID:                pr.ID,
 			Name:              pr.Name,

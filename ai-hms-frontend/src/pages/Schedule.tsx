@@ -625,7 +625,7 @@ export default function Schedule() {
             <div className="flex-1 min-h-0 overflow-y-auto p-1 space-y-0.5">
               {filteredPending.map(p => (
                 <div
-                  key={p.id}
+                  key={`${p.id}-${p.patientPlanId}`}
                   className={[
                     'relative overflow-hidden rounded border px-1 py-0.5 cursor-grab active:cursor-grabbing transition-all',
                     selectedQueuePatient === p.id
