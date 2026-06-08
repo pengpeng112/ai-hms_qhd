@@ -2155,6 +2155,32 @@ class RestApiService {
     return response.data.data
   }
 
+  // ============ 冲突队列 API ============
+
+  async listConflictQueue(params?: { page?: number; pageSize?: number; type?: string }): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
+    const response = await apiClient.get<ApiSuccessResponse<{ items: unknown[]; total: number; page: number; pageSize: number }>>('/api/v1/schedule/conflict-queue', { params })
+    if (!response.data.success) {
+      throw new Error('获取冲突队列失败')
+    }
+    return response.data.data
+  }
+
+  async resolveConflict(id: number, note?: string): Promise<void> {
+    await apiClient.post(`/api/v1/schedule/conflict-queue/${id}/resolve`, { note: note || '' })
+  }
+
+  async ignoreConflict(id: number, note?: string): Promise<void> {
+    await apiClient.post(`/api/v1/schedule/conflict-queue/${id}/ignore`, { note: note || '' })
+  }
+
+  async cancelPatientShift(id: number, reason?: string): Promise<void> {
+    await apiClient.post(`/api/v1/schedule/shift-cancel/${id}`, { reason: reason || '取消排班' })
+  }
+
+  async markAbsentPatientShift(id: number, reason?: string): Promise<void> {
+    await apiClient.post(`/api/v1/schedule/shift-absent/${id}`, { reason: reason || '缺席' })
+  }
+
   // ============ 治疗记录管理 ============
 
   /**

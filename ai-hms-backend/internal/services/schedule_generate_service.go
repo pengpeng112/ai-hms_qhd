@@ -238,7 +238,6 @@ func (s *ScheduleGenerateService) buildBoard(tenantID int64, anchor time.Time, s
 		}
 		for d := o.StartAt; !d.After(end); d = d.AddDate(0, 0, 1) {
 			board.Outages[o.BedId][d.Format("2006-01-02")] = true
-			d = d.AddDate(0, 0, 1)
 		}
 	}
 

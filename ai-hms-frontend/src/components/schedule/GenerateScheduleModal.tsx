@@ -1,4 +1,4 @@
-import { Modal, Button, Select, message, Radio } from 'antd'
+import { Modal, Button, Select, message, Radio, DatePicker } from 'antd'
 import { useState, useEffect } from 'react'
 import { restApi, getErrorMessage } from '@/services/restClient'
 import type { ScheduleTemplateResponse } from '@/services/restClient'
@@ -16,9 +16,13 @@ export default function GenerateScheduleModal({ open, onClose, onSuccess, wardId
   const [templates, setTemplates] = useState<ScheduleTemplateResponse[]>([])
   const [templateId, setTemplateId] = useState<number | undefined>(undefined)
   const [weeks, setWeeks] = useState(2)
+  const [startDate, setStartDate] = useState(dayjs())
 
   useEffect(() => {
     if (open) {
+      setTemplateId(undefined)
+      setWeeks(2)
+      setStartDate(dayjs())
       restApi.listScheduleTemplates(wardId)
         .then(setTemplates)
         .catch(() => setTemplates([]))
@@ -34,7 +38,7 @@ export default function GenerateScheduleModal({ open, onClose, onSuccess, wardId
     try {
       const result = await restApi.generateSchedule({
         templateId,
-        startDate: dayjs().format('YYYY-MM-DD'),
+        startDate: startDate.format('YYYY-MM-DD'),
         weeks,
         wardId: wardId ?? undefined,
       })
@@ -83,6 +87,16 @@ export default function GenerateScheduleModal({ open, onClose, onSuccess, wardId
             <Radio.Button value={2}>2周</Radio.Button>
             <Radio.Button value={4}>4周</Radio.Button>
           </Radio.Group>
+        </div>
+        <div>
+          <label className="block text-sm text-gray-600 mb-1">起始日期</label>
+          <DatePicker
+            value={startDate}
+            onChange={(d) => d && setStartDate(d)}
+            className="w-full"
+            allowClear={false}
+            disabledDate={(d) => d && d.isBefore(dayjs(), 'day')}
+          />
         </div>
         <div className="text-xs text-slate-400">
           将根据模板中患者骨架自动展开透析日，按两轮分配规则生成草稿排班。有冲突的进入冲突队列待人工处理。

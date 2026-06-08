@@ -736,6 +736,10 @@ func RegisterScheduleRoutes(r *gin.RouterGroup) {
 	r.POST("/schedule/conflict-queue/:id/ignore", IgnoreConflictHandler)
 	r.POST("/schedule/shift-cancel/:id", CancelShiftHandler)
 	r.POST("/schedule/shift-absent/:id", MarkAbsentHandler)
+
+	// 三级确认
+	r.POST("/schedule/confirm-plan", ConfirmPlanHandler)
+	r.POST("/schedule/confirm-day", ConfirmDayHandler)
 }
 
 // ===== 冲突队列 Handler =====
@@ -826,6 +830,62 @@ func queryInt(c *gin.Context, key string, defaultVal int) int {
 		return defaultVal
 	}
 	return parsed
+}
+
+// ===== 三级确认 Handler =====
+
+func ConfirmPlanHandler(c *gin.Context) {
+	var req struct {
+		WeekStart string `json:"weekStart" binding:"required"`
+		Weeks     int    `json:"weeks" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "weekStart和weeks必填")
+		return
+	}
+	weekStart, err := services.ParseScheduleDate(req.WeekStart)
+	if err != nil {
+		response.BadRequest(c, "weekStart格式应为YYYY-MM-DD")
+		return
+	}
+	tenantID := middleware.GetTenantID(c)
+	confirmBy := middleware.GetCreatorID(c)
+	svc := services.NewScheduleConfirmService()
+	count, err := svc.ConfirmPlan(tenantID, confirmBy, weekStart, req.Weeks)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"confirmed": count})
+}
+
+func ConfirmDayHandler(c *gin.Context) {
+	var req struct {
+		Date  string `json:"date" binding:"required"`
+		Level int    `json:"level" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "date和level必填")
+		return
+	}
+	date, err := services.ParseScheduleDate(req.Date)
+	if err != nil {
+		response.BadRequest(c, "date格式应为YYYY-MM-DD")
+		return
+	}
+	if req.Level != 2 && req.Level != 3 {
+		response.BadRequest(c, "level必须为2或3")
+		return
+	}
+	tenantID := middleware.GetTenantID(c)
+	confirmBy := middleware.GetCreatorID(c)
+	svc := services.NewScheduleConfirmService()
+	count, err := svc.ConfirmDay(tenantID, confirmBy, date, req.Level)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"confirmed": count})
 }
 
 // ScheduleWeekHandler 周视图聚合
