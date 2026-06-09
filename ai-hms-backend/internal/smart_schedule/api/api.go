@@ -300,7 +300,7 @@ func userOf(c *gin.Context) int64 {
 			return n
 		}
 	}
-	return 0
+	return 1
 }
 
 func shiftIdParam(c *gin.Context) (int64, bool) {

@@ -1,269 +1,433 @@
 import { useState, useEffect, useCallback } from 'react'
-import { DatePicker, Button, Card, Modal, message, Spin, Tabs, Table, Tag, Statistic, Row, Col } from 'antd'
+import { DatePicker, Button, Card, Modal, Spin, Tabs, Table, Tag, Statistic, Row, Col, Select, Input, InputNumber } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
-  getBoard,
-  generateSchedule,
-  confirmPlan,
-  confirmDay,
-  cancelShift,
-  listConflicts,
-  resolveConflict,
-  getQuality,
-  getDiffs,
-  listIncompleteProfiles,
-  type WeekBoard,
-  type CellDTO,
-  type MachineDTO,
-  type WardDTO,
-  type ConflictItem,
-  type QualityResult,
-  type DiffItem,
-  type IncompleteItem,
+  getBoard, generateSchedule, confirmPlan, confirmDay, cancelShift, absentShift, moveShift,
+  insertTemporary, insertCrrt, listCrrt, machineOutage, setHoliday, planChange, makeup,
+  listConflicts, resolveConflict, getDiffs, getQuality,
+  upsertPatient, upsertProfile, rebuildTemplate,
+  dischargePatient, placePatient, setInfectionStatus,
+  seedDemo,
+  type WeekBoard, type CellDTO, type MachineDTO,
+  type ConflictItem, type QualityResult, type DiffItem, type CrrtItem,
 } from '@/services/smartScheduleApi'
+
+const WD = ['周一', '周二', '周三', '周四', '周五', '周六']
+const STATUS_LABEL: Record<number, string> = { 0: '待排', 10: '草稿', 20: '已确认', 50: '透析中', 60: '完成', 70: '取消', 80: '缺席' }
+const MODE_COLORS: Record<string, string> = {
+  HD: '#0284c7', HDF: '#059669', HFD: '#0891b2', HP: '#d97706', HF: '#0d9488', CRRT: '#e11d48',
+}
+const FREQS: [number, string][] = [[10, '一三五'], [20, '二四六'], [30, '二四'], [40, '周四'], [90, '临时']]
 
 export default function SmartSchedulePage() {
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs())
+  const [weeks, setWeeks] = useState(2)
   const [board, setBoard] = useState<WeekBoard | null>(null)
   const [loading, setLoading] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [msgErr, setMsgErr] = useState(false)
   const [conflicts, setConflicts] = useState<ConflictItem[]>([])
   const [quality, setQuality] = useState<QualityResult | null>(null)
   const [diffs, setDiffs] = useState<DiffItem[]>([])
-  const [incomplete, setIncomplete] = useState<IncompleteItem[]>([])
+  const [crrts, setCrrts] = useState<CrrtItem[]>([])
+
+  // 状态
+  const [moveSrc, setMoveSrc] = useState<{ id: number; patientId: number; name: string } | null>(null)
+  const [dragSrc, setDragSrc] = useState<{ id: number; patientId: number; name: string } | null>(null)
+  const [confirmDate, setConfirmDate] = useState<string>(currentDate.format('YYYY-MM-DD'))
+
+  // 弹窗
+  const [menuCell, setMenuCell] = useState<{ cell: CellDTO; machineId: number; date: string; shiftId: number } | null>(null)
+  const [tempModal, setTempModal] = useState(false)
+  const [tempForm, setTempForm] = useState({ patientId: 0, wardId: 0, date: '', mode: 'HD' })
+  const [crrtModal, setCrrtModal] = useState(false)
+  const [crrtForm, setCrrtForm] = useState({ patientId: 0, wardId: 0, startAt: '', endAt: '' })
+  const [planModal, setPlanModal] = useState(false)
+  const [planForm, setPlanForm] = useState({ patientId: 0, changeType: 'FREQ', newValue: '', effectiveDate: '' })
+  const [outageModal, setOutageModal] = useState(false)
+  const [outageForm, setOutageForm] = useState({ machineId: 0, machineCode: '', startDate: '', endDate: '', type: 10, reason: '' })
+  const [holidayLoading, setHolidayLoading] = useState(false)
+
+  // 管理面板
+  const [adminOpen, setAdminOpen] = useState(false)
+  const [adminTab, setAdminTab] = useState('ward')
+  const [adm, setAdm] = useState<{ wards: any[]; machines: any[]; patients: any[]; profiles: any[]; templates: any[]; shifts: any[] }>({ wards: [], machines: [], patients: [], profiles: [], templates: [], shifts: [] })
+  const [fWard, setFWard] = useState({ name: '', zoneType: 'A', sort: 1 })
+  const [fMachine, setFMachine] = useState({ wardId: 0, code: '', machineType: 'HD', positionIndex: 1 })
+  const [fPat, setFPat] = useState({ patientId: 0, name: '', gender: '男', zoneTag: 'A', homeWardId: 0, weeklyCount: 3, freqPattern: 10, shiftId: 0, defaultMode: 'HD', hdfEnabled: false, hdfWeekday: 1, infectionStatus: 'unknown' })
+
+  const dateStr = currentDate.format('YYYY-MM-DD')
+  const today = dayjs().format('YYYY-MM-DD')
+
+  const notify = (text: string, isErr?: boolean) => { setMsg(text); setMsgErr(!!isErr); setTimeout(() => setMsg(''), 5000) }
 
   const fetchData = useCallback(async () => {
-    const dateStr = currentDate.format('YYYY-MM-DD')
     setLoading(true)
     try {
-      const [boardRes, conflictsRes, qualityRes, diffsRes, incompleteRes] = await Promise.allSettled([
-        getBoard(dateStr),
-        listConflicts(0),
-        getQuality(dateStr, 2),
-        getDiffs(dateStr, 2),
-        listIncompleteProfiles(),
-      ])
-      if (boardRes.status === 'fulfilled') setBoard(boardRes.value)
-      if (conflictsRes.status === 'fulfilled') setConflicts(conflictsRes.value.conflicts ?? [])
-      if (qualityRes.status === 'fulfilled') setQuality(qualityRes.value)
-      if (diffsRes.status === 'fulfilled') setDiffs(diffsRes.value.items ?? [])
-      if (incompleteRes.status === 'fulfilled') setIncomplete(incompleteRes.value.items ?? [])
-    } finally {
-      setLoading(false)
-    }
-  }, [currentDate])
+      const [b, cf, q, df, cr] = await Promise.allSettled([getBoard(dateStr), listConflicts(0), getQuality(dateStr, 2), getDiffs(dateStr, 2), listCrrt(dateStr)])
+      if (b.status === 'fulfilled') { setBoard(b.value); if (b.value.dates?.length) setConfirmDate(b.value.dates[0]) }
+      if (cf.status === 'fulfilled') setConflicts(cf.value.conflicts ?? [])
+      if (q.status === 'fulfilled') setQuality(q.value)
+      if (df.status === 'fulfilled') setDiffs(df.value.items ?? [])
+      if (cr.status === 'fulfilled') setCrrts(cr.value.items ?? [])
+    } finally { setLoading(false) }
+  }, [dateStr])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
-  const handleGenerate = async () => {
+  const api = {
+    generate: async () => {
+      setLoading(true)
+      try { const r = await generateSchedule({ startDate: dateStr, weeks }); notify(`生成:${r.dialysisDays} 透析日 / ${r.drafts} 草稿 / ${r.conflicts} 冲突`) } catch { notify('生成失败', true) }
+      setLoading(false); fetchData()
+    },
+    seed: async () => { try { const r = await seedDemo(); notify(r.seeded) } catch { notify('种子失败', true) }; fetchData() },
+    confirmPlan: async () => { try { const r = await confirmPlan({ weekStart: board?.weekStart, weeks }); notify(`整盘确认:${r.confirmed} 条`) } catch { notify('确认失败', true) }; fetchData() },
+    confirmDay: async (level: number) => { try { const r = await confirmDay({ date: confirmDate, level }); notify(`${level === 2 ? '次日' : '当日'}确认:${r.confirmed} 条`) } catch { notify('确认失败', true) }; fetchData() },
+    cancel: async (id: number) => { try { await cancelShift(id, '前端操作'); notify('已取消') } catch { notify('取消失败', true) }; setMenuCell(null); fetchData() },
+    absent: async (id: number) => { try { await absentShift(id, '前端操作'); notify('已缺席') } catch { notify('操作失败', true) }; setMenuCell(null); fetchData() },
+    doMove: async (srcId: number, machineId: number, d: string, shiftId: number) => { try { await moveShift(srcId, { machineId, date: d, shiftId }); notify('已移动') } catch { notify('移动失败', true) }; setMoveSrc(null); setDragSrc(null); fetchData() },
+    submitTemp: async () => { try { await insertTemporary(tempForm); notify('临时透析已插入'); setTempModal(false) } catch { notify('插入失败', true) }; fetchData() },
+    submitCrrt: async () => { try { await insertCrrt({ patientId: crrtForm.patientId, wardId: crrtForm.wardId, startAt: crrtForm.startAt, endAt: crrtForm.endAt || undefined }); notify('CRRT已安排'); setCrrtModal(false) } catch { notify('CRRT失败', true) }; fetchData() },
+    submitOutage: async () => { try { await machineOutage(outageForm.machineId, { startDate: outageForm.startDate, endDate: outageForm.endDate, type: outageForm.type, reason: outageForm.reason }); notify(`${outageForm.machineCode} 停机已登记`); setOutageModal(false) } catch { notify('停机失败', true) }; fetchData() },
+    submitHoliday: async () => { setHolidayLoading(true); try { const r: any = await setHoliday({ date: confirmDate, mode: 10 }); notify(`假日:取消${r.cancelled}/建议${r.suggested}`) } catch { notify('操作失败', true) };     setHolidayLoading(false); fetchData() },
+    submitPlan: async () => { try { const r: any = await planChange(planForm.patientId, { changeType: planForm.changeType, newValue: planForm.newValue, effectiveDate: planForm.effectiveDate || dateStr }); notify(`方案变更:${r.replanned}重排`); setPlanModal(false) } catch { notify('变更失败', true) }; fetchData() },
+    doMakeup: async (pid: number) => { try { const r: any = await makeup(pid, { weekStart: board?.weekStart, weeks: 2 }); notify(`#${pid} 补排${r.placed}次`) } catch { notify('补排失败', true) }; fetchData() },
+  }
+
+  const loadAdmin = async () => {
     try {
-      const res = await generateSchedule({ startDate: currentDate.format('YYYY-MM-DD'), weeks: 2 })
-      message.success(`生成完成: ${res.drafts} 条草稿, ${res.conflicts} 条冲突`)
-      fetchData()
-    } catch {
-      message.error('生成失败')
-    }
+      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      const get = async (u: string) => (await fetch(u, { headers })).json()
+      const [w, m, pt, pr, t, sh] = await Promise.all([get('/api/v2/admin/wards'), get('/api/v2/admin/machines'), get('/api/v2/admin/patients'), get('/api/v2/admin/profiles'), get('/api/v2/admin/templates'), get('/api/v2/admin/shifts')])
+      setAdm({ wards: w.data?.items || w.items || [], machines: m.data?.items || m.items || [], patients: pt.data?.items || pt.items || [], profiles: pr.data?.items || pr.items || [], templates: t.data?.items || t.items || [], shifts: sh.data?.items || sh.items || [] })
+    } catch { notify('加载管理数据失败', true) }
   }
+  const openAdmin = async () => { setAdminOpen(true); await loadAdmin() }
 
-  const handleConfirmPlan = async () => {
+  const createWard = async () => {
+    try { await fetch('/api/v2/admin/wards', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }, body: JSON.stringify(fWard) }); notify('病区已建'); loadAdmin() } catch { notify('失败', true) }
+  }
+  const createMachine = async () => {
+    try { await fetch('/api/v2/admin/machines', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }, body: JSON.stringify({ wardId: Number(fMachine.wardId), code: fMachine.code, machineType: fMachine.machineType, positionIndex: Number(fMachine.positionIndex) }) }); notify('机器已建'); loadAdmin() } catch { notify('失败', true) }
+  }
+  const savePatient = async () => {
     try {
-      const res = await confirmPlan({ weekStart: board?.weekStart, weeks: 2 })
-      message.success(`已确认 ${res.confirmed} 条排班`)
-      fetchData()
-    } catch {
-      message.error('确认失败')
-    }
+      await upsertPatient({ id: Number(fPat.patientId), name: fPat.name, gender: fPat.gender })
+      await upsertProfile({ patientId: Number(fPat.patientId), zoneTag: fPat.zoneTag, homeWardId: fPat.homeWardId || null, weeklyCount: Number(fPat.weeklyCount), freqPattern: Number(fPat.freqPattern), shiftId: fPat.shiftId || null, defaultMode: fPat.defaultMode, hdfEnabled: fPat.hdfEnabled, hdfWeekday: fPat.hdfEnabled ? Number(fPat.hdfWeekday) : null })
+      await setInfectionStatus(Number(fPat.patientId), { status: fPat.infectionStatus })
+      notify('病人+骨架已录入'); loadAdmin()
+    } catch { notify('录入失败', true) }
   }
 
-  const handleConfirmDay = async (level: number) => {
-    try {
-      const res = await confirmDay({ date: currentDate.format('YYYY-MM-DD'), level })
-      message.success(`${level === 2 ? '次日' : '当日'}确认: ${res.confirmed} 条`)
-      fetchData()
-    } catch {
-      message.error('确认失败')
+  const onCellClick = (machineId: number, date: string, shiftId: number, cell: CellDTO | null) => {
+    if (moveSrc) {
+      if (cell) { notify('目标必须是空格', true); return }
+      api.doMove(moveSrc.id, machineId, date, shiftId)
+      return
     }
+    if (dragSrc) return
+    if (!cell || !cell.id) return
+    setMenuCell({ cell, machineId, date, shiftId })
   }
 
-  const handleCancelShift = async (id: number) => {
-    try {
-      await cancelShift(id, '人工取消')
-      message.success('已取消')
-      fetchData()
-    } catch {
-      message.error('取消失败')
-    }
+  const onDrop = (machineId: number, date: string, shiftId: number, cell: CellDTO | null) => {
+    if (!dragSrc || cell) { setDragSrc(null); return }
+    api.doMove(dragSrc.id, machineId, date, shiftId)
   }
 
-  const cellClick = (cell: CellDTO, _machine: MachineDTO, _date: string) => {
-    if (!cell || cell.id === 0) {
-      return // 空机位无操作，临时排班通过顶部按钮
-    }
-    Modal.confirm({
-      title: `${cell.patientName} - ${cell.dialysisMode}`,
-      content: `状态: ${cell.status}, 确认级数: ${cell.confirms}`,
-      okText: '取消此排班',
-      onOk: () => handleCancelShift(cell.id),
-    })
-  }
-
-  const getShiftCells = (machine: MachineDTO, shiftId: number): (CellDTO | null)[] => {
-    if (!board || !board.dates) return []
-    return board.dates.map((date) => {
-      const key = `${date}|${shiftId}`
-      return machine.cells?.[key] ?? { id: 0, shiftId: 0, patientId: 0, patientName: '', dialysisMode: '', status: 0, sourceType: 0, confirms: 0 }
-    })
+  const modeColor = (mode: string) => MODE_COLORS[mode] || '#64748b'
+  const handleDateChange = (d: Dayjs | null) => {
+    if (!d) return
+    const monday = d.startOf('week').add(1, 'day')
+    setCurrentDate(monday)
   }
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-4">智能排班</h1>
+      <h1 className="text-xl font-bold mb-2">智能排班 — 周视图</h1>
 
-      <div className="flex gap-3 mb-4 flex-wrap items-center">
-        <DatePicker value={currentDate} onChange={(d) => d && setCurrentDate(d)} allowClear={false} />
-        <Button type="primary" onClick={handleGenerate}>生成排班</Button>
-        <Button onClick={handleConfirmPlan}>整盘确认</Button>
-        <Button onClick={() => handleConfirmDay(2)}>次日确认</Button>
-        <Button onClick={() => handleConfirmDay(3)}>当日确认</Button>
+      {/* 工具栏 */}
+      <div className="flex flex-wrap gap-2 mb-2 items-center text-sm">
+        <DatePicker value={currentDate} onChange={handleDateChange} allowClear={false} />
+        <Select value={weeks} onChange={setWeeks} style={{ width: 80 }} options={[{ value: 2, label: '2 周' }, { value: 4, label: '4 周' }]} />
         <Button onClick={fetchData}>刷新</Button>
+        <Button type="primary" onClick={api.generate}>生成排班</Button>
+        <Button onClick={api.seed}>写演示数据</Button>
+        <Button onClick={openAdmin}>管理</Button>
       </div>
 
+      {/* 确认 + 扰动工具栏 */}
+      <div className="flex flex-wrap gap-2 mb-2 items-center text-sm bg-gray-50 border rounded px-2 py-1.5">
+        <span className="text-gray-400 text-xs">确认</span>
+        <Button size="small" onClick={api.confirmPlan}>整盘确认</Button>
+        <Select value={confirmDate} onChange={setConfirmDate} size="small" style={{ width: 130 }} options={board?.dates?.map((d, i) => ({ value: d, label: `${WD[i]} ${d.slice(5)}` })) || []} />
+        <Button size="small" onClick={() => api.confirmDay(2)}>次日确认</Button>
+        <Button size="small" onClick={() => api.confirmDay(3)}>当日确认</Button>
+        <span className="text-gray-300">|</span>
+        <span className="text-gray-400 text-xs">扰动</span>
+        <Button size="small" danger onClick={api.submitHoliday} loading={holidayLoading}>设为假日</Button>
+        <Button size="small" onClick={() => { setPlanForm({ patientId: 0, changeType: 'FREQ', newValue: '', effectiveDate: board?.dates?.[0] || dateStr }); setPlanModal(true) }}>方案变更</Button>
+        <Button size="small" danger onClick={() => { const cw = board?.wards?.[0]; setTempForm({ patientId: 0, wardId: cw?.id || 0, date: board?.dates?.[0] || dateStr, mode: 'HD' }); setTempModal(true) }}>+临时透析</Button>
+        <Button size="small" style={{ background: '#a21caf', borderColor: '#a21caf', color: '#fff' }} onClick={() => { const cw = (board?.wards || []).find(w => w.zoneType === 'C'); setCrrtForm({ patientId: 0, wardId: cw?.id || 0, startAt: `${board?.dates?.[0] || dateStr} 09:00`, endAt: '' }); setCrrtModal(true) }}>+CRRT</Button>
+      </div>
+
+      {/* 消息和操作状态 */}
+      <div className="flex flex-wrap gap-2 mb-2 text-xs items-center">
+        {['HD', 'HDF', 'CRRT'].map(m => <span key={m} className="px-2 py-0.5 rounded border bg-gray-50">{m}</span>)}
+        <span className="text-gray-400">✓=确认级别</span>
+        {msg && <span className={`font-medium px-2 py-0.5 rounded ${msgErr ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{msg}</span>}
+        {moveSrc && <Button size="small" danger onClick={() => { setMoveSrc(null); notify('已取消移动') }}>取消移动{moveSrc.name}</Button>}
+      </div>
+
+      {/* CRRT 面板 */}
+      {crrts.length > 0 && (
+        <div className="mb-2 border rounded bg-purple-50 p-2 text-xs">
+          <div className="font-semibold mb-1 text-purple-800">CRRT 占用({crrts.length})</div>
+          {crrts.map(x => (
+            <div key={x.id} className="flex gap-3 py-0.5 border-b border-purple-100">
+              <span className="font-medium">{x.patientName || `#${x.patientId}`}</span>
+              <span className="font-mono text-gray-600">{x.machineCode}</span>
+              <span className="text-gray-500">{String(x.startAt).slice(0, 16).replace('T', ' ')} ~ {x.endAt ? String(x.endAt).slice(0, 16).replace('T', ' ') : '进行中'}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <Spin spinning={loading}>
-        {quality?.onTargetRate !== undefined && (
-          <Row gutter={16} className="mb-4">
-            <Col span={4}><Card size="small"><Statistic title="达标率" value={quality.onTargetRate} suffix="%" precision={0} valueStyle={{ color: quality.onTargetRate >= 80 ? '#3f8600' : '#cf1322' }} /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="利用率" value={quality.utilization} suffix="%" precision={0} /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="稳定率" value={quality.stabilityRate} suffix="%" precision={0} /></Card></Col>
+        {/* 质量评分 */}
+        {quality && (
+          <Row gutter={8} className="mb-3">
+            <Col span={4}><Card size="small"><Statistic title="达标率" value={Math.round(quality.onTargetRate)} suffix="%" valueStyle={{ color: quality.onTargetRate >= 80 ? '#3f8600' : '#cf1322' }} /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="利用率" value={Math.round(quality.utilization)} suffix="%" /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="稳定率" value={Math.round(quality.stabilityRate)} suffix="%" /></Card></Col>
             <Col span={4}><Card size="small"><Statistic title="综合分" value={quality.score} suffix="/100" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="待处理冲突" value={quality.openConflicts} valueStyle={{ color: quality.openConflicts > 0 ? '#cf1322' : '#3f8600' }} /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="达标患者" value={`${quality.patientsOnTarget}/${quality.patientsTotal}`} /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="冲突" value={quality.openConflicts} valueStyle={{ color: quality.openConflicts > 0 ? '#cf1322' : '#3f8600' }} /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="患者" value={`${quality.patientsOnTarget}/${quality.patientsTotal}`} /></Card></Col>
           </Row>
         )}
 
-        <Tabs
-          items={[
-            {
-              key: 'board',
-              label: '周排班矩阵',
-              children: board ? (
-                <div className="overflow-x-auto">
-                  <table className="border-collapse w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="border p-2">病区</th>
-                        <th className="border p-2">机器</th>
-                        {board.shifts?.map((s) => (
-                          <th key={s.id} colSpan={board.dates?.length} className="border p-2 bg-blue-50">
-                            {s.name}
-                          </th>
-                        ))}
-                      </tr>
-                      <tr className="bg-gray-50">
-                        <th className="border p-2"></th>
-                        <th className="border p-2"></th>
-                        {board.shifts?.map((s) =>
-                          board.dates?.map((d) => (
-                            <th key={`${s.id}-${d}`} className="border p-1 text-xs font-normal">
-                              {d.slice(5)}
-                            </th>
-                          ))
-                        )}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {board.wards?.map((ward: WardDTO) =>
-                        ward.machines?.map((machine: MachineDTO, mi: number) => (
-                          <tr key={`${ward.id}-${machine.id}`}>
-                            {mi === 0 && <td rowSpan={ward.machines.length} className="border p-2 font-bold align-top">{ward.name}</td>}
-                            <td className="border p-1 text-xs">{machine.code}</td>
-                            {board.shifts?.map((s) =>
-                              getShiftCells(machine, s.id).map((cell, ci) => (
-                                <td
-                                  key={`${s.id}-${ci}`}
-                                  className={`border p-1 text-center cursor-pointer text-xs min-w-[60px] ${
-                                    cell && cell.status > 0 ? 'bg-green-50 hover:bg-green-100' : 'hover:bg-gray-100'
-                                  }`}
-                                  onClick={() => cellClick(cell ?? { id: 0, shiftId: s.id, patientId: 0, patientName: '', dialysisMode: '', status: 0, sourceType: 0, confirms: 0 }, machine, board.dates[ci])}
-                                >
-                                  {cell && cell.status > 0 ? (
-                                    <div>
-                                      <div className="font-bold">{cell.patientName}</div>
-                                      <div className="text-xs text-gray-500">{cell.dialysisMode}</div>
-                                      {cell.confirms > 0 && <Tag color="blue" className="text-[10px] leading-none px-1">{'✓'.repeat(cell.confirms)}</Tag>}
+        <Tabs items={[
+          {
+            key: 'board', label: '周排班矩阵',
+            children: board ? (
+              <div className="overflow-auto border rounded bg-white" style={{ maxHeight: '70vh' }}>
+                <table className="border-collapse text-xs">
+                  <thead className="sticky top-0 z-20 bg-gray-100">
+                    <tr>
+                      <th className="sticky left-0 z-30 bg-gray-100 border px-2" rowSpan={2}>病区 / 机器</th>
+                      {board.dates?.map((d, i) => {
+                        const isToday = d === today
+                        return <th key={d} colSpan={board.shifts?.length || 1} className={`border px-1 ${isToday ? 'bg-amber-100' : ''}`}>{WD[i]}<div className="font-normal text-gray-400">{d.slice(5)}</div></th>
+                      })}
+                    </tr>
+                    <tr>
+                      {board.dates?.map(d => board.shifts?.map(s => {
+                        const isToday = d === today
+                        return <th key={d + s.id} className={`border px-1 font-normal text-gray-500 ${isToday ? 'bg-amber-50' : ''}`}>{s.name.replace('班', '')}</th>
+                      }))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {board.wards?.map(w => (
+                      <><tr key={w.id}><td colSpan={1 + (board.shifts?.length || 1) * (board.dates?.length || 1)} className="bg-gray-50 border px-2 py-1 font-semibold">{w.name} <span className="text-gray-400 font-normal">({(w.machines || []).length}台)</span></td></tr>
+                        {(w.machines || []).map((m: MachineDTO) => (
+                          <tr key={m.id} className="hover:bg-sky-50">
+                            <td className="sticky left-0 z-10 bg-white border px-2 font-medium cursor-pointer hover:bg-rose-50 whitespace-nowrap" onClick={() => { setOutageForm({ machineId: m.id, machineCode: m.code, startDate: board.dates?.[0] || dateStr, endDate: board.dates?.[0] || dateStr, type: 10, reason: '' }); setOutageModal(true) }} title="点击登记停机">{m.code}<span className="ml-1 text-gray-400">{m.machineType}</span></td>
+                            {board.dates?.map(d => board.shifts?.map(s => {
+                              const cell = m.cells?.[`${d}|${s.id}`] as CellDTO | undefined
+                              const isToday = d === today
+                              const isPast = d < today
+                              const colTint = isToday ? 'bg-amber-50' : isPast ? 'bg-gray-50' : ''
+                              const dropHL = (moveSrc || dragSrc) && !cell
+                              return (
+                                <td key={d + s.id}
+                                  onClick={() => onCellClick(m.id, d, s.id, cell || null)}
+                                  onDragOver={e => { if (!cell) e.preventDefault() }}
+                                  onDrop={() => onDrop(m.id, d, s.id, cell || null)}
+                                  className={`border p-0.5 min-w-[90px] h-[50px] align-middle cursor-pointer ${colTint} ${dropHL ? 'bg-green-50' : ''}`}>
+                                  {cell ? (
+                                    <div draggable onDragStart={() => setDragSrc({ id: cell.id, patientId: cell.patientId, name: cell.patientName })} onDragEnd={() => setDragSrc(null)}
+                                      className={`rounded-md border bg-white px-1 py-0.5 leading-tight ${cell.status === 10 ? 'border-dashed' : ''} ${cell.status === 50 ? 'shadow-[0_0_9px_1px_rgba(16,185,129,.55)]' : ''}`}
+                                      style={{ borderColor: modeColor(cell.dialysisMode) }}>
+                                      <div className="flex items-center gap-1">
+                                        <span className="font-semibold text-[11px] text-gray-800 truncate">{cell.patientName || `#${cell.patientId}`}</span>
+                                        {cell.confirms > 0 && <span className="text-emerald-600 text-[9px]">{'●'.repeat(cell.confirms)}</span>}
+                                      </div>
+                                      <div className="flex items-center justify-between gap-0.5">
+                                        <span className="text-[9px] font-bold px-1 rounded" style={{ color: modeColor(cell.dialysisMode), background: modeColor(cell.dialysisMode) + '1a' }}>{cell.dialysisMode}</span>
+                                        {cell.sourceType === 20 ? <span className="text-[9px] text-amber-600 font-bold">临</span> : cell.status === 80 ? <span className="text-[9px] text-rose-500 font-bold">缺</span> : cell.status === 50 ? <span className="text-[9px] text-emerald-600 font-bold">透</span> : null}
+                                      </div>
                                     </div>
                                   ) : (
-                                    <div className="text-gray-300">空</div>
+                                    <div className="flex items-center justify-center h-full opacity-10 text-gray-400 text-[10px]">空</div>
                                   )}
                                 </td>
-                              ))
-                            )}
+                              )
+                            }))}
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              ) : <div className="text-gray-400 text-center py-8">暂无排班数据</div>,
-            },
-            {
-              key: 'conflicts',
-              label: `冲突队列 (${conflicts.length})`,
-              children: conflicts.length > 0 ? (
-                <Table
-                  dataSource={conflicts}
-                  rowKey="id"
-                  size="small"
+                        ))}
+                      </>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <div className="text-gray-400 text-center py-8">暂无排班数据，请先点击"写演示数据"再"生成排班"</div>,
+          },
+          {
+            key: 'conflicts', label: `冲突(${conflicts.length})`,
+            children: conflicts.length > 0 ? (
+              <div className="max-h-96 overflow-auto">
+                <Table dataSource={conflicts} rowKey="id" size="small" pagination={false}
                   columns={[
-                    { title: '类型', dataIndex: 'conflictType', key: 'type', render: (v: string) => <Tag>{v}</Tag> },
-                    { title: '严重度', dataIndex: 'severity', key: 'severity', render: (v: number) => <Tag color={v >= 20 ? 'red' : 'orange'}>{v >= 20 ? '报警' : '提示'}</Tag> },
-                    { title: '详情', dataIndex: 'detail', key: 'detail' },
-                    { title: '状态', dataIndex: 'status', key: 'status', render: (v: number) => v === 0 ? '待处理' : v === 10 ? '已处理' : '已忽略' },
-                    { title: '操作', key: 'action', render: (_: unknown, r: ConflictItem) => (
-                      <span>
-                        <Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); message.success('已处理'); fetchData() }}>接受</Button>
-                        <Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); message.success('已忽略'); fetchData() }}>忽略</Button>
-                      </span>
-                    )},
-                  ]}
-                />
-              ) : <div className="text-gray-400 text-center py-4">无待处理冲突</div>,
-            },
-            {
-              key: 'diffs',
-              label: `应排差异 (${diffs.length})`,
-              children: diffs.length > 0 ? (
-                <Table
-                  dataSource={diffs}
-                  rowKey="patientId"
-                  size="small"
-                  columns={[
-                    { title: '病人', dataIndex: 'patientName', key: 'name' },
-                    { title: '应排', dataIndex: 'expected', key: 'expected' },
-                    { title: '已排', dataIndex: 'scheduled', key: 'scheduled' },
-                    { title: '差异', dataIndex: 'diff', key: 'diff', render: (v: number) => <Tag color={v > 0 ? 'red' : 'green'}>{v > 0 ? `少 ${v}` : `多 ${-v}`}</Tag> },
-                  ]}
-                />
-              ) : <div className="text-gray-400 text-center py-4">无应排差异</div>,
-            },
-            {
-              key: 'incomplete',
-              label: `资料待补 (${incomplete.length})`,
-              children: incomplete.length > 0 ? (
-                <Table
-                  dataSource={incomplete}
-                  rowKey="patientId"
-                  size="small"
-                  columns={[
-                    { title: '病人', dataIndex: 'patientName', key: 'name' },
-                    { title: '缺少字段', dataIndex: 'missing', key: 'missing', render: (v: string[]) => v.map((m) => <Tag key={m} color="orange">{m}</Tag>) },
-                  ]}
-                />
-              ) : <div className="text-gray-400 text-center py-4">所有病人资料完整</div>,
-            },
-          ]}
-        />
+                    { title: '类型', dataIndex: 'conflictType', render: (v: string) => <Tag>{v}</Tag> },
+                    { title: '严重度', dataIndex: 'severity', render: (v: number) => <Tag color={v >= 20 ? 'red' : 'orange'}>{v >= 20 ? '报警' : '提示'}</Tag> },
+                    { title: '详情', dataIndex: 'detail' },
+                    { title: '操作', render: (_: any, r: ConflictItem) => <span><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); fetchData() }}>接受</Button><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); fetchData() }}>忽略</Button></span> },
+                  ]} />
+              </div>
+            ) : <div className="text-gray-400 text-center py-4">无待处理冲突</div>,
+          },
+          {
+            key: 'diffs', label: `差异(${diffs.length})`,
+            children: diffs.length > 0 ? (
+              <div className="max-h-96 overflow-auto">
+                {diffs.map(d => (
+                  <div key={d.patientId} className="flex items-center gap-3 py-1 border-b border-rose-100 text-xs">
+                    <span className="font-medium">{d.patientName || `#${d.patientId}`}</span>
+                    <span className="text-gray-500">应排{d.expected}·已排{d.scheduled}</span>
+                    <span className={d.diff > 0 ? 'text-rose-700 font-semibold' : 'text-sky-700'}>{d.diff > 0 ? `少排${d.diff}次` : `多排${-d.diff}次`}</span>
+                    {d.diff > 0 && <Button size="small" type="primary" danger onClick={() => api.doMakeup(d.patientId)}>一键补排</Button>}
+                  </div>
+                ))}
+              </div>
+            ) : <div className="text-gray-400 text-center py-4">无差异</div>,
+          },
+        ]} />
       </Spin>
+
+      {/* 格子菜单 */}
+      <Modal open={!!menuCell} onCancel={() => setMenuCell(null)} footer={null} title="排班操作" width={280}>
+        {menuCell && (
+          <div className="flex flex-col gap-2">
+            <div className="text-sm text-gray-500 mb-2">{menuCell.date} · {STATUS_LABEL[menuCell.cell.status]} · {menuCell.cell.dialysisMode}</div>
+            <Button block onClick={() => { setMoveSrc({ id: menuCell.cell.id, patientId: menuCell.cell.patientId, name: menuCell.cell.patientName }); setMenuCell(null); notify('点击空格移动', false) }}>移动到空格…</Button>
+            <Button block danger onClick={() => api.cancel(menuCell.cell.id)}>取消(提前请假)</Button>
+            <Button block onClick={() => api.absent(menuCell.cell.id)} style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>标记缺席</Button>
+          </div>
+        )}
+      </Modal>
+
+      {/* 临时透析弹窗 */}
+      <Modal open={tempModal} onCancel={() => setTempModal(false)} onOk={api.submitTemp} title="+ 临时透析(急诊加台)">
+        <div className="flex flex-col gap-2">
+          <label>病人ID <InputNumber value={tempForm.patientId} onChange={v => setTempForm({ ...tempForm, patientId: v || 0 })} className="w-full" /></label>
+          <label>病区 <Select value={tempForm.wardId || undefined} onChange={v => setTempForm({ ...tempForm, wardId: v || 0 })} className="w-full" options={board?.wards?.map(w => ({ value: w.id, label: w.name })) || []} /></label>
+          <label>日期 <Input value={tempForm.date} onChange={e => setTempForm({ ...tempForm, date: e.target.value })} /></label>
+          <label>模式 <Select value={tempForm.mode} onChange={v => setTempForm({ ...tempForm, mode: v })} options={['HD', 'HDF', 'HFD', 'HP', 'HF', 'CRRT'].map(m => ({ value: m, label: m }))} /></label>
+        </div>
+      </Modal>
+
+      {/* CRRT弹窗 */}
+      <Modal open={crrtModal} onCancel={() => setCrrtModal(false)} onOk={api.submitCrrt} title="+ CRRT(C区)">
+        <div className="flex flex-col gap-2">
+          <label>病人ID <InputNumber value={crrtForm.patientId} onChange={v => setCrrtForm({ ...crrtForm, patientId: v || 0 })} className="w-full" /></label>
+          <label>C区 <Select value={crrtForm.wardId || undefined} onChange={v => setCrrtForm({ ...crrtForm, wardId: v || 0 })} className="w-full" options={(board?.wards || []).filter(w => w.zoneType === 'C').map(w => ({ value: w.id, label: w.name }))} /></label>
+          <label>开始 <Input value={crrtForm.startAt} onChange={e => setCrrtForm({ ...crrtForm, startAt: e.target.value })} placeholder="2026-06-08 09:00" /></label>
+          <label>结束 <Input value={crrtForm.endAt} onChange={e => setCrrtForm({ ...crrtForm, endAt: e.target.value })} placeholder="可空=进行中" /></label>
+        </div>
+      </Modal>
+
+      {/* 方案变更弹窗 */}
+      <Modal open={planModal} onCancel={() => setPlanModal(false)} onOk={api.submitPlan} title="方案变更">
+        <div className="flex flex-col gap-2">
+          <label>病人ID <InputNumber value={planForm.patientId} onChange={v => setPlanForm({ ...planForm, patientId: v || 0 })} className="w-full" /></label>
+          <label>变更项 <Select value={planForm.changeType} onChange={v => setPlanForm({ ...planForm, changeType: v })} options={[{ value: 'FREQ', label: '频率' }, { value: 'SHIFT', label: '班次' }, { value: 'ZONE', label: '分区' }, { value: 'HDF', label: 'HDF' }]} /></label>
+          <label>新值 <Input value={planForm.newValue} onChange={e => setPlanForm({ ...planForm, newValue: e.target.value })} placeholder="如10/A/true" /></label>
+          <label>生效日 <Input value={planForm.effectiveDate} onChange={e => setPlanForm({ ...planForm, effectiveDate: e.target.value })} placeholder="YYYY-MM-DD" /></label>
+        </div>
+        <div className="text-[11px] text-gray-400 mt-2">生效日后未确认排班将取消待重排,已确认报警人工</div>
+      </Modal>
+
+      {/* 停机弹窗 */}
+      <Modal open={outageModal} onCancel={() => setOutageModal(false)} onOk={api.submitOutage} title={`停机: ${outageForm.machineCode}`}>
+        <div className="flex flex-col gap-2">
+          <label>起 <Input value={outageForm.startDate} onChange={e => setOutageForm({ ...outageForm, startDate: e.target.value })} /></label>
+          <label>止 <Input value={outageForm.endDate} onChange={e => setOutageForm({ ...outageForm, endDate: e.target.value })} /></label>
+          <label>类型 <Select value={outageForm.type} onChange={v => setOutageForm({ ...outageForm, type: v })} options={[{ value: 10, label: '临时(≤48h自动迁移)' }, { value: 20, label: '长期/报废(报警人工)' }]} /></label>
+          <label>原因 <Input value={outageForm.reason} onChange={e => setOutageForm({ ...outageForm, reason: e.target.value })} placeholder="如故障维修" /></label>
+        </div>
+      </Modal>
+
+      {/* 管理面板 */}
+      <Modal open={adminOpen} onCancel={() => setAdminOpen(false)} footer={null} title="资源与病人维护" width={900}>
+        <Tabs activeKey={adminTab} onChange={setAdminTab} items={[
+          {
+            key: 'ward', label: '病区',
+            children: <div className="text-sm">
+              <div className="flex flex-wrap items-end gap-2 mb-3 bg-gray-50 p-2 rounded">
+                <label>名称<Input value={fWard.name} onChange={e => setFWard({ ...fWard, name: e.target.value })} /></label>
+                <label>类型<Select value={fWard.zoneType} onChange={v => setFWard({ ...fWard, zoneType: v })} options={[{ value: 'A', label: 'A 门诊' }, { value: 'B', label: 'B 住院' }, { value: 'C', label: 'C 全警戒' }]} /></label>
+                <Button type="primary" onClick={createWard}>新增病区</Button>
+              </div>
+              <Table dataSource={adm.wards} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '类型', dataIndex: 'zoneType' }, { title: '状态', render: (_: any, r: any) => r.isDisabled ? '停用' : '启用' }]} />
+            </div>,
+          },
+          {
+            key: 'machine', label: '机器',
+            children: <div className="text-sm">
+              <div className="flex flex-wrap items-end gap-2 mb-3 bg-gray-50 p-2 rounded">
+                <label>病区<Select value={fMachine.wardId || undefined} onChange={v => setFMachine({ ...fMachine, wardId: v || 0 })} options={adm.wards.map((w: any) => ({ value: w.id, label: w.name }))} /></label>
+                <label>编号<Input value={fMachine.code} onChange={e => setFMachine({ ...fMachine, code: e.target.value })} /></label>
+                <label>机型<Select value={fMachine.machineType} onChange={v => setFMachine({ ...fMachine, machineType: v })} options={['HD', 'HDF', 'CRRT'].map(m => ({ value: m, label: m }))} /></label>
+                <label>位序<InputNumber value={fMachine.positionIndex} onChange={v => setFMachine({ ...fMachine, positionIndex: v || 1 })} /></label>
+                <Button type="primary" onClick={createMachine}>新增机器</Button>
+              </div>
+              <Table dataSource={adm.machines} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '病区', render: (_: any, r: any) => adm.wards.find((w: any) => w.id === r.wardId)?.name }, { title: '编号', dataIndex: 'code' }, { title: '机型', dataIndex: 'machineType' }, { title: '位序', dataIndex: 'positionIndex' }]} />
+            </div>,
+          },
+          {
+            key: 'profile', label: '病人/骨架',
+            children: <div className="text-sm">
+              <div className="grid grid-cols-3 gap-2 mb-3 bg-gray-50 p-2 rounded items-end">
+                <label>病人ID<InputNumber value={fPat.patientId} onChange={v => setFPat({ ...fPat, patientId: v || 0 })} className="w-full" /></label>
+                <label>姓名<Input value={fPat.name} onChange={e => setFPat({ ...fPat, name: e.target.value })} /></label>
+                <label>性别<Select value={fPat.gender} onChange={v => setFPat({ ...fPat, gender: v })} options={[{ value: '男', label: '男' }, { value: '女', label: '女' }]} /></label>
+                <label>分区<Select value={fPat.zoneTag} onChange={v => setFPat({ ...fPat, zoneTag: v })} options={['A', 'B', 'C'].map(v => ({ value: v, label: v }))} /></label>
+                <label>归属区<Select value={fPat.homeWardId || undefined} onChange={v => setFPat({ ...fPat, homeWardId: v || 0 })} options={adm.wards.map((w: any) => ({ value: w.id, label: w.name }))} /></label>
+                <label>每周次数<InputNumber min={1} max={3} value={fPat.weeklyCount} onChange={v => setFPat({ ...fPat, weeklyCount: v || 0 })} /></label>
+                <label>星期组合<Select value={fPat.freqPattern} onChange={v => setFPat({ ...fPat, freqPattern: v })} options={FREQS.map(([v, l]) => ({ value: v, label: l }))} /></label>
+                <label>班次<Select value={fPat.shiftId || undefined} onChange={v => setFPat({ ...fPat, shiftId: v || 0 })} options={adm.shifts.map((s: any) => ({ value: s.id, label: s.name }))} /></label>
+                <label>基础模式<Select value={fPat.defaultMode} onChange={v => setFPat({ ...fPat, defaultMode: v })} options={['HD', 'HFD', 'HF'].map(m => ({ value: m, label: m }))} /></label>
+                <label>院感<Select value={fPat.infectionStatus} onChange={v => setFPat({ ...fPat, infectionStatus: v })} options={[{ value: 'unknown', label: '未出' }, { value: 'negative', label: '阴性' }, { value: 'positive', label: '阳性' }]} /></label>
+                <label className="flex items-center gap-1"><input type="checkbox" checked={fPat.hdfEnabled} onChange={e => setFPat({ ...fPat, hdfEnabled: e.target.checked })} />每两周HDF</label>
+                {fPat.hdfEnabled && <label>HDF星期<Select value={fPat.hdfWeekday} onChange={v => setFPat({ ...fPat, hdfWeekday: v })} options={[1, 2, 3, 4, 5, 6].map(d => ({ value: d, label: `周${WD[d - 1]}` }))} /></label>}
+                <Button type="primary" onClick={savePatient}>录入病人+骨架</Button>
+              </div>
+              <Table dataSource={adm.profiles} rowKey="patientId" size="small" pagination={false}
+                columns={[
+                  { title: '病人', render: (_: any, p: any) => { const pt = adm.patients.find((x: any) => x.id === p.patientId) || {}; return <span className={p.patientStatus === 20 ? 'opacity-40' : ''}>#{p.patientId} {pt.name}{p.patientStatus === 20 && ' (已出组)'}</span> } },
+                  { title: '分区', dataIndex: 'zoneTag' },
+                  { title: '模式', dataIndex: 'defaultMode' },
+                  { title: '组合', render: (_: any, r: any) => (FREQS.find(f => f[0] === r.freqPattern) || [])[1] },
+                  { title: 'HDF', render: (_: any, r: any) => r.hdfEnabled ? `周${WD[(r.hdfWeekday || 1) - 1]}` : '—' },
+                  { title: '院感', render: (_: any, r: any) => { const pt: any = adm.patients.find((x: any) => x.id === r.patientId) || {}; return pt.infectionStatus === 'positive' ? <span className="text-rose-600 font-semibold">阳</span> : pt.infectionStatus === 'unknown' ? <span className="text-amber-600">未</span> : '阴' } },
+                  { title: '操作', render: (_: any, r: any) => r.patientStatus !== 20 ? <span className="flex gap-1"><Button size="small" type="link" onClick={async () => { await placePatient(r.patientId, { start: board?.weekStart, weeks: 2 }); notify('已排入'); fetchData() }}>排入</Button><Button size="small" type="link" danger onClick={async () => { await dischargePatient(r.patientId, { reason: '出院' }); notify('已出组'); loadAdmin(); fetchData() }}>出组</Button></span> : null },
+                ]} />
+            </div>,
+          },
+          {
+            key: 'template', label: '模板',
+            children: <div className="text-sm">
+              <div className="mb-3 bg-gray-50 p-2 rounded flex items-center gap-3">
+                <Button type="primary" onClick={async () => { await rebuildTemplate(); notify('模板已重建'); loadAdmin() }}>由病人骨架重建生效模板</Button>
+                <span className="text-gray-500">把现在所有病人的骨架快照成一份新模板(旧模板失效)</span>
+              </div>
+              <Table dataSource={adm.templates} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '生效', render: (_: any, r: any) => r.isActive ? '✅ 生效中' : '—' }]} />
+            </div>,
+          },
+        ]} />
+      </Modal>
     </div>
   )
 }
