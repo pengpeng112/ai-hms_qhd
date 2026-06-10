@@ -1,48 +1,86 @@
-# AI-HMS 文档索引
+# Docs 文档索引
 
-本目录作为当前仓库的主文档入口。后续优先维护这里列出的主文档，避免同主题文档在多个位置重复演化。
+> 生成时间：2026-06-09 | 系统：ai-hms_qhd  
+> 目的：为 AI 解析提供文档导航，说明每份文档的用途和有效状态。
 
-## 1. 部署与环境
+---
 
-- `docs/docker-migration-deploy-upgrade-guide.md`
-  - Docker 首次部署、升级、回滚，以及前端同源 `/api` 代理实机经验
-- `docs/environment-contract.md`
-  - 环境变量与运行时约定
-- `本地开发-内网迁移-开发对接指南.md`
-  - 本地开发、准生产模拟、内网 Linux 迁移总览
+## 根目录文档
 
-## 2. 老库迁移主线
+| 文件 | 状态 | 用途 |
+|------|------|------|
+| `排班模块交接文档.md` | ★ 最新 | **核心交接文档**：数据库结构、API 清单、状态机、前端对照、环境变量、硬规则、已知问题 |
+| `README.md` | ★ 最新 | 本索引文件 |
+| `legacy-migration-uncertain-field-checklist.md` | 持续参考 | 老库字段映射不确定项清单，排班模块与老表对接时的字段语义参考 |
 
-- `docs/migration-plan-legacy.md`
-  - 新系统切换到老血透库的迁移主计划
-- `docs/migration-field-map.md`
-  - 新表到老表的字段级映射总表
-- `docs/legacy-db-schema.md`
-  - 结构化整理后的老血透库表结构摘要
-- `docs/basic-info-legacy-gap-analysis.md`
-  - 患者基础信息迁移差异分析
-- `docs/dictionary-type-mapping-dev.md`
-  - `CodeDictionary_CodeDictionarys` 的 `Type -> 统一字典编码` 映射与“其他”归类规则
+---
 
-## 3. 会话记录与持续跟进
+## `sql/` — SQL 脚本参考
 
-- `docs/legacy-migration-session-summary-2026-04-21.md`
-  - 迁移会话总结与待确认项
-- `docs/treatment-execution-legacy-dev-record-2026-04-21.md`
-  - 治疗执行链路迁移开发记录
-- `ai-hms-backend/LEGACY_TABLE_FIELD_MAPPING.md`
-  - 后端侧 legacy 替换与字段更新实施记录
+| 文件 | 状态 | 用途 |
+|------|------|------|
+| `v2_merge_legacy.sql` | ★ 已执行 | **核心迁移脚本**：ALTER TABLE 添加 v2 新列 + 数据从旧表同步到 Schedule_* |
+| `v1.3_v2_tables.sql` | 参考 | v1.3 阶段 v2 表 DDL 定义 |
+| `v1.2_v2_tables.sql` | 参考 | v1.2 阶段 v2 表 DDL 定义 |
+| `schedule_extension_tables.sql` | 参考 | 扩展表 (PatientShiftExt 等) DDL |
+| `schedule_conflict_queue.sql` | 参考 | 冲突队列表 DDL |
+| `schedule_patient_shift_unique_safety_net.sql` | 参考 | 唯一索引安全网 SQL |
+| `schedule_performance_indexes.sql` | 参考 | 性能索引 SQL |
+| `schedule_status60_template_audit.sql` | 参考 | Status=60 模板审计 SQL |
 
-## 4. 原始参考
+---
 
-- `老血透数据库表结构-合并版.md`
-  - 老血透库原始结构主参考
-- `DATABASE_DESIGN.md`
-  - 新系统数据库设计主参考
+## `排班功能说明/` — 排班设计参考
 
-## 5. 已整合说明
+### `透析排班-backend-v1.4/` — v1.4 参考后端代码 ★
 
-- 原 `docs/2026-04-20-frontend-only-access-proxy-plan.md` 已并入 `docs/docker-migration-deploy-upgrade-guide.md` 的同源 `/api` 升级与排障章节，不再单独保留。
-- 原 `新血透DATABASE_DESIGN.md` 与 `DATABASE_DESIGN.md` 内容重复，保留后者。
-- 原 `数据库表结构.md`、`数据库表设计.md` 的老库内容已由 `docs/legacy-db-schema.md`、`docs/migration-field-map.md` 接管。
-- 原 `CODEX_FIXPLAN*.md`、`DEMOCK_PLAN.md` 为一次性执行计划，不再作为持续维护文档保留。
+完整的独立 Go 后端参考实现，包含以下模块：
+
+| 路径 | 说明 |
+|------|------|
+| `cmd/server/main.go` | 入口 |
+| `internal/api/api.go` + `api_admin.go` | API 路由 (含上机/下机/审计) |
+| `internal/config/config.go` | 配置管理 |
+| `internal/db/db.go` | 数据库连接 + 迁移 + 唯一索引 |
+| `internal/model/models.go` | GORM 模型 (14 张表) |
+| `internal/repo/repo.go` | 数据访问层 |
+| `internal/sched/` | 排班引擎 (board/constants/engine/newpatient/util/week + tests) |
+| `internal/seed/seed.go` | 演示数据 |
+| `internal/service/` | 13 个业务服务 (admin/crrt/diff/lifecycle/makeup/ops/perturb/quality/schedule/template/treatment/weekview + integration_test) |
+| `web/index.html` | 独立 Web UI (React 内嵌) |
+
+**v1.4 与当前系统的主要差异**：
+- 使用 `ScheduleDate` 列名 (当前用 `TreatmentTime`)
+- 使用 `Schedule_Machine` 表 (当前用 `Schedule_Bed`)
+- 使用 `*int64` 可空字段 (当前用 `int64 NOT NULL DEFAULT 0`)
+- 有独立的 `StartTreatment/CompleteTreatment` 实现 (当前已补全)
+- 有 `auditMiddleware` 请求审计 (当前由主系统中间件负责)
+- 有 `GET /health` 系统探活 (当前有 `GET /schedule/health` 数据健康检查)
+
+---
+
+## 不在本文档索引中的目录/文件
+
+以下目录/文件**已清理**，不再保留：
+
+- `local-test/` — 本地测试报告（过时）
+- `schedule-plan/` — 旧版排班开发计划（过时）
+- `ui-mockups/` — UI 线框图（过时）
+- `remediation-skills/` — 空目录
+- `排班功能说明/透析排班-backend/` — v1.0 参考代码（已删除）
+- `排班功能说明/透析排班-backend-v1.1(1)/` — v1.1 参考代码（已删除）
+- `排班功能说明/透析排班-backend-v1.2/` — v1.2 参考代码（已删除）
+- `排班功能说明/透析排班-backend-v1.3/` — v1.3 参考代码（已删除）
+- `排班功能说明/*.docx` — Word 文档（已删除）
+- `排班功能说明/*.zip` — 压缩包（已删除）
+- 根目录 33 个过期 .md 文件（已删除）
+
+---
+
+## AI 解析时推荐阅读顺序
+
+1. **`排班模块交接文档.md`** → 全面了解当前系统状态
+2. **`sql/v2_merge_legacy.sql`** → 理解表结构和数据迁移
+3. **`legacy-migration-uncertain-field-checklist.md`** → 理解字段映射不确定项
+4. **`排班功能说明/透析排班-backend-v1.4/`** → 参考 v1.4 独立后端实现
+5. 当前源代码：`ai-hms-backend/internal/smart_schedule/` → 实际运行代码

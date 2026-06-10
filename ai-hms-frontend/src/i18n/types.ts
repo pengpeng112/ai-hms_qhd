@@ -5,7 +5,6 @@ import common from './locales/zh-CN/common.json'
 import nav from './locales/zh-CN/nav.json'
 import patient from './locales/zh-CN/patient.json'
 import dialysis from './locales/zh-CN/dialysis.json'
-import schedule from './locales/zh-CN/schedule.json'
 import device from './locales/zh-CN/device.json'
 import form from './locales/zh-CN/form.json'
 import settings from './locales/zh-CN/settings.json'
@@ -27,7 +26,6 @@ declare module 'i18next' {
       nav: typeof nav
       patient: typeof patient
       dialysis: typeof dialysis
-      schedule: typeof schedule
       device: typeof device
       form: typeof form
       settings: typeof settings

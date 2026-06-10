@@ -48,8 +48,13 @@ func main() {
 		defer database.Close()
 		log.Println("[LEGACY-DB] startup in legacy database mode: AutoMigrate and startup seed initialization are disabled")
 
-		// 确保默认管理员账号存在
-		services.SeedAdminIfNeeded(database.GetDB())
+		// 默认管理员播种：默认关闭，避免向生产库注入已知口令账号。
+		// 需显式 SEED_ADMIN_ENABLED=true 并提供 SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD 才执行。
+		if cfg.SeedAdminEnabled {
+			services.SeedAdminIfNeeded(database.GetDB(), cfg.SeedAdminUsername, cfg.SeedAdminPassword)
+		} else {
+			log.Println("[SEED] admin seeding is disabled (set SEED_ADMIN_ENABLED=true with SEED_ADMIN_USERNAME/PASSWORD to enable)")
+		}
 
 		// 启动过期临时医嘱定时任务（需显式配置 ORDER_CRON_ENABLED=true 开启）
 		if cfg.OrderCronEnabled {
@@ -71,6 +76,8 @@ func main() {
 
 	// 全局中间件
 	r.Use(middleware.CORS(cfg.CORS.AllowedOrigins))
+	// 安全响应头（防 XSS/点击劫持/MIME 嗅探；CSP 为 Report-Only，不拦截）
+	r.Use(middleware.SecurityHeaders())
 
 	// 健康检查（无需认证，含数据库连通性）
 	r.GET("/health", func(c *gin.Context) {
@@ -134,13 +141,6 @@ func main() {
 			// 住院信息路由
 			v1api.RegisterHospitalizationRoutes(protected)
 
-			// 排班管理路由
-			v1api.RegisterScheduleRoutes(protected)
-			// 排班配置路由（读接口已登录可访问，写接口需管理员）
-			v1api.RegisterScheduleConfigRoutes(protected)
-			// 排班规则路由（只读预检/Board/冲突，已登录可访问）
-			v1api.RegisterScheduleRulesRoutes(protected)
-
 			// 治疗管理路由
 			v1api.RegisterTreatmentRoutes(protected)
 
@@ -175,12 +175,13 @@ func main() {
 		}
 
 		admin := v1.Group("")
-		admin.Use(middleware.AuthMiddleware(jwtManager), middleware.RequireRoles(
-			"ADMIN",
-			"管理员",
-			"安全管理员",
-			"运维管理员",
-		))
+		// 权限码门禁 + 管理员角色兜底：命中 AdminPermissionCodes 任一权限码或任一管理员角色即放行。
+		// 详见 middleware.RequirePermissions / AdminPermissionCodes 的过渡说明。
+		permResolver := services.NewRolePermissionResolver(5 * time.Minute)
+		admin.Use(
+			middleware.AuthMiddleware(jwtManager),
+			middleware.RequirePermissions(permResolver, middleware.AdminRoles, middleware.AdminPermissionCodes...),
+		)
 		{
 			// HDIS 集成配置路由（Settings > Integration）
 			v1api.RegisterHDISSettingsRoutes(admin, cfg.Hdis)

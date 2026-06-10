@@ -64,7 +64,7 @@ func ComputeDiffs(g *gorm.DB, tenant int64, weekStart time.Time, weeks int) (*Di
 	var rows []cnt
 	if err := g.Model(&model.PatientShift{}).
 		Select(`"PatientId" AS patient_id, count(*) AS n`).
-		Where(`"TenantId" = ? AND "ScheduleDate" >= ? AND "ScheduleDate" < ? AND "Status" IN ?`,
+		Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "Status" IN ?`,
 			tenant, start, end, []int16{sched.StatusDraft, sched.StatusConfirmed, sched.StatusInDialysis, sched.StatusCompleted, sched.StatusAbsent}).
 		Group(`"PatientId"`).Scan(&rows).Error; err != nil {
 		return nil, err

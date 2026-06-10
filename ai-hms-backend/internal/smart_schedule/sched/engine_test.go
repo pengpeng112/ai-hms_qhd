@@ -53,16 +53,16 @@ func TestGenerateTwoRoundAndHDF(t *testing.T) {
 	if wed.DialysisMode != ModeHDF {
 		t.Errorf("1002 周三应 HDF,得 %s", wed.DialysisMode)
 	}
-	if wed.MachineId == nil || *wed.MachineId != 103 {
-		t.Errorf("1002 周三应在 HDF 机 103,得 %v", wed.MachineId)
+	if wed.MachineId == 0 || wed.MachineId != 103 {
+		t.Errorf("1002 周三应在 HDF 机 103,得 %d", wed.MachineId)
 	}
 
 	mon := find(b.Drafts, 1002, day(2025, 1, 6))
 	if mon == nil || mon.DialysisMode != ModeHD {
 		t.Fatalf("1002 周一应 HD,得 %+v", mon)
 	}
-	if mon.MachineId == nil || (*mon.MachineId != 101 && *mon.MachineId != 102) {
-		t.Errorf("1002 周一应在 HD 机,得 %v", mon.MachineId)
+	if mon.MachineId == 0 || (mon.MachineId != 101 && mon.MachineId != 102) {
+		t.Errorf("1002 周一应在 HD 机,得 %d", mon.MachineId)
 	}
 }
 
@@ -86,8 +86,8 @@ func TestOverflowToHDFWhenHDFull(t *testing.T) {
 	thu := day(2025, 1, 9)
 	used := map[int64]bool{}
 	for _, d := range b.Drafts {
-		if dkey(d.ScheduleDate) == dkey(thu) && d.MachineId != nil {
-			used[*d.MachineId] = true
+		if dkey(d.ScheduleDate) == dkey(thu) && d.MachineId != 0 {
+			used[d.MachineId] = true
 		}
 	}
 	if !used[103] {

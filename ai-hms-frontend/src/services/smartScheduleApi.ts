@@ -218,6 +218,16 @@ export function moveShift(id: number, payload: MoveShiftRequest) {
   return restPost<{ ok: boolean }>(`/api/v2/shifts/${id}/move`, payload)
 }
 
+// ============ 治疗执行(上机/下机) ============
+
+export function startTreatment(id: number) {
+  return restPost<{ message: string }>(`/api/v2/shifts/${id}/start`, {})
+}
+
+export function completeTreatment(id: number) {
+  return restPost<{ message: string }>(`/api/v2/shifts/${id}/complete`, {})
+}
+
 // ============ 临时透析 & CRRT ============
 
 export function insertTemporary(payload: TemporaryRequest) {

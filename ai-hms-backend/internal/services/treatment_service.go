@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -1454,6 +1455,9 @@ func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 	if result.RowsAffected == 0 {
 		return errors.New("treatment not found")
 	}
+	if status == models.TreatmentStatusInProgress {
+		s.syncScheduleStatus(id, 50)
+	}
 	return nil
 }
 
@@ -2587,6 +2591,7 @@ func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req Treatment
 		return nil, err
 	}
 
+	s.syncScheduleStatus(treatmentID, 60)
 	return s.Get(treatmentID)
 }
 
@@ -2701,4 +2706,20 @@ func (s *TreatmentService) SaveSummary(treatmentID int64, req TreatmentSummaryRe
 	}
 
 	return s.Get(treatmentID)
+}
+
+func (s *TreatmentService) syncScheduleStatus(treatmentID int64, targetStatus int16) {
+	var scheduleId int64
+	if err := s.db.Table(`"Treatment_Treatment"`).
+		Select(`COALESCE("ScheduleId", 0)`).
+		Where(`"Id" = ?`, treatmentID).
+		Scan(&scheduleId).Error; err != nil || scheduleId == 0 {
+		return
+	}
+	res := s.db.Table(`"Schedule_PatientShift"`).
+		Where(`"Id" = ? AND "TenantId" = ?`, scheduleId, LegacyTenantID).
+		Update("Status", targetStatus)
+	if res.Error != nil {
+		log.Printf("[treatment] syncScheduleStatus failed: scheduleId=%d target=%d err=%v", scheduleId, targetStatus, res.Error)
+	}
 }

@@ -69,7 +69,7 @@ func ComputeQuality(g *gorm.DB, tenant int64, weekStart time.Time, weeks int) (*
 	var rows []cnt
 	g.Model(&model.PatientShift{}).
 		Select(`"PatientId" AS patient_id, count(*) AS n, count(distinct "MachineId") AS dm`).
-		Where(`"TenantId" = ? AND "ScheduleDate" >= ? AND "ScheduleDate" < ? AND "RecordForm" = ? AND "Status" IN ? AND "ShiftId" IS NOT NULL`,
+		Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "RecordForm" = ? AND "Status" IN ? AND "ShiftId" > 0`,
 			tenant, start, end, sched.RecordFormRegular, activeStatuses).
 		Group(`"PatientId"`).Scan(&rows)
 	schedCount := map[int64]int{}
@@ -116,7 +116,7 @@ func ComputeQuality(g *gorm.DB, tenant int64, weekStart time.Time, weeks int) (*
 	res.CapacitySlots = int(machineCnt) * int(shiftCnt) * dialysisDays
 	var used int64
 	g.Model(&model.PatientShift{}).
-		Where(`"TenantId" = ? AND "ScheduleDate" >= ? AND "ScheduleDate" < ? AND "RecordForm" = ? AND "Status" IN ? AND "MachineId" IS NOT NULL AND "ShiftId" IS NOT NULL`,
+		Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "RecordForm" = ? AND "Status" IN ? AND "MachineId" IS NOT NULL AND "ShiftId" > 0`,
 			tenant, start, end, sched.RecordFormRegular, activeStatuses).Count(&used)
 	res.UsedSlots = int(used)
 

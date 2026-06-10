@@ -137,7 +137,7 @@ func SetDisabled(g *gorm.DB, tenant int64, table string, id int64, disabled bool
 	default:
 		return errors.New("不支持的资源类型")
 	}
-	tbl := map[string]string{"ward": "Schedule_v2_Ward", "machine": "Schedule_v2_Machine", "shift": "Schedule_v2_Shift"}[table]
+	tbl := map[string]string{"ward": "Schedule_Ward", "machine": "Schedule_Bed", "shift": "Schedule_Shift"}[table]
 	return g.Table(`"`+tbl+`"`).Where(`"TenantId" = ? AND "Id" = ?`, tenant, id).
 		Update("IsDisabled", disabled).Error
 }

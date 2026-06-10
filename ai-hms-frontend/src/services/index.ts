@@ -20,11 +20,6 @@ export type {
   Infection,
   VascularAccess,
   CaseHistory,
-  // 排班相关
-  Shift,
-  PatientShift,
-  Bed,
-  Ward,
   // 治疗相关
   Treatment,
   PatientPrescription,
@@ -71,13 +66,6 @@ export type {
   HealthEducationContentApi,
   PatientHealthEducationApi,
   RestPatient,
-  RestShift,
-  RestPatientShift,
-  RestScheduleWard,
-  RestScheduleBed,
-  RestScheduleWeekShift,
-  RestSchedulePendingPatient,
-  RestScheduleWeekResponse,
   RestTreatment,
   PaginationMeta,
   DashboardStats,
@@ -91,23 +79,6 @@ export { roleManagementApi } from './roleManagementApi'
 export type { AppRoleApi, PermissionNodeApi } from './roleManagementApi'
 
 // ============ 临时 Mock 辅助函数 ============
-
-// ============ 排班服务 ============
-export {
-  getShiftList,
-  getActiveShifts,
-  getPatientShiftList,
-  getTodaySchedule,
-  getScheduleByDate,
-  getScheduleByShift,
-  getPatientSchedule,
-  getBedList,
-  getBedsByWard,
-  getAvailableBeds,
-  getWardList,
-  getActiveWards,
-  getTodayScheduleOverview,
-} from './schedule'
 
 // ============ 治疗服务 ============
 export {

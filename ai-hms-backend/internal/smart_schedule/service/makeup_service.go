@@ -60,7 +60,7 @@ func MakeupPatient(g *gorm.DB, tenant, patientID int64, weekStart time.Time, wee
 			dd := d
 			wid := ward
 			sid := shift
-			raiseConflictDB(g, tenant, &pid, &dd, &sid, &wid, sched.ConflictMakeupSuggest, sched.SeverityAlert, "补透:本区本班无空机")
+			_ = raiseConflictDB(g, tenant, &pid, &dd, &sid, &wid, sched.ConflictMakeupSuggest, sched.SeverityAlert, "补透:本区本班无空机")
 			res.Conflicts++
 			continue
 		}
@@ -69,9 +69,9 @@ func MakeupPatient(g *gorm.DB, tenant, patientID int64, weekStart time.Time, wee
 			BaseModel:    model.BaseModel{TenantId: tenant},
 			PatientId:    patientID,
 			ScheduleDate: d,
-			ShiftId:      &shiftID,
+			ShiftId:      shiftID,
 			WardId:       m.WardId,
-			MachineId:    &machineID,
+			MachineId:    machineID,
 			Status:       sched.StatusDraft,
 			DialysisMode: mode,
 			SourceType:   sched.SourceRegular,

@@ -3,6 +3,7 @@ package v1
 import (
 	"strings"
 
+	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/internal/utils"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
@@ -79,5 +80,5 @@ func (h *AuthHandler) Login(c *gin.Context) {
 // RegisterAuthRoutes 注册认证路由
 func RegisterAuthRoutes(rg *gin.RouterGroup, jwtManager *utils.JWTManager) {
 	h := NewAuthHandler(jwtManager)
-	rg.POST("/auth/login", h.Login)
+	rg.POST("/auth/login", middleware.LoginRateLimiter(), h.Login)
 }

@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -22,10 +23,13 @@ func overlap(aStart, aEnd, bStart, bEnd time.Time) bool {
 // crrtMachineFree CRRT 机在 [start,end] 是否无重叠占用(排除取消/缺席)。
 func crrtMachineFree(g *gorm.DB, tenant, machineID int64, start, end time.Time) bool {
 	var sessions []model.CrrtSession
-	g.Joins(`JOIN "Schedule_v2_PatientShift" ps ON ps."Id" = "Schedule_v2_CrrtSession"."PatientShiftId"`).
-		Where(`"Schedule_v2_CrrtSession"."TenantId" = ? AND "Schedule_v2_CrrtSession"."MachineId" = ? AND ps."Status" NOT IN ?`,
+	if err := g.Joins(`JOIN "Schedule_PatientShift" ps ON ps."Id" = "Schedule_CrrtSession"."PatientShiftId"`).
+		Where(`"Schedule_CrrtSession"."TenantId" = ? AND "Schedule_CrrtSession"."MachineId" = ? AND ps."Status" NOT IN ?`,
 			tenant, machineID, []int16{sched.StatusCancelled, sched.StatusAbsent}).
-		Find(&sessions)
+		Find(&sessions).Error; err != nil {
+		log.Printf("[crrt] crrtMachineFree find failed: %v", err)
+		return false
+	}
 	for _, s := range sessions {
 		e := farFuture
 		if s.EndAt != nil {
@@ -68,8 +72,10 @@ func InsertCrrt(g *gorm.DB, tenant, patientID, wardID, machineID int64, startAt 
 		chosen = &m
 	} else {
 		var machines []model.Machine
-		g.Where(`"TenantId" = ? AND "WardId" = ? AND "MachineType" = ? AND "IsDisabled" = false`,
-			tenant, wardID, sched.MachineCRRT).Order(`"PositionIndex"`).Find(&machines)
+		if err := g.Where(`"TenantId" = ? AND "WardId" = ? AND "MachineType" = ? AND "IsDisabled" = false`,
+			tenant, wardID, sched.MachineCRRT).Order(`"PositionIndex"`).Find(&machines).Error; err != nil {
+			return nil, err
+		}
 		for i := range machines {
 			if crrtMachineFree(g, tenant, machines[i].Id, startAt, end) {
 				chosen = &machines[i]
@@ -80,7 +86,7 @@ func InsertCrrt(g *gorm.DB, tenant, patientID, wardID, machineID int64, startAt 
 			pid := patientID
 			d := dayStart(startAt)
 			wid := wardID
-			raiseConflictDB(g, tenant, &pid, &d, nil, &wid, sched.ConflictNoMachine, sched.SeverityAlert, "CRRT:本区无空闲 CRRT 机")
+			_ = raiseConflictDB(g, tenant, &pid, &d, nil, &wid, sched.ConflictNoMachine, sched.SeverityAlert, "CRRT:本区无空闲 CRRT 机")
 			return nil, ErrNoSlot
 		}
 	}
@@ -92,9 +98,9 @@ func InsertCrrt(g *gorm.DB, tenant, patientID, wardID, machineID int64, startAt 
 			BaseModel:    model.BaseModel{TenantId: tenant},
 			PatientId:    patientID,
 			ScheduleDate: dayStart(startAt),
-			ShiftId:      nil, // CRRT 不走三班
+			ShiftId:      0, // CRRT 不走三班(ShiftId=0)
 			WardId:       wardID,
-			MachineId:    &chosen.Id,
+			MachineId:    chosen.Id,
 			Status:       sched.StatusConfirmed,
 			DialysisMode: sched.ModeCRRT,
 			SourceType:   sched.SourceTemporary,
@@ -142,7 +148,9 @@ func ListCrrt(g *gorm.DB, tenant int64, date time.Time) ([]CrrtItem, error) {
 
 	// 机器码
 	var machines []model.Machine
-	g.Where(`"TenantId" = ?`, tenant).Find(&machines)
+	if err := g.Where(`"TenantId" = ?`, tenant).Find(&machines).Error; err != nil {
+		return nil, err
+	}
 	mcode := map[int64]string{}
 	for _, m := range machines {
 		mcode[m.Id] = m.Code

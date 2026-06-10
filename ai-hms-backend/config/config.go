@@ -21,6 +21,11 @@ type Config struct {
 
 	OrderCronEnabled bool
 
+	// 默认管理员播种：默认关闭，仅在显式开启且提供口令时执行，避免向生产库注入已知口令账号。
+	SeedAdminEnabled  bool
+	SeedAdminUsername string
+	SeedAdminPassword string
+
 	LegacyTenantID int64
 
 	ParameterizedQueries bool
@@ -139,6 +144,9 @@ func Load() (*Config, error) {
 		AppSecret: mustGetEnv("APP_SECRET"),
 
 		OrderCronEnabled:     getEnvBool("ORDER_CRON_ENABLED", false),
+		SeedAdminEnabled:     getEnvBool("SEED_ADMIN_ENABLED", false),
+		SeedAdminUsername:    getEnv("SEED_ADMIN_USERNAME", ""),
+		SeedAdminPassword:    getEnv("SEED_ADMIN_PASSWORD", ""),
 		LegacyTenantID:       int64(getEnvInt("LEGACY_TENANT_ID", 3)),
 		ParameterizedQueries: getEnvBool("SQL_PARAMETERIZED_QUERIES", true),
 	}

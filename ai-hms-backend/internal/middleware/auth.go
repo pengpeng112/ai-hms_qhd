@@ -85,28 +85,86 @@ func OptionalAuthMiddleware(jwtManager *utils.JWTManager) gin.HandlerFunc {
 // RequireRoles 要求特定角色的中间件
 func RequireRoles(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userRoles, exists := c.Get("roles")
-		if !exists {
+		if _, exists := c.Get("roles"); !exists {
 			response.Forbidden(c, "无权限访问")
 			c.Abort()
 			return
 		}
+		if hasAnyRole(GetRoles(c), roles) {
+			c.Next()
+			return
+		}
+		response.Forbidden(c, "权限不足")
+		c.Abort()
+	}
+}
 
-		userRoleList, ok := userRoles.([]string)
-		if !ok {
-			response.Forbidden(c, "权限格式错误")
+// AdminRoles 系统管理类操作的兜底角色集合（单一真值源）。
+// main.go 的 admin 路由组与 smart_schedule 的角色映射均引用此处，避免角色名字面量散落重复。
+var AdminRoles = []string{"ADMIN", "管理员", "安全管理员", "运维管理员"}
+
+// AdminPermissionCodes 管理类操作期望的权限码（过渡占位）。
+// 需在老库 Authorization_Permissions 中配置该权限码并赋予相应角色后方才生效；
+// 在此之前由 AdminRoles 兜底放行。确认落库后可细化拆分，并逐步移除角色兜底完成权限码迁移。
+var AdminPermissionCodes = []string{"system:manage"}
+
+// IsAdminRole 判断单个角色名是否属于管理员角色集合。
+func IsAdminRole(role string) bool {
+	for _, r := range AdminRoles {
+		if r == role {
+			return true
+		}
+	}
+	return false
+}
+
+// hasAnyRole 判断 have 中是否包含 want 里的任一角色。
+func hasAnyRole(have, want []string) bool {
+	for _, h := range have {
+		for _, w := range want {
+			if h == w {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// PermissionResolver 给定用户角色列表，返回其拥有的权限码集合（并集）。
+type PermissionResolver func(roles []string) (map[string]bool, error)
+
+// RequirePermissions 基于权限码的门禁中间件，带角色兜底。
+//
+// 放行条件（任一满足即可）：
+//  1. 用户命中 fallbackRoles 中任一角色（兜底，保证权限码尚未在老库配置时管理员不被锁死）；
+//  2. 用户经 resolver 解析出的权限码命中 required 中任一项。
+//
+// 这是从"硬编码角色名门禁"向"细粒度权限码门禁"过渡的安全形态：
+// 一旦老库 Authorization_Permissions 配置了 required 中的权限码并赋予相应角色，
+// 即可逐步收窄/移除 fallbackRoles 完成迁移，期间不会造成越权或锁死。
+// resolver 为 nil 或 required 为空时，退化为纯 fallbackRoles 角色校验。
+func RequirePermissions(resolver PermissionResolver, fallbackRoles []string, required ...string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, exists := c.Get("roles"); !exists {
+			response.Forbidden(c, "无权限访问")
 			c.Abort()
 			return
 		}
-		for _, requiredRole := range roles {
-			for _, userRole := range userRoleList {
-				if userRole == requiredRole {
-					c.Next()
-					return
+		roles := GetRoles(c)
+		if hasAnyRole(roles, fallbackRoles) {
+			c.Next()
+			return
+		}
+		if resolver != nil && len(required) > 0 {
+			if codes, err := resolver(roles); err == nil {
+				for _, req := range required {
+					if codes[req] {
+						c.Next()
+						return
+					}
 				}
 			}
 		}
-
 		response.Forbidden(c, "权限不足")
 		c.Abort()
 	}

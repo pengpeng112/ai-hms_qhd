@@ -8,6 +8,7 @@ import {
   upsertPatient, upsertProfile, rebuildTemplate,
   dischargePatient, placePatient, setInfectionStatus,
   seedDemo,
+  startTreatment, completeTreatment,
   type WeekBoard, type CellDTO, type MachineDTO,
   type ConflictItem, type QualityResult, type DiffItem, type CrrtItem,
 } from '@/services/smartScheduleApi'
@@ -18,6 +19,14 @@ const MODE_COLORS: Record<string, string> = {
   HD: '#0284c7', HDF: '#059669', HFD: '#0891b2', HP: '#d97706', HF: '#0d9488', CRRT: '#e11d48',
 }
 const FREQS: [number, string][] = [[10, '一三五'], [20, '二四六'], [30, '二四'], [40, '周四'], [90, '临时']]
+
+interface AdminWard { id: number; name: string; zoneType: string; isDisabled: boolean }
+interface AdminMachine { id: number; wardId: number; code: string; machineType: string; positionIndex: number }
+interface AdminPatient { id: number; name: string; gender: string; infectionStatus: string }
+interface AdminProfile { patientId: number; zoneTag: string; defaultMode: string; freqPattern: number; hdfEnabled: boolean; hdfWeekday: number; patientStatus: number }
+interface AdminTemplate { id: number; name: string; isActive: boolean }
+interface AdminShift { id: number; name: string }
+interface AdminState { wards: AdminWard[]; machines: AdminMachine[]; patients: AdminPatient[]; profiles: AdminProfile[]; templates: AdminTemplate[]; shifts: AdminShift[] }
 
 export default function SmartSchedulePage() {
   const [currentDate, setCurrentDate] = useState<Dayjs>(dayjs())
@@ -51,7 +60,7 @@ export default function SmartSchedulePage() {
   // 管理面板
   const [adminOpen, setAdminOpen] = useState(false)
   const [adminTab, setAdminTab] = useState('ward')
-  const [adm, setAdm] = useState<{ wards: any[]; machines: any[]; patients: any[]; profiles: any[]; templates: any[]; shifts: any[] }>({ wards: [], machines: [], patients: [], profiles: [], templates: [], shifts: [] })
+  const [adm, setAdm] = useState<AdminState>({ wards: [], machines: [], patients: [], profiles: [], templates: [], shifts: [] })
   const [fWard, setFWard] = useState({ name: '', zoneType: 'A', sort: 1 })
   const [fMachine, setFMachine] = useState({ wardId: 0, code: '', machineType: 'HD', positionIndex: 1 })
   const [fPat, setFPat] = useState({ patientId: 0, name: '', gender: '男', zoneTag: 'A', homeWardId: 0, weeklyCount: 3, freqPattern: 10, shiftId: 0, defaultMode: 'HD', hdfEnabled: false, hdfWeekday: 1, infectionStatus: 'unknown' })
@@ -90,14 +99,17 @@ export default function SmartSchedulePage() {
     submitTemp: async () => { try { await insertTemporary(tempForm); notify('临时透析已插入'); setTempModal(false) } catch { notify('插入失败', true) }; fetchData() },
     submitCrrt: async () => { try { await insertCrrt({ patientId: crrtForm.patientId, wardId: crrtForm.wardId, startAt: crrtForm.startAt, endAt: crrtForm.endAt || undefined }); notify('CRRT已安排'); setCrrtModal(false) } catch { notify('CRRT失败', true) }; fetchData() },
     submitOutage: async () => { try { await machineOutage(outageForm.machineId, { startDate: outageForm.startDate, endDate: outageForm.endDate, type: outageForm.type, reason: outageForm.reason }); notify(`${outageForm.machineCode} 停机已登记`); setOutageModal(false) } catch { notify('停机失败', true) }; fetchData() },
-    submitHoliday: async () => { setHolidayLoading(true); try { const r: any = await setHoliday({ date: confirmDate, mode: 10 }); notify(`假日:取消${r.cancelled}/建议${r.suggested}`) } catch { notify('操作失败', true) };     setHolidayLoading(false); fetchData() },
-    submitPlan: async () => { try { const r: any = await planChange(planForm.patientId, { changeType: planForm.changeType, newValue: planForm.newValue, effectiveDate: planForm.effectiveDate || dateStr }); notify(`方案变更:${r.replanned}重排`); setPlanModal(false) } catch { notify('变更失败', true) }; fetchData() },
-    doMakeup: async (pid: number) => { try { const r: any = await makeup(pid, { weekStart: board?.weekStart, weeks: 2 }); notify(`#${pid} 补排${r.placed}次`) } catch { notify('补排失败', true) }; fetchData() },
+    submitHoliday: async () => { setHolidayLoading(true); try { const r = await setHoliday({ date: confirmDate, mode: 10 }) as Record<string, number>; notify(`假日:取消${r.cancelled}/建议${r.suggested}`) } catch { notify('操作失败', true) }; setHolidayLoading(false); fetchData() },
+    submitPlan: async () => { try { const r = await planChange(planForm.patientId, { changeType: planForm.changeType, newValue: planForm.newValue, effectiveDate: planForm.effectiveDate || dateStr }) as Record<string, number>; notify(`方案变更:${r.replanned}重排`); setPlanModal(false) } catch { notify('变更失败', true) }; fetchData() },
+    doMakeup: async (pid: number) => { try { const r = await makeup(pid, { weekStart: board?.weekStart, weeks: 2 }) as Record<string, number>; notify(`#${pid} 补排${r.placed}次`) } catch { notify('补排失败', true) }; fetchData() },
+    start: async (id: number) => { try { await startTreatment(id); notify('已上机') } catch { notify('上机失败', true) }; setMenuCell(null); fetchData() },
+    complete: async (id: number) => { try { await completeTreatment(id); notify('已下机') } catch { notify('下机失败', true) }; setMenuCell(null); fetchData() },
   }
 
   const loadAdmin = async () => {
     try {
-      const headers = { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }
+      const tok = localStorage.getItem('hdis_access_token') || ''
+      const headers = { 'Authorization': `Bearer ${tok}` }
       const get = async (u: string) => (await fetch(u, { headers })).json()
       const [w, m, pt, pr, t, sh] = await Promise.all([get('/api/v2/admin/wards'), get('/api/v2/admin/machines'), get('/api/v2/admin/patients'), get('/api/v2/admin/profiles'), get('/api/v2/admin/templates'), get('/api/v2/admin/shifts')])
       setAdm({ wards: w.data?.items || w.items || [], machines: m.data?.items || m.items || [], patients: pt.data?.items || pt.items || [], profiles: pr.data?.items || pr.items || [], templates: t.data?.items || t.items || [], shifts: sh.data?.items || sh.items || [] })
@@ -105,11 +117,16 @@ export default function SmartSchedulePage() {
   }
   const openAdmin = async () => { setAdminOpen(true); await loadAdmin() }
 
+  const adminHeaders = () => {
+    const tok = localStorage.getItem('hdis_access_token') || ''
+    return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` }
+  }
+
   const createWard = async () => {
-    try { await fetch('/api/v2/admin/wards', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }, body: JSON.stringify(fWard) }); notify('病区已建'); loadAdmin() } catch { notify('失败', true) }
+    try { await fetch('/api/v2/admin/wards', { method: 'POST', headers: adminHeaders(), body: JSON.stringify(fWard) }); notify('病区已建'); loadAdmin() } catch { notify('失败', true) }
   }
   const createMachine = async () => {
-    try { await fetch('/api/v2/admin/machines', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` }, body: JSON.stringify({ wardId: Number(fMachine.wardId), code: fMachine.code, machineType: fMachine.machineType, positionIndex: Number(fMachine.positionIndex) }) }); notify('机器已建'); loadAdmin() } catch { notify('失败', true) }
+    try { await fetch('/api/v2/admin/machines', { method: 'POST', headers: adminHeaders(), body: JSON.stringify({ wardId: Number(fMachine.wardId), code: fMachine.code, machineType: fMachine.machineType, positionIndex: Number(fMachine.positionIndex) }) }); notify('机器已建'); loadAdmin() } catch { notify('失败', true) }
   }
   const savePatient = async () => {
     try {
@@ -145,7 +162,7 @@ export default function SmartSchedulePage() {
 
   return (
     <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">智能排班 — 周视图</h1>
+      <h1 className="text-xl font-bold mb-2">排班管理</h1>
 
       {/* 工具栏 */}
       <div className="flex flex-wrap gap-2 mb-2 items-center text-sm">
@@ -153,7 +170,6 @@ export default function SmartSchedulePage() {
         <Select value={weeks} onChange={setWeeks} style={{ width: 80 }} options={[{ value: 2, label: '2 周' }, { value: 4, label: '4 周' }]} />
         <Button onClick={fetchData}>刷新</Button>
         <Button type="primary" onClick={api.generate}>生成排班</Button>
-        <Button onClick={api.seed}>写演示数据</Button>
         <Button onClick={openAdmin}>管理</Button>
       </div>
 
@@ -198,11 +214,11 @@ export default function SmartSchedulePage() {
         {/* 质量评分 */}
         {quality && (
           <Row gutter={8} className="mb-3">
-            <Col span={4}><Card size="small"><Statistic title="达标率" value={Math.round(quality.onTargetRate)} suffix="%" valueStyle={{ color: quality.onTargetRate >= 80 ? '#3f8600' : '#cf1322' }} /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="利用率" value={Math.round(quality.utilization)} suffix="%" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="稳定率" value={Math.round(quality.stabilityRate)} suffix="%" /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="达标率" value={Math.round(quality.onTargetRate * 100)} suffix="%" /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="利用率" value={Math.round(quality.utilization * 100)} suffix="%" /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="稳定率" value={Math.round(quality.stabilityRate * 100)} suffix="%" /></Card></Col>
             <Col span={4}><Card size="small"><Statistic title="综合分" value={quality.score} suffix="/100" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="冲突" value={quality.openConflicts} valueStyle={{ color: quality.openConflicts > 0 ? '#cf1322' : '#3f8600' }} /></Card></Col>
+            <Col span={4}><Card size="small"><Statistic title="冲突" value={quality.openConflicts} /></Card></Col>
             <Col span={4}><Card size="small"><Statistic title="患者" value={`${quality.patientsOnTarget}/${quality.patientsTotal}`} /></Card></Col>
           </Row>
         )}
@@ -222,7 +238,7 @@ export default function SmartSchedulePage() {
                       })}
                     </tr>
                     <tr>
-                      {board.dates?.map(d => board.shifts?.map(s => {
+                      {board.dates?.flatMap(d => (board.shifts || []).map(s => {
                         const isToday = d === today
                         return <th key={d + s.id} className={`border px-1 font-normal text-gray-500 ${isToday ? 'bg-amber-50' : ''}`}>{s.name.replace('班', '')}</th>
                       }))}
@@ -234,7 +250,7 @@ export default function SmartSchedulePage() {
                         {(w.machines || []).map((m: MachineDTO) => (
                           <tr key={m.id} className="hover:bg-sky-50">
                             <td className="sticky left-0 z-10 bg-white border px-2 font-medium cursor-pointer hover:bg-rose-50 whitespace-nowrap" onClick={() => { setOutageForm({ machineId: m.id, machineCode: m.code, startDate: board.dates?.[0] || dateStr, endDate: board.dates?.[0] || dateStr, type: 10, reason: '' }); setOutageModal(true) }} title="点击登记停机">{m.code}<span className="ml-1 text-gray-400">{m.machineType}</span></td>
-                            {board.dates?.map(d => board.shifts?.map(s => {
+                            {board.dates?.flatMap(d => (board.shifts || []).map(s => {
                               const cell = m.cells?.[`${d}|${s.id}`] as CellDTO | undefined
                               const isToday = d === today
                               const isPast = d < today
@@ -248,19 +264,19 @@ export default function SmartSchedulePage() {
                                   className={`border p-0.5 min-w-[90px] h-[50px] align-middle cursor-pointer ${colTint} ${dropHL ? 'bg-green-50' : ''}`}>
                                   {cell ? (
                                     <div draggable onDragStart={() => setDragSrc({ id: cell.id, patientId: cell.patientId, name: cell.patientName })} onDragEnd={() => setDragSrc(null)}
-                                      className={`rounded-md border bg-white px-1 py-0.5 leading-tight ${cell.status === 10 ? 'border-dashed' : ''} ${cell.status === 50 ? 'shadow-[0_0_9px_1px_rgba(16,185,129,.55)]' : ''}`}
+                                       className={`rounded-md border bg-white px-1 py-0.5 leading-tight ${cell.status === 10 ? 'border-dashed' : ''} ${cell.status === 50 ? 'shadow-[0_0_9px_1px_rgba(16,185,129,.55)]' : ''} ${cell.status === 60 ? 'opacity-75 border-gray-300' : ''}`}
                                       style={{ borderColor: modeColor(cell.dialysisMode) }}>
                                       <div className="flex items-center gap-1">
-                                        <span className="font-semibold text-[11px] text-gray-800 truncate">{cell.patientName || `#${cell.patientId}`}</span>
+                                        <span className="font-semibold text-xs text-gray-800 truncate">{cell.patientName || `#${cell.patientId}`}</span>
                                         {cell.confirms > 0 && <span className="text-emerald-600 text-[9px]">{'●'.repeat(cell.confirms)}</span>}
                                       </div>
                                       <div className="flex items-center justify-between gap-0.5">
                                         <span className="text-[9px] font-bold px-1 rounded" style={{ color: modeColor(cell.dialysisMode), background: modeColor(cell.dialysisMode) + '1a' }}>{cell.dialysisMode}</span>
-                                        {cell.sourceType === 20 ? <span className="text-[9px] text-amber-600 font-bold">临</span> : cell.status === 80 ? <span className="text-[9px] text-rose-500 font-bold">缺</span> : cell.status === 50 ? <span className="text-[9px] text-emerald-600 font-bold">透</span> : null}
+                                        {cell.sourceType === 20 ? <span className="text-[9px] text-amber-600 font-bold">临</span> : cell.status === 80 ? <span className="text-[9px] text-rose-500 font-bold">缺</span> : cell.status === 50 ? <span className="text-[9px] text-emerald-600 font-bold">透</span> : cell.status === 60 ? <span className="text-[9px] text-slate-400 font-bold">完</span> : null}
                                       </div>
                                     </div>
                                   ) : (
-                                    <div className="flex items-center justify-center h-full opacity-10 text-gray-400 text-[10px]">空</div>
+                                    <div className="flex items-center justify-center h-full opacity-10 text-gray-400 text-xs">空</div>
                                   )}
                                 </td>
                               )
@@ -283,7 +299,7 @@ export default function SmartSchedulePage() {
                     { title: '类型', dataIndex: 'conflictType', render: (v: string) => <Tag>{v}</Tag> },
                     { title: '严重度', dataIndex: 'severity', render: (v: number) => <Tag color={v >= 20 ? 'red' : 'orange'}>{v >= 20 ? '报警' : '提示'}</Tag> },
                     { title: '详情', dataIndex: 'detail' },
-                    { title: '操作', render: (_: any, r: ConflictItem) => <span><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); fetchData() }}>接受</Button><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); fetchData() }}>忽略</Button></span> },
+                    { title: '操作', render: (_: unknown, r: ConflictItem) => <span><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); fetchData() }}>接受</Button><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); fetchData() }}>忽略</Button></span> },
                   ]} />
               </div>
             ) : <div className="text-gray-400 text-center py-4">无待处理冲突</div>,
@@ -311,6 +327,8 @@ export default function SmartSchedulePage() {
         {menuCell && (
           <div className="flex flex-col gap-2">
             <div className="text-sm text-gray-500 mb-2">{menuCell.date} · {STATUS_LABEL[menuCell.cell.status]} · {menuCell.cell.dialysisMode}</div>
+            {menuCell.cell.status === 20 && <Button block type="primary" onClick={() => api.start(menuCell.cell.id)} style={{ background: '#059669', borderColor: '#059669' }}>上机(开始治疗)</Button>}
+            {menuCell.cell.status === 50 && <Button block type="primary" onClick={() => api.complete(menuCell.cell.id)}>下机(完成治疗)</Button>}
             <Button block onClick={() => { setMoveSrc({ id: menuCell.cell.id, patientId: menuCell.cell.patientId, name: menuCell.cell.patientName }); setMenuCell(null); notify('点击空格移动', false) }}>移动到空格…</Button>
             <Button block danger onClick={() => api.cancel(menuCell.cell.id)}>取消(提前请假)</Button>
             <Button block onClick={() => api.absent(menuCell.cell.id)} style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>标记缺席</Button>
@@ -346,7 +364,7 @@ export default function SmartSchedulePage() {
           <label>新值 <Input value={planForm.newValue} onChange={e => setPlanForm({ ...planForm, newValue: e.target.value })} placeholder="如10/A/true" /></label>
           <label>生效日 <Input value={planForm.effectiveDate} onChange={e => setPlanForm({ ...planForm, effectiveDate: e.target.value })} placeholder="YYYY-MM-DD" /></label>
         </div>
-        <div className="text-[11px] text-gray-400 mt-2">生效日后未确认排班将取消待重排,已确认报警人工</div>
+        <div className="text-xs text-gray-400 mt-2">生效日后未确认排班将取消待重排,已确认报警人工</div>
       </Modal>
 
       {/* 停机弹窗 */}
@@ -370,20 +388,20 @@ export default function SmartSchedulePage() {
                 <label>类型<Select value={fWard.zoneType} onChange={v => setFWard({ ...fWard, zoneType: v })} options={[{ value: 'A', label: 'A 门诊' }, { value: 'B', label: 'B 住院' }, { value: 'C', label: 'C 全警戒' }]} /></label>
                 <Button type="primary" onClick={createWard}>新增病区</Button>
               </div>
-              <Table dataSource={adm.wards} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '类型', dataIndex: 'zoneType' }, { title: '状态', render: (_: any, r: any) => r.isDisabled ? '停用' : '启用' }]} />
+              <Table dataSource={adm.wards} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '类型', dataIndex: 'zoneType' }, { title: '状态', render: (_, r: AdminWard) => r.isDisabled ? '停用' : '启用' }]} />
             </div>,
           },
           {
             key: 'machine', label: '机器',
             children: <div className="text-sm">
               <div className="flex flex-wrap items-end gap-2 mb-3 bg-gray-50 p-2 rounded">
-                <label>病区<Select value={fMachine.wardId || undefined} onChange={v => setFMachine({ ...fMachine, wardId: v || 0 })} options={adm.wards.map((w: any) => ({ value: w.id, label: w.name }))} /></label>
+                <label>病区<Select value={fMachine.wardId || undefined} onChange={v => setFMachine({ ...fMachine, wardId: v || 0 })} options={adm.wards.map((w: AdminWard) => ({ value: w.id, label: w.name }))} /></label>
                 <label>编号<Input value={fMachine.code} onChange={e => setFMachine({ ...fMachine, code: e.target.value })} /></label>
                 <label>机型<Select value={fMachine.machineType} onChange={v => setFMachine({ ...fMachine, machineType: v })} options={['HD', 'HDF', 'CRRT'].map(m => ({ value: m, label: m }))} /></label>
                 <label>位序<InputNumber value={fMachine.positionIndex} onChange={v => setFMachine({ ...fMachine, positionIndex: v || 1 })} /></label>
                 <Button type="primary" onClick={createMachine}>新增机器</Button>
               </div>
-              <Table dataSource={adm.machines} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '病区', render: (_: any, r: any) => adm.wards.find((w: any) => w.id === r.wardId)?.name }, { title: '编号', dataIndex: 'code' }, { title: '机型', dataIndex: 'machineType' }, { title: '位序', dataIndex: 'positionIndex' }]} />
+              <Table dataSource={adm.machines} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '病区', render: (_: unknown, r: AdminMachine) => adm.wards.find((w: AdminWard) => w.id === r.wardId)?.name }, { title: '编号', dataIndex: 'code' }, { title: '机型', dataIndex: 'machineType' }, { title: '位序', dataIndex: 'positionIndex' }]} />
             </div>,
           },
           {
@@ -394,10 +412,10 @@ export default function SmartSchedulePage() {
                 <label>姓名<Input value={fPat.name} onChange={e => setFPat({ ...fPat, name: e.target.value })} /></label>
                 <label>性别<Select value={fPat.gender} onChange={v => setFPat({ ...fPat, gender: v })} options={[{ value: '男', label: '男' }, { value: '女', label: '女' }]} /></label>
                 <label>分区<Select value={fPat.zoneTag} onChange={v => setFPat({ ...fPat, zoneTag: v })} options={['A', 'B', 'C'].map(v => ({ value: v, label: v }))} /></label>
-                <label>归属区<Select value={fPat.homeWardId || undefined} onChange={v => setFPat({ ...fPat, homeWardId: v || 0 })} options={adm.wards.map((w: any) => ({ value: w.id, label: w.name }))} /></label>
+                <label>归属区<Select value={fPat.homeWardId || undefined} onChange={v => setFPat({ ...fPat, homeWardId: v || 0 })} options={adm.wards.map((w: AdminWard) => ({ value: w.id, label: w.name }))} /></label>
                 <label>每周次数<InputNumber min={1} max={3} value={fPat.weeklyCount} onChange={v => setFPat({ ...fPat, weeklyCount: v || 0 })} /></label>
                 <label>星期组合<Select value={fPat.freqPattern} onChange={v => setFPat({ ...fPat, freqPattern: v })} options={FREQS.map(([v, l]) => ({ value: v, label: l }))} /></label>
-                <label>班次<Select value={fPat.shiftId || undefined} onChange={v => setFPat({ ...fPat, shiftId: v || 0 })} options={adm.shifts.map((s: any) => ({ value: s.id, label: s.name }))} /></label>
+                <label>班次<Select value={fPat.shiftId || undefined} onChange={v => setFPat({ ...fPat, shiftId: v || 0 })} options={adm.shifts.map((s: AdminShift) => ({ value: s.id, label: s.name }))} /></label>
                 <label>基础模式<Select value={fPat.defaultMode} onChange={v => setFPat({ ...fPat, defaultMode: v })} options={['HD', 'HFD', 'HF'].map(m => ({ value: m, label: m }))} /></label>
                 <label>院感<Select value={fPat.infectionStatus} onChange={v => setFPat({ ...fPat, infectionStatus: v })} options={[{ value: 'unknown', label: '未出' }, { value: 'negative', label: '阴性' }, { value: 'positive', label: '阳性' }]} /></label>
                 <label className="flex items-center gap-1"><input type="checkbox" checked={fPat.hdfEnabled} onChange={e => setFPat({ ...fPat, hdfEnabled: e.target.checked })} />每两周HDF</label>
@@ -406,13 +424,13 @@ export default function SmartSchedulePage() {
               </div>
               <Table dataSource={adm.profiles} rowKey="patientId" size="small" pagination={false}
                 columns={[
-                  { title: '病人', render: (_: any, p: any) => { const pt = adm.patients.find((x: any) => x.id === p.patientId) || {}; return <span className={p.patientStatus === 20 ? 'opacity-40' : ''}>#{p.patientId} {pt.name}{p.patientStatus === 20 && ' (已出组)'}</span> } },
+                  { title: '病人', render: (_: unknown, p: AdminProfile) => { const pt = adm.patients.find((x: AdminPatient) => x.id === p.patientId); return <span className={p.patientStatus === 20 ? 'opacity-40' : ''}>#{p.patientId} {pt?.name}{p.patientStatus === 20 && ' (已出组)'}</span> } },
                   { title: '分区', dataIndex: 'zoneTag' },
                   { title: '模式', dataIndex: 'defaultMode' },
-                  { title: '组合', render: (_: any, r: any) => (FREQS.find(f => f[0] === r.freqPattern) || [])[1] },
-                  { title: 'HDF', render: (_: any, r: any) => r.hdfEnabled ? `周${WD[(r.hdfWeekday || 1) - 1]}` : '—' },
-                  { title: '院感', render: (_: any, r: any) => { const pt: any = adm.patients.find((x: any) => x.id === r.patientId) || {}; return pt.infectionStatus === 'positive' ? <span className="text-rose-600 font-semibold">阳</span> : pt.infectionStatus === 'unknown' ? <span className="text-amber-600">未</span> : '阴' } },
-                  { title: '操作', render: (_: any, r: any) => r.patientStatus !== 20 ? <span className="flex gap-1"><Button size="small" type="link" onClick={async () => { await placePatient(r.patientId, { start: board?.weekStart, weeks: 2 }); notify('已排入'); fetchData() }}>排入</Button><Button size="small" type="link" danger onClick={async () => { await dischargePatient(r.patientId, { reason: '出院' }); notify('已出组'); loadAdmin(); fetchData() }}>出组</Button></span> : null },
+                  { title: '组合', render: (_: unknown, r: AdminProfile) => (FREQS.find(f => f[0] === r.freqPattern) || [])[1] },
+                  { title: 'HDF', render: (_: unknown, r: AdminProfile) => r.hdfEnabled ? `周${WD[(r.hdfWeekday || 1) - 1]}` : '—' },
+                  { title: '院感', render: (_: unknown, r: AdminProfile) => { const pt = adm.patients.find((x: AdminPatient) => x.id === r.patientId); return pt?.infectionStatus === 'positive' ? <span className="text-rose-600 font-semibold">阳</span> : pt?.infectionStatus === 'unknown' ? <span className="text-amber-600">未</span> : '阴' } },
+                  { title: '操作', render: (_: unknown, r: AdminProfile) => r.patientStatus !== 20 ? <span className="flex gap-1"><Button size="small" type="link" onClick={async () => { await placePatient(r.patientId, { start: board?.weekStart, weeks: 2 }); notify('已排入'); fetchData() }}>排入</Button><Button size="small" type="link" danger onClick={async () => { await dischargePatient(r.patientId, { reason: '出院' }); notify('已出组'); loadAdmin(); fetchData() }}>出组</Button></span> : null },
                 ]} />
             </div>,
           },
@@ -423,7 +441,7 @@ export default function SmartSchedulePage() {
                 <Button type="primary" onClick={async () => { await rebuildTemplate(); notify('模板已重建'); loadAdmin() }}>由病人骨架重建生效模板</Button>
                 <span className="text-gray-500">把现在所有病人的骨架快照成一份新模板(旧模板失效)</span>
               </div>
-              <Table dataSource={adm.templates} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '生效', render: (_: any, r: any) => r.isActive ? '✅ 生效中' : '—' }]} />
+              <Table dataSource={adm.templates} rowKey="id" size="small" pagination={false} columns={[{ title: 'ID', dataIndex: 'id' }, { title: '名称', dataIndex: 'name' }, { title: '生效', render: (_: unknown, r: AdminTemplate) => r.isActive ? '✅ 生效中' : '—' }]} />
             </div>,
           },
         ]} />

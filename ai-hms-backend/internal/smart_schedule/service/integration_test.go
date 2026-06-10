@@ -23,11 +23,11 @@ var (
 )
 
 var allTables = []string{
-	"Schedule_v2_PatientShift", "Schedule_v2_CrrtSession", "Schedule_v2_ConflictQueue",
-	"Schedule_v2_ScheduleTemplateItem", "Schedule_v2_ScheduleTemplate", "Schedule_v2_PlanChange",
-	"Schedule_v2_PatientProfile", "Schedule_v2_Patient", "Schedule_v2_Calendar",
-	"Schedule_v2_MachineOutage", "Schedule_v2_Machine", "Schedule_v2_Shift", "Schedule_v2_Ward",
-	"Schedule_v2_TenantSetting",
+	"Schedule_PatientShift", "Schedule_CrrtSession", "Schedule_ConflictQueue",
+	"Schedule_ScheduleTemplateItem", "Schedule_ScheduleTemplate", "Schedule_PlanChange",
+	"Schedule_PatientProfile", "Schedule_Patient", "Schedule_Calendar",
+	"Schedule_MachineOutage", "Schedule_Bed", "Schedule_Shift", "Schedule_Ward",
+	"Schedule_TenantSetting",
 }
 
 func getDB(t *testing.T) *gorm.DB {
@@ -86,7 +86,7 @@ func TestGenerateConfirmCancelMakeup(t *testing.T) {
 	}
 
 	var s model.PatientShift
-	if err := g.Where(`"TenantId"=? AND "PatientId"=? AND "ScheduleDate"=? AND "Status" NOT IN ?`,
+	if err := g.Where(`"TenantId"=? AND "PatientId"=? AND "TreatmentTime"=? AND "Status" NOT IN ?`,
 		tenant, 1001, start, []int16{sched.StatusCancelled, sched.StatusAbsent}).First(&s).Error; err != nil {
 		t.Fatalf("找不到 1001 周一排班: %v", err)
 	}
@@ -159,9 +159,9 @@ func TestHolidayDutyModePartialOpen(t *testing.T) {
 	}
 
 	var aWed, aMon int64
-	g.Model(&model.PatientShift{}).Where(`"TenantId"=? AND "WardId"=? AND "ScheduleDate"=? AND "Status" NOT IN ?`,
+	g.Model(&model.PatientShift{}).Where(`"TenantId"=? AND "WardId"=? AND "TreatmentTime"=? AND "Status" NOT IN ?`,
 		tenant, aWard.Id, wed, []int16{sched.StatusCancelled}).Count(&aWed)
-	g.Model(&model.PatientShift{}).Where(`"TenantId"=? AND "WardId"=? AND "ScheduleDate"=? AND "Status" NOT IN ?`,
+	g.Model(&model.PatientShift{}).Where(`"TenantId"=? AND "WardId"=? AND "TreatmentTime"=? AND "Status" NOT IN ?`,
 		tenant, aWard.Id, start, []int16{sched.StatusCancelled}).Count(&aMon)
 	if aWed != 0 {
 		t.Errorf("值班模式只开C区,A区周三应 0 排班,得 %d", aWed)
@@ -213,14 +213,14 @@ func TestBaseModeHFD(t *testing.T) {
 		t.Fatal(err)
 	}
 	var s model.PatientShift
-	if err := g.Where(`"TenantId"=? AND "PatientId"=? AND "ScheduleDate"=?`, tenant, 1001, start).First(&s).Error; err != nil {
+	if err := g.Where(`"TenantId"=? AND "PatientId"=? AND "TreatmentTime"=?`, tenant, 1001, start).First(&s).Error; err != nil {
 		t.Fatalf("找不到 1001 排班: %v", err)
 	}
 	if s.DialysisMode != sched.ModeHFD {
 		t.Errorf("1001 基础模式应为 HFD,得 %s", s.DialysisMode)
 	}
 	var m model.Machine
-	g.Where(`"Id"=?`, *s.MachineId).First(&m)
+	g.Where(`"Id"=?`, s.MachineId).First(&m)
 	if m.MachineType != sched.MachineHD {
 		t.Errorf("HFD 应落在 HD 机,得 %s", m.MachineType)
 	}

@@ -1,7 +1,7 @@
 // Package model 定义透析排班子程序的 GORM 数据模型。
 //
-// 表均在 PostgreSQL 的 "Schedule_" 命名空间下,沿用老系统(ai-hms)的多租户与审计约定。
-// 设计依据:透析排班设计_数据模型与算法_v1.md(A 部分),规范 v1(决策 1-22)。
+// 所有表直接复用老库 Schedule_* 系列表,不再新建 Schedule_v2_* 表。
+// 新增列通过手动 DDL 脚本添加,老列保留以实现零破坏融合。
 package model
 
 import "time"
@@ -19,110 +19,119 @@ type BaseModel struct {
 // A.1 资源层
 // -------------------------------------------------------------------
 
-// Ward 分区(A/B/C + 子区树)。对应设计 A.1.1。
-// 与老系统差异:用 ZoneType 三值枚举 + ParentWardId 子区树,删除 InfectionType。
+// Ward 分区(A/B/C + 子区树)。复用老表 Schedule_Ward,新增 ZoneType/ParentWardId/IsSubZone。
 type Ward struct {
 	BaseModel
-	Name         string `gorm:"column:Name;size:256;not null" json:"name"`
-	ZoneType     string `gorm:"column:ZoneType;size:8;not null" json:"zoneType"` // A/B/C,见 ZoneType* 常量
-	ParentWardId *int64 `gorm:"column:ParentWardId" json:"parentWardId"`         // 子区指向父区;顶级为 NULL
-	IsSubZone    bool   `gorm:"column:IsSubZone;default:false" json:"isSubZone"`
-	Sort         int    `gorm:"column:Sort" json:"sort"`
-	IsDisabled   bool   `gorm:"column:IsDisabled;default:false" json:"isDisabled"`
-	Note         string `gorm:"column:Note;size:512" json:"note"`
+	Name             string `gorm:"column:Name;size:256;not null" json:"name"`
+	PatientType      string `gorm:"column:PatientType;size:64" json:"patientType"`           // 保留老列
+	InfectionType    string `gorm:"column:InfectionType;size:64" json:"infectionType"`       // 保留老列
+	ResponsibleUsers string `gorm:"column:ResponsibleUsers;size:512" json:"responsibleUsers"` // 保留老列
+	ZoneType         string `gorm:"column:ZoneType;size:8;not null;default:A" json:"zoneType"` // 新增列
+	ParentWardId     *int64 `gorm:"column:ParentWardId" json:"parentWardId"`                  // 新增列
+	IsSubZone        bool   `gorm:"column:IsSubZone;default:false" json:"isSubZone"`          // 新增列
+	Sort             int    `gorm:"column:Sort" json:"sort"`
+	IsDisabled       bool   `gorm:"column:IsDisabled;default:false" json:"isDisabled"`
+	Note             string `gorm:"column:Note;size:512" json:"note"`
 }
 
-func (Ward) TableName() string { return "Schedule_v2_Ward" }
+func (Ward) TableName() string { return "Schedule_Ward" }
 
-// Machine 机器(机型能力 + 物理排位 + 停用)。对应设计 A.1.2。
-// 位 = 机器 × 班次 × 日期 动态表达(决策 20),不再有独立床表。
+// Machine 机器(实际复用老表 Schedule_Bed,新增 MachineType 等列)。
+// 位 = 机器 × 班次 × 日期 动态表达(决策 20)。
 type Machine struct {
 	BaseModel
-	WardId        int64  `gorm:"column:WardId;not null;index" json:"wardId"`
-	Code          string `gorm:"column:Code;size:64;not null" json:"code"`               // 院内唯一编号
-	Name          string `gorm:"column:Name;size:256" json:"name"`
-	MachineType   string `gorm:"column:MachineType;size:8;not null" json:"machineType"` // HD/HDF/CRRT
-	PositionIndex int    `gorm:"column:PositionIndex;not null" json:"positionIndex"`    // 区内物理排位,用于连片/相邻判定
-	IsDisabled    bool   `gorm:"column:IsDisabled;default:false" json:"isDisabled"`     // 永久报废/长期停用
+	WardId        int64  `gorm:"column:WardId;not null;index;default:0" json:"wardId"`             // 老库可空, GORM读NULL转0
+	Code          string `gorm:"column:Code;size:64" json:"code"`               // 新增列
+	Name          string `gorm:"column:Name;size:256;not null" json:"name"`
+	MachineType   string `gorm:"column:MachineType;size:8;not null;default:HD" json:"machineType"`   // 新增列
+	SupportedModes string `gorm:"column:SupportedModes;size:64;not null;default:HD" json:"supportedModes"` // 新增列
+	PositionIndex int    `gorm:"column:PositionIndex;not null;default:0" json:"positionIndex"`       // 新增列
+	LegacyBedName string `gorm:"column:LegacyBedName;size:256" json:"legacyBedName"`                 // 新增列
+	IsDisabled    bool   `gorm:"column:IsDisabled;default:false" json:"isDisabled"`
 	Sort          int    `gorm:"column:Sort" json:"sort"`
-	LegacyBedId   *int64 `gorm:"column:LegacyBedId" json:"legacyBedId"` // 迁移影子列,对齐老 Schedule_Bed
 	Note          string `gorm:"column:Note;size:512" json:"note"`
 }
 
-func (Machine) TableName() string { return "Schedule_v2_Machine" }
+func (Machine) TableName() string { return "Schedule_Bed" }
 
-// MachineOutage 机器停用时段。对应设计 A.1.3(决策 17)。
+// MachineOutage 机器停用时段。对应设计 A.1.3(决策 17)。复用老表 Schedule_MachineOutage。
 type MachineOutage struct {
 	BaseModel
-	MachineId int64      `gorm:"column:MachineId;not null;index" json:"machineId"`
-	StartAt   time.Time  `gorm:"column:StartAt;not null" json:"startAt"`
-	EndAt     *time.Time `gorm:"column:EndAt" json:"endAt"`                       // NULL=未定/长期
-	OutageType int16     `gorm:"column:OutageType;not null" json:"outageType"`   // 10=临时(≤48h可归位) 20=长期/报废
-	Reason    string     `gorm:"column:Reason;size:512" json:"reason"`
+	BedId      int64      `gorm:"column:BedId;not null;default:0" json:"bedId"`        // 保留老列
+	MachineId  int64      `gorm:"column:MachineId;not null;index;default:0" json:"machineId"` // 新增列
+	ShiftId    *int64     `gorm:"column:ShiftId" json:"shiftId"`                        // 保留老列
+	StartAt    time.Time  `gorm:"column:StartAt;not null" json:"startAt"`
+	EndAt      *time.Time `gorm:"column:EndAt" json:"endAt"`
+	OutageType int16      `gorm:"column:OutageType;not null" json:"outageType"` // 10=临时 20=长期/报废
+	Reason     string     `gorm:"column:Reason;size:512" json:"reason"`
 }
 
-func (MachineOutage) TableName() string { return "Schedule_v2_MachineOutage" }
+func (MachineOutage) TableName() string { return "Schedule_MachineOutage" }
 
-// Shift 班次。对应设计 A.1.4。一个班次 × 一台机 = 1 个位(决策 20)。
+// Shift 班次。对应设计 A.1.4。复用老表 Schedule_Shift,新增 ShiftCode。
 type Shift struct {
 	BaseModel
-	Name       string `gorm:"column:Name;size:64;not null" json:"name"`
-	ShiftCode  string `gorm:"column:ShiftCode;size:16;not null" json:"shiftCode"` // MORNING/AFTERNOON/NIGHT
-	StartTime  string `gorm:"column:StartTime;size:8" json:"startTime"`
-	EndTime    string `gorm:"column:EndTime;size:8" json:"endTime"`
-	Sort       int    `gorm:"column:Sort" json:"sort"` // 上=1 下=2 晚=3
+	Name       string `gorm:"column:Name;size:256" json:"name"`
+	ShiftCode  string `gorm:"column:ShiftCode;size:16;not null;default:MORNING" json:"shiftCode"` // 新增列
+	StartTime  string `gorm:"column:StartTime;size:32" json:"startTime"`   // 老库 timestamptz
+	EndTime    string `gorm:"column:EndTime;size:32" json:"endTime"`       // 老库 timestamptz
+	Type       int    `gorm:"column:Type;default:1" json:"type"`           // 保留老列 integer
+	Sort       int    `gorm:"column:Sort" json:"sort"`
 	IsDisabled bool   `gorm:"column:IsDisabled;default:false" json:"isDisabled"`
+	Note       string `gorm:"column:Note;size:512" json:"note"`            // 保留老列
 }
 
-func (Shift) TableName() string { return "Schedule_v2_Shift" }
+func (Shift) TableName() string { return "Schedule_Shift" }
 
-// Calendar 机构日历(透析日/非透析日/假日值班)。对应设计 A.1.5(决策 19)。
+// Calendar 机构日历(透析日/非透析日/假日值班)。对应设计 A.1.5。复用老表 Schedule_Calendar,新增 OpenWardIds/OpenMachineIds。
 type Calendar struct {
 	BaseModel
-	CalDate       time.Time `gorm:"column:CalDate;type:date;not null" json:"calDate"`
-	IsDialysisDay bool      `gorm:"column:IsDialysisDay;not null" json:"isDialysisDay"`
-	HolidayMode   int16     `gorm:"column:HolidayMode;default:0" json:"holidayMode"`     // 0正常 10全院停 20假日值班
-	OpenWardIds   string    `gorm:"column:OpenWardIds;type:text" json:"openWardIds"`     // 值班模式开放的区(逗号分隔;空=全开)
-	OpenMachineIds string   `gorm:"column:OpenMachineIds;type:text" json:"openMachineIds"`
-	Note          string    `gorm:"column:Note;size:256" json:"note"`
+	CalDate        time.Time `gorm:"column:CalDate;type:date;not null" json:"calDate"`
+	IsDialysisDay  bool      `gorm:"column:IsDialysisDay;not null" json:"isDialysisDay"`
+	HolidayMode    int16     `gorm:"column:HolidayMode;default:0" json:"holidayMode"`
+	OpenWardIds    string    `gorm:"column:OpenWardIds;type:text" json:"openWardIds"`       // 新增列
+	OpenMachineIds string    `gorm:"column:OpenMachineIds;type:text" json:"openMachineIds"` // 新增列
+	Note           string    `gorm:"column:Note;size:256" json:"note"`
 }
 
-func (Calendar) TableName() string { return "Schedule_v2_Calendar" }
+func (Calendar) TableName() string { return "Schedule_Calendar" }
 
 // -------------------------------------------------------------------
 // A.2 病人排班属性层
 // -------------------------------------------------------------------
 
-// PatientProfile 病人排班骨架(人工权限属性,算法只读)。对应设计 A.2.1。
+// PatientProfile 病人排班骨架。复用老表 Schedule_PatientProfile,新增 WeeklyCount/PatientStatus 等列。
 type PatientProfile struct {
 	BaseModel
 	PatientId           int64  `gorm:"column:PatientId;not null;uniqueIndex" json:"patientId"`
-	ZoneTag             string `gorm:"column:ZoneTag;size:8;not null" json:"zoneTag"`               // A/B/C 标签驱动
-	HomeWardId          *int64 `gorm:"column:HomeWardId" json:"homeWardId"`                         // 归属区(含子区)
-	WeeklyCount         int16  `gorm:"column:WeeklyCount" json:"weeklyCount"`                       // 每周次数(医嘱,决策23),0=未填
-	FreqPattern         int16  `gorm:"column:FreqPattern;not null" json:"freqPattern"`             // 星期组合(护士):10/20/30/40/90
-	ShiftId             *int64 `gorm:"column:ShiftId" json:"shiftId"`                               // 全周同一班
+	ZoneTag             string `gorm:"column:ZoneTag;size:8;not null" json:"zoneTag"`
+	HomeWardId          *int64 `gorm:"column:HomeWardId" json:"homeWardId"`
+	WeeklyCount         int16  `gorm:"column:WeeklyCount" json:"weeklyCount"`   // 新增列
+	FreqPattern         int16  `gorm:"column:FreqPattern;not null" json:"freqPattern"`
+	ShiftId             *int64 `gorm:"column:ShiftId" json:"shiftId"`
 	DefaultMode         string `gorm:"column:DefaultMode;size:8;not null;default:HD" json:"defaultMode"`
-	HdfEnabled          bool   `gorm:"column:HdfEnabled;default:false" json:"hdfEnabled"`           // 每两周一次 HDF 替换
-	HdfWeekday          *int16 `gorm:"column:HdfWeekday" json:"hdfWeekday"`                         // 1=周一..6=周六
-	HdfWeekParity       *int16 `gorm:"column:HdfWeekParity" json:"hdfWeekParity"`                   // 0=偶 1=奇(系统算)
-	FixedHdMachineId    *int64 `gorm:"column:FixedHdMachineId" json:"fixedHdMachineId"`             // 双固定之一
-	FixedHdfMachineId   *int64 `gorm:"column:FixedHdfMachineId" json:"fixedHdfMachineId"`           // 双固定之二(须 HDF 机)
+	HdfEnabled          bool   `gorm:"column:HdfEnabled;default:false" json:"hdfEnabled"`
+	HdfWeekday          *int16 `gorm:"column:HdfWeekday" json:"hdfWeekday"`
+	HdfWeekParity       *int16 `gorm:"column:HdfWeekParity" json:"hdfWeekParity"`
+	FixedHdBedId        *int64 `gorm:"column:FixedHdBedId" json:"fixedHdBedId"`           // 保留老列
+	FixedHdfBedId       *int64 `gorm:"column:FixedHdfBedId" json:"fixedHdfBedId"`         // 保留老列
+	FixedHdMachineId    *int64 `gorm:"column:FixedHdMachineId" json:"fixedHdMachineId"`   // 新增列
+	FixedHdfMachineId   *int64 `gorm:"column:FixedHdfMachineId" json:"fixedHdfMachineId"` // 新增列
 	IsAdmissionRejected bool   `gorm:"column:IsAdmissionRejected;default:false" json:"isAdmissionRejected"`
 	EffectiveFrom       *time.Time `gorm:"column:EffectiveFrom;type:date" json:"effectiveFrom"`
-	PatientStatus       int16      `gorm:"column:PatientStatus;not null;default:10" json:"patientStatus"` // 10在透 / 20已出组(决策27)
-	DischargeReason     string     `gorm:"column:DischargeReason;size:64" json:"dischargeReason"`         // 出院/转院/死亡/长期停透/其它
-	DischargedAt        *time.Time `gorm:"column:DischargedAt" json:"dischargedAt"`
-	DischargedBy        *int64     `gorm:"column:DischargedBy" json:"dischargedBy"`
+	PatientStatus       int16      `gorm:"column:PatientStatus;not null;default:10" json:"patientStatus"`   // 新增列
+	DischargeReason     string     `gorm:"column:DischargeReason;size:64" json:"dischargeReason"`           // 新增列
+	DischargedAt        *time.Time `gorm:"column:DischargedAt" json:"dischargedAt"`                        // 新增列
+	DischargedBy        *int64     `gorm:"column:DischargedBy" json:"dischargedBy"`                        // 新增列
 }
 
-func (PatientProfile) TableName() string { return "Schedule_v2_PatientProfile" }
+func (PatientProfile) TableName() string { return "Schedule_PatientProfile" }
 
-// PlanChange 方案变更生效记录。对应设计 A.2.2(决策 14)。
+// PlanChange 方案变更生效记录。复用老表 Schedule_PlanChange,字段完全一致。
 type PlanChange struct {
 	BaseModel
 	PatientId     int64      `gorm:"column:PatientId;not null;index" json:"patientId"`
-	ChangeType    string     `gorm:"column:ChangeType;size:16;not null" json:"changeType"` // FREQ/MODE/SHIFT/ZONE/HDF
+	ChangeType    string     `gorm:"column:ChangeType;size:16;not null" json:"changeType"`
 	OldValue      string     `gorm:"column:OldValue;size:64" json:"oldValue"`
 	NewValue      string     `gorm:"column:NewValue;size:64" json:"newValue"`
 	EffectiveDate time.Time  `gorm:"column:EffectiveDate;type:date;not null" json:"effectiveDate"`
@@ -130,24 +139,29 @@ type PlanChange struct {
 	ProcessedAt   *time.Time `gorm:"column:ProcessedAt" json:"processedAt"`
 }
 
-func (PlanChange) TableName() string { return "Schedule_v2_PlanChange" }
+func (PlanChange) TableName() string { return "Schedule_PlanChange" }
 
 // -------------------------------------------------------------------
 // A.3 排班记录层(核心)
 // -------------------------------------------------------------------
 
-// PatientShift 排班记录(核心,重构状态机)。对应设计 A.3.1。
+// PatientShift 排班记录(核心)。复用老表 Schedule_PatientShift,合并 PatientShiftExt 字段。
+// 老库列名 TreatmentTime 映射到 GORM 字段 ScheduleDate。
 type PatientShift struct {
 	BaseModel
-	PatientId    int64      `gorm:"column:PatientId;not null;index" json:"patientId"`
-	ScheduleDate time.Time  `gorm:"column:ScheduleDate;type:date;not null;index" json:"scheduleDate"`
-	ShiftId      *int64     `gorm:"column:ShiftId;index" json:"shiftId"` // CRRT 记录可空
-	WardId       int64      `gorm:"column:WardId;not null;index" json:"wardId"`
-	MachineId    *int64     `gorm:"column:MachineId;index" json:"machineId"` // 待排=NULL
-	Status       int16      `gorm:"column:Status;not null;index" json:"status"`
-	DialysisMode string     `gorm:"column:DialysisMode;size:8;not null" json:"dialysisMode"` // 按次 HD/HDF/CRRT
-	SourceType   int16      `gorm:"column:SourceType;not null" json:"sourceType"`            // 10常规 20临时
-	RecordForm   int16      `gorm:"column:RecordForm;not null;default:10" json:"recordForm"` // 10规律 20CRRT
+	PatientId    int64     `gorm:"column:PatientId;not null;index" json:"patientId"`
+	ScheduleDate time.Time `gorm:"column:TreatmentTime;not null;index" json:"scheduleDate"` // 老库列名 TreatmentTime
+	ShiftId      int64     `gorm:"column:ShiftId;not null;index;default:0" json:"shiftId"`   // 老库 NOT NULL,CRRT用0表示无班次
+WardId       int64      `gorm:"column:WardId;not null;index" json:"wardId"`                         // 老库 NOT NULL
+	BedId        int64      `gorm:"column:BedId;not null;default:0" json:"bedId"`              // 保留老列(与MachineId同值)
+	MachineId    int64     `gorm:"column:MachineId;not null;default:0;index" json:"machineId"` // 与BedId同值
+	PatientPlanId *int64   `gorm:"column:PatientPlanId;default:0" json:"patientPlanId"`       // 保留老列
+	ShiftTiming   *int     `gorm:"column:ShiftTiming;default:0" json:"shiftTiming"`           // 保留老列
+Status       int16      `gorm:"column:Status;not null;index" json:"status"`                 // V2状态机 int16
+	// 以下为 PatientShiftExt 合并进来的列(新增)
+	DialysisMode string `gorm:"column:DialysisMode;size:8;not null;default:HD" json:"dialysisMode"`
+	SourceType   int16  `gorm:"column:SourceType;not null;default:10" json:"sourceType"`
+	RecordForm   int16  `gorm:"column:RecordForm;not null;default:10" json:"recordForm"`
 	Confirm1At   *time.Time `gorm:"column:Confirm1At" json:"confirm1At"`
 	Confirm2At   *time.Time `gorm:"column:Confirm2At" json:"confirm2At"`
 	Confirm3At   *time.Time `gorm:"column:Confirm3At" json:"confirm3At"`
@@ -156,35 +170,38 @@ type PatientShift struct {
 	Confirm3By   *int64     `gorm:"column:Confirm3By" json:"confirm3By"`
 	IsBorrowedSlot       bool   `gorm:"column:IsBorrowedSlot;default:false" json:"isBorrowedSlot"`
 	CancelReason         string `gorm:"column:CancelReason;size:256" json:"cancelReason"`
-	MakeupOfShiftId      *int64 `gorm:"column:MakeupOfShiftId" json:"makeupOfShiftId"`
+	MakeupOfShiftId      *int64 `gorm:"column:MakeupOfShiftId" json:"makeupOfShiftId"`             // V2 新增
 	SourceTemplateItemId *int64 `gorm:"column:SourceTemplateItemId" json:"sourceTemplateItemId"`
 	IsLocked             bool   `gorm:"column:IsLocked;default:false" json:"isLocked"`
 }
 
-func (PatientShift) TableName() string { return "Schedule_v2_PatientShift" }
+func (PatientShift) TableName() string { return "Schedule_PatientShift" }
 
-// CrrtSession CRRT 占用(机 + 起止时间)。对应设计 A.3.2(决策 18)。
+// CrrtSession CRRT 占用。复用老表 Schedule_CrrtSession,新增 MachineId。
 type CrrtSession struct {
 	BaseModel
 	PatientShiftId int64      `gorm:"column:PatientShiftId;not null;uniqueIndex" json:"patientShiftId"`
-	MachineId      int64      `gorm:"column:MachineId;not null" json:"machineId"` // 必为 CRRT 机
+	BedId          int64      `gorm:"column:BedId;not null;default:0" json:"bedId"`     // 保留老列
+	MachineId      int64      `gorm:"column:MachineId;not null;default:0" json:"machineId"` // 新增列
 	StartAt        time.Time  `gorm:"column:StartAt;not null" json:"startAt"`
 	EndAt          *time.Time `gorm:"column:EndAt" json:"endAt"`
 }
 
-func (CrrtSession) TableName() string { return "Schedule_v2_CrrtSession" }
+func (CrrtSession) TableName() string { return "Schedule_CrrtSession" }
 
-// ScheduleTemplate 模板头(独立表,根除 Status=60)。对应设计 A.3.3(决策 16)。
+// ScheduleTemplate 模板头。复用老表 Schedule_ScheduleTemplate。
 type ScheduleTemplate struct {
 	BaseModel
 	Name     string `gorm:"column:Name;size:128;not null" json:"name"`
-	Scope    string `gorm:"column:Scope;size:8" json:"scope"` // ALL/A/B/C
+	Scope    string `gorm:"column:Scope;size:8" json:"scope"`
+	WardId   *int64 `gorm:"column:WardId" json:"wardId"`        // 保留老列
+	Version  int    `gorm:"column:Version;default:1" json:"version"` // 保留老列
 	IsActive bool   `gorm:"column:IsActive;default:true" json:"isActive"`
 }
 
-func (ScheduleTemplate) TableName() string { return "Schedule_v2_ScheduleTemplate" }
+func (ScheduleTemplate) TableName() string { return "Schedule_ScheduleTemplate" }
 
-// ScheduleTemplateItem 模板项(1 病人 1 项的稳定骨架)。对应设计 A.3.3。
+// ScheduleTemplateItem 模板项。复用老表 Schedule_ScheduleTemplateItem,新增 DefaultMode/MachineId。
 type ScheduleTemplateItem struct {
 	BaseModel
 	TemplateId        int64  `gorm:"column:TemplateId;not null;index" json:"templateId"`
@@ -193,60 +210,66 @@ type ScheduleTemplateItem struct {
 	WardId            *int64 `gorm:"column:WardId" json:"wardId"`
 	ShiftId           *int64 `gorm:"column:ShiftId" json:"shiftId"`
 	FreqPattern       int16  `gorm:"column:FreqPattern;not null" json:"freqPattern"`
-	DefaultMode       string `gorm:"column:DefaultMode;size:8;not null;default:HD" json:"defaultMode"` // 基础模式快照(决策25)
-	FixedHdMachineId  *int64 `gorm:"column:FixedHdMachineId" json:"fixedHdMachineId"`
-	FixedHdfMachineId *int64 `gorm:"column:FixedHdfMachineId" json:"fixedHdfMachineId"`
+	FixedHdBedId      *int64 `gorm:"column:FixedHdBedId" json:"fixedHdBedId"`           // 保留老列
+	FixedHdfBedId     *int64 `gorm:"column:FixedHdfBedId" json:"fixedHdfBedId"`         // 保留老列
+	DefaultMode       string `gorm:"column:DefaultMode;size:8;not null;default:HD" json:"defaultMode"`       // 新增列
+	FixedHdMachineId  *int64 `gorm:"column:FixedHdMachineId" json:"fixedHdMachineId"`   // 新增列
+	FixedHdfMachineId *int64 `gorm:"column:FixedHdfMachineId" json:"fixedHdfMachineId"` // 新增列
 	HdfEnabled        bool   `gorm:"column:HdfEnabled;default:false" json:"hdfEnabled"`
 	HdfWeekday        *int16 `gorm:"column:HdfWeekday" json:"hdfWeekday"`
-	HdfWeekParity     *int16 `gorm:"column:HdfWeekParity" json:"hdfWeekParity"` // 0=偶 1=奇
+	HdfWeekParity     *int16 `gorm:"column:HdfWeekParity" json:"hdfWeekParity"`
+	TemplateVersion   int    `gorm:"column:TemplateVersion;default:1" json:"templateVersion"` // 保留老列
 }
 
-func (ScheduleTemplateItem) TableName() string { return "Schedule_v2_ScheduleTemplateItem" }
+func (ScheduleTemplateItem) TableName() string { return "Schedule_ScheduleTemplateItem" }
 
-// ConflictQueue 冲突/待处理队列(主→备→报警的统一落点)。对应设计 A.3.4。
+// ConflictQueue 冲突/待处理队列。复用老表 Schedule_ConflictQueue。
 type ConflictQueue struct {
 	BaseModel
-	PatientId        *int64     `gorm:"column:PatientId;index" json:"patientId"`
-	ScheduleDate     *time.Time `gorm:"column:ScheduleDate;type:date" json:"scheduleDate"`
-	ShiftId          *int64     `gorm:"column:ShiftId" json:"shiftId"`
-	WardId           *int64     `gorm:"column:WardId" json:"wardId"`
-	ConflictType     string     `gorm:"column:ConflictType;size:24;not null" json:"conflictType"`
-	Severity         int16      `gorm:"column:Severity;default:10" json:"severity"` // 10提示 20报警
-	Detail           string     `gorm:"column:Detail;type:text" json:"detail"`
-	SuggestedShiftId *int64     `gorm:"column:SuggestedShiftId" json:"suggestedShiftId"`
-	Status           int16      `gorm:"column:Status;not null;default:0" json:"status"` // 0待处理 10已处理 20已忽略
-	ResolvedBy       *int64     `gorm:"column:ResolvedBy" json:"resolvedBy"`
-	ResolvedAt       *time.Time `gorm:"column:ResolvedAt" json:"resolvedAt"`
+	PatientId               *int64     `gorm:"column:PatientId;index" json:"patientId"`
+	ScheduleDate            *time.Time `gorm:"column:ScheduleDate;type:date" json:"scheduleDate"`
+	ShiftId                 *int64     `gorm:"column:ShiftId" json:"shiftId"`
+	WardId                  *int64     `gorm:"column:WardId" json:"wardId"`
+	ConflictType            string     `gorm:"column:ConflictType;size:24;not null" json:"conflictType"`
+	Severity                int16      `gorm:"column:Severity;default:10" json:"severity"`
+	Detail                  string     `gorm:"column:Detail;type:text" json:"detail"`
+	SuggestedDate           *time.Time `gorm:"column:SuggestedDate;type:date" json:"suggestedDate"`           // 保留老列
+	SuggestedShiftId        *int64     `gorm:"column:SuggestedShiftId" json:"suggestedShiftId"`
+	SuggestedBedId          *int64     `gorm:"column:SuggestedBedId" json:"suggestedBedId"`                   // 保留老列
+	SuggestedPatientShiftId *int64     `gorm:"column:SuggestedPatientShiftId" json:"suggestedPatientShiftId"` // 保留老列
+	Status                  int16      `gorm:"column:Status;not null;default:0" json:"status"`
+	ResolvedBy              *int64     `gorm:"column:ResolvedBy" json:"resolvedBy"`
+	ResolvedAt              *time.Time `gorm:"column:ResolvedAt" json:"resolvedAt"`
 }
 
-func (ConflictQueue) TableName() string { return "Schedule_v2_ConflictQueue" }
+func (ConflictQueue) TableName() string { return "Schedule_ConflictQueue" }
 
-// Patient 病人主档(轻量本地档;真实系统对接老库 Register_PatientInfomation)。
-// Id 即业务用的 PatientId(显式指定,不自增)。
+// Patient 病人主档(轻量本地档)。新表 Schedule_Patient,需手动创建。
 type Patient struct {
-	Id             int64     `gorm:"column:Id;primaryKey" json:"id"`
-	TenantId       int64     `gorm:"column:TenantId;index;not null" json:"tenantId"`
-	Name           string     `gorm:"column:Name;size:64;not null" json:"name"`
-	Gender         string     `gorm:"column:Gender;size:8" json:"gender"`
-	InfectionStatus string    `gorm:"column:InfectionStatus;size:16;not null;default:unknown" json:"infectionStatus"` // negative/positive/unknown(决策26)
-	InfectionWaivedBy *int64   `gorm:"column:InfectionWaivedBy" json:"infectionWaivedBy"`   // 无指标时护士长上机确认人
+	Id               int64      `gorm:"column:Id;primaryKey" json:"id"`
+	TenantId         int64      `gorm:"column:TenantId;index;not null" json:"tenantId"`
+	Name             string     `gorm:"column:Name;size:64;not null" json:"name"`
+	Gender           string     `gorm:"column:Gender;size:8" json:"gender"`
+	InfectionStatus  string     `gorm:"column:InfectionStatus;size:16;not null;default:unknown" json:"infectionStatus"`
+	InfectionWaivedBy *int64    `gorm:"column:InfectionWaivedBy" json:"infectionWaivedBy"`
 	InfectionWaivedAt *time.Time `gorm:"column:InfectionWaivedAt" json:"infectionWaivedAt"`
-	CreateTime     time.Time  `gorm:"column:CreateTime;autoCreateTime" json:"createTime"`
-	LastModifyTime time.Time  `gorm:"column:LastModifyTime;autoUpdateTime" json:"lastModifyTime"`
+	CreateTime       time.Time  `gorm:"column:CreateTime;autoCreateTime" json:"createTime"`
+	LastModifyTime   time.Time  `gorm:"column:LastModifyTime;autoUpdateTime" json:"lastModifyTime"`
 }
 
-func (Patient) TableName() string { return "Schedule_v2_Patient" }
+func (Patient) TableName() string { return "Schedule_Patient" }
 
-// TenantSetting 租户级配置(承载算法依赖的可配置参数)。对应设计 §0.1。
+// TenantSetting 租户级配置。复用老表 Schedule_TenantSetting。
 type TenantSetting struct {
 	BaseModel
 	SettingKey   string `gorm:"column:SettingKey;size:64;not null" json:"settingKey"`
 	SettingValue string `gorm:"column:SettingValue;size:256;not null" json:"settingValue"`
+	SettingType  string `gorm:"column:SettingType;size:16;not null;default:string" json:"settingType"` // 保留老列
 }
 
-func (TenantSetting) TableName() string { return "Schedule_v2_TenantSetting" }
+func (TenantSetting) TableName() string { return "Schedule_TenantSetting" }
 
-// AllModels 返回全部模型,供 AutoMigrate 使用。
+// AllModels 返回全部模型,供 AutoMigrate 使用(当前系统禁止 AutoMigrate,此函数仅作文档参考)。
 func AllModels() []interface{} {
 	return []interface{}{
 		&Ward{}, &Machine{}, &MachineOutage{}, &Shift{}, &Calendar{},
@@ -254,5 +277,7 @@ func AllModels() []interface{} {
 		&PatientShift{}, &CrrtSession{},
 		&ScheduleTemplate{}, &ScheduleTemplateItem{}, &ConflictQueue{},
 		&TenantSetting{}, &Patient{},
-	}
+}
+
+
 }

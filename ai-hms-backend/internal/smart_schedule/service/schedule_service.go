@@ -2,6 +2,7 @@
 package service
 
 import (
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,8 +16,10 @@ import (
 // filterDischarged 过滤掉已出组病人的模板项(决策 27)。
 func filterDischarged(g *gorm.DB, tenant int64, items []*model.ScheduleTemplateItem) []*model.ScheduleTemplateItem {
 	var ids []int64
-	g.Model(&model.PatientProfile{}).Where(`"TenantId" = ? AND "PatientStatus" = ?`, tenant, sched.PatientDischarged).
-		Pluck("PatientId", &ids)
+	if err := g.Model(&model.PatientProfile{}).Where(`"TenantId" = ? AND "PatientStatus" = ?`, tenant, sched.PatientDischarged).
+		Pluck("PatientId", &ids).Error; err != nil {
+		log.Printf("[schedule] filterDischarged pluck failed: %v", err)
+	}
 	if len(ids) == 0 {
 		return items
 	}

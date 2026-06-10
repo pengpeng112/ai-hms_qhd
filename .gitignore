@@ -6,6 +6,9 @@
 .env
 .env.local
 .env.*.local
+.env.backend/
+.env.production
+.env.production.*
 
 # OS junk
 .DS_Store
@@ -37,3 +40,35 @@ CLAUDE.md
 
 # Captured browser/network traces may contain tokens or patient data
 *.har
+
+# Build artifacts and caches
+dist/
+.vite/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Logs
+logs/
+*.log
+
+# Frontend node_modules
+node_modules/
+
+# Backend temp/build
+ai-hms-backend/tmp/
+ai-hms-backend/logs/
+
+# Reference material (not active codebase)
+ai-hms-v1.3-透析执行/
+gorm/
+old_system/
+
+# Binary artifacts
+*.test
+*.out
+
+# Coverage reports
+coverage/
+*.coverprofile

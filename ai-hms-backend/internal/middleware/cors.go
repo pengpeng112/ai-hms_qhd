@@ -13,8 +13,10 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 
 		// 检查 origin 是否在允许列表中
 		allowed := false
+		wildcard := false
 		if allowedOrigins == "*" {
 			allowed = true
+			wildcard = true
 		} else {
 			for _, allowedOrigin := range strings.Split(allowedOrigins, ",") {
 				if strings.TrimSpace(allowedOrigin) == origin {
@@ -31,7 +33,10 @@ func CORS(allowedOrigins string) gin.HandlerFunc {
 		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		c.Header("Access-Control-Allow-Headers", "Origin, Content-Type, Authorization")
 		c.Header("Access-Control-Expose-Headers", "Content-Length")
-		c.Header("Access-Control-Allow-Credentials", "true")
+		// 仅非 wildcard 时设置 credentials，避免 wildcard+credentials 组合被浏览器拒绝
+		if !wildcard {
+			c.Header("Access-Control-Allow-Credentials", "true")
+		}
 
 		if c.Request.Method == "OPTIONS" {
 			c.AbortWithStatus(204)

@@ -7,7 +7,6 @@ import commonZh from './locales/zh-CN/common.json'
 import navZh from './locales/zh-CN/nav.json'
 import patientZh from './locales/zh-CN/patient.json'
 import dialysisZh from './locales/zh-CN/dialysis.json'
-import scheduleZh from './locales/zh-CN/schedule.json'
 import deviceZh from './locales/zh-CN/device.json'
 import formZh from './locales/zh-CN/form.json'
 import settingsZh from './locales/zh-CN/settings.json'
@@ -26,7 +25,6 @@ import commonEn from './locales/en-US/common.json'
 import navEn from './locales/en-US/nav.json'
 import patientEn from './locales/en-US/patient.json'
 import dialysisEn from './locales/en-US/dialysis.json'
-import scheduleEn from './locales/en-US/schedule.json'
 import deviceEn from './locales/en-US/device.json'
 import formEn from './locales/en-US/form.json'
 import settingsEn from './locales/en-US/settings.json'
@@ -53,7 +51,6 @@ i18n
         nav: navZh,
         patient: patientZh,
         dialysis: dialysisZh,
-        schedule: scheduleZh,
         device: deviceZh,
         form: formZh,
         settings: settingsZh,
@@ -72,7 +69,6 @@ i18n
         nav: navEn,
         patient: patientEn,
         dialysis: dialysisEn,
-        schedule: scheduleEn,
         device: deviceEn,
         form: formEn,
         settings: settingsEn,

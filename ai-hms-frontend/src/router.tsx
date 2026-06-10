@@ -5,7 +5,7 @@ import {
     PatientList,
     PatientDetail,
     Monitoring,
-    Schedule,
+    SmartSchedulePage,
     Statistics,
     Settings,
     RoleSelect,
@@ -18,13 +18,9 @@ import {
     DictConfig,
     WardManagement,
     BedManagement,
-    ShiftConfig,
     UserManagement,
     RoleManagement,
     EducationManagement,
-    ScheduleTemplateList,
-    ScheduleTemplateEditor,
-    SmartSchedulePage,
 } from '@/pages'
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
@@ -74,10 +70,6 @@ const router = createBrowserRouter([
             },
             {
                 path: 'schedule',
-                element: <Schedule />,
-            },
-            {
-                path: 'smart-schedule',
                 element: <SmartSchedulePage />,
             },
             {
@@ -126,10 +118,6 @@ const router = createBrowserRouter([
                 element: <BedManagement />,
             },
             {
-                path: 'shift-config',
-                element: <ShiftConfig />,
-            },
-            {
                 path: 'user-management',
                 element: <PermissionGuard><UserManagement /></PermissionGuard>,
             },
@@ -140,14 +128,6 @@ const router = createBrowserRouter([
             {
                 path: 'education-management',
                 element: <EducationManagement />,
-            },
-            {
-                path: 'schedule-templates',
-                element: <ScheduleTemplateList />,
-            },
-            {
-                path: 'schedule-templates/edit',
-                element: <ScheduleTemplateEditor />,
             },
         ],
     },

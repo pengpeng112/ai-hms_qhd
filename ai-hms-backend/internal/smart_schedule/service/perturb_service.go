@@ -20,7 +20,7 @@ import (
 var ErrNoSlot = errors.New("当前/后续班次均无可用机位,已报警入冲突队列")
 
 // raiseConflictDB 写一条冲突/待处理队列记录。
-func raiseConflictDB(g *gorm.DB, tenant int64, patientID *int64, date *time.Time, shiftID, wardID *int64, ctype string, severity int16, detail string) {
+func raiseConflictDB(g *gorm.DB, tenant int64, patientID *int64, date *time.Time, shiftID, wardID *int64, ctype string, severity int16, detail string) error {
 	c := &model.ConflictQueue{
 		BaseModel:    model.BaseModel{TenantId: tenant},
 		PatientId:    patientID,
@@ -32,14 +32,14 @@ func raiseConflictDB(g *gorm.DB, tenant int64, patientID *int64, date *time.Time
 		Detail:       detail,
 		Status:       0,
 	}
-	g.Create(c)
+	return g.Create(c).Error
 }
 
 // patientBookedAt 病人在某(日期+班次)是否已有有效排班。
 func patientBookedAt(g *gorm.DB, tenant, patientID int64, date time.Time, shiftID int64) bool {
 	var cnt int64
 	g.Model(&model.PatientShift{}).Where(
-		`"TenantId" = ? AND "PatientId" = ? AND "ScheduleDate" = ? AND "ShiftId" = ? AND "Status" NOT IN ?`,
+		`"TenantId" = ? AND "PatientId" = ? AND "TreatmentTime" = ? AND "ShiftId" = ? AND "Status" NOT IN ?`,
 		tenant, patientID, date, shiftID, []int16{sched.StatusCancelled, sched.StatusAbsent},
 	).Count(&cnt)
 	return cnt > 0
@@ -71,7 +71,7 @@ func InsertTemporary(g *gorm.DB, tenant, patientID, wardID int64, date time.Time
 		// 该机位是否曾被取消/缺席空出(借用留痕)
 		var borrowedCnt int64
 		g.Model(&model.PatientShift{}).Where(
-			`"TenantId" = ? AND "MachineId" = ? AND "ScheduleDate" = ? AND "ShiftId" = ? AND "Status" IN ?`,
+			`"TenantId" = ? AND "MachineId" = ? AND "TreatmentTime" = ? AND "ShiftId" = ? AND "Status" IN ?`,
 			tenant, m.Id, d, sh.Id, []int16{sched.StatusCancelled, sched.StatusAbsent},
 		).Count(&borrowedCnt)
 
@@ -80,9 +80,9 @@ func InsertTemporary(g *gorm.DB, tenant, patientID, wardID int64, date time.Time
 			BaseModel:      model.BaseModel{TenantId: tenant},
 			PatientId:      patientID,
 			ScheduleDate:   d,
-			ShiftId:        &shiftID,
+			ShiftId:        shiftID,
 			WardId:         m.WardId,
-			MachineId:      &machineID,
+			MachineId:      machineID,
 			Status:         sched.StatusConfirmed, // 急诊即时排入
 			DialysisMode:   mode,
 			SourceType:     sched.SourceTemporary, // 不进模板
@@ -100,7 +100,7 @@ func InsertTemporary(g *gorm.DB, tenant, patientID, wardID int64, date time.Time
 	}
 
 	wid := wardID
-	raiseConflictDB(g, tenant, &patientID, &d, nil, &wid, sched.ConflictNoMachine, sched.SeverityAlert, "临时透析:当前及后续班次均无空机")
+	_ = raiseConflictDB(g, tenant, &patientID, &d, nil, &wid, sched.ConflictNoMachine, sched.SeverityAlert, "临时透析:当前及后续班次均无空机")
 	return nil, ErrNoSlot
 }
 
@@ -139,7 +139,7 @@ func RegisterOutageAndMigrate(g *gorm.DB, tenant, machineID int64, start, end ti
 
 	var affected []*model.PatientShift
 	if err := g.Where(
-		`"TenantId" = ? AND "MachineId" = ? AND "ScheduleDate" BETWEEN ? AND ? AND "Status" IN ?`,
+		`"TenantId" = ? AND "MachineId" = ? AND "TreatmentTime" BETWEEN ? AND ? AND "Status" IN ?`,
 		tenant, machineID, ds, de, []int16{sched.StatusPending, sched.StatusDraft, sched.StatusConfirmed},
 	).Find(&affected).Error; err != nil {
 		return nil, err
@@ -147,22 +147,22 @@ func RegisterOutageAndMigrate(g *gorm.DB, tenant, machineID int64, start, end ti
 
 	res := &OutageResult{OutageId: o.Id, Affected: len(affected)}
 	for _, s := range affected {
-		if s.ShiftId == nil {
+		if s.ShiftId == 0 {
 			continue
 		}
 		patientID := s.PatientId
 		date := s.ScheduleDate
-		shiftID := *s.ShiftId
+		shiftID := s.ShiftId
 
 		if outageType == sched.OutageLong {
-			raiseConflictDB(g, tenant, &patientID, &date, &shiftID, &s.WardId, sched.ConflictMachineOutage, sched.SeverityAlert, "长期停机/报废:需人工永久重定机位")
+			_ = raiseConflictDB(g, tenant, &patientID, &date, &shiftID, &s.WardId, sched.ConflictMachineOutage, sched.SeverityAlert, "长期停机/报废:需人工永久重定机位")
 			res.Conflicts++
 			continue
 		}
 
 		repl := board.FindFreeForMode(s.WardId, shiftID, date, s.DialysisMode)
 		if repl == nil {
-			raiseConflictDB(g, tenant, &patientID, &date, &shiftID, &s.WardId, sched.ConflictMachineOutage, sched.SeverityAlert, "停机迁移:本区本班无替代空机")
+			_ = raiseConflictDB(g, tenant, &patientID, &date, &shiftID, &s.WardId, sched.ConflictMachineOutage, sched.SeverityAlert, "停机迁移:本区本班无替代空机")
 			res.Conflicts++
 			continue
 		}
@@ -204,34 +204,19 @@ type HolidayResult struct {
 func SetHoliday(g *gorm.DB, tenant int64, date time.Time, holidayMode int16, openWardIds string) (*HolidayResult, error) {
 	d := dayStart(date)
 	dutyMode := holidayMode == 20
-	isDialysis := dutyMode // 值班模式当天仍(部分)透析;全停=非透析日
+	isDialysis := dutyMode
 	if !dutyMode {
-		openWardIds = "" // 全停模式不保留开放区
+		openWardIds = ""
 	}
 
-	var cal model.Calendar
-	err := g.Where(`"TenantId" = ? AND "CalDate" = ?`, tenant, d).First(&cal).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		cal = model.Calendar{BaseModel: model.BaseModel{TenantId: tenant}, CalDate: d,
-			IsDialysisDay: isDialysis, HolidayMode: holidayMode, OpenWardIds: openWardIds}
-		if err := g.Create(&cal).Error; err != nil {
-			return nil, err
-		}
-	} else if err == nil {
-		g.Model(&cal).Updates(map[string]interface{}{
-			"IsDialysisDay": isDialysis, "HolidayMode": holidayMode, "OpenWardIds": openWardIds})
-	} else {
-		return nil, err
-	}
-
-	// 受影响排班:全停=当天所有;值班=当天"未开放区"的排班。
-	q := g.Where(`"TenantId" = ? AND "ScheduleDate" = ? AND "Status" IN ?`,
+	// 读:受影响排班
+	q := g.Where(`"TenantId" = ? AND "TreatmentTime" = ? AND "Status" IN ?`,
 		tenant, d, []int16{sched.StatusPending, sched.StatusDraft, sched.StatusConfirmed})
 	if dutyMode {
 		if ids := parseIdCsv(openWardIds); len(ids) > 0 {
 			q = q.Where(`"WardId" NOT IN ?`, ids)
 		} else {
-			q = q.Where("1 = 0") // 值班且开放区为空 = 全开,无受影响
+			q = q.Where("1 = 0")
 		}
 	}
 	var affected []*model.PatientShift
@@ -250,24 +235,51 @@ func SetHoliday(g *gorm.DB, tenant int64, date time.Time, holidayMode int16, ope
 		reason = "假日值班:本区当日不开放"
 	}
 	res := &HolidayResult{}
-	for _, s := range affected {
-		g.Model(s).Updates(map[string]interface{}{"Status": sched.StatusCancelled, "CancelReason": reason})
-		res.Cancelled++
-		if s.ShiftId == nil {
-			continue
-		}
-		pid, sd, shid, wid := s.PatientId, s.ScheduleDate, *s.ShiftId, s.WardId
-		altDate, altMachine := nearestHolidaySlot(board, s.WardId, *s.ShiftId, s.DialysisMode, d)
-		if altMachine != nil {
-			detail := "建议挪到 " + altDate.Format("2006-01-02") + " " + altMachine.Code
-			raiseConflictDB(g, tenant, &pid, &sd, &shid, &wid, sched.ConflictHolidayReplan, sched.SeverityHint, detail)
-			res.Suggested++
+	err = g.Transaction(func(tx *gorm.DB) error {
+		var cal model.Calendar
+		e := tx.Where(`"TenantId" = ? AND "CalDate" = ?`, tenant, d).First(&cal).Error
+		if errors.Is(e, gorm.ErrRecordNotFound) {
+			cal = model.Calendar{BaseModel: model.BaseModel{TenantId: tenant}, CalDate: d,
+				IsDialysisDay: isDialysis, HolidayMode: holidayMode, OpenWardIds: openWardIds}
+			if e = tx.Create(&cal).Error; e != nil {
+				return e
+			}
+		} else if e == nil {
+			e = tx.Model(&cal).Updates(map[string]interface{}{
+				"IsDialysisDay": isDialysis, "HolidayMode": holidayMode, "OpenWardIds": openWardIds}).Error
+			if e != nil {
+				return e
+			}
 		} else {
-			raiseConflictDB(g, tenant, &pid, &sd, &shid, &wid, sched.ConflictHolidayReplan, sched.SeverityAlert, "假日挪班:前后 7 天无空位")
-			res.NoSlot++
+			return e
 		}
-	}
-	return res, nil
+
+		for _, s := range affected {
+			if e = tx.Model(s).Updates(map[string]interface{}{"Status": sched.StatusCancelled, "CancelReason": reason}).Error; e != nil {
+				return e
+			}
+			res.Cancelled++
+			if s.ShiftId == 0 {
+				continue
+			}
+			pid, sd, shid, wid := s.PatientId, s.ScheduleDate, s.ShiftId, s.WardId
+			altDate, altMachine := nearestHolidaySlot(board, s.WardId, s.ShiftId, s.DialysisMode, d)
+			if altMachine != nil {
+				detail := "建议挪到 " + altDate.Format("2006-01-02") + " " + altMachine.Code
+				if e = raiseConflictDB(tx, tenant, &pid, &sd, &shid, &wid, sched.ConflictHolidayReplan, sched.SeverityHint, detail); e != nil {
+					return e
+				}
+				res.Suggested++
+			} else {
+				if e = raiseConflictDB(tx, tenant, &pid, &sd, &shid, &wid, sched.ConflictHolidayReplan, sched.SeverityAlert, "假日挪班:前后 7 天无空位"); e != nil {
+					return e
+				}
+				res.NoSlot++
+			}
+		}
+		return nil
+	})
+	return res, err
 }
 
 // nearestHolidaySlot 在 ±1..7 天内,找同区同班、透析日、机型匹配的最近空位(用于挪班建议)。
@@ -303,31 +315,41 @@ func ApplyPlanChange(g *gorm.DB, tenant, patientID int64, changeType, newValue s
 		return nil, errors.New("病人排班骨架不存在")
 	}
 
-	old, err := applyProfileChange(g, tenant, &prof, changeType, newValue)
+	res := &PlanChangeResult{}
+	err := g.Transaction(func(tx *gorm.DB) error {
+		old, err := applyProfileChange(tx, tenant, &prof, changeType, newValue)
+		if err != nil {
+			return err
+		}
+		tx.Create(&model.PlanChange{
+			BaseModel: model.BaseModel{TenantId: tenant}, PatientId: patientID,
+			ChangeType: changeType, OldValue: old, NewValue: newValue, EffectiveDate: d,
+		})
+
+		var future []*model.PatientShift
+		if err := tx.Where(`"TenantId" = ? AND "PatientId" = ? AND "TreatmentTime" >= ? AND "Status" IN ?`,
+			tenant, patientID, d, []int16{sched.StatusPending, sched.StatusDraft, sched.StatusConfirmed}).Find(&future).Error; err != nil {
+			return err
+		}
+
+		for _, s := range future {
+			if s.Confirm2At != nil || s.Confirm3At != nil {
+				pid, sd, wid := s.PatientId, s.ScheduleDate, s.WardId
+				if err = raiseConflictDB(tx, tenant, &pid, &sd, &s.ShiftId, &wid, sched.ConflictPlanChange, sched.SeverityAlert, "已确认排班遇方案变更,需人工处理"); err != nil {
+					return err
+				}
+				res.Locked++
+			} else {
+				if err := tx.Model(s).Updates(map[string]interface{}{"Status": sched.StatusCancelled, "CancelReason": "方案变更重排"}).Error; err != nil {
+					return err
+				}
+				res.Replanned++
+			}
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, err
-	}
-	g.Create(&model.PlanChange{
-		BaseModel: model.BaseModel{TenantId: tenant}, PatientId: patientID,
-		ChangeType: changeType, OldValue: old, NewValue: newValue, EffectiveDate: d,
-	})
-
-	var future []*model.PatientShift
-	if err := g.Where(`"TenantId" = ? AND "PatientId" = ? AND "ScheduleDate" >= ? AND "Status" IN ?`,
-		tenant, patientID, d, []int16{sched.StatusPending, sched.StatusDraft, sched.StatusConfirmed}).Find(&future).Error; err != nil {
-		return nil, err
-	}
-
-	res := &PlanChangeResult{}
-	for _, s := range future {
-		if s.Confirm2At != nil || s.Confirm3At != nil {
-			pid, sd, wid := s.PatientId, s.ScheduleDate, s.WardId
-			raiseConflictDB(g, tenant, &pid, &sd, s.ShiftId, &wid, sched.ConflictPlanChange, sched.SeverityAlert, "已确认排班遇方案变更,需人工处理")
-			res.Locked++
-		} else {
-			g.Model(s).Updates(map[string]interface{}{"Status": sched.StatusCancelled, "CancelReason": "方案变更重排"})
-			res.Replanned++
-		}
 	}
 	res.Hint = "已更新骨架并清理未确认排班,请重新生成以按新方案补排"
 	return res, nil
@@ -379,7 +401,9 @@ func applyProfileChange(g *gorm.DB, tenant int64, prof *model.PatientProfile, ch
 		return "", err
 	}
 	if len(itemUpd) > 0 {
-		g.Model(&model.ScheduleTemplateItem{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, prof.PatientId).Updates(itemUpd)
+		if err := g.Model(&model.ScheduleTemplateItem{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, prof.PatientId).Updates(itemUpd).Error; err != nil {
+			return "", err
+		}
 	}
 	return old, nil
 }

@@ -18,10 +18,8 @@ import type { Patient } from '@/types/original'
 import {
   restApi,
   convertRestPatientList,
-  getActiveShifts,
   getAllEquipments,
   getTodayTreatments,
-  type Shift as APIShift,
   type EquipmentInfo,
   type Treatment,
 } from '@/services'
@@ -120,7 +118,6 @@ export default function Dashboard() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState<Partial<Patient>[]>([])
   const [patientTotal, setPatientTotal] = useState<number | null>(null)
-  const [shifts, setShifts] = useState<APIShift[]>([])
   const [equipments, setEquipments] = useState<EquipmentInfo[]>([])
   const [treatments, setTreatments] = useState<Treatment[]>([])
   const [dashboardStats, setDashboardStats] = useState<DashboardStats | null>(null)
@@ -132,17 +129,15 @@ export default function Dashboard() {
 
     Promise.all([
       restApi.getPatientList({ page: 1, pageSize: 50, onlyActive: true }).catch(() => null),
-      getActiveShifts().catch(() => []),
       getAllEquipments().catch(() => []),
       getTodayTreatments().catch(() => []),
       restApi.getDashboardStats().catch(() => null),
-    ]).then(([patientResult, shiftsData, equipmentsData, treatmentsData, statsData]) => {
+    ]).then(([patientResult, equipmentsData, treatmentsData, statsData]) => {
       if (!alive) return
       if (patientResult?.data?.items) {
         setPatients(convertRestPatientList(patientResult.data.items))
         setPatientTotal(patientResult.data.pagination?.total ?? patientResult.data.items.length)
       }
-      setShifts(shiftsData)
       setEquipments(equipmentsData)
       setTreatments(treatmentsData)
       setDashboardStats(statsData)
@@ -161,7 +156,7 @@ export default function Dashboard() {
 
   const activePatientCount = dashboardStats?.activePatients ?? patientTotal ?? patients.length
   const todayTreatmentCount = dashboardStats?.todayTreatments ?? treatments.length
-  const todayScheduleCount = dashboardStats?.todaySchedules ?? shifts.length
+  const todayScheduleCount = dashboardStats?.todaySchedules ?? 0
   const equipmentCount = dashboardStats?.equipmentCount ?? equipments.length
   const runningTreatments = treatments.filter(item => isTreatmentRunning(item.Status)).length
   const attentionDevices = equipments.filter(item => isDeviceAttention(item.Status)).length
@@ -171,7 +166,6 @@ export default function Dashboard() {
     : 0
   const visibleTreatments = treatments.slice(0, 6)
   const visiblePatients = patients.slice(0, 6)
-  const visibleShifts = shifts.slice(0, 4)
   const visibleDevices = equipments.slice(0, 8)
   const hourBars = (dashboardStats?.treatmentsByHour?.length ? dashboardStats.treatmentsByHour : [
     { name: '07:00', value: Math.max(1, Math.round(todayTreatmentCount * 0.25)) },
@@ -249,7 +243,7 @@ export default function Dashboard() {
         ))}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_0.65fr]">
+      <section className="grid gap-5">
         <Panel title="今日治疗节奏" action="查看统计" onAction={() => navigate('/statistics')}>
           <div className="grid gap-5 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="space-y-3">
@@ -269,23 +263,7 @@ export default function Dashboard() {
               <MiniMetric label="未开始" value={Math.max(todayTreatmentCount - treatments.length, 0)} hint="关注接诊排队" />
             </div>
           </div>
-        </Panel>
-
-        <Panel title="班次安排" action="进入排班" onAction={() => navigate('/schedule')}>
-          {isLoading ? <SkeletonRows /> : visibleShifts.length > 0 ? (
-            <div className="space-y-3">
-              {visibleShifts.map(shift => (
-                <button key={shift.Id} type="button" onClick={() => navigate('/schedule')} className="w-full rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-left transition hover:border-sky-200 hover:bg-sky-50 active:scale-[0.98]">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-semibold text-slate-900">{shift.Name || `班次 ${shift.Id}`}</span>
-                    <span className="text-xs text-slate-500">{shift.Type || '常规'}</span>
-                  </div>
-                  <div className="mt-2 text-sm text-slate-500">{formatClock(shift.StartTime)} - {formatClock(shift.EndTime)}</div>
-                </button>
-              ))}
-            </div>
-          ) : <EmptyState text="暂无可展示班次" />}
-        </Panel>
+          </Panel>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-3">

@@ -57,7 +57,7 @@ func ConfirmPlan(g *gorm.DB, tenant, by int64, weekStart time.Time, weeks int) (
 	end := weekStart.AddDate(0, 0, weeks*7)
 	now := time.Now()
 	res := g.Model(&model.PatientShift{}).
-		Where(`"TenantId" = ? AND "ScheduleDate" >= ? AND "ScheduleDate" < ? AND "Status" = ?`,
+		Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ? AND "Status" = ?`,
 			tenant, weekStart, end, sched.StatusDraft).
 		Updates(map[string]interface{}{"Status": sched.StatusConfirmed, "Confirm1At": now, "Confirm1By": by})
 	return res.RowsAffected, res.Error
@@ -74,7 +74,7 @@ func ConfirmDay(g *gorm.DB, tenant, by int64, date time.Time, level int) (int64,
 	now := time.Now()
 	d := dayStart(date)
 	res := g.Model(&model.PatientShift{}).
-		Where(`"TenantId" = ? AND "ScheduleDate" = ? AND "Status" = ?`, tenant, d, sched.StatusConfirmed).
+		Where(`"TenantId" = ? AND "TreatmentTime" = ? AND "Status" = ?`, tenant, d, sched.StatusConfirmed).
 		Updates(map[string]interface{}{col: now, byCol: by})
 	return res.RowsAffected, res.Error
 }
@@ -132,30 +132,35 @@ func MoveShift(g *gorm.DB, tenant, id int64, newMachineId int64, newDate *time.T
 	}
 	shiftId := s.ShiftId
 	if newShiftId != nil {
-		shiftId = newShiftId
+		shiftId = *newShiftId
 	}
 
 	// 目标机位是否被占(排除自身,取消/缺席不占)
 	var cnt int64
-	g.Model(&model.PatientShift{}).Where(
-		`"TenantId" = ? AND "MachineId" = ? AND "ScheduleDate" = ? AND "ShiftId" = ? AND "Id" <> ? AND "Status" NOT IN ?`,
+	if err := g.Model(&model.PatientShift{}).Where(
+		`"TenantId" = ? AND "MachineId" = ? AND "TreatmentTime" = ? AND "ShiftId" = ? AND "Id" <> ? AND "Status" NOT IN ?`,
 		tenant, newMachineId, date, shiftId, id, []int16{sched.StatusCancelled, sched.StatusAbsent},
-	).Count(&cnt)
+	).Count(&cnt).Error; err != nil {
+		return err
+	}
 	if cnt > 0 {
 		return ErrOccupied
 	}
 
 	// 病人是否已在目标日期+班次有排班
-	g.Model(&model.PatientShift{}).Where(
-		`"TenantId" = ? AND "PatientId" = ? AND "ScheduleDate" = ? AND "ShiftId" = ? AND "Id" <> ? AND "Status" NOT IN ?`,
+	var cnt2 int64
+	if err := g.Model(&model.PatientShift{}).Where(
+		`"TenantId" = ? AND "PatientId" = ? AND "TreatmentTime" = ? AND "ShiftId" = ? AND "Id" <> ? AND "Status" NOT IN ?`,
 		tenant, s.PatientId, date, shiftId, id, []int16{sched.StatusCancelled, sched.StatusAbsent},
-	).Count(&cnt)
-	if cnt > 0 {
+	).Count(&cnt2).Error; err != nil {
+		return err
+	}
+	if cnt2 > 0 {
 		return ErrDoubleBook
 	}
 
 	err = g.Model(s).Updates(map[string]interface{}{
-		"MachineId": newMachineId, "WardId": m.WardId, "ScheduleDate": date, "ShiftId": shiftId,
+		"MachineId": newMachineId, "WardId": m.WardId, "TreatmentTime": date, "ShiftId": shiftId,
 	}).Error
 	if isUniqueViolation(err) { // 并发:目标位被别人抢先占用
 		return ErrOccupied

@@ -1,0 +1,137 @@
+From 4ac7ff692c9edc982c9b19026d3ad77f1c9f4d68 Mon Sep 17 00:00:00 2001
+From: angela <angela19781120@gmail.com>
+Date: Wed, 10 Jun 2026 05:18:10 +0800
+Subject: [PATCH 2/6] =?UTF-8?q?fix(auth):=20=E9=BB=98=E8=AE=A4=E7=AE=A1?=
+ =?UTF-8?q?=E7=90=86=E5=91=98=E6=92=AD=E7=A7=8D=E6=94=B9=E4=B8=BA=E9=BB=98?=
+ =?UTF-8?q?=E8=AE=A4=E5=85=B3=E9=97=AD=E4=B8=94=E5=8F=A3=E4=BB=A4=E4=B8=8D?=
+ =?UTF-8?q?=E5=86=8D=E7=A1=AC=E7=BC=96=E7=A0=81?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+SeedAdminIfNeeded 原先每次启动无条件向老生产库注入已知口令账号
+(TEST_AI_HMS_admin/Test@123456)并把明文口令写入日志，构成安全隐患。
+
+- config: 新增 SEED_ADMIN_ENABLED(默认 false)/SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD
+- main: 仅在 SeedAdminEnabled 时调用，默认打印禁用日志(与 ORDER_CRON 同模式)
+- auth_service: 凭据改由调用方注入，空用户名/口令拒绝播种；成功日志不再输出明文口令
+- .env.example: 记录新开关，标注生产禁用、口令不得为已知/共享值
+
+不影响 smoke 测试(其 test_admin 来自 seed_phase1.sql，与本函数无关)。
+验证: gofmt/go build ./.../go vet 通过。
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ ai-hms-backend/.env.example                     |  7 +++++++
+ ai-hms-backend/cmd/server/main.go               |  9 +++++++--
+ ai-hms-backend/config/config.go                 |  8 ++++++++
+ .../internal/services/auth_service.go           | 17 ++++++++++++-----
+ 4 files changed, 34 insertions(+), 7 deletions(-)
+
+diff --git a/ai-hms-backend/.env.example b/ai-hms-backend/.env.example
+index a664435..9b8ddd9 100644
+--- a/ai-hms-backend/.env.example
++++ b/ai-hms-backend/.env.example
+@@ -26,6 +26,13 @@ AUTH_EMERGENCY_ENABLED=false
+ # Shared password backdoor (optional, DO NOT set in production):
+ # DEFAULT_PASSWORD=<NOT_RECOMMENDED>
+ 
++# Default admin seeding (disabled by default; DO NOT enable in production)
++# When false, startup will NOT create any admin account in the legacy DB.
++# To enable (dev/bootstrap only), set all three; password must NOT be a known/shared value:
++SEED_ADMIN_ENABLED=false
++# SEED_ADMIN_USERNAME=<REQUIRED_IF_ENABLED>
++# SEED_ADMIN_PASSWORD=<REQUIRED_IF_ENABLED>
++
+ # CORS
+ CORS_ALLOWED_ORIGINS=<REQUIRED: CORS_ALLOWED_ORIGINS>
+ 
+diff --git a/ai-hms-backend/cmd/server/main.go b/ai-hms-backend/cmd/server/main.go
+index 35b311d..1e42f69 100644
+--- a/ai-hms-backend/cmd/server/main.go
++++ b/ai-hms-backend/cmd/server/main.go
+@@ -48,8 +48,13 @@ func main() {
+ 		defer database.Close()
+ 		log.Println("[LEGACY-DB] startup in legacy database mode: AutoMigrate and startup seed initialization are disabled")
+ 
+-		// 确保默认管理员账号存在
+-		services.SeedAdminIfNeeded(database.GetDB())
++		// 默认管理员播种：默认关闭，避免向生产库注入已知口令账号。
++		// 需显式 SEED_ADMIN_ENABLED=true 并提供 SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD 才执行。
++		if cfg.SeedAdminEnabled {
++			services.SeedAdminIfNeeded(database.GetDB(), cfg.SeedAdminUsername, cfg.SeedAdminPassword)
++		} else {
++			log.Println("[SEED] admin seeding is disabled (set SEED_ADMIN_ENABLED=true with SEED_ADMIN_USERNAME/PASSWORD to enable)")
++		}
+ 
+ 		// 启动过期临时医嘱定时任务（需显式配置 ORDER_CRON_ENABLED=true 开启）
+ 		if cfg.OrderCronEnabled {
+diff --git a/ai-hms-backend/config/config.go b/ai-hms-backend/config/config.go
+index 4f86169..eb79c02 100644
+--- a/ai-hms-backend/config/config.go
++++ b/ai-hms-backend/config/config.go
+@@ -21,6 +21,11 @@ type Config struct {
+ 
+ 	OrderCronEnabled bool
+ 
++	// 默认管理员播种：默认关闭，仅在显式开启且提供口令时执行，避免向生产库注入已知口令账号。
++	SeedAdminEnabled  bool
++	SeedAdminUsername string
++	SeedAdminPassword string
++
+ 	LegacyTenantID int64
+ 
+ 	ParameterizedQueries bool
+@@ -139,6 +144,9 @@ func Load() (*Config, error) {
+ 		AppSecret: mustGetEnv("APP_SECRET"),
+ 
+ 		OrderCronEnabled:     getEnvBool("ORDER_CRON_ENABLED", false),
++		SeedAdminEnabled:     getEnvBool("SEED_ADMIN_ENABLED", false),
++		SeedAdminUsername:    getEnv("SEED_ADMIN_USERNAME", ""),
++		SeedAdminPassword:    getEnv("SEED_ADMIN_PASSWORD", ""),
+ 		LegacyTenantID:       int64(getEnvInt("LEGACY_TENANT_ID", 3)),
+ 		ParameterizedQueries: getEnvBool("SQL_PARAMETERIZED_QUERIES", true),
+ 	}
+diff --git a/ai-hms-backend/internal/services/auth_service.go b/ai-hms-backend/internal/services/auth_service.go
+index 22341ac..4bcb726 100644
+--- a/ai-hms-backend/internal/services/auth_service.go
++++ b/ai-hms-backend/internal/services/auth_service.go
+@@ -318,15 +318,22 @@ func FormatUserID(userID int64) string {
+ 
+ var adminSeededOnce bool
+ 
+-// SeedAdminIfNeeded 启动时检查并创建默认管理员（TEST_AI_HMS_admin / Test@123456）
+-func SeedAdminIfNeeded(db *gorm.DB) {
++// SeedAdminIfNeeded 在显式开启时检查并创建默认管理员。
++//
++// 凭据由调用方从配置（SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD）注入，
++// 不再硬编码已知口令；用户名或口令为空时拒绝播种。该函数仅应在
++// cfg.SeedAdminEnabled=true 时调用（见 cmd/server/main.go），默认关闭，
++// 避免向老生产库注入已知口令账号。
++func SeedAdminIfNeeded(db *gorm.DB, username, password string) {
+ 	if adminSeededOnce {
+ 		return
+ 	}
+ 	adminSeededOnce = true
+ 
+-	username := "TEST_AI_HMS_admin"
+-	password := "Test@123456"
++	if strings.TrimSpace(username) == "" || password == "" {
++		log.Println("[SEED] admin seeding skipped: SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD not provided")
++		return
++	}
+ 
+ 	var count int64
+ 	db.Table(`"Identity_Users"`).Where(`"UserName" = ?`, username).Count(&count)
+@@ -396,7 +403,7 @@ func SeedAdminIfNeeded(db *gorm.DB) {
+ 		})
+ 	}
+ 
+-	log.Printf("[SEED] admin user created: %s / %s (ID=%d)", username, password, adminID)
++	log.Printf("[SEED] admin user created: %s (ID=%d)", username, adminID)
+ }
+ 
+ func randomUUID() string {
+-- 
+2.54.0.windows.1
+

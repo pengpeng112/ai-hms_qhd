@@ -1,6 +1,7 @@
 package service
 
 import (
+	"log"
 	"time"
 
 	"gorm.io/gorm"
@@ -59,7 +60,9 @@ func cellKey(date string, shiftID int64) string {
 // patientNames 加载租户病人 Id→姓名 映射。
 func patientNames(g *gorm.DB, tenant int64) map[int64]string {
 	var ps []model.Patient
-	g.Where(`"TenantId" = ?`, tenant).Find(&ps)
+	if err := g.Where(`"TenantId" = ?`, tenant).Find(&ps).Error; err != nil {
+		log.Printf("[weekview] patientNames find failed: %v", err)
+	}
 	m := map[int64]string{}
 	for _, p := range ps {
 		m[p.Id] = p.Name
@@ -115,7 +118,7 @@ func BuildWeekBoard(g *gorm.DB, tenant int64, date time.Time) (*WeekBoard, error
 	}
 	var records []model.PatientShift
 	if err := g.Where(
-		`"TenantId" = ? AND "ScheduleDate" BETWEEN ? AND ? AND "MachineId" IS NOT NULL AND "Status" NOT IN ?`,
+		`"TenantId" = ? AND "TreatmentTime" BETWEEN ? AND ? AND "MachineId" IS NOT NULL AND "Status" NOT IN ?`,
 		tenant, mon, sun, []int16{sched.StatusCancelled},
 	).Find(&records).Error; err != nil {
 		return nil, err
@@ -125,14 +128,14 @@ func BuildWeekBoard(g *gorm.DB, tenant int64, date time.Time) (*WeekBoard, error
 	// machineId -> cellKey -> cell
 	occ := map[int64]map[string]CellDTO{}
 	for _, r := range records {
-		if r.MachineId == nil || r.ShiftId == nil {
+		if r.MachineId == 0 || r.ShiftId == 0 {
 			continue
 		}
-		mid := *r.MachineId
+		mid := r.MachineId
 		if occ[mid] == nil {
 			occ[mid] = map[string]CellDTO{}
 		}
-		key := cellKey(r.ScheduleDate.Format("2006-01-02"), *r.ShiftId)
+		key := cellKey(r.ScheduleDate.Format("2006-01-02"), r.ShiftId)
 		confirms := 0
 		if r.Confirm3At != nil {
 			confirms = 3
@@ -142,7 +145,7 @@ func BuildWeekBoard(g *gorm.DB, tenant int64, date time.Time) (*WeekBoard, error
 			confirms = 1
 		}
 		occ[mid][key] = CellDTO{
-			Id: r.Id, ShiftId: *r.ShiftId, PatientId: r.PatientId, PatientName: names[r.PatientId],
+			Id: r.Id, ShiftId: r.ShiftId, PatientId: r.PatientId, PatientName: names[r.PatientId],
 			DialysisMode: r.DialysisMode, Status: r.Status, SourceType: r.SourceType,
 			Confirms: confirms,
 		}

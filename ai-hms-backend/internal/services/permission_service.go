@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
@@ -273,4 +274,61 @@ func (s *PermissionService) GetPermissionTree() ([]PermissionNode, error) {
 		})
 	}
 	return nodes, nil
+}
+
+// roleCodeCache 角色 -> 权限码集合的带 TTL 缓存，避免每次请求都查库。
+type roleCodeCache struct {
+	svc *PermissionService
+	ttl time.Duration
+	mu  sync.RWMutex
+	m   map[string]roleCodeEntry
+}
+
+type roleCodeEntry struct {
+	codes map[string]bool
+	exp   time.Time
+}
+
+// NewRolePermissionResolver 构造一个"角色集合 -> 权限码集合"的解析函数，带 TTL 缓存。
+// 供 middleware.RequirePermissions 注入使用；底层读取老库 Authorization_RolePermissions。
+func NewRolePermissionResolver(ttl time.Duration) func(roles []string) (map[string]bool, error) {
+	c := &roleCodeCache{svc: NewPermissionService(), ttl: ttl, m: map[string]roleCodeEntry{}}
+	return c.resolve
+}
+
+func (c *roleCodeCache) resolve(roles []string) (map[string]bool, error) {
+	out := map[string]bool{}
+	for _, role := range roles {
+		codes, err := c.codesForRole(role)
+		if err != nil {
+			return nil, err
+		}
+		for code := range codes {
+			out[code] = true
+		}
+	}
+	return out, nil
+}
+
+func (c *roleCodeCache) codesForRole(role string) (map[string]bool, error) {
+	now := time.Now()
+	c.mu.RLock()
+	if e, ok := c.m[role]; ok && now.Before(e.exp) {
+		c.mu.RUnlock()
+		return e.codes, nil
+	}
+	c.mu.RUnlock()
+
+	list, err := c.svc.GetRolePermissionCodes(role)
+	if err != nil {
+		return nil, err
+	}
+	codes := make(map[string]bool, len(list))
+	for _, code := range list {
+		codes[code] = true
+	}
+	c.mu.Lock()
+	c.m[role] = roleCodeEntry{codes: codes, exp: now.Add(c.ttl)}
+	c.mu.Unlock()
+	return codes, nil
 }

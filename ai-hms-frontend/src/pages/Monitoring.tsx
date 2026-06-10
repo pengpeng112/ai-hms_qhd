@@ -112,7 +112,7 @@ const PrescriptionInput = ({
   </div>
 )
 
-// --- 1. 缁煎悎閫忎腑鐩戞祴寮圭獥 ---
+// --- 1. 综合透中监测弹窗 ---
 export const ComprehensiveMonitorModal = ({
   device,
   onClose
@@ -260,7 +260,7 @@ export const ComprehensiveMonitorModal = ({
   )
 }
 
-// --- 2. 澶勬柟璋冩暣寮圭獥 ---
+// --- 2. 处方调整弹窗 ---
 export const PrescriptionEditModal = ({
   device,
   onClose
@@ -375,7 +375,7 @@ export const PrescriptionEditModal = ({
           <PrescriptionInput label={t('monitoring:prescription.initialDose')} defaultValue="307.5" suffix="IU" width="w-28" />
         </div>
 
-        {/* 绗笁鎺掔淮鎸佷笌鎬婚噺 */}
+        {/* 第三排维持与总量 */}
         <div className="flex flex-wrap items-center gap-x-8 gap-y-6">
           <div className="flex items-center gap-2">
             <label className="text-sm text-gray-600">{t('monitoring:prescription.maintenanceDrug')}:</label>
@@ -449,7 +449,7 @@ export const PrescriptionEditModal = ({
           </button>
         </div>
 
-        {/* 鑰楁潗鍒楄〃琛ㄦ牸 */}
+        {/* 耗材列表表格 */}
         <div className="bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
           <table className="w-full text-left text-[13px] border-collapse">
             <thead className="bg-[#eef6ff] text-gray-700 font-bold border-b border-blue-100">
@@ -514,7 +514,7 @@ export const PrescriptionEditModal = ({
           </table>
         </div>
 
-        {/* 搴曢儴鎸夐挳 */}
+        {/* 底部按钮 */}
         <div className="flex justify-end gap-3 pt-4">
           <button
             onClick={onClose}
@@ -531,7 +531,7 @@ export const PrescriptionEditModal = ({
   )
 }
 
-// --- 3. 鍖诲槺绠＄悊寮圭獥 ---
+// --- 3. 医嘱管理弹窗 ---
 interface OrderItem {
   id: string
   content: string
@@ -712,7 +712,7 @@ export const OrderListModal = ({
   )
 }
 
-// --- 4. 濉啓灏忕粨寮圭獥 ---
+// --- 4. 填写小结弹窗 ---
 export const SummaryModal = ({
   device,
   onClose

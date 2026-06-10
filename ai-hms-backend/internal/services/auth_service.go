@@ -318,15 +318,22 @@ func FormatUserID(userID int64) string {
 
 var adminSeededOnce bool
 
-// SeedAdminIfNeeded 启动时检查并创建默认管理员（TEST_AI_HMS_admin / Test@123456）
-func SeedAdminIfNeeded(db *gorm.DB) {
+// SeedAdminIfNeeded 在显式开启时检查并创建默认管理员。
+//
+// 凭据由调用方从配置（SEED_ADMIN_USERNAME / SEED_ADMIN_PASSWORD）注入，
+// 不再硬编码已知口令；用户名或口令为空时拒绝播种。该函数仅应在
+// cfg.SeedAdminEnabled=true 时调用（见 cmd/server/main.go），默认关闭，
+// 避免向老生产库注入已知口令账号。
+func SeedAdminIfNeeded(db *gorm.DB, username, password string) {
 	if adminSeededOnce {
 		return
 	}
 	adminSeededOnce = true
 
-	username := "TEST_AI_HMS_admin"
-	password := "Test@123456"
+	if strings.TrimSpace(username) == "" || password == "" {
+		log.Println("[SEED] admin seeding skipped: SEED_ADMIN_USERNAME/SEED_ADMIN_PASSWORD not provided")
+		return
+	}
 
 	var count int64
 	db.Table(`"Identity_Users"`).Where(`"UserName" = ?`, username).Count(&count)
@@ -352,8 +359,8 @@ func SeedAdminIfNeeded(db *gorm.DB) {
 		`"PasswordHash"`:         hash,
 		`"SecurityStamp"`:        randomUUID(),
 		`"ConcurrencyStamp"`:     randomUUID(),
-		`"Email"`:                "test_admin@ai-hms.local",
-		`"NormalizedEmail"`:      "TEST_ADMIN@AI-HMS.LOCAL",
+		`"Email"`:                username + "@ai-hms.local",
+		`"NormalizedEmail"`:      strings.ToUpper(username) + "@AI-HMS.LOCAL",
 		`"EmailConfirmed"`:       true,
 		`"PhoneNumberConfirmed"`: false,
 		`"TwoFactorEnabled"`:     false,
@@ -367,7 +374,7 @@ func SeedAdminIfNeeded(db *gorm.DB) {
 	// 创建 Organ_Employee
 	if err := db.Table(`"Organ_Employee"`).Create(map[string]interface{}{
 		`"Id"`:                   adminID,
-		`"Name"`:                 "测试管理员",
+		`"Name"`:                 username,
 		`"Gender"`:               "男",
 		`"Birthdate"`:            "1990-01-01",
 		`"Avatar"`:               "/avatar.png",
@@ -379,7 +386,7 @@ func SeedAdminIfNeeded(db *gorm.DB) {
 		`"LastModificationTime"`: now,
 		`"LastModifierId"`:       adminID,
 		`"PhoneNumber"`:          "",
-		`"Email"`:                "test_admin@ai-hms.local",
+		`"Email"`:                username + "@ai-hms.local",
 		`"IsCreateAccount"`:      false,
 	}).Error; err != nil {
 		log.Printf("[SEED] failed to create admin employee: %v", err)
@@ -396,7 +403,7 @@ func SeedAdminIfNeeded(db *gorm.DB) {
 		})
 	}
 
-	log.Printf("[SEED] admin user created: %s / %s (ID=%d)", username, password, adminID)
+	log.Printf("[SEED] admin user created: %s (ID=%d)", username, adminID)
 }
 
 func randomUUID() string {

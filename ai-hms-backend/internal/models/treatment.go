@@ -307,10 +307,10 @@ type Treatment struct {
 
 	// 关联
 	Patient      *Patient               `gorm:"foreignKey:PatientId" json:"patient,omitempty"`
-	Schedule     *PatientShift          `gorm:"foreignKey:ScheduleId" json:"schedule,omitempty"`
-	Ward         *Ward                  `gorm:"foreignKey:WardId" json:"ward,omitempty"`
-	Bed          *Bed                   `gorm:"foreignKey:BedId" json:"bed,omitempty"`
-	Shift        *Shift                 `gorm:"foreignKey:ShiftId" json:"shift,omitempty"`
+	Schedule     *SchedulePatientShift  `gorm:"foreignKey:ScheduleId" json:"schedule,omitempty"`
+	Ward         *ScheduleWard          `gorm:"foreignKey:WardId" json:"ward,omitempty"`
+	Bed          *ScheduleBed           `gorm:"foreignKey:BedId" json:"bed,omitempty"`
+	Shift        *ScheduleShift         `gorm:"foreignKey:ShiftId" json:"shift,omitempty"`
 	BeforeCheck  *TreatmentBeforeCheck  `gorm:"foreignKey:TreatmentId" json:"beforeCheck,omitempty"`
 	BeforeSigns  *TreatmentBeforeSigns  `gorm:"foreignKey:TreatmentId" json:"beforeSigns,omitempty"`
 	AfterSigns   *TreatmentAfterSigns   `gorm:"foreignKey:TreatmentId" json:"afterSigns,omitempty"`

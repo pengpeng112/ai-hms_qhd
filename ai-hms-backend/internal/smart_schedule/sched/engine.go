@@ -297,7 +297,7 @@ func (e *Engine) patientAvailable(patientID int64, cell Cell) bool {
 		if d.PatientId != patientID {
 			continue
 		}
-		if dkey(d.ScheduleDate) == dkey(cell.Date) && d.ShiftId != nil && *d.ShiftId == cell.ShiftId {
+		if dkey(d.ScheduleDate) == dkey(cell.Date) && d.ShiftId > 0 && d.ShiftId == cell.ShiftId {
 			return false
 		}
 	}
@@ -311,9 +311,9 @@ func (e *Engine) draft(patientID int64, cell Cell, m *model.Machine, mode string
 	s := &model.PatientShift{
 		PatientId:            patientID,
 		ScheduleDate:         cell.Date,
-		ShiftId:              &shiftID,
+		ShiftId:               shiftID,
 		WardId:               cell.WardId,
-		MachineId:            &machineID,
+		MachineId:            machineID,
 		Status:               StatusDraft,
 		DialysisMode:         mode,
 		SourceType:           source,

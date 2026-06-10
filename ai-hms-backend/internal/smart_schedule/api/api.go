@@ -23,7 +23,8 @@ import (
 )
 
 // devSuperuser:开发模式下,未带 X-Role 的请求放行(便于本地联调)。
-// 生产环境不要设置 DEV_SUPERUSER=true —— 届时未鉴权请求将被拒绝(401)。
+// ⚠️ 生产环境严禁设置 DEV_SUPERUSER=true —— 届时未鉴权请求将被拒绝(401)。
+// 启动时若检测到 DEV_SUPERUSER=true 将打印强警告并记录到 /schedule/health。
 var devSuperuser = strings.EqualFold(os.Getenv("DEV_SUPERUSER"), "true")
 
 // Server 持有数据库句柄。
@@ -38,8 +39,16 @@ func NewServer(db *gorm.DB) *Server {
 
 // Register 注册路由到给定的 RouterGroup 下。
 func (s *Server) Register(rg *gin.RouterGroup) {
-	if err := repo.EnsureIndexes(s.DB); err != nil {
-		log.Printf("[smart_schedule] ensure indexes failed: %v", err)
+	// 老库守则禁止运行时 DDL：此处只校验排班唯一索引是否已由 DBA 预建，
+	// 缺失则告警并在 /schedule/health 标红，绝不自动创建（见 scripts/schedule_unique_indexes.sql）。
+	if missing, err := repo.VerifyIndexes(s.DB); err != nil {
+		log.Printf("[smart_schedule] 校验排班唯一索引失败: %v", err)
+	} else if len(missing) > 0 {
+		log.Printf("[smart_schedule] 缺少排班唯一索引 %v —— 请由 DBA 执行 scripts/schedule_unique_indexes.sql 创建；缺失期间并发排班可能产生重复行（应用不会自动建索引）", missing)
+	}
+
+	if devSuperuser {
+		log.Println("[smart_schedule] ⚠️  DEV_SUPERUSER=true —— 所有角色校验已绕过！请确认仅在本地开发环境使用，生产环境严禁开启。")
 	}
 
 	rg.Use(tenantMiddleware())
@@ -50,6 +59,7 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 	rg.GET("/schedule/board", s.board)
 	rg.GET("/schedule/diffs", s.diffs)
 	rg.GET("/schedule/quality", s.quality)
+	rg.GET("/schedule/health", s.healthCheck)
 	rg.GET("/conflicts", s.listConflicts)
 	// 生成 / 演示数据(管理类:护士长/主班)
 	rg.POST("/schedule/generate", guard(RoleHeadNurse, RoleChargeNurse), s.generate)
@@ -61,6 +71,9 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 	rg.POST("/shifts/:id/cancel", guard(RoleHeadNurse, RoleChargeNurse), s.cancelShift)
 	rg.POST("/shifts/:id/absent", guard(RoleHeadNurse, RoleChargeNurse), s.absentShift)
 	rg.POST("/shifts/:id/move", guard(RoleHeadNurse, RoleChargeNurse), s.moveShift)
+	// 治疗执行(上机/下机,护士/主班/护士长均可)
+	rg.POST("/shifts/:id/start", guard(RoleNurse, RoleChargeNurse, RoleHeadNurse), s.startTreatment)
+	rg.POST("/shifts/:id/complete", guard(RoleNurse, RoleChargeNurse, RoleHeadNurse), s.completeTreatment)
 	// 临时透析 / CRRT(医嘱 + 护士长/主班确认)
 	rg.POST("/schedule/temporary", guard(RoleDoctor, RoleHeadNurse, RoleChargeNurse), s.insertTemporary)
 	rg.POST("/schedule/crrt", guard(RoleDoctor, RoleHeadNurse, RoleChargeNurse), s.insertCrrt)
@@ -93,9 +106,11 @@ func tenantMiddleware() gin.HandlerFunc {
 
 func mapRole(roles []string) string {
 	for _, r := range roles {
-		switch r {
-		case "ADMIN", "管理员", "安全管理员", "运维管理员":
+		// 管理员角色集合复用 middleware.AdminRoles 单一真值源，避免角色名字面量重复。
+		if middleware.IsAdminRole(r) {
 			return RoleHeadNurse
+		}
+		switch r {
 		case "DOCTOR", "医生":
 			return RoleDoctor
 		case "HEAD_NURSE", "护士长":
@@ -260,11 +275,12 @@ func (s *Server) weekView(c *gin.Context) {
 		}
 	}
 	mon := sched.MondayOf(day)
-	sun := mon.AddDate(0, 0, 6)
+	// mon.AddDate(0,0,7) = 下周一 00:00, BETWEEN 含周日全天
+	sun := mon.AddDate(0, 0, 7)
 
 	var shifts []model.PatientShift
-	err := s.DB.Where(`"TenantId" = ? AND "ScheduleDate" BETWEEN ? AND ?`, tenantOf(c), mon, sun).
-		Order(`"ScheduleDate", "ShiftId", "WardId", "MachineId"`).
+	err := s.DB.Where(`"TenantId" = ? AND "TreatmentTime" >= ? AND "TreatmentTime" < ?`, tenantOf(c), mon, sun).
+		Order(`"TreatmentTime", "ShiftId", "WardId", "MachineId"`).
 		Find(&shifts).Error
 	if err != nil {
 		failInternal(c, err)
@@ -317,7 +333,9 @@ func opError(c *gin.Context, err error) {
 	switch err {
 	case service.ErrNotFound:
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
-	case service.ErrLocked, service.ErrOccupied, service.ErrDoubleBook, service.ErrModeMismatch:
+	case service.ErrLocked, service.ErrOccupied, service.ErrDoubleBook, service.ErrModeMismatch,
+		service.ErrNotConfirmed, service.ErrNotToday, service.ErrNotInDialysis,
+		service.ErrInfectionUnconfirmed, service.ErrInfectionPositive:
 		c.JSON(http.StatusConflict, gin.H{"error": err.Error()})
 	default:
 		failInternal(c, err)
@@ -554,6 +572,32 @@ func (s *Server) planChange(c *gin.Context) {
 	c.JSON(http.StatusOK, res)
 }
 
+// startTreatment POST /shifts/:id/start —— 上机(已确认→透析中,含院感闸门+当日校验)。
+func (s *Server) startTreatment(c *gin.Context) {
+	id, ok := shiftIdParam(c)
+	if !ok {
+		return
+	}
+	if err := service.StartTreatment(s.DB, tenantOf(c), userOf(c), id); err != nil {
+		opError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已上机"})
+}
+
+// completeTreatment POST /shifts/:id/complete —— 下机(透析中→已完成)。
+func (s *Server) completeTreatment(c *gin.Context) {
+	id, ok := shiftIdParam(c)
+	if !ok {
+		return
+	}
+	if err := service.CompleteTreatment(s.DB, tenantOf(c), userOf(c), id); err != nil {
+		opError(c, err)
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "已下机"})
+}
+
 // diffs GET /schedule/diffs?date=YYYY-MM-DD&weeks=2 —— 应排/已排差异检测。
 func (s *Server) diffs(c *gin.Context) {
 	day := time.Now()
@@ -733,4 +777,21 @@ func (s *Server) seedDemo(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"seeded": n})
+}
+
+// healthCheck GET /schedule/health —— 数据健康检查。
+func (s *Server) healthCheck(c *gin.Context) {
+	h, err := service.ComputeHealth(s.DB, tenantOf(c))
+	if err != nil {
+		failInternal(c, err)
+		return
+	}
+	// 实时校验排班唯一索引是否缺失（只读），缺失则并入健康检查告警，便于运维发现需 DBA 建索引。
+	if missing, verr := repo.VerifyIndexes(s.DB); verr == nil {
+		for _, idx := range missing {
+			h.Warnings = append(h.Warnings,
+				"缺少唯一索引 "+idx+"（需 DBA 执行 scripts/schedule_unique_indexes.sql），并发排班存在重复风险")
+		}
+	}
+	c.JSON(http.StatusOK, h)
 }

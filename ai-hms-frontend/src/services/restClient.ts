@@ -7,7 +7,7 @@ import axios from 'axios'
 import { userApi, type CreateUserRequest, type UpdateUserRequest, type UserListParams } from './userApi'
 import { roleManagementApi, type AppRoleApi, type PermissionNodeApi } from './roleManagementApi'
 
-// API 閰嶇疆
+// API 配置
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL?.trim() || ''
 
 const API_CONFIG = {
@@ -15,7 +15,7 @@ const API_CONFIG = {
   timeout: 10000,
 }
 
-// 鏍囧噯鍝嶅簲鏍煎紡
+// 标准响应格式
 export interface ApiSuccessResponse<T> {
   success: true
   data: T
@@ -34,13 +34,13 @@ export interface ApiErrorResponse {
 
 export type ApiResponse<T> = ApiSuccessResponse<T> | ApiErrorResponse
 
-// 鐧诲綍璇锋眰
+// 登录请求
 export interface LoginRequest {
   username: string
   password: string
 }
 
-// 鐧诲綍鍝嶅簲
+// 登录响应
 export interface LoginResponse {
   token: string
   userId: string
@@ -58,7 +58,7 @@ export interface PaginationMeta {
   totalPages: number
 }
 
-// 鍒嗛〉鍝嶅簲
+// 分页响应
 export interface PaginatedResponse<T> {
   items: T[]
   pagination: PaginationMeta
@@ -79,7 +79,7 @@ export interface RestPatient {
   doctorName?: string
 }
 
-// ============ 鐝 & 鎺掔彮绫诲瀷 ============
+// ============ 班次 & 排班类型 ============
 
 export interface RestUser {
   id: string
@@ -165,130 +165,7 @@ export interface RestDevice {
   updatedAt: string
 }
 
-export interface RestShift {
-  id: number
-  tenantId: number
-  name: string        // 鐝鍚嶇О锛氭棭鐝?涓彮/鏅氱彮
-  startTime: string   // HH:MM
-  endTime: string     // HH:MM
-  type: string
-  isDisabled: boolean
-  sort: number
-  notes: string
-}
-
-export interface RestPatientShift {
-  id: number
-  tenantId: number
-  patientId: number
-  scheduleDate: string   // ISO 鏃ユ湡
-  shiftId: number
-  bedId?: number
-  wardId?: number
-  status: number
-  isDisabled: boolean
-  notes: string
-  creatorId: number
-  createTime: string
-  lastModifyTime: string
-  // Preloaded 鍏宠仈
-  patient?: RestPatient
-  shift?: RestShift
-  bed?: { id: number; name: string; wardId: number; sort: number; status: string }
-  ward?: { id: number; name: string; sort: number; status: string }
-}
-
-export interface RestScheduleWard {
-  id: string
-  name: string
-  sort: number
-  patientType: string
-  infectionType: string
-  responsibleUsers: string
-  isDisabled: boolean
-  bedCount?: number
-}
-
-export interface RestScheduleBedEquipment {
-  equipmentId: string
-  equipmentName: string
-  isDefault: boolean
-  sort: number
-}
-
-export interface RestScheduleBed {
-  id: string
-  name: string
-  wardId: string
-  wardName: string
-  sort: number
-  isDisabled: boolean
-  equipments?: RestScheduleBedEquipment[]
-  defaultEquipmentName?: string
-}
-
-export interface RestScheduleWeekShift {
-  id: number
-  patientId: number
-  patientName: string
-  wardId: number
-  bedId: number
-  bedName: string
-  shiftId: number
-  patientPlanId: number
-  dialysisMode: string
-  oddWeekFrequency: number
-  evenWeekFrequency: number
-  shiftTiming: number
-  status: number
-  statusName: string
-  treatmentTime: string
-  lastModifyTime: string
-  sourceType?: 'manual' | 'contract' | 'temporary' | 'template' | 'import'
-  templateId?: number
-  templateItemId?: number
-  isManualAdjusted?: boolean
-  confirmedAt?: string
-  confirmedBy?: number
-}
-
-export interface RestSchedulePendingPatient {
-  id: number
-  name: string
-  spell?: string
-  gender: string
-  dialysisMode: string
-  patientPlanId: number
-  oddWeekFrequency: number
-  evenWeekFrequency: number
-  expectedTimes?: number
-  scheduledTimes?: number
-  remainingTimes?: number
-}
-
-export interface RestScheduleWeekResponse {
-  wards: RestScheduleWard[]
-  beds: RestScheduleBed[]
-  shifts: RestShift[]
-  patientShifts: RestScheduleWeekShift[]
-  pendingPatients: RestSchedulePendingPatient[]
-}
-
-export interface CreatePatientShiftRequest {
-  patientId: number
-  scheduleDate: string
-  shiftId: number
-  bedId?: number
-  wardId?: number
-  bedNumber?: string
-  dialysisMode?: string
-  patientPlanId?: number
-  shiftTiming?: number
-  status?: number
-  notes?: string
-}
-
-// ============ 娌荤枟璁板綍绫诲瀷 ============
+// ============ 治疗记录类型 ============
 
 export interface RestDuringParam {
   id: number
@@ -430,7 +307,7 @@ export interface RestTreatment {
   createTime: string
   lastModifyTime: string
   patient?: RestPatient
-  shift?: RestShift
+  shift?: { id: number; name: string; startTime: string; endTime: string }
   duringParams?: RestDuringParam[]
 }
 
@@ -619,7 +496,7 @@ export interface RestPermission {
   updatedAt: string
 }
 
-// ============ /core 鎺ュ彛绫诲瀷瀹氫箟 ============
+// ============ /core 接口类型定义 ============
 
 /**
  * 鎮ｈ€?Core 鎺ュ彛鍝嶅簲
@@ -645,7 +522,7 @@ export interface PatientCoreHeader {
   patientType: string
   insuranceType: string
   doctorName: string
-  riskLevel: string  // "楂樺嵄", "涓嵄", "浣庡嵄"
+  riskLevel: string  // "高危", "中危", "低危"
   dialysisAge?: string  // 濡?"3骞?涓湀"
 }
 
@@ -661,12 +538,12 @@ export interface PatientCoreInfection {
 }
 
 /**
- * 褰撳墠娌荤枟鏂规鎽樿
+ * 当前治疗方案摘要
  */
 export interface PatientCoreCurrentPlan {
   dialysisMode: string   // HD/HDF/CRRT
   frequency: string      // "3娆?鍛?
-  duration: number       // 鏃堕暱(灏忔椂)
+  duration: number       // 时长(小时)
   dryWeight: number      // 骞蹭綋閲?
   bloodFlow: number      // 琛€娴侀噺
   anticoagulant: string  // 鎶楀嚌鍓傛柟妗?
@@ -674,18 +551,18 @@ export interface PatientCoreCurrentPlan {
 }
 
 /**
- * 鍖诲槺鎽樿
+ * 医嘱摘要
  */
 export interface PatientCoreOrder {
   id: string
   content: string
-  type: string  // "闀挎湡", "涓存椂"
+  type: string  // "长期", "临时"
   startTime: string
   doctor: string
 }
 
 /**
- * 瀹為獙瀹よ秼鍔挎暟鎹偣
+ * 实验室趋势数据点
  */
 export interface PatientCoreLabData {
   date: string
@@ -704,7 +581,7 @@ export interface PatientCoreLabTrend {
 }
 
 /**
- * Overview Tab 鏁版嵁
+ * Overview Tab 数据
  */
 export interface PatientCoreOverview {
   infection?: PatientCoreInfection    // 鍙€夛紝鍚庣鏃犳暟鎹椂杩斿洖 null/omit
@@ -738,7 +615,7 @@ export interface PatientCoreDoc {
 }
 
 /**
- * 涓村簥鐒︾偣鏁版嵁
+ * 临床焦点数据
  */
 export interface PatientCoreClinical {
   criticalAlerts: PatientCoreAlert[]
@@ -763,7 +640,7 @@ export interface PatientCoreNavPatient {
   bedNumber: string
 }
 
-// ============ /basic-info 鎺ュ彛绫诲瀷瀹氫箟 ============
+// ============ /basic-info 接口类型定义 ============
 
 /**
  * 鎮ｈ€呭熀鏈俊鎭。妗堝搷搴? * GET /api/v1/patients/{id}/basic-info
@@ -773,13 +650,13 @@ export interface PatientBasicInfoResponse {
   medicalInfo: PatientBasicMedical
   vitalSocialInfo: PatientBasicVitalSocial
   contactInfo: PatientBasicContact
-  // TODO: 鍚庣画娣诲姞浠ヤ笅瀛楁
+  // TODO: 后续添加以下字段
   // familyContacts: FamilyContact[]
   // electronicDocuments: ElectronicDocument[]
 }
 
 /**
- * 韬唤鏍稿績淇℃伅
+ * 身份核心信息
  */
 export interface PatientBasicPersonal {
   name: string
@@ -794,7 +671,7 @@ export interface PatientBasicPersonal {
 }
 
 /**
- * 鍖荤枟鐧昏淇℃伅
+ * 医疗登记信息
  */
 export interface PatientBasicMedical {
   visitCategory?: string
@@ -827,7 +704,7 @@ export interface PatientBasicVitalSocial {
 }
 
 /**
- * 鑱旂郴淇℃伅
+ * 联系信息
  */
 export interface PatientBasicContact {
   phone?: string
@@ -840,7 +717,7 @@ export interface PatientBasicContact {
 }
 
 /**
- * 瀹跺睘涓庣揣鎬ヨ仈绯讳汉锛堝悗缁疄鐜帮級
+ * 家属与紧急联系人（后续实现）
  */
 export interface FamilyContact {
   id: string
@@ -851,7 +728,7 @@ export interface FamilyContact {
 }
 
 /**
- * 鐢靛瓙鏂囦功锛堝悗缁疄鐜帮級
+ * 电子文书（后续实现）
  */
 export interface ElectronicDocument {
   id: string
@@ -861,17 +738,17 @@ export interface ElectronicDocument {
   date: string
 }
 
-// ============ /medical-history 鎺ュ彛绫诲瀷瀹氫箟 ============
+// ============ /medical-history 接口类型定义 ============
 
 /**
- * 鐥呭彶鍐呭
+ * 病史内容
  */
 export interface HistoryContent {
   content: string
 }
 
 /**
- * 甯﹀悕绉扮殑鐥呭彶鍐呭锛堜笓绉戣瘖鐤楄褰曪級
+ * 带名称的病史内容（专科诊疗记录）
  */
 export interface HistoryNamedContent {
   name: string
@@ -882,7 +759,7 @@ export interface HistoryNamedContent {
 }
 
 /**
- * 涓村簥鐥呭彶鍝嶅簲
+ * 临床病史响应
  * GET /api/v1/patients/{id}/medical-history
  */
 export interface MedicalHistoryApiResponse {
@@ -900,7 +777,7 @@ export interface MedicalHistoryApiResponse {
 }
 
 /**
- * 杞綊璁板綍
+ * 转归记录
  */
 export interface OutcomeRecordApi {
   id: string
@@ -910,10 +787,10 @@ export interface OutcomeRecordApi {
   remarks: string
   registrar: string
   registrationTime: string
-  isDoorRule: boolean  // 鏄惁闂ㄨ
+  isDoorRule: boolean  // 是否门规
 }
 
-// ============ /vascular-accesses 鎺ュ彛绫诲瀷瀹氫箟 ============
+// ============ /vascular-accesses 接口类型定义 ============
 
 /**
  * 琛€绠￠€氳矾 API 鍝嶅簲
@@ -1041,7 +918,7 @@ export interface CreatePatientHealthEducationRequest {
   note?: string
 }
 
-// ============ /lab-reports 鎺ュ彛绫诲瀷瀹氫箟 ============
+// ============ /lab-reports 接口类型定义 ============
 
 export interface LabReportItemApi {
   id: string
@@ -1198,7 +1075,7 @@ export interface SystemLogsQuery {
   level?: SystemLogLevel
 }
 
-// 鍒涘缓 axios 瀹炰緥
+// 创建 axios 实例
 const createAxiosInstance = () => {
   const instance = axios.create({
     baseURL: API_CONFIG.baseURL,
@@ -1245,13 +1122,13 @@ const createAxiosInstance = () => {
   return instance
 }
 
-// 瀵煎嚭 axios 瀹炰緥
+// 导出 axios 实例
 export const apiClient = createAxiosInstance()
 
 // API 服务类
 class RestApiService {
   /**
-   * 鐢ㄦ埛鐧诲綍
+   * 用户登录
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
     const response = await apiClient.post<ApiSuccessResponse<LoginResponse>>(
@@ -1260,20 +1137,20 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鐧诲綍澶辫触')
+      throw new Error('登录失败')
     }
 
     return response.data.data
   }
 
   /**
-   * 鑾峰彇褰撳墠鐢ㄦ埛淇℃伅
+   * 获取当前用户信息
    */
   async getCurrentUser() {
     const response = await apiClient.get<ApiSuccessResponse<unknown>>('/api/v1/me')
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鐢ㄦ埛淇℃伅澶辫触')
+      throw new Error('获取用户信息失败')
     }
 
     return response.data.data
@@ -1316,7 +1193,7 @@ class RestApiService {
     dryWeight?: number
     defaultMode?: string
     doctorName?: string
-    // 鍩烘湰淇℃伅妗ｆ
+    // 基本信息档案
     birthday?: string
     height?: string
     idType?: string
@@ -1438,7 +1315,7 @@ class RestApiService {
     return response.data.data
   }
 
-  // ============ 涓村簥鐥呭彶 API ============
+  // ============ 临床病史 API ============
 
   /**
    * 鑾峰彇鎮ｈ€呬复搴婄梾鍙?   */
@@ -1448,7 +1325,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇涓村簥鐥呭彶澶辫触')
+      throw new Error('获取临床病史失败')
     }
 
     return response.data.data
@@ -1463,14 +1340,14 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('淇濆瓨涓村簥鐥呭彶澶辫触')
+      throw new Error('保存临床病史失败')
     }
 
     return response.data.data
   }
 
   /**
-   * 鑾峰彇杞綊璁板綍鍒楄〃
+   * 获取转归记录列表
    */
   async getOutcomeRecords(patientId: string): Promise<OutcomeRecordApi[]> {
     const response = await apiClient.get<ApiSuccessResponse<OutcomeRecordApi[]>>(
@@ -1478,14 +1355,14 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇杞綊璁板綍澶辫触')
+      throw new Error('获取转归记录失败')
     }
 
     return response.data.data
   }
 
   /**
-   * 鍒涘缓杞綊璁板綍
+   * 创建转归记录
    */
   async createOutcomeRecord(patientId: string, data: Omit<OutcomeRecordApi, 'id'>): Promise<OutcomeRecordApi> {
     const response = await apiClient.post<ApiSuccessResponse<OutcomeRecordApi>>(
@@ -1494,14 +1371,14 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鍒涘缓杞綊璁板綍澶辫触')
+      throw new Error('创建转归记录失败')
     }
 
     return response.data.data
   }
 
   /**
-   * 鏇存柊杞綊璁板綍
+   * 更新转归记录
    */
   async updateOutcomeRecord(patientId: string, recordId: string, data: Omit<OutcomeRecordApi, 'id'>): Promise<OutcomeRecordApi> {
     const response = await apiClient.put<ApiSuccessResponse<OutcomeRecordApi>>(
@@ -1510,14 +1387,14 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鏇存柊杞綊璁板綍澶辫触')
+      throw new Error('更新转归记录失败')
     }
 
     return response.data.data
   }
 
   /**
-   * 鍒犻櫎杞綊璁板綍
+   * 删除转归记录
    */
   async deleteOutcomeRecord(patientId: string, recordId: string): Promise<void> {
     const response = await apiClient.delete<ApiSuccessResponse<unknown>>(
@@ -1525,7 +1402,7 @@ class RestApiService {
     )
 
     if (response.status !== 204 && !response.data?.success) {
-      throw new Error('鍒犻櫎杞綊璁板綍澶辫触')
+      throw new Error('删除转归记录失败')
     }
   }
 
@@ -1597,7 +1474,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鍚屾鍏抽敭鎸囨爣澶辫触')
+      throw new Error('同步关键指标失败')
     }
 
     return response.data.data
@@ -1612,7 +1489,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇鍏抽敭鎸囨爣澶辫触')
+      throw new Error('获取关键指标失败')
     }
 
     return response.data.data
@@ -1626,7 +1503,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇 HDIS 閰嶇疆澶辫触')
+      throw new Error('获取 HDIS 配置失败')
     }
 
     return response.data.data
@@ -1639,7 +1516,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('淇濆瓨 HDIS 閰嶇疆澶辫触')
+      throw new Error('保存 HDIS 配置失败')
     }
 
     return response.data.data
@@ -1653,7 +1530,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鍒锋柊 HDIS Token 澶辫触')
+      throw new Error('刷新 HDIS Token 失败')
     }
 
     return response.data.data
@@ -1666,7 +1543,7 @@ class RestApiService {
     )
 
     if (!response.data.success) {
-      throw new Error('鑾峰彇绯荤粺鏃ュ織澶辫触')
+      throw new Error('获取系统日志失败')
     }
 
     return response.data.data
@@ -1747,7 +1624,7 @@ class RestApiService {
     )
 
     if (!response.data?.success) {
-      throw new Error('鑾峰彇骞查璁板綍澶辫触')
+      throw new Error('获取干预记录失败')
     }
     return response.data.data
   }
@@ -1762,7 +1639,7 @@ class RestApiService {
     )
 
     if (!response.data?.success) {
-      throw new Error('鍒涘缓骞查璁板綍澶辫触')
+      throw new Error('创建干预记录失败')
     }
     return response.data.data
   }
@@ -1776,7 +1653,7 @@ class RestApiService {
     )
 
     if (response.status !== 204 && !response.data?.success) {
-      throw new Error('鍒犻櫎骞查璁板綍澶辫触')
+      throw new Error('删除干预记录失败')
     }
   }
 
@@ -1899,7 +1776,7 @@ class RestApiService {
 
 
 
-  // ============ 鐪嬫澘缁熻 ============
+  // ============ 看板统计 ============
 
   /**
    * 鑾峰彇鐪嬫澘缁熻姹囨€?   */
@@ -1924,15 +1801,15 @@ class RestApiService {
       qualityByHour: { name: string; value: number }[]
     }>>('/api/v1/dashboard/stats')
     if (!response.data.success) {
-      throw new Error('鑾峰彇鐪嬫澘缁熻澶辫触')
+      throw new Error('获取看板统计失败')
     }
     return response.data.data
   }
 
-  // ============ 璁惧绠＄悊 ============
+  // ============ 设备管理 ============
 
   /**
-   * 鑾峰彇璁惧鍒楄〃
+   * 获取设备列表
    */
   async getDeviceList(params?: {
     page?: number
@@ -1943,15 +1820,15 @@ class RestApiService {
   }): Promise<RestDevice[]> {
     const response = await apiClient.get<ApiSuccessResponse<{ items: RestDevice[]; total: number }>>('/api/v1/devices', { params })
     if (!response.data.success) {
-      throw new Error('鑾峰彇璁惧鍒楄〃澶辫触')
+      throw new Error('获取设备列表失败')
     }
     return response.data.data.items
   }
 
-  // ============ 搴撳瓨绠＄悊 ============
+  // ============ 库存管理 ============
 
   /**
-   * 鑾峰彇搴撳瓨鍝佺洰鍒楄〃
+   * 获取库存品目列表
    */
   async getInventoryItems(params?: {
     page?: number
@@ -1961,7 +1838,7 @@ class RestApiService {
   }): Promise<{ items: RestInventoryItem[]; total: number; page: number; pageSize: number; totalPage: number }> {
     const response = await apiClient.get<ApiSuccessResponse<{ items: RestInventoryItem[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/items', { params })
     if (!response.data.success) {
-      throw new Error('鑾峰彇搴撳瓨鍒楄〃澶辫触')
+      throw new Error('获取库存列表失败')
     }
     return response.data.data
   }
@@ -1996,7 +1873,7 @@ class RestApiService {
   }
 
   /**
-   * 鑾峰彇鏍囩鎵撳嵃浠诲姟
+   * 获取标签打印任务
    */
   async getLabelTasks(params?: {
     page?: number
@@ -2005,7 +1882,7 @@ class RestApiService {
   }): Promise<{ items: RestLabelTask[]; total: number; page: number; pageSize: number; totalPage: number }> {
     const response = await apiClient.get<ApiSuccessResponse<{ items: RestLabelTask[]; total: number; page: number; pageSize: number; totalPage: number }>>('/api/v1/inventory/labels', { params })
     if (!response.data.success) {
-      throw new Error('鑾峰彇鏍囩浠诲姟澶辫触')
+      throw new Error('获取标签任务失败')
     }
     return response.data.data
   }
@@ -2015,176 +1892,13 @@ class RestApiService {
     if (!response.data.success) {
       throw new Error('Failed to create label task')
     }
-    return response.data.data
-  }
-
-  // ============ 鐝绠＄悊 ============
-
-  /**
-   * 鑾峰彇鐝鍒楄〃
-   */
-  async getShifts(): Promise<ApiSuccessResponse<RestShift[]>> {
-    const response = await apiClient.get<ApiSuccessResponse<RestShift[]>>('/api/v1/shifts')
-    if (!response.data.success) {
-      throw new Error('获取班次列表失败')
-    }
-    return response.data
-  }
-
-  async createShift(data: { name: string; startTime: string; endTime: string; sort?: number; notes?: string }): Promise<ApiSuccessResponse<RestShift>> {
-    const response = await apiClient.post<ApiSuccessResponse<RestShift>>('/api/v1/shifts', data)
-    return response.data
-  }
-
-  async updateShift(id: number, data: Record<string, unknown>): Promise<ApiSuccessResponse<RestShift>> {
-    const response = await apiClient.put<ApiSuccessResponse<RestShift>>(`/api/v1/shifts/${id}`, data)
-    return response.data
-  }
-
-  async deleteShift(id: number): Promise<unknown> {
-    const response = await apiClient.delete<unknown>(`/api/v1/shifts/${id}`)
-    return response.data
-  }
-
-  // ============ 患者排班管理 ============
-
-  /**
-   * 鑾峰彇鎮ｈ€呮帓鐝垪琛?   */
-  async getPatientShifts(params?: {
-    page?: number
-    pageSize?: number
-    patientId?: number
-    shiftId?: number
-    startDate?: string
-    endDate?: string
-    status?: number
-  }): Promise<ApiSuccessResponse<PaginatedResponse<RestPatientShift>>> {
-    const response = await apiClient.get<ApiSuccessResponse<PaginatedResponse<RestPatientShift>>>(
-      '/api/v1/patient-shifts',
-      { params }
-    )
-    if (!response.data.success) {
-      throw new Error('Failed to get patient shifts')
-    }
-    return response.data
-  }
-
-  /**
-   * 鍒涘缓鎮ｈ€呮帓鐝?   */
-  async createPatientShift(data: CreatePatientShiftRequest): Promise<unknown> {
-    const response = await apiClient.post<unknown>('/api/v1/patient-shifts', data)
-    return response.data
-  }
-
-  async updatePatientShift(id: number, data: {
-    shiftId?: number
-    bedId?: number
-    wardId?: number
-    patientPlanId?: number
-    shiftTiming?: number
-    treatmentTime?: string
-    status?: number
-    notes?: string
-  }): Promise<unknown> {
-    const response = await apiClient.put<unknown>(`/api/v1/patient-shifts/${id}`, data)
-    return response.data
-  }
-
-  async getScheduleWeek(params: {
-    startDate: string
-    endDate: string
-    wardId?: number
-  }): Promise<ApiSuccessResponse<RestScheduleWeekResponse>> {
-    const response = await apiClient.get<ApiSuccessResponse<RestScheduleWeekResponse>>('/api/v1/schedule/week', { params })
-    return response.data
-  }
-
-  async movePatientShift(id: number, data: {
-    treatmentTime?: string
-    wardId?: number
-    bedId?: number
-    shiftId?: number
-  }): Promise<unknown> {
-    const response = await apiClient.post<unknown>(`/api/v1/patient-shifts/${id}/move`, data)
-    return response.data
-  }
-
-  async swapPatientShifts(sourceId: number, targetId: number): Promise<unknown> {
-    const response = await apiClient.post<unknown>('/api/v1/patient-shifts/swap', { sourceId, targetId })
-    return response.data
-  }
-
-  async deletePatientShift(id: number): Promise<unknown> {
-    const response = await apiClient.delete<unknown>(`/api/v1/patient-shifts/${id}`)
-    return response.data
-  }
-
-  // ============ 排班模板 API (阶段 3: Schedule_ScheduleTemplate) ============
-
-  async listScheduleTemplates(wardId?: number): Promise<ScheduleTemplateResponse[]> {
-    const params: Record<string, string> = {}
-    if (wardId) params.wardId = String(wardId)
-    const response = await apiClient.get<ApiSuccessResponse<ScheduleTemplateResponse[]>>('/api/v1/patient-shifts/templates', { params })
-    if (!response.data.success) {
-      throw new Error('获取排班模板失败')
-    }
-    return response.data.data ?? []
-  }
-
-  async applyScheduleTemplate(req: ScheduleTemplateApplyRequest): Promise<ScheduleTemplateApplyResponse> {
-    const response = await apiClient.post<ApiSuccessResponse<ScheduleTemplateApplyResponse>>('/api/v1/schedule/template/apply', req)
-    if (!response.data.success) {
-      throw new Error('应用模板失败')
-    }
-    return response.data.data
-  }
-
-  async saveScheduleTemplate(req: ScheduleTemplateSaveRequest): Promise<ScheduleTemplateResponse> {
-    const response = await apiClient.post<ApiSuccessResponse<ScheduleTemplateResponse>>('/api/v1/schedule/template/save', req)
-    if (!response.data.success) {
-      throw new Error('保存模板失败')
-    }
-    return response.data.data
-  }
-
-  async generateSchedule(req: { templateId?: number; startDate: string; weeks: number; wardId?: number }): Promise<ScheduleGenerateResponse> {
-    const response = await apiClient.post<ApiSuccessResponse<ScheduleGenerateResponse>>('/api/v1/schedule/generate', req)
-    if (!response.data.success) {
-      throw new Error('生成排班失败')
-    }
-    return response.data.data
-  }
-
-  // ============ 冲突队列 API ============
-
-  async listConflictQueue(params?: { page?: number; pageSize?: number; type?: string }): Promise<{ items: unknown[]; total: number; page: number; pageSize: number }> {
-    const response = await apiClient.get<ApiSuccessResponse<{ items: unknown[]; total: number; page: number; pageSize: number }>>('/api/v1/schedule/conflict-queue', { params })
-    if (!response.data.success) {
-      throw new Error('获取冲突队列失败')
-    }
-    return response.data.data
-  }
-
-  async resolveConflict(id: number, note?: string): Promise<void> {
-    await apiClient.post(`/api/v1/schedule/conflict-queue/${id}/resolve`, { note: note || '' })
-  }
-
-  async ignoreConflict(id: number, note?: string): Promise<void> {
-    await apiClient.post(`/api/v1/schedule/conflict-queue/${id}/ignore`, { note: note || '' })
-  }
-
-  async cancelPatientShift(id: number, reason?: string): Promise<void> {
-    await apiClient.post(`/api/v1/schedule/shift-cancel/${id}`, { reason: reason || '取消排班' })
-  }
-
-  async markAbsentPatientShift(id: number, reason?: string): Promise<void> {
-    await apiClient.post(`/api/v1/schedule/shift-absent/${id}`, { reason: reason || '缺席' })
+return response.data.data
   }
 
   // ============ 治疗记录管理 ============
 
   /**
-   * 鑾峰彇娌荤枟璁板綍鍒楄〃
+   * 获取治疗记录列表
    */
   async getTreatments(params?: {
     page?: number
@@ -2200,7 +1914,7 @@ class RestApiService {
       { params }
     )
     if (!response.data.success) {
-      throw new Error('鑾峰彇娌荤枟璁板綍鍒楄〃澶辫触')
+      throw new Error('获取治疗记录列表失败')
     }
     return response.data
   }
@@ -2211,12 +1925,12 @@ class RestApiService {
   }
 
   /**
-   * 鑾峰彇鎺掔彮鍒楄〃
+   * 获取排班列表
    */
   async getTreatment(id: number): Promise<ApiSuccessResponse<RestTreatment>> {
     const response = await apiClient.get<ApiSuccessResponse<RestTreatment>>(`/api/v1/treatments/${id}`)
     if (!response.data.success) {
-      throw new Error('鑾峰彇娌荤枟璁板綍璇︽儏澶辫触')
+      throw new Error('获取治疗记录详情失败')
     }
     return response.data
   }
@@ -2261,7 +1975,7 @@ class RestApiService {
       { params: { date } }
     )
     if (!response.data.success) {
-      throw new Error('鑾峰彇娌荤枟璁板綍澶辫触')
+      throw new Error('获取治疗记录失败')
     }
     return response.data
   }
@@ -2395,90 +2109,6 @@ class RestApiService {
   }
 }
 
-// ============ 排班模板类型定义 (阶段 3) ============
-
-export interface ScheduleTemplateData {
-  id: number
-  tenantId: number
-  name: string
-  scope: string
-  wardId: number | null
-  isActive: boolean
-  version: number
-  creatorId: number
-  createTime: string
-  lastModifyTime: string
-}
-
-export interface ScheduleTemplateItemData {
-  id: number
-  tenantId: number
-  templateId: number
-  patientId: number
-  zoneTag: string
-  wardId: number | null
-  shiftId: number | null
-  freqPattern: number
-  fixedHdBedId: number | null
-  fixedHdfBedId: number | null
-  hdfEnabled: boolean
-  hdfWeekday: number | null
-  hdfWeekParity: number | null
-  templateVersion: number
-  creatorId: number
-  createTime: string
-  lastModifyTime: string
-}
-
-export interface ScheduleTemplateResponse {
-  template: ScheduleTemplateData
-  items: ScheduleTemplateItemData[]
-  itemCount: number
-}
-
-export interface ScheduleTemplateItemRequest {
-  patientId: number
-  zoneTag: string
-  wardId?: number | null
-  shiftId?: number | null
-  freqPattern?: number
-  fixedHdBedId?: number | null
-  fixedHdfBedId?: number | null
-  hdfEnabled?: boolean
-  hdfWeekday?: number | null
-  hdfWeekParity?: number | null
-}
-
-export interface ScheduleTemplateSaveRequest {
-  id?: number
-  name: string
-  scope?: string
-  wardId?: number | null
-  items: ScheduleTemplateItemRequest[]
-}
-
-export interface ScheduleTemplateApplyRequest {
-  templateId: number
-  targetDate: string
-  wardId?: number | null
-  itemIds?: number[]
-}
-
-export interface ScheduleTemplateApplyResponse {
-  createdShifts: number[]
-  createdShiftExts: number[]
-  count: number
-}
-
-export interface ScheduleGenerateResponse {
-  startDate: string
-  weeks: number
-  dialysisDays: number
-  drafts: number
-  conflicts: number
-  parityAssigned: number
-}
-
 // 导出单例
 export const restApi = new RestApiService()
 
@@ -2518,7 +2148,7 @@ export function getTreatmentLoadErrorMessage(error: unknown): string {
   }
 }
 
-// 閿欒澶勭悊杈呭姪鍑芥暟
+// 错误处理辅助函数
 export function getErrorMessage(error: unknown): string {
   const data = axios.isAxiosError(error) ? (error.response?.data as ApiErrorResponse | undefined) : undefined
   const apiMessage = data?.error?.message?.trim() || ''

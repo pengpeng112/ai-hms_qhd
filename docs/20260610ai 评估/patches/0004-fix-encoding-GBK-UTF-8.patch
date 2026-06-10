@@ -1,0 +1,200 @@
+From f29cb7931dca427e286353fbcc13956919d15d2d Mon Sep 17 00:00:00 2001
+From: angela <angela19781120@gmail.com>
+Date: Wed, 10 Jun 2026 05:28:48 +0800
+Subject: [PATCH 4/6] =?UTF-8?q?fix(encoding):=20=E4=BF=AE=E5=A4=8D=20GBK?=
+ =?UTF-8?q?=20=E4=B9=B1=E7=A0=81=E5=B9=B6=E6=96=B0=E5=A2=9E=20UTF-8=20?=
+ =?UTF-8?q?=E7=BC=96=E7=A0=81=E9=97=B8=E9=97=A8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Monitoring.tsx 7 处中文注释为 GBK 字节误存为 UTF-8 的乱码，逆转还原为正确中文。
+新增 .editorconfig(charset=utf-8) 防止再次以非 UTF-8 保存；
+新增 scripts/check_encoding.py 可接入 CI，检测非法 UTF-8 与 GBK 乱码。
+
+注: restClient.ts 同类乱码(74 处)已在工作区修复，但因与进行中的迁移 WIP
+交织于同一文件，未在本提交暂存，将随该文件的迁移提交一并合入。
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+---
+ .editorconfig                            | 18 ++++++
+ ai-hms-frontend/src/pages/Monitoring.tsx | 14 ++---
+ scripts/check_encoding.py                | 74 ++++++++++++++++++++++++
+ 3 files changed, 99 insertions(+), 7 deletions(-)
+ create mode 100644 .editorconfig
+ create mode 100644 scripts/check_encoding.py
+
+diff --git a/.editorconfig b/.editorconfig
+new file mode 100644
+index 0000000..d3635ab
+--- /dev/null
++++ b/.editorconfig
+@@ -0,0 +1,18 @@
++# EditorConfig — https://editorconfig.org
++# 统一编码为 UTF-8，防止在非 UTF-8（如 GBK）编辑器中保存导致中文注释/字符串乱码。
++root = true
++
++[*]
++charset = utf-8
++trim_trailing_whitespace = false
++insert_final_newline = false
++
++[*.{go,ts,tsx,js,jsx,json,md,sql,yml,yaml}]
++charset = utf-8
++
++[*.go]
++indent_style = tab
++
++[*.{ts,tsx,js,jsx,json,yml,yaml}]
++indent_style = space
++indent_size = 2
+diff --git a/ai-hms-frontend/src/pages/Monitoring.tsx b/ai-hms-frontend/src/pages/Monitoring.tsx
+index 1938f44..9c868f1 100644
+--- a/ai-hms-frontend/src/pages/Monitoring.tsx
++++ b/ai-hms-frontend/src/pages/Monitoring.tsx
+@@ -112,7 +112,7 @@ const PrescriptionInput = ({
+   </div>
+ )
+ 
+-// --- 1. 缁煎悎閫忎腑鐩戞祴寮圭獥 ---
++// --- 1. 综合透中监测弹窗 ---
+ export const ComprehensiveMonitorModal = ({
+   device,
+   onClose
+@@ -260,7 +260,7 @@ export const ComprehensiveMonitorModal = ({
+   )
+ }
+ 
+-// --- 2. 澶勬柟璋冩暣寮圭獥 ---
++// --- 2. 处方调整弹窗 ---
+ export const PrescriptionEditModal = ({
+   device,
+   onClose
+@@ -375,7 +375,7 @@ export const PrescriptionEditModal = ({
+           <PrescriptionInput label={t('monitoring:prescription.initialDose')} defaultValue="307.5" suffix="IU" width="w-28" />
+         </div>
+ 
+-        {/* 绗笁鎺掔淮鎸佷笌鎬婚噺 */}
++        {/* 第三排维持与总量 */}
+         <div className="flex flex-wrap items-center gap-x-8 gap-y-6">
+           <div className="flex items-center gap-2">
+             <label className="text-sm text-gray-600">{t('monitoring:prescription.maintenanceDrug')}:</label>
+@@ -449,7 +449,7 @@ export const PrescriptionEditModal = ({
+           </button>
+         </div>
+ 
+-        {/* 鑰楁潗鍒楄〃琛ㄦ牸 */}
++        {/* 耗材列表表格 */}
+         <div className="bg-white rounded border border-gray-100 shadow-sm overflow-hidden">
+           <table className="w-full text-left text-[13px] border-collapse">
+             <thead className="bg-[#eef6ff] text-gray-700 font-bold border-b border-blue-100">
+@@ -514,7 +514,7 @@ export const PrescriptionEditModal = ({
+           </table>
+         </div>
+ 
+-        {/* 搴曢儴鎸夐挳 */}
++        {/* 底部按钮 */}
+         <div className="flex justify-end gap-3 pt-4">
+           <button
+             onClick={onClose}
+@@ -531,7 +531,7 @@ export const PrescriptionEditModal = ({
+   )
+ }
+ 
+-// --- 3. 鍖诲槺绠＄悊寮圭獥 ---
++// --- 3. 医嘱管理弹窗 ---
+ interface OrderItem {
+   id: string
+   content: string
+@@ -712,7 +712,7 @@ export const OrderListModal = ({
+   )
+ }
+ 
+-// --- 4. 濉啓灏忕粨寮圭獥 ---
++// --- 4. 填写小结弹窗 ---
+ export const SummaryModal = ({
+   device,
+   onClose
+diff --git a/scripts/check_encoding.py b/scripts/check_encoding.py
+new file mode 100644
+index 0000000..9a6f1e0
+--- /dev/null
++++ b/scripts/check_encoding.py
+@@ -0,0 +1,74 @@
++#!/usr/bin/env python3
++"""UTF-8 / GBK 乱码检查闸门。
++
++检测两类问题，命中即以非零退出码失败，可接入 CI（前后端通用）：
++  1. 文件非合法 UTF-8。
++  2. 文件含 "原 UTF-8 中文被当 GBK 解码后再存为 UTF-8" 的乱码
++     （可通过 gbk/gb18030 逆转还原成正常中文即判定为乱码）。
++
++用法：
++    python scripts/check_encoding.py [根目录...]      # 默认扫描当前目录
++扫描范围：*.go / *.ts / *.tsx / *.js / *.jsx / *.json / *.md / *.sql / *.yml / *.yaml
++（自动跳过 node_modules、vendor、.git、dist、build 等目录）
++"""
++import os
++import sys
++
++EXTS = {".go", ".ts", ".tsx", ".js", ".jsx", ".json", ".md", ".sql", ".yml", ".yaml"}
++SKIP_DIRS = {"node_modules", "vendor", ".git", "dist", "build", "bin", ".serena", ".opencode"}
++
++
++def looks_cjk(s: str) -> bool:
++    return any("一" <= c <= "鿿" for c in s)
++
++
++def reverses_to_cjk(s: str):
++    """若该行能经 gbk/gb18030 逆转成另一段正常中文，则判为乱码并返回还原结果。"""
++    if not looks_cjk(s):
++        return None
++    for enc in ("gbk", "gb18030"):
++        try:
++            r = s.encode(enc).decode("utf-8")
++            if r != s and looks_cjk(r):
++                return r
++        except (UnicodeEncodeError, UnicodeDecodeError):
++            pass
++    return None
++
++
++def scan(root: str):
++    problems = []
++    for dirpath, dirnames, filenames in os.walk(root):
++        dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
++        for name in filenames:
++            if os.path.splitext(name)[1].lower() not in EXTS:
++                continue
++            path = os.path.join(dirpath, name)
++            raw = open(path, "rb").read()
++            try:
++                text = raw.decode("utf-8-sig")
++            except UnicodeDecodeError as e:
++                problems.append((path, 0, "非合法 UTF-8: %s" % e))
++                continue
++            for i, line in enumerate(text.splitlines(), 1):
++                fixed = reverses_to_cjk(line)
++                if fixed is not None:
++                    problems.append((path, i, "疑似 GBK 乱码 -> 应为: %s" % fixed.strip()[:60]))
++    return problems
++
++
++def main():
++    roots = sys.argv[1:] or ["."]
++    problems = []
++    for r in roots:
++        problems.extend(scan(r))
++    if problems:
++        sys.stderr.write("发现 %d 处编码问题:\n" % len(problems))
++        for path, line, msg in problems:
++            sys.stderr.write("  %s:%d  %s\n" % (path, line, msg))
++        sys.exit(1)
++    print("编码检查通过：未发现非 UTF-8 或 GBK 乱码。")
++
++
++if __name__ == "__main__":
++    main()
+-- 
+2.54.0.windows.1
+

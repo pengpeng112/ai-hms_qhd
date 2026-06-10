@@ -29,7 +29,7 @@ func DischargePatient(g *gorm.DB, tenant, by, patientID int64, reason string) er
 	}
 	today := dayStart(time.Now())
 	return g.Model(&model.PatientShift{}).Where(
-		`"TenantId" = ? AND "PatientId" = ? AND "ScheduleDate" >= ? AND "Status" IN ?`,
+		`"TenantId" = ? AND "PatientId" = ? AND "TreatmentTime" >= ? AND "Status" IN ?`,
 		tenant, patientID, today, []int16{sched.StatusPending, sched.StatusDraft, sched.StatusConfirmed},
 	).Updates(map[string]interface{}{"Status": sched.StatusCancelled, "CancelReason": "出组:" + reason}).Error
 }
@@ -46,11 +46,10 @@ func PlaceNewPatientService(g *gorm.DB, tenant, patientID int64, start time.Time
 	anchor := config.AnchorMonday(g, tenant)
 
 	// 启用 HDF 但未定奇偶周 → 简单置 0 并持久化(单人入组,均衡由后续整批生成维护)。
-	if prof.HdfEnabled && prof.HdfWeekParity == nil {
+	hdfNeedsInit := prof.HdfEnabled && prof.HdfWeekParity == nil
+	if hdfNeedsInit {
 		var z int16 = 0
 		prof.HdfWeekParity = &z
-		g.Model(&model.PatientProfile{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, patientID).Update("HdfWeekParity", z)
-		g.Model(&model.ScheduleTemplateItem{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, patientID).Update("HdfWeekParity", z)
 	}
 
 	end := start.AddDate(0, 0, weeks*7)
@@ -64,6 +63,14 @@ func PlaceNewPatientService(g *gorm.DB, tenant, patientID int64, start time.Time
 	fixedHd := eng.PlaceNewPatient(&prof, dates)
 
 	e = g.Transaction(func(tx *gorm.DB) error {
+		if hdfNeedsInit {
+			if err := tx.Model(&model.PatientProfile{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, patientID).Update("HdfWeekParity", 0).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&model.ScheduleTemplateItem{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, patientID).Update("HdfWeekParity", 0).Error; err != nil {
+				return err
+			}
+		}
 		if fixedHd != nil {
 			if err := tx.Model(&model.PatientProfile{}).Where(`"TenantId" = ? AND "PatientId" = ?`, tenant, patientID).
 				Update("FixedHdMachineId", *fixedHd).Error; err != nil {

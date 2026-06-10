@@ -81,19 +81,19 @@ func NewBoard(
 		b.calendarByDate[dkey(c.CalDate)] = c
 	}
 	for _, s := range existing {
-		if s.ShiftId == nil {
+		if s.ShiftId == 0 {
 			continue
 		}
 		// 病人占位集合:任意状态都登记(含取消/缺席),供生成时跳过——避免重复已排、复活已取消。
-		b.patientSlot[pkey(s.PatientId, s.ScheduleDate, *s.ShiftId)] = true
-		if s.MachineId == nil {
+		b.patientSlot[pkey(s.PatientId, s.ScheduleDate, s.ShiftId)] = true
+		if s.MachineId == 0 {
 			continue
 		}
 		if s.Status == StatusCancelled || s.Status == StatusAbsent {
 			continue // 取消/缺席不占机位(机位可借)
 		}
-		b.markOccupied(*s.MachineId, Cell{s.WardId, *s.ShiftId, s.ScheduleDate}, &occInfo{
-			PatientId: s.PatientId, ShiftId: *s.ShiftId, Mode: s.DialysisMode,
+		b.markOccupied(s.MachineId, Cell{s.WardId, s.ShiftId, s.ScheduleDate}, &occInfo{
+			PatientId: s.PatientId, ShiftId: s.ShiftId, Mode: s.DialysisMode,
 		})
 	}
 	return b
