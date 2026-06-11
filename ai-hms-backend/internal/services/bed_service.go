@@ -237,7 +237,9 @@ func (s *BedService) Create(req BedCreateRequest, tenantID, creatorID int64) (*B
 	if newID == 0 {
 		s.db.Table(`"Schedule_Bed"`).Select(`MAX("Id")`).Scan(&newID)
 	}
-	s.syncBedEquipments(newID, req.Equipments)
+	if err := s.syncBedEquipments(newID, req.Equipments); err != nil {
+		return nil, fmt.Errorf("同步床位设备失败: %w", err)
+	}
 	return s.GetByID(newID)
 }
 
@@ -277,7 +279,9 @@ func (s *BedService) Update(id int64, req BedUpdateRequest) (*BedDTO, error) {
 		}
 	}
 	if req.Equipments != nil {
-		s.syncBedEquipments(id, req.Equipments)
+		if err := s.syncBedEquipments(id, req.Equipments); err != nil {
+			return nil, fmt.Errorf("同步床位设备失败: %w", err)
+		}
 	}
 	return s.GetByID(id)
 }
@@ -286,27 +290,45 @@ func (s *BedService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Schedule_Bed"`).Where(`"Id" = ?`, id).Update(`"IsDisabled"`, true)
+	// 补 TenantId 过滤：与全库写操作惯例一致（纵深防御）。
+	result := s.db.Table(`"Schedule_Bed"`).Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).Update(`"IsDisabled"`, true)
 	if result.Error != nil {
 		return fmt.Errorf("删除床位失败: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return fmt.Errorf("bed not found")
 	}
-	s.db.Table(`"Schedule_BedEquipmentRel"`).Where(`"BedId" = ?`, id).Update(`"IsDisabled"`, true)
+	// 级联软删设备-床位关系，同样限定租户。
+	s.db.Table(`"Schedule_BedEquipmentRel"`).Where(`"BedId" = ? AND "TenantId" = ?`, id, LegacyTenantID).Update(`"IsDisabled"`, true)
 	return nil
 }
 
-func (s *BedService) syncBedEquipments(bedID int64, equipments []BedEquipmentDTO) {
-	s.db.Table(`"Schedule_BedEquipmentRel"`).Where(`"BedId" = ?`, bedID).Delete(nil)
+func (s *BedService) syncBedEquipments(bedID int64, equipments []BedEquipmentDTO) error {
+	// 软删旧关系：不再物理删除，改设 IsDisabled=true，并限定租户。
+	// 注意老表 Schedule_BedEquipmentRel 无 CreateTime 字段，不要写 CreateTime。
+	now := time.Now()
+	if result := s.db.Table(`"Schedule_BedEquipmentRel"`).
+		Where(`"BedId" = ? AND "TenantId" = ?`, bedID, LegacyTenantID).
+		Updates(map[string]any{
+			`"IsDisabled"`:     true,
+			`"LastModifyTime"`: now,
+		}); result.Error != nil {
+		return fmt.Errorf("软删旧设备关系失败: %w", result.Error)
+	}
 	for _, eq := range equipments {
 		columns := map[string]interface{}{
-			`"BedId"`:       bedID,
-			`"EquipmentId"`: eq.EquipmentId,
-			`"Sort"`:        eq.Sort,
-			`"IsDefault"`:   eq.IsDefault,
-			`"IsDisabled"`:  false,
+			`"TenantId"`:       LegacyTenantID,
+			`"BedId"`:          bedID,
+			`"EquipmentId"`:    eq.EquipmentId,
+			`"Sort"`:           eq.Sort,
+			`"IsDefault"`:      eq.IsDefault,
+			`"IsDisabled"`:     false,
+			`"LastModifyTime"`: now,
+			`"Type"`:           1,
 		}
-		s.db.Table(`"Schedule_BedEquipmentRel"`).Create(columns)
+		if result := s.db.Table(`"Schedule_BedEquipmentRel"`).Create(columns); result.Error != nil {
+			return fmt.Errorf("创建设备关系失败: %w", result.Error)
+		}
 	}
+	return nil
 }

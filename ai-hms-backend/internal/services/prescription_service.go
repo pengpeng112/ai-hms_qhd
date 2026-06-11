@@ -93,13 +93,13 @@ func mapLegacyPrescriptionStatus(status int) string {
 func mapNewPrescriptionStatus(status string) int {
 	switch strings.TrimSpace(status) {
 	case models.PrescriptionStatusPending:
-		return 1
+		return 1 // 草稿
 	case models.PrescriptionStatusExecuting:
-		return 1
+		return 2 // 确认（老库无“执行中”，折叠为确认）
 	case models.PrescriptionStatusExecuted:
-		return 2
+		return 2 // 确认
 	case models.PrescriptionStatusCancelled:
-		return 3
+		return 3 // 作废
 	default:
 		return 0
 	}
@@ -851,7 +851,7 @@ func (s *PrescriptionService) LegacyUpdate(patientID, prescriptionID string, req
 	updates["Note"] = buildLegacyPrescriptionNote(notePayload.Notes, notePayload.ExtraWeight, prescriptionDate, doctorName, notePayload.OrderItems)
 
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table(`"Plan_PatientPrescription"`).Where(`"Id" = ?`, item.ID).Updates(updates).Error; err != nil {
+		if err := tx.Table(`"Plan_PatientPrescription"`).Where(`"Id" = ? AND "TenantId" = ?`, item.ID, LegacyTenantID).Updates(updates).Error; err != nil {
 			return err
 		}
 		if req.Materials != nil {
@@ -889,7 +889,7 @@ func (s *PrescriptionService) LegacyExecute(patientID, prescriptionID, executedB
 	}
 	now := time.Now()
 	if err := s.db.Table(`"Plan_PatientPrescription"`).
-		Where(`"Id" = ?`, item.ID).
+		Where(`"Id" = ? AND "TenantId" = ?`, item.ID, LegacyTenantID).
 		Updates(map[string]any{
 			"Status":         mapNewPrescriptionStatus(models.PrescriptionStatusExecuted),
 			"ConfirmUserId":  resolvedUserID,
@@ -921,7 +921,7 @@ func (s *PrescriptionService) LegacyCancel(patientID, prescriptionID string) (*m
 	}
 
 	if err := s.db.Table(`"Plan_PatientPrescription"`).
-		Where(`"Id" = ?`, item.ID).
+		Where(`"Id" = ? AND "TenantId" = ?`, item.ID, LegacyTenantID).
 		Updates(map[string]any{
 			"Status":         mapNewPrescriptionStatus(models.PrescriptionStatusCancelled),
 			"LastModifyTime": time.Now(),

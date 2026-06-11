@@ -306,7 +306,13 @@ func (s *TreatmentService) List(req TreatmentListRequest) (*TreatmentListRespons
 		query = query.Where(`"PatientId" = ?`, *req.PatientId)
 	}
 	if req.Status != nil {
-		query = query.Where(`"Status" = ?`, legacyStatusFromApp(*req.Status))
+		status := legacyStatusFromApp(*req.Status)
+		// 兼容旧数据：上机状态新写"30"，但旧记录可能为"10"，筛选"进行中"时同时匹配两者。
+		if *req.Status == models.TreatmentStatusInProgress {
+			query = query.Where(`"Status" IN ?`, []string{"10", status})
+		} else {
+			query = query.Where(`"Status" = ?`, status)
+		}
 	}
 	if req.TreatmentDate != nil {
 		query = query.Where(`DATE(COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime")) = DATE(?)`, *req.TreatmentDate)
@@ -1224,6 +1230,26 @@ func inferTreatmentType(row legacyTreatmentHistoryRow, treatmentMode string) str
 }
 
 func appStatusFromLegacy(raw string, startTime, endTime *time.Time, statusDict map[int]string) int {
+	// 明确状态码优先于字典名判断：老库字典中 "10"="签到"，但实际业务中
+	// StartTime 非空、EndTime 空的记录应识别为"进行中"。将 hard-code 分支
+	// 提前，避免字典名误判。
+	switch strings.TrimSpace(raw) {
+	case "60", "100":
+		return models.TreatmentStatusCompleted
+	case "90", "50":
+		return models.TreatmentStatusCancelled
+	case "0", "10", "30":
+		if startTime != nil && endTime == nil {
+			return models.TreatmentStatusInProgress
+		}
+		if endTime != nil {
+			return models.TreatmentStatusCompleted
+		}
+		if strings.TrimSpace(raw) == "0" {
+			return models.TreatmentStatusPending
+		}
+	}
+	// 字典名 fallback：非明确治疗状态码或缺失 start/end 时按字典语义补漏。
 	if code, err := strconv.Atoi(strings.TrimSpace(raw)); err == nil {
 		if name := strings.TrimSpace(statusDict[code]); name != "" {
 			switch {
@@ -1238,17 +1264,6 @@ func appStatusFromLegacy(raw string, startTime, endTime *time.Time, statusDict m
 			}
 		}
 	}
-	switch strings.TrimSpace(raw) {
-	case "60", "100":
-		return models.TreatmentStatusCompleted
-	case "90":
-		return models.TreatmentStatusCancelled
-	case "0", "10":
-		if startTime != nil && endTime == nil {
-			return models.TreatmentStatusInProgress
-		}
-		return models.TreatmentStatusPending
-	}
 	if endTime != nil {
 		return models.TreatmentStatusCompleted
 	}
@@ -1261,13 +1276,13 @@ func appStatusFromLegacy(raw string, startTime, endTime *time.Time, statusDict m
 func legacyStatusFromApp(status int) string {
 	switch status {
 	case models.TreatmentStatusInProgress:
-		return "10"
+		return "30" // 透中监测（治疗中）
 	case models.TreatmentStatusCompleted:
-		return "60"
+		return "60" // 已结束
 	case models.TreatmentStatusCancelled:
-		return "90"
+		return "50" // 取消治疗
 	default:
-		return "0"
+		return "0" // 待签到
 	}
 }
 
@@ -1425,7 +1440,15 @@ func (s *TreatmentService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).Delete(nil)
+	// Treatment_Treatment 没有 IsDisabled 列，使用 CaseStatus='20' 表示封存。
+	updates := map[string]any{
+		"CaseStatus":     "20", // 封存
+		"EndTime":        gorm.Expr(`COALESCE("EndTime", ?)`, time.Now()),
+		"LastModifyTime": time.Now(),
+	}
+	result := s.db.Table(`"Treatment_Treatment"`).
+		Where(`"Id" = ? AND "TenantId" = ? AND COALESCE("CaseStatus", '10') <> '20'`, id, LegacyTenantID).
+		Updates(updates)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -1445,6 +1468,11 @@ func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 	}
 	if status == models.TreatmentStatusInProgress {
 		updates["StartTime"] = gorm.Expr(`COALESCE("StartTime", ?)`, time.Now())
+	}
+	// 修复：原 UpdateStatus 只在「上机」补 StartTime，「下机/完成」却不写 EndTime，
+	//       导致治疗时长无法计算、且记录的 EndTime 长期为空。
+	if status == models.TreatmentStatusCompleted {
+		updates["EndTime"] = gorm.Expr(`COALESCE("EndTime", ?)`, time.Now())
 	}
 	result := s.db.Table(`"Treatment_Treatment"`).
 		Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).

@@ -51,8 +51,11 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 		log.Println("[smart_schedule] ⚠️  DEV_SUPERUSER=true —— 所有角色校验已绕过！请确认仅在本地开发环境使用，生产环境严禁开启。")
 	}
 
-	rg.Use(tenantMiddleware())
+	// responseWrapper 必须先于 tenantMiddleware 注册：中间件按注册顺序执行，
+	// 只有 wrapper 先安装缓冲 writer，tenantMiddleware/guard 的 401/403 错误响应
+	// 才能被拦截并归一为统一错误格式（否则它们绕过 wrapper 直写原始 writer）。
 	rg.Use(responseWrapper())
+	rg.Use(tenantMiddleware())
 
 	// 只读
 	rg.GET("/schedule/week", s.weekView)
@@ -183,34 +186,51 @@ func (w *bufferedWriter) WriteHeader(code int) {
 
 func (w *bufferedWriter) WriteHeaderNow() {}
 
-// responseWrapper 将 v2 API 的裸 JSON 响应包装为 { success, data, timestamp } 格式，
-// 与主系统 v1 API 和前端 restRequest 兼容。
+// responseWrapper 将 v2 API 的裸 JSON 响应包装为与主系统 v1 一致的统一格式：
+//   - 2xx: { success:true, data, timestamp }
+//   - 4xx/5xx: { success:false, error:{ code, message }, timestamp }
+//
+// 错误归一是关键：v2 handler/中间件历史上直写 {code:403,error:"..."} 或 {error:"..."}，
+// 前端 restRequest/getErrorMessage 只识别 error.message，导致排班操作失败时
+// 用户只能看到兜底文案。此处集中归一，handler 无需逐个改造。
+// 响应体已含 success 字段时原样透传（兼容已统一格式的输出，避免二次包装）。
 func responseWrapper() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		bw := &bufferedWriter{ResponseWriter: c.Writer, statusCode: http.StatusOK}
 		c.Writer = bw
 		c.Next()
 		orig := bw.ResponseWriter
-		if bw.statusCode >= 200 && bw.statusCode < 300 && bw.buf.Len() > 0 {
+		if bw.buf.Len() > 0 {
 			var data interface{}
 			if err := json.Unmarshal(bw.buf.Bytes(), &data); err == nil {
-				// 如果响应本身已含 success 字段则不二次包装
-				if m, ok := data.(map[string]interface{}); ok {
+				m, isObj := data.(map[string]interface{})
+				// 已是统一格式则原样透传
+				if isObj {
 					if _, has := m["success"]; has {
 						orig.WriteHeader(bw.statusCode)
 						orig.Write(bw.buf.Bytes())
 						return
 					}
 				}
-				wrapped, _ := json.Marshal(gin.H{
-					"success":   true,
-					"data":      data,
-					"timestamp": time.Now().Format(time.RFC3339),
-				})
-				orig.Header().Set("Content-Type", "application/json; charset=utf-8")
-				orig.WriteHeader(bw.statusCode)
-				orig.Write(wrapped)
-				return
+				switch {
+				case bw.statusCode >= 200 && bw.statusCode < 300:
+					wrapped, _ := json.Marshal(gin.H{
+						"success":   true,
+						"data":      data,
+						"timestamp": time.Now().Format(time.RFC3339),
+					})
+					writeWrapped(orig, bw.statusCode, wrapped)
+					return
+				case bw.statusCode >= 400:
+					code, msg := normalizeError(m, isObj, bw.statusCode)
+					wrapped, _ := json.Marshal(gin.H{
+						"success":   false,
+						"error":     gin.H{"code": code, "message": msg},
+						"timestamp": time.Now().Format(time.RFC3339),
+					})
+					writeWrapped(orig, bw.statusCode, wrapped)
+					return
+				}
 			}
 		}
 		orig.WriteHeader(bw.statusCode)
@@ -218,6 +238,36 @@ func responseWrapper() gin.HandlerFunc {
 			orig.Write(bw.buf.Bytes())
 		}
 	}
+}
+
+func writeWrapped(w gin.ResponseWriter, status int, body []byte) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	w.Write(body)
+}
+
+// normalizeError 从历史错误体（{code:403,error:"..."} / {error:"..."} / {message:"..."}）
+// 提取 code 与 message；缺失时回退 HTTP 状态码与标准状态文案。
+func normalizeError(m map[string]interface{}, isObj bool, status int) (string, string) {
+	code := strconv.Itoa(status)
+	msg := http.StatusText(status)
+	if !isObj {
+		return code, msg
+	}
+	if v, ok := m["error"].(string); ok && strings.TrimSpace(v) != "" {
+		msg = v
+	} else if v, ok := m["message"].(string); ok && strings.TrimSpace(v) != "" {
+		msg = v
+	}
+	switch v := m["code"].(type) {
+	case float64: // JSON 数字反序列化为 float64
+		code = strconv.Itoa(int(v))
+	case string:
+		if strings.TrimSpace(v) != "" {
+			code = v
+		}
+	}
+	return code, msg
 }
 
 func tenantOf(c *gin.Context) int64 {

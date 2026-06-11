@@ -48,19 +48,23 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 		return nil, errors.New("database not available")
 	}
 
+	// 今日 [00:00, 次日 00:00)，用于限定实时监控只看当天在机的治疗。
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
 	type treatmentRow struct {
-		ID                int64     `gorm:"column:Id"`
-		PatientID         int64     `gorm:"column:PatientId"`
-		BedID             int64     `gorm:"column:BedId"`
-		WardID            int64     `gorm:"column:WardId"`
-		Status            string    `gorm:"column:Status"`
-		StartTime         time.Time `gorm:"column:StartTime"`
-		PatientName       string    `gorm:"column:PatientName"`
-		BedName           string    `gorm:"column:BedName"`
-		WardName          string    `gorm:"column:WardName"`
-		DialysisDuration  float64   `gorm:"column:DialysisDuration"`
-		DryWeight         float64   `gorm:"column:DryWeight"`
-		DialysisMethod    string    `gorm:"column:DialysisMethod"`
+		ID               int64     `gorm:"column:Id"`
+		PatientID        int64     `gorm:"column:PatientId"`
+		BedID            int64     `gorm:"column:BedId"`
+		WardID           int64     `gorm:"column:WardId"`
+		Status           string    `gorm:"column:Status"`
+		StartTime        time.Time `gorm:"column:StartTime"`
+		PatientName      string    `gorm:"column:PatientName"`
+		BedName          string    `gorm:"column:BedName"`
+		WardName         string    `gorm:"column:WardName"`
+		DialysisDuration float64   `gorm:"column:DialysisDuration"`
+		DryWeight        float64   `gorm:"column:DryWeight"`
+		DialysisMethod   string    `gorm:"column:DialysisMethod"`
 	}
 
 	var rows []treatmentRow
@@ -74,9 +78,11 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 			COALESCE(pl."DialysisMethod", '') AS "DialysisMethod"`).
 		Joins(`LEFT JOIN "Register_PatientInfomation" AS p ON p."Id" = t."PatientId" AND p."TenantId" = t."TenantId"`).
 		Joins(`LEFT JOIN "Schedule_Bed" AS b ON b."Id" = t."BedId" AND b."TenantId" = t."TenantId"`).
-		Joins(`LEFT JOIN "Schedule_Ward" AS w ON w."Id" = t."WardId"`).
+		Joins(`LEFT JOIN "Schedule_Ward" AS w ON w."Id" = t."WardId" AND w."TenantId" = t."TenantId"`).
 		Joins(`LEFT JOIN "Plan_PatientPlan" AS pl ON pl."PatientId" = t."PatientId" AND pl."TenantId" = t."TenantId" AND COALESCE(pl."IsDisabled", false) = false`).
-		Where(`t."TenantId" = ? AND t."Status" = ?`, tenantID, "30").
+		// 不用 Status='30' 过滤：用时间判据「今日已上机未下机」，绕开状态码字典之争。
+		Where(`t."TenantId" = ? AND t."StartTime" IS NOT NULL AND t."EndTime" IS NULL AND t."StartTime" >= ? AND t."StartTime" < ?`,
+			tenantID, todayStart, todayStart.AddDate(0, 0, 1)).
 		Find(&rows).Error
 	if err != nil {
 		return nil, err
@@ -113,20 +119,19 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 		}
 	}
 
-	// Latest params
+	// Latest params from DuringParam (BF, TMP, Conductivity, MachineTmp, pressures)
 	type paramRow struct {
-		TreatmentID     int64   `gorm:"column:TreatmentId"`
-		BF              float64 `gorm:"column:BF"`
-		TMP             float64 `gorm:"column:TMP"`
-		UFQuantity      float64 `gorm:"column:UFQuantity"`
-		Conductivity    float64 `gorm:"column:Conductivity"`
-		MachineTmp      float64 `gorm:"column:MachineTmp"`
+		TreatmentID      int64   `gorm:"column:TreatmentId"`
+		BF               float64 `gorm:"column:BF"`
+		TMP              float64 `gorm:"column:TMP"`
+		Conductivity     float64 `gorm:"column:Conductivity"`
+		MachineTmp       float64 `gorm:"column:MachineTmp"`
 		ArterialPressure float64 `gorm:"column:ArterialPressure"`
-		VenousPressure  float64 `gorm:"column:VenousPressure"`
+		VenousPressure   float64 `gorm:"column:VenousPressure"`
 	}
 	var params []paramRow
 	db.Table(`"Treatment_DuringParam"`).
-		Select(`"TreatmentId", COALESCE("BF", 0) AS "BF", COALESCE("TMP", 0) AS "TMP", COALESCE("UFQuantity", 0) AS "UFQuantity", COALESCE("Conductivity", 0) AS "Conductivity", COALESCE("MachineTmp", 0) AS "MachineTmp", COALESCE("ArterialPressure", 0) AS "ArterialPressure", COALESCE("VenousPressure", 0) AS "VenousPressure"`).
+		Select(`"TreatmentId", COALESCE("BF", 0) AS "BF", COALESCE("TMP", 0) AS "TMP", COALESCE("Conductivity", 0) AS "Conductivity", COALESCE("MachineTmp", 0) AS "MachineTmp", COALESCE("ArterialPressure", 0) AS "ArterialPressure", COALESCE("VenousPressure", 0) AS "VenousPressure"`).
 		Where(`"TreatmentId" IN ? AND "TenantId" = ?`, treatmentIDs, tenantID).
 		Order(`"OperateTime" DESC`).
 		Find(&params)
@@ -134,6 +139,27 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 	for _, r := range params {
 		if _, ok := paramMap[r.TreatmentID]; !ok {
 			paramMap[r.TreatmentID] = r
+		}
+	}
+
+	// Device_DMLog 实时数据：取每个治疗最近一条设备数据，提取 UF 相关字段。
+	// Device_DMLog 由透析机实时上传，是 UFSetVolume(目标) 和 UFVolume(实际) 的真实数据源。
+	type deviceRow struct {
+		TreatmentID   int64   `gorm:"column:TreatmentId"`
+		UFSetVolume   float64 `gorm:"column:UFSetVolume"`
+		UFVolume      float64 `gorm:"column:UFVolume"`
+		TreatmentTime float64 `gorm:"column:TreatmentTime"`
+	}
+	var devices []deviceRow
+	db.Table(`"Device_DMLog"`).
+		Select(`DISTINCT ON ("TreatmentId") "TreatmentId", COALESCE("UFSetVolume", 0) AS "UFSetVolume", COALESCE("UFVolume", 0) AS "UFVolume", COALESCE("TreatmentTime", 0) AS "TreatmentTime"`).
+		Where(`"TenantId" = ? AND "TreatmentId" IN ?`, tenantID, treatmentIDs).
+		Order(`"TreatmentId", "LogTime" DESC`).
+		Find(&devices)
+	deviceMap := map[int64]deviceRow{}
+	for _, r := range devices {
+		if _, ok := deviceMap[r.TreatmentID]; !ok {
+			deviceMap[r.TreatmentID] = r
 		}
 	}
 
@@ -163,13 +189,18 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 		if p, ok := paramMap[r.ID]; ok {
 			d.BF = p.BF
 			d.TMP = p.TMP
-			d.UFVolume = p.UFQuantity
 			d.Conductivity = p.Conductivity
 			d.MachineTmp = p.MachineTmp
 			d.ArterialPressure = p.ArterialPressure
 			d.VenousPressure = p.VenousPressure
 		}
-		d.UFGoal = r.DryWeight // UF Goal from Plan
+		// UF数据来源修正：从 Device_DMLog 获取真实目标超滤量和实际超滤量。
+		// 原 UFGoal = DryWeight (干体重) 是错误数据源。
+		if dev, ok := deviceMap[r.ID]; ok {
+			d.UFGoal = dev.UFSetVolume   // 设定超滤总量
+			d.UFVolume = dev.UFVolume    // 实际累计超滤量
+		}
+		// Fallback: 无设备数据时 UFGoal/UFVolume 保持 0（前端触发"暂无超滤数据"降级）。
 		result = append(result, d)
 	}
 	return result, nil

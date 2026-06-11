@@ -237,7 +237,16 @@ func (s *WardService) Delete(id int64) error {
 	if s.db == nil {
 		return errors.New("database not available")
 	}
-	result := s.db.Table(`"Schedule_Ward"`).Where(`"Id" = ?`, id).Update(`"IsDisabled"`, true)
+	// 非空病区禁止删除：删除前检查启用床位数量，BedCount > 0 则返回业务错误。
+	ward, err := s.GetByID(id)
+	if err != nil {
+		return err
+	}
+	if ward.BedCount > 0 {
+		return fmt.Errorf("该病区下尚有 %d 个启用床位，请先迁移或停用所有床位后再删除病区", ward.BedCount)
+	}
+	// 补 TenantId 过滤：与全库写操作惯例一致（纵深防御）。
+	result := s.db.Table(`"Schedule_Ward"`).Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).Update(`"IsDisabled"`, true)
 	if result.Error != nil {
 		return fmt.Errorf("删除病区失败: %w", result.Error)
 	}

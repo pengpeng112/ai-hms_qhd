@@ -130,22 +130,29 @@ func (s *PatientCoreService) GetCore(patientID string) (*PatientCoreResponse, er
 
 // buildHeader 构建页面头部信息
 func (s *PatientCoreService) buildHeader(patient models.Patient) PatientCoreHeader {
-	// 计算透析龄
-	dialysisAge := s.calculateDialysisAge(patient.CreatedAt)
+	// 透析龄从真实「首次透析日期」(老库 FirstDialysisDate) 起算；缺失时回退到建档时间。
+	ageStart := patient.CreatedAt
+	if patient.AdmissionDate != nil && !patient.AdmissionDate.IsZero() {
+		ageStart = *patient.AdmissionDate
+	}
+	dialysisAge := s.calculateDialysisAge(ageStart)
 
 	// 转换状态：active -> 治疗中
 	status := "待诊"
 	if patient.Status == "active" {
-		// 检查是否有当前进行中的治疗会话
-		var currentTreatment models.Treatment
-		err := s.db.Where("patient_id = ? AND status = ? AND treatment_date = ?",
-			patient.ID, models.TreatmentStatusInProgress, time.Now().Format("2006-01-02")).
-			First(&currentTreatment).Error
-		if err == nil {
-			status = "透析中"
-		} else {
-			status = "治疗中"
-		}
+		status = "治疗中"
+	}
+
+	// 今日是否「在机」(已上机未下机) -> 透析中。
+	// 直读老库 Treatment_Treatment，以「StartTime 非空 AND EndTime 空」判定在机，
+	// 规避老库 Status 状态码语义不一致(文档 30 vs 服务映射 10)的歧义。
+	var onMachineToday int64
+	s.db.Table(`"Treatment_Treatment"`).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND "StartTime" IS NOT NULL AND "EndTime" IS NULL AND DATE(COALESCE("StartTime","SignInTime","ReceptionTime","CreateTime")) = DATE(?)`,
+			LegacyTenantID, patient.ID, time.Now()).
+		Count(&onMachineToday)
+	if onMachineToday > 0 {
+		status = "透析中"
 	}
 
 	return PatientCoreHeader{
@@ -445,52 +452,33 @@ func (s *PatientCoreService) buildClinicalFocus(patient models.Patient) PatientC
 
 // buildNavigation 构建患者导航信息
 func (s *PatientCoreService) buildNavigation(patientID modeltypes.LegacyID) (*PatientCoreNavigation, error) {
-	// legacy 患者主表没有 bed_number / active 状态语义，按患者主键稳定排序即可
-	var patients []models.Patient
-	err := s.db.Where("\"TenantId\" = ?", LegacyTenantID).Order("\"Id\" ASC").Find(&patients).Error
-	if err != nil {
-		// 某些 legacy 库可能缺少 TenantId 过滤语义，回退到全量患者排序
-		if fallbackErr := s.db.Order("\"Id\" ASC").Find(&patients).Error; fallbackErr != nil {
-			return &PatientCoreNavigation{Total: 1, CurrentIndex: 0}, nil
-		}
+	base := func() *gorm.DB { return s.db.Model(&models.Patient{}).Where(`"TenantId" = ?`, LegacyTenantID) }
+
+	var total int64
+	if err := base().Count(&total).Error; err != nil {
+		return nil, err
+	}
+	// 当前患者的 0 基下标 = 主键比它小的患者数(与原「按 Id 升序」语义一致)
+	var before int64
+	if err := base().Where(`"Id" < ?`, patientID).Count(&before).Error; err != nil {
+		return nil, err
 	}
 
-	total := len(patients)
-	currentIndex := -1
-	for i, p := range patients {
-		if p.ID == patientID {
-			currentIndex = i
-			break
+	loadNeighbor := func(cmp, order string) *PatientCoreNavPatient {
+		var p models.Patient
+		if err := base().Where(`"Id" `+cmp+` ?`, patientID).
+			Order(`"Id" ` + order).Limit(1).
+			Select(`"Id", "Name"`).First(&p).Error; err != nil {
+			return nil
 		}
-	}
-
-	if currentIndex == -1 {
-		return &PatientCoreNavigation{Total: total, CurrentIndex: 0}, nil
-	}
-
-	var prev, next *PatientCoreNavPatient
-	if currentIndex > 0 {
-		p := patients[currentIndex-1]
-		prev = &PatientCoreNavPatient{
-			ID:        legacyIDString(p.ID),
-			Name:      p.Name,
-			BedNumber: p.BedNumber,
-		}
-	}
-	if currentIndex < total-1 {
-		p := patients[currentIndex+1]
-		next = &PatientCoreNavPatient{
-			ID:        legacyIDString(p.ID),
-			Name:      p.Name,
-			BedNumber: p.BedNumber,
-		}
+		return &PatientCoreNavPatient{ID: legacyIDString(p.ID), Name: p.Name, BedNumber: p.BedNumber}
 	}
 
 	return &PatientCoreNavigation{
-		Previous:     prev,
-		Next:         next,
-		Total:        total,
-		CurrentIndex: currentIndex,
+		Previous:     loadNeighbor("<", "DESC"), // 最接近的前一位
+		Next:         loadNeighbor(">", "ASC"),  // 最接近的后一位
+		Total:        int(total),
+		CurrentIndex: int(before),
 	}, nil
 }
 

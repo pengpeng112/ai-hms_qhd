@@ -260,11 +260,11 @@ func TestTreatmentServiceUpdateStatusSetsStartTimeOnlyWhenMissing(t *testing.T) 
 	})
 }
 
-func TestTreatmentServiceUpdateStatusDoesNotSetEndTime(t *testing.T) {
+func TestTreatmentServiceUpdateStatusSetsEndTimeOnComplete(t *testing.T) {
 	svc := newTestTreatmentService(t)
 	start := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
 
-	t.Run("does not set end time when completing via status update", func(t *testing.T) {
+	t.Run("sets end time when completing via status update", func(t *testing.T) {
 		id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
 			"Id":        int64(21),
 			"Status":    legacyStatusFromApp(models.TreatmentStatusInProgress),
@@ -279,8 +279,8 @@ func TestTreatmentServiceUpdateStatusDoesNotSetEndTime(t *testing.T) {
 		if startTime == nil || !startTime.Equal(start) {
 			t.Fatalf("expected start time preserved, got %v", startTime)
 		}
-		if endTime != nil {
-			t.Fatalf("expected end time to remain nil, got %v", endTime)
+		if endTime == nil {
+			t.Fatalf("expected end time to be set when completing, got nil")
 		}
 		if status != legacyStatusFromApp(models.TreatmentStatusCompleted) {
 			t.Fatalf("expected status updated, got %s", status)
@@ -364,5 +364,40 @@ func TestTreatmentServiceUpdatePrefersExplicitStartAndEndTime(t *testing.T) {
 	}
 	if rawStatus != legacyStatusFromApp(models.TreatmentStatusCompleted) {
 		t.Fatalf("expected completed raw status, got %s", rawStatus)
+	}
+}
+
+func TestAppStatusFromLegacyHardCodeBeforeDict(t *testing.T) {
+	startTime := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
+	dict := map[int]string{10: "签到", 30: "透中监测", 0: "待签到", 50: "取消治疗", 60: "已结束"}
+
+	// raw "10" + StartTime 非空 + EndTime 空 → InProgress（不因字典名"签到"误判 Pending）
+	if got := appStatusFromLegacy("10", &startTime, nil, dict); got != models.TreatmentStatusInProgress {
+		t.Fatalf(`"10" + start!=nil + end==nil: expected InProgress, got %d`, got)
+	}
+	// raw "30" + StartTime 非空 + EndTime 空 → InProgress
+	if got := appStatusFromLegacy("30", &startTime, nil, dict); got != models.TreatmentStatusInProgress {
+		t.Fatalf(`"30" + start!=nil + end==nil: expected InProgress, got %d`, got)
+	}
+	// raw "0" + 无 start/end → Pending
+	if got := appStatusFromLegacy("0", nil, nil, dict); got != models.TreatmentStatusPending {
+		t.Fatalf(`"0" + start==nil + end==nil: expected Pending, got %d`, got)
+	}
+	// raw "50" → Cancelled
+	if got := appStatusFromLegacy("50", nil, nil, dict); got != models.TreatmentStatusCancelled {
+		t.Fatalf(`"50": expected Cancelled, got %d`, got)
+	}
+	// raw "60" → Completed
+	if got := appStatusFromLegacy("60", nil, nil, dict); got != models.TreatmentStatusCompleted {
+		t.Fatalf(`"60": expected Completed, got %d`, got)
+	}
+	// raw "10" + endTime 非空 + startTime 非空 → Completed（时间判据 fallback）
+	endTime := time.Date(2026, 4, 24, 12, 0, 0, 0, time.UTC)
+	if got := appStatusFromLegacy("10", &startTime, &endTime, dict); got != models.TreatmentStatusCompleted {
+		t.Fatalf(`"10" + start!=nil + end!=nil: expected Completed, got %d`, got)
+	}
+	// raw "0" + start 非空 + end 空 → InProgress
+	if got := appStatusFromLegacy("0", &startTime, nil, dict); got != models.TreatmentStatusInProgress {
+		t.Fatalf(`"0" + start!=nil + end==nil: expected InProgress, got %d`, got)
 	}
 }

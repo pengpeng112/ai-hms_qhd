@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"github.com/elliotxin/ai-hms-backend/internal/models"
@@ -849,9 +850,27 @@ func (s *OrderService) Stop(patientID, orderID string, stopReason string, stopDa
 	}
 
 	updates := map[string]interface{}{
-		"IsDisabled":     true,
 		"EndTime":        *stopAt,
 		"LastModifyTime": time.Now(),
+	}
+	// 未来停用日期仅写 EndTime 和停嘱原因，不立即置 IsDisabled=true。
+	// 当天或过去的停用日期才立即停用。
+	today := time.Now()
+	if stopAt.After(today) {
+		updates["IsDisabled"] = false
+	} else {
+		updates["IsDisabled"] = true
+	}
+	// 修复：医生填写的停嘱原因此前被静默丢弃。老库无专用停嘱原因列
+	//（Order_PatientOrder 仅有 Note varchar(1024)），故以追加形式写入 Note，
+	// 不覆盖既有备注；超长时截断原因，保证总长不越列宽。
+	if reason := strings.TrimSpace(stopReason); reason != "" {
+		const maxReasonLen = 200
+		if utf8.RuneCountInString(reason) > maxReasonLen {
+			reason = string([]rune(reason)[:maxReasonLen])
+		}
+		suffix := "\n[停嘱原因 " + time.Now().Format("2006-01-02 15:04") + "] " + reason
+		updates["Note"] = gorm.Expr(`LEFT(COALESCE("Note", '') || ?, 1024)`, suffix)
 	}
 
 	intIDs := make([]int64, 0, len(orderIDs))
@@ -860,8 +879,9 @@ func (s *OrderService) Stop(patientID, orderID string, stopReason string, stopDa
 			intIDs = append(intIDs, oid)
 		}
 	}
+	// 补 TenantId 过滤：与全库写操作惯例一致（纵深防御，归属已由 getOrder 校验）。
 	if err := s.db.Table(`"Order_PatientOrder"`).
-		Where(`"Id" IN ?`, intIDs).
+		Where(`"Id" IN ? AND "TenantId" = ?`, intIDs, LegacyTenantID).
 		Updates(updates).Error; err != nil {
 		return nil, err
 	}
@@ -996,7 +1016,7 @@ func (s *OrderService) getOrder(patientID, orderID string) (*models.Order, error
 	}
 	var row legacyPatientOrder
 	if err := s.db.Table(`"Order_PatientOrder"`).
-		Where(`"Id" = ? AND "PatientId" = ?`, oid, legacyPID).
+		Where(`"Id" = ? AND "PatientId" = ? AND "TenantId" = ?`, oid, legacyPID, LegacyTenantID).
 		First(&row).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, notFoundOrder("医嘱不存在")
