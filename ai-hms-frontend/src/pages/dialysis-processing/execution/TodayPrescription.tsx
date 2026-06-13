@@ -153,11 +153,11 @@ function mapPrescriptionToForm(prescription: Prescription | null): PrescriptionF
 
 function MetricCard({ label, value, unit, primary }: { label: string; value: string; unit?: string; primary?: boolean }) {
   return (
-    <div className={`rounded-lg border px-4 py-4 shadow-sm ${primary ? 'border-blue-600 bg-blue-600 text-white' : 'border-slate-200 bg-white'}`}>
-      <div className={`text-xs font-semibold ${primary ? 'text-blue-100' : 'text-slate-400'}`}>{label}</div>
-      <div className={`mt-2 text-2xl font-black ${primary ? 'text-white' : 'text-slate-900'}`}>
+    <div className={`rounded-xl border p-3.5 ${primary ? 'border-blue-500 bg-blue-600 text-white' : 'border-slate-200 bg-white'}`}>
+      <div className={`text-[11px] font-semibold ${primary ? 'text-blue-100' : 'text-slate-400'}`}>{label}</div>
+      <div className={`mt-1.5 text-xl font-black ${primary ? 'text-white' : 'text-slate-900'}`}>
         {value || '--'}
-        {unit ? <span className={`ml-1 text-xs ${primary ? 'text-blue-100' : 'text-slate-400'}`}>{unit}</span> : null}
+        {unit ? <span className={`ml-1 text-[10px] font-semibold ${primary ? 'text-blue-100' : 'text-slate-400'}`}>{unit}</span> : null}
       </div>
     </div>
   )
@@ -169,28 +169,39 @@ function EditableField({
   unit,
   disabled,
   onChange,
+  compact,
 }: {
   label: string
   value: string
   unit?: string
   disabled: boolean
   onChange: (value: string) => void
+  compact?: boolean
 }) {
   return (
     <label className="block min-w-0">
-      <div className="mb-2 text-xs font-semibold text-slate-400">{label}</div>
+      <div className={`${compact ? 'mb-1' : 'mb-2'} text-[11px] font-semibold text-slate-400`}>{label}</div>
       <div className="relative">
         <input
           value={disabled ? value || '--' : value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`h-10 w-full rounded-md border px-3 text-sm font-bold outline-none ${unit ? 'pr-14' : ''} ${
-            disabled ? 'border-transparent bg-transparent text-slate-900' : 'border-blue-300 bg-white text-slate-900'
+          className={`${compact ? 'h-9' : 'h-10'} w-full rounded-lg border px-3 text-sm font-bold outline-none ${unit ? 'pr-14' : ''} ${
+            disabled ? 'border-transparent bg-transparent text-slate-900' : 'border-blue-300 bg-white text-slate-900 focus:border-blue-500'
           }`}
         />
         {unit ? <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">{unit}</span> : null}
       </div>
     </label>
+  )
+}
+
+function ValueGroup({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3.5">
+      <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">{title}</div>
+      <div className="space-y-3">{children}</div>
+    </div>
   )
 }
 
@@ -206,9 +217,9 @@ function SectionCard({
   right?: ReactNode
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-black text-slate-800">
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-bold text-slate-800">
           {icon}
           {title}
         </div>
@@ -229,12 +240,10 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
   const [currentPrescription, setCurrentPrescription] = useState<Prescription | null>(null)
   const [form, setForm] = useState<PrescriptionFormState>(EMPTY_FORM)
 
-  // 加载治疗方案和处方
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
-        // 并行加载治疗方案和处方列表
         const [plan, prescList] = await Promise.all([
           patientApi.getTreatmentPlan(patient.id).catch(() => null),
           prescriptionApi.list(patient.id).catch(() => [] as Prescription[]),
@@ -247,7 +256,6 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
         const active = todayItem ?? prescList[0] ?? null
         setCurrentPrescription(active)
 
-        // 优先从治疗方案加载表单默认值
         if (plan) {
           setForm(mapPlanToForm(plan))
         } else if (active) {
@@ -265,28 +273,22 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
     void loadData()
   }, [patient.id])
 
-  // 当治疗方案加载后，同处方数据合并（处方为准，方案回填）
   useEffect(() => {
     if (treatmentPlan && !currentPrescription) {
       setForm(mapPlanToForm(treatmentPlan))
     }
   }, [treatmentPlan, currentPrescription])
 
-  // 计算派生指标
   const metrics = useMemo(() => {
-    // 透前净重 = 透前体重 - 额外体重
     const preWeight = treatment?.beforeSigns?.weight || 0
     const extra = parseOptionalNumber(form.extraWeight) ?? 0
     const preNetWeight = preWeight - extra
 
-    // 干体重从治疗方案读取
     const dryWeight = parseOptionalNumber(form.dryWeight) ?? treatmentPlan?.dryWeight ?? patient.dryWeight
 
-    // 较前增量 = 透前净重 - 上次透后体重（暂取0，后续接入）
     const lastPostWeight = 0
     const weightChange = preNetWeight - lastPostWeight
 
-    // 透前血压从透前评估读取
     const preBp =
       treatment?.beforeSigns?.sbp && treatment?.beforeSigns?.dbp
         ? `${treatment.beforeSigns.sbp}/${treatment.beforeSigns.dbp}`
@@ -322,6 +324,7 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
     note: m.note || '',
   }))
   const canExecute = currentPrescription?.status === '待执行'
+  const hasAnticoagulant = form.initialDrug || form.initialDose || form.maintenanceDrug || form.maintenanceDose || form.infusionRate || form.infusionTime
   const formattedUpdatedAt = currentPrescription?.updatedAt
     ? new Date(currentPrescription.updatedAt).toLocaleString('zh-CN')
     : '--'
@@ -335,7 +338,6 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
       setLoading(true)
       const extracted = await prescriptionApi.extract(patient.id, new Date().toISOString().slice(0, 10))
       setCurrentPrescription(extracted)
-      // 合并治疗方案数据到处方表单
       if (treatmentPlan) {
         setForm(mapPlanToForm(treatmentPlan))
       } else {
@@ -429,46 +431,45 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
   }
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {treatmentLoading ? (
-        <section className="rounded-lg border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+        <section className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
           正在加载新患者治疗上下文，处方概览已清空旧治疗数据。
         </section>
       ) : null}
 
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-black text-slate-900">{patient.name}</h2>
-            <span className="rounded-md bg-blue-600 px-2.5 py-1 text-sm font-bold text-white">{patient.status || '未排床'}</span>
-            <span className="text-xs font-semibold text-slate-500">ID: {patient.id}</span>
-            <span className="text-xs font-semibold text-slate-500">{patient.gender} / {patient.age}岁</span>
-            <span className="text-xs font-semibold text-slate-500">费用: {patient.costType || '--'}</span>
-            <span className="text-xs font-semibold text-slate-500">透析龄: {patient.dialysisAge || '--'}</span>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-black text-slate-900">处方摘要</h2>
+            <span className="text-xs text-slate-400">
+              {patient.name} · {patient.gender}/{patient.age}岁 · {patient.bedId}
+            </span>
           </div>
-          <div className="mt-2 text-xs text-slate-400">
-            来源方案: {treatmentPlan ? `${treatmentPlan.dialysisMode?.mode || '-'} (干体重: ${treatmentPlan.dryWeight}kg)` : '未加载'}
-            {' | '}处方总数：{prescriptions.length}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+            <span>来源方案: {treatmentPlan ? `${treatmentPlan.dialysisMode?.mode || '-'}（干体重: ${treatmentPlan.dryWeight}kg）` : '未加载'}</span>
+            <span>处方总数: {prescriptions.length}</span>
+            <span>来源: {currentPrescription ? '处方' : '治疗方案回填'}</span>
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white px-5 py-3 text-center shadow-sm">
-            <div className="px-4">
-              <div className="text-xs font-semibold text-slate-400">干体重</div>
-              <div className="mt-1 font-black text-blue-700">{metrics.dryWeight || '--'} <span className="text-xs">KG</span></div>
+          <div className="grid grid-cols-2 divide-x divide-slate-200 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-center shadow-sm">
+            <div className="px-3">
+              <div className="text-[11px] font-semibold text-slate-400">干体重</div>
+              <div className="mt-0.5 text-base font-black text-blue-700">{metrics.dryWeight || '--'} <span className="text-[10px]">KG</span></div>
             </div>
-            <div className="px-4">
-              <div className="text-xs font-semibold text-slate-400">治疗方案</div>
-              <div className="mt-1 font-black text-slate-900">{metrics.dialysisMethod || '--'}</div>
+            <div className="px-3">
+              <div className="text-[11px] font-semibold text-slate-400">治疗方式</div>
+              <div className="mt-0.5 text-base font-black text-slate-900">{metrics.dialysisMethod || '--'}</div>
             </div>
           </div>
           <button
             type="button"
             onClick={() => void handleExtractToday()}
             disabled={loading}
-            className="inline-flex h-11 items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 disabled:opacity-60"
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-4 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:opacity-50"
           >
-            <RotateCw size={15} />
+            <RotateCw size={14} />
             提取今日处方
           </button>
         </div>
@@ -480,141 +481,225 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
             <MetricCard label="透析方法" value={metrics.dialysisMethod} primary />
-            <MetricCard label="本次体重增加量" value={toText(metrics.weightChange)} unit="KG" />
+            <MetricCard label="本次体重增加量" value={toText(metrics.weightChange)} unit="kg" />
             <MetricCard label="目标超滤量" value={metrics.targetUf} unit="L" />
-            <MetricCard label="透前血压" value={metrics.preBp} unit="MMHG" />
+            <MetricCard label="透前血压" value={metrics.preBp || '--'} unit="mmHg" />
             <MetricCard label="透析时间" value={metrics.duration} unit="H" />
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
-            <SectionCard title="体重详情与基础标准" icon={<Activity size={16} className="text-blue-600" />}>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-5 p-5 md:grid-cols-3">
-                <EditableField label="透前体重" value={toText(metrics.preWeight)} unit="kg" disabled onChange={() => undefined} />
-                <EditableField label="透前净重" value={toText(metrics.preNetWeight)} unit="kg" disabled onChange={() => undefined} />
-                <EditableField label="上次透后体重" value={toText(metrics.lastPostWeight)} unit="kg" disabled onChange={() => undefined} />
-                <EditableField label="较前增量" value={toText(metrics.weightChange)} unit="kg" disabled onChange={() => undefined} />
-                <EditableField label="干体重" value={form.dryWeight} unit="kg" disabled={!editing} onChange={(value) => updateField('dryWeight', value)} />
-                <EditableField label="标准血流" value={form.bloodFlow} unit="ml/min" disabled={!editing} onChange={(value) => updateField('bloodFlow', value)} />
+            <SectionCard title="核心处方参数" icon={<Activity size={16} className="text-blue-600" />}>
+              <div className="space-y-3 p-4">
+                <ValueGroup title="治疗与容量">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+                    <EditableField label="透析方法" value={form.dialysisMode} disabled={!editing} compact onChange={(v) => updateField('dialysisMode', v)} />
+                    <EditableField label="干体重" value={form.dryWeight} unit="kg" disabled={!editing} compact onChange={(v) => updateField('dryWeight', v)} />
+                    <EditableField label="本次增量" value={toText(metrics.weightChange)} unit="kg" disabled compact onChange={() => undefined} />
+                    <EditableField label="目标超滤" value={form.extraWeight} unit="L" disabled={!editing} compact onChange={(v) => updateField('extraWeight', v)} />
+                    <EditableField label="透析时间" value={form.duration} unit="H" disabled={!editing} compact onChange={(v) => updateField('duration', v)} />
+                    <EditableField label="透前体重" value={toText(metrics.preWeight)} unit="kg" disabled compact onChange={() => undefined} />
+                  </div>
+                </ValueGroup>
+                <ValueGroup title="血流与通路">
+                  <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+                    <EditableField label="血管通路" value={metrics.vascularAccess} disabled compact onChange={() => undefined} />
+                    <EditableField label="标准血流" value={form.bloodFlow} unit="ml/min" disabled={!editing} compact onChange={(v) => updateField('bloodFlow', v)} />
+                    <EditableField label="置换量" value={form.substituteVolume} unit="L" disabled={!editing} compact onChange={(v) => updateField('substituteVolume', v)} />
+                  </div>
+                </ValueGroup>
               </div>
             </SectionCard>
 
-            <SectionCard title="抗凝方案设定" icon={<Droplets size={16} className="text-blue-600" />}>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-5 p-5 md:grid-cols-3">
-                <EditableField label="药剂名称" value={form.initialDrug} disabled={!editing} onChange={(value) => updateField('initialDrug', value)} />
-                <EditableField label="首剂量" value={form.initialDose} disabled={!editing} onChange={(value) => updateField('initialDose', value)} />
-                <EditableField label="维持剂" value={form.maintenanceDrug} disabled={!editing} onChange={(value) => updateField('maintenanceDrug', value)} />
-                <EditableField label="维持量" value={form.maintenanceDose} disabled={!editing} onChange={(value) => updateField('maintenanceDose', value)} />
-                <EditableField label="注入速率" value={form.infusionRate} disabled={!editing} onChange={(value) => updateField('infusionRate', value)} />
-                <EditableField label="注入时间" value={form.infusionTime} disabled={!editing} onChange={(value) => updateField('infusionTime', value)} />
+            <SectionCard
+              title="抗凝方案"
+              icon={<Droplets size={16} className={hasAnticoagulant ? 'text-orange-500' : 'text-slate-400'} />}
+            >
+              <div className="p-4">
+                {hasAnticoagulant ? (
+                  <div className="space-y-3">
+                    <div className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800">
+                      药剂名称：{form.initialDrug || '--'}
+                    </div>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-2.5 sm:grid-cols-3">
+                      <EditableField label="首剂量" value={form.initialDose} disabled={!editing} compact onChange={(v) => updateField('initialDose', v)} />
+                      <EditableField label="维持剂" value={form.maintenanceDrug} disabled={!editing} compact onChange={(v) => updateField('maintenanceDrug', v)} />
+                      <EditableField label="维持量" value={form.maintenanceDose} disabled={!editing} compact onChange={(v) => updateField('maintenanceDose', v)} />
+                      <EditableField label="注入速率" value={form.infusionRate} disabled={!editing} compact onChange={(v) => updateField('infusionRate', v)} />
+                      <EditableField label="注入时间" value={form.infusionTime} disabled={!editing} compact onChange={(v) => updateField('infusionTime', v)} />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-6 text-center text-sm text-slate-400">未配置抗凝方案</div>
+                )}
               </div>
             </SectionCard>
           </div>
 
-          <SectionCard title="透析液及通路设定" icon={<Settings size={16} className="text-blue-600" />}>
-            <div className="grid grid-cols-2 gap-x-10 gap-y-5 p-5 md:grid-cols-4 xl:grid-cols-8">
-              <EditableField label="血管通路" value={metrics.vascularAccess} disabled onChange={() => undefined} />
-              <EditableField label="透析液" value={form.dialysateType} disabled={!editing} onChange={(value) => updateField('dialysateType', value)} />
-              <EditableField label="透析液流速" value={form.flowRate} unit="ml/min" disabled={!editing} onChange={(value) => updateField('flowRate', value)} />
-              <EditableField label="Na浓度" value={form.na} unit="mmol/L" disabled={!editing} onChange={(value) => updateField('na', value)} />
-              <EditableField label="Ca浓度" value={form.ca} unit="mmol/L" disabled={!editing} onChange={(value) => updateField('ca', value)} />
-              <EditableField label="K浓度" value={form.k} unit="mmol/L" disabled={!editing} onChange={(value) => updateField('k', value)} />
-              <EditableField label="HCO3浓度" value={form.hco3} unit="mmol/L" disabled={!editing} onChange={(value) => updateField('hco3', value)} />
-              <EditableField label="葡萄糖" value={form.glucose} unit="mmol/L" disabled={!editing} onChange={(value) => updateField('glucose', value)} />
-              <EditableField label="电导度" value={form.conductivity} unit="mS/cm" disabled={!editing} onChange={(value) => updateField('conductivity', value)} />
-              <EditableField label="液温" value={form.temp} unit="℃" disabled={!editing} onChange={(value) => updateField('temp', value)} />
-              <EditableField label="透析液量" value={form.volume} unit="L" disabled={!editing} onChange={(value) => updateField('volume', value)} />
-              <EditableField label="透析液分组" value={form.dialysateGroup} disabled={!editing} onChange={(value) => updateField('dialysateGroup', value)} />
-              <EditableField label="置换量" value={form.substituteVolume} unit="L" disabled={!editing} onChange={(value) => updateField('substituteVolume', value)} />
-              <EditableField label="备注" value={form.notes} disabled={!editing} onChange={(value) => updateField('notes', value)} />
+          <SectionCard title="透析液及机器设定" icon={<Settings size={16} className="text-blue-600" />}>
+            <div className="grid grid-cols-1 gap-4 p-4 md:grid-cols-3">
+              <ValueGroup title="液体">
+                <div className="grid grid-cols-1 gap-2.5">
+                  <EditableField label="透析液" value={form.dialysateType} disabled={!editing} compact onChange={(v) => updateField('dialysateType', v)} />
+                  <EditableField label="液温" value={form.temp} unit="℃" disabled={!editing} compact onChange={(v) => updateField('temp', v)} />
+                  <EditableField label="液量" value={form.volume} unit="L" disabled={!editing} compact onChange={(v) => updateField('volume', v)} />
+                </div>
+              </ValueGroup>
+              <ValueGroup title="浓度">
+                <div className="grid grid-cols-1 gap-2.5">
+                  <EditableField label="Na 浓度" value={form.na} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('na', v)} />
+                  <EditableField label="Ca 浓度" value={form.ca} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('ca', v)} />
+                  <EditableField label="K 浓度" value={form.k} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('k', v)} />
+                  <EditableField label="HCO₃ 浓度" value={form.hco3} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('hco3', v)} />
+                  <EditableField label="葡萄糖" value={form.glucose} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('glucose', v)} />
+                </div>
+              </ValueGroup>
+              <ValueGroup title="机器参数">
+                <div className="grid grid-cols-1 gap-2.5">
+                  <EditableField label="电导度" value={form.conductivity} unit="mS/cm" disabled={!editing} compact onChange={(v) => updateField('conductivity', v)} />
+                  <EditableField label="血流" value={form.bloodFlow} unit="ml/min" disabled={!editing} compact onChange={(v) => updateField('bloodFlow', v)} />
+                  <EditableField label="透析液流速" value={form.flowRate} unit="ml/min" disabled={!editing} compact onChange={(v) => updateField('flowRate', v)} />
+                  <EditableField label="透析液分组" value={form.dialysateGroup} disabled={!editing} compact onChange={(v) => updateField('dialysateGroup', v)} />
+                  <EditableField label="置换量" value={form.substituteVolume} unit="L" disabled={!editing} compact onChange={(v) => updateField('substituteVolume', v)} />
+                  <EditableField label="备注" value={form.notes} disabled={!editing} compact onChange={(v) => updateField('notes', v)} />
+                </div>
+              </ValueGroup>
             </div>
           </SectionCard>
 
-          <SectionCard
-            title="透析材料清单"
-            icon={<Package size={16} className="text-blue-600" />}
-            right={<div className="text-xs font-semibold text-slate-400">
-              来源: {currentPrescription ? '处方' : '治疗方案'}
-            </div>}
-          >
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[900px] text-left">
-                <thead className="bg-slate-50 text-xs text-slate-500">
-                  <tr>
-                    <th className="px-6 py-3">#</th>
-                    <th className="px-6 py-3">材料名称</th>
-                    <th className="px-6 py-3">分类</th>
-                    <th className="px-6 py-3">数量</th>
-                    <th className="px-6 py-3">编码</th>
-                    <th className="px-6 py-3">品牌</th>
-                    <th className="px-6 py-3">规格</th>
-                    <th className="px-6 py-3">备注</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayMaterials.length > 0 ? (
-                    displayMaterials.map((item, index) => (
-                      <tr key={`${item.id}-${index}`} className="border-t border-slate-100 text-sm">
-                        <td className="px-6 py-3 text-slate-900">{index + 1}</td>
-                        <td className="px-6 py-3 font-semibold text-slate-800">{item.name}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.category || '--'}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.count}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.code || '--'}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.brand || '--'}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.spec || '--'}</td>
-                        <td className="px-6 py-3 text-slate-600">{item.note || '--'}</td>
-                      </tr>
-                    ))
-                  ) : (
+          <div className="grid gap-4 xl:grid-cols-2">
+            <SectionCard
+              title="透析材料清单"
+              icon={<Package size={16} className="text-blue-600" />}
+              right={<span className="text-[11px] text-slate-400">来源: {currentPrescription ? '处方' : '治疗方案'}</span>}
+            >
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[700px] text-left">
+                  <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
                     <tr>
-                      <td colSpan={8} className="px-6 py-8 text-center text-sm text-slate-400">
-                        当前处方和治疗方案均无耗材明细
+                      <th className="px-4 py-2.5 font-semibold">#</th>
+                      <th className="px-4 py-2.5 font-semibold">材料名称</th>
+                      <th className="px-4 py-2.5 font-semibold">分类</th>
+                      <th className="px-4 py-2.5 font-semibold">数量</th>
+                      <th className="px-4 py-2.5 font-semibold">编码</th>
+                      <th className="px-4 py-2.5 font-semibold">品牌</th>
+                      <th className="px-4 py-2.5 font-semibold">规格</th>
+                      <th className="px-4 py-2.5 font-semibold">备注</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayMaterials.length > 0 ? (
+                      displayMaterials.map((item, index) => (
+                        <tr key={`${item.id}-${index}`} className="border-t border-slate-50 text-xs">
+                          <td className="px-4 py-2 text-slate-900">{index + 1}</td>
+                          <td className="px-4 py-2 font-semibold text-slate-800">{item.name}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.category || '--'}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.count}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.code || '--'}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.brand || '--'}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.spec || '--'}</td>
+                          <td className="px-4 py-2 text-slate-600">{item.note || '--'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={8} className="px-4 py-8 text-center text-xs text-slate-400">
+                          当前处方和治疗方案均无耗材明细，可先检查治疗方案配置。
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+
+            <SectionCard title="处方动态调整记录" icon={<Clock size={16} className="text-slate-400" />}>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[400px] text-left">
+                  <thead className="sticky top-0 bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2.5 font-semibold">#</th>
+                      <th className="px-4 py-2.5 font-semibold">调整内容</th>
+                      <th className="px-4 py-2.5 font-semibold">调整人</th>
+                      <th className="px-4 py-2.5 font-semibold">调整时间</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td colSpan={4} className="px-4 py-12 text-center">
+                        <div className="text-xs font-medium text-slate-400">暂无动态调整记录</div>
+                        <div className="mt-1 text-[11px] text-slate-300">修改处方后，建议记录调整内容、调整人和时间。</div>
                       </td>
                     </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </SectionCard>
+                  </tbody>
+                </table>
+              </div>
+            </SectionCard>
+          </div>
 
-          <SectionCard title="当日处方动态调整记录" icon={<Clock size={16} className="text-amber-500" />}>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[760px] text-left">
-                <thead className="bg-slate-50 text-xs text-slate-500">
-                  <tr>
-                    <th className="px-6 py-3">#</th>
-                    <th className="px-6 py-3">调整内容</th>
-                    <th className="px-6 py-3">调整人</th>
-                    <th className="px-6 py-3">调整时间</th>
-                    <th className="px-6 py-3">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-sm text-slate-300">暂无数据</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </SectionCard>
-
-          <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-slate-200 bg-white/95 px-4 py-4 shadow-lg backdrop-blur">
-            <div className="flex items-center gap-5 text-xs font-bold text-slate-400">
-              <span>UPDATE: {formattedUpdatedAt}</span>
-              <span className="inline-flex items-center gap-2">STATUS: <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">{currentPrescription?.status || '--'}</span></span>
+          <div className="sticky bottom-0 z-10 flex items-center justify-between rounded-xl border border-slate-200 bg-white/95 px-4 py-3.5 shadow-lg backdrop-blur">
+            <div className="flex items-center gap-5 text-xs text-slate-400">
+              <span className="font-semibold">UPDATE: {formattedUpdatedAt}</span>
+              <span className="inline-flex items-center gap-1.5">
+                STATUS:
+                <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                  currentPrescription?.status === '待执行' ? 'bg-blue-50 text-blue-700' :
+                  currentPrescription?.status === '已执行' ? 'bg-emerald-50 text-emerald-700' :
+                  'bg-slate-100 text-slate-600'
+                }`}>
+                  {currentPrescription?.status || '--'}
+                </span>
+              </span>
             </div>
             <div className="flex items-center gap-3">
-              {editing ? (
+              {!currentPrescription ? (
+                <button
+                  type="button"
+                  onClick={() => void handleExtractToday()}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                >
+                  <RotateCw size={14} />
+                  提取今日处方
+                </button>
+              ) : editing ? (
                 <>
-                  <button type="button" onClick={() => { setEditing(false); if (currentPrescription) { setForm(mapPrescriptionToForm(currentPrescription)) } }} className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700">取消</button>
-                  <button type="button" onClick={() => void handleSave()} disabled={saving} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white disabled:opacity-60">{saving ? '保存中...' : '保存处方'}</button>
+                  <button
+                    type="button"
+                    onClick={() => { setEditing(false); if (currentPrescription) { setForm(mapPrescriptionToForm(currentPrescription)) } }}
+                    className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                  >
+                    取消
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={saving}
+                    className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {saving ? '保存中...' : '保存处方'}
+                  </button>
                 </>
               ) : (
-                <button type="button" onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-700"><Settings size={14} />修改处方</button>
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  <Settings size={14} />
+                  修改处方
+                </button>
               )}
-              <button type="button" onClick={() => void handleExecute()} disabled={!canExecute || executing} title={canExecute ? undefined : '仅待执行处方可核对并执行'} className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50">
-                <Box size={15} />{executing ? '执行中...' : '核对并执行'}
+              <button
+                type="button"
+                onClick={() => void handleExecute()}
+                disabled={!canExecute || executing}
+                title={canExecute ? undefined : '仅待执行处方可核对并执行'}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-5 py-2 text-sm font-bold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <Box size={15} />
+                {executing ? '执行中...' : '核对并执行'}
               </button>
             </div>
           </div>

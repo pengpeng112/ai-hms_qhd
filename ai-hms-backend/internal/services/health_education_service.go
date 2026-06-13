@@ -119,7 +119,7 @@ func (s *HealthEducationService) ListPatientEducations(patientIDStr string) ([]P
 	err := s.db.Table(`"Auxiliary_PatientHealthEducation" AS pe`).
 		Select(`pe."Id", pe."PatientId", pe."HealthEducationId", pe."OperatorId", pe."EducationTime", pe."EducationType", pe."EducationResult", pe."NurseSign", pe."PatientSign", pe."FinishTime", pe."Note", pe."CreateTime", COALESCE(he."Name", '') AS "HeName", COALESCE(op."Name", '') AS "OpName"`).
 		Joins(`LEFT JOIN "Auxiliary_HealthEducation" AS he ON he."Id" = pe."HealthEducationId"`).
-		Joins(`LEFT JOIN "Organ_Employee" AS op ON op."UserId" = pe."OperatorId"`).
+		Joins(`LEFT JOIN "Organ_Employee" AS op ON op."Id" = pe."OperatorId"`).
 		Where(`pe."PatientId" = ?`, patientIDStr).
 		Order(`pe."CreateTime" DESC`).
 		Find(&rows).Error

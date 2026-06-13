@@ -289,6 +289,12 @@ func (s *DictService) listLegacyCodeDictionaryTypes() ([]models.DictType, error)
 		}
 		code := legacyType
 		name := legacyTypeDisplayName(legacyType)
+		if unified, ok := legacyTypeToUnifiedCode[legacyType]; ok {
+			code = unified.Code
+			if unified.Name != "" {
+				name = unified.Name
+			}
+		}
 		sortOrder := row.Sort
 		if sortOrder == 0 {
 			sortOrder = (idx + 1) * 10
@@ -298,6 +304,7 @@ func (s *DictService) listLegacyCodeDictionaryTypes() ([]models.DictType, error)
 			Code:        code,
 			Name:        name,
 			Description: legacyType,
+			Source:      "legacy",
 			SortOrder:   sortOrder,
 			IsEnabled:   true,
 			CreatedAt:   now,
@@ -361,6 +368,7 @@ func (s *DictService) listLegacyCodeDictionaryItems(typeCode string, isEnabledOn
 			Code:        itemCode,
 			Name:        itemName,
 			Description: legacyTypeDisplayName(strings.TrimSpace(row.Type)),
+			Source:      "legacy",
 			SortOrder:   row.Sort,
 			IsEnabled:   enabled,
 			CreatedAt:   now,
@@ -405,6 +413,7 @@ func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictIt
 			TypeCode:   models.DictTypeOutcome,
 			Code:       code,
 			Name:       name,
+			Source:     "legacy",
 			SortOrder:  row.Sort,
 			IsEnabled:  !row.IsDisabled,
 			CreatedAt:  now,
@@ -434,6 +443,7 @@ func (s *DictService) buildOutcomeDictItems(isEnabledOnly bool) ([]models.DictIt
 			TypeCode:   models.DictTypeOutcome,
 			Code:       reasonCode,
 			Name:       reasonName,
+			Source:     "legacy",
 			SortOrder:  row.Sort,
 			IsEnabled:  !row.IsDisabled,
 			CreatedAt:  now,
@@ -599,14 +609,18 @@ func (s *DictService) CreateItem(item *models.DictItem) error {
 	if item.TypeCode == "" || item.Code == "" {
 		return errors.New("字典类型代码和字典编码不能为空")
 	}
+	legacyTypeCode := item.TypeCode
+	if legacyTypes, ok := unifiedCodeToLegacyTypes[item.TypeCode]; ok && len(legacyTypes) > 0 {
+		legacyTypeCode = legacyTypes[0]
+	}
 	isDisabled := true
 	if item.IsEnabled {
 		isDisabled = false
 	}
-	if err := s.legacyDictUpsert(item.TypeCode, item.Code, item.Name, item.SortOrder, isDisabled); err != nil {
+	if err := s.legacyDictUpsert(legacyTypeCode, item.Code, item.Name, item.SortOrder, isDisabled); err != nil {
 		return err
 	}
-	item.ID = fmt.Sprintf("%s|%s|%s", item.TypeCode, item.TypeCode, item.Code)
+	item.ID = fmt.Sprintf("%s|%s|%s", legacyTypeCode, legacyTypeCode, item.Code)
 	return nil
 }
 

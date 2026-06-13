@@ -23,13 +23,19 @@ func (h *UserHandler) List(c *gin.Context) {
 		return
 	}
 
-	dtos, err := h.service.List(req)
+	result, err := h.service.List(req)
 	if err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
 
-	response.Success(c, gin.H{"items": dtos, "total": len(dtos)})
+	response.Success(c, gin.H{
+		"items":      result.Items,
+		"total":      result.Total,
+		"page":       result.Page,
+		"pageSize":   result.PageSize,
+		"totalPages": result.TotalPages,
+	})
 }
 
 func (h *UserHandler) GetByID(c *gin.Context) {
@@ -172,17 +178,29 @@ func (h *UserHandler) SetRoles(c *gin.Context) {
 		return
 	}
 	var req struct {
-		RoleIDs []string `json:"roleIds"`
+		RoleIDs   []string `json:"roleIds"`
+		RoleCodes []string `json:"roleCodes"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数")
 		return
 	}
-	if err := h.service.SetUserRoles(id, req.RoleIDs); err != nil {
+
+	roleIDs := req.RoleIDs
+	if len(roleIDs) == 0 && len(req.RoleCodes) > 0 {
+		resolved, err := h.service.ResolveRoleIDs(req.RoleCodes)
+		if err != nil {
+			response.InternalError(c, err.Error())
+			return
+		}
+		roleIDs = resolved
+	}
+
+	if err := h.service.SetUserRoles(id, roleIDs); err != nil {
 		response.InternalError(c, err.Error())
 		return
 	}
-	response.Success(c, gin.H{"userId": id, "roleIds": req.RoleIDs})
+	response.Success(c, gin.H{"userId": id, "roleIds": roleIDs})
 }
 
 func (h *UserHandler) GetMyRoles(c *gin.Context) {
@@ -199,6 +217,54 @@ func (h *UserHandler) GetMyRoles(c *gin.Context) {
 	response.Success(c, gin.H{"userId": userIDStr, "roles": roles})
 }
 
+func (h *UserHandler) GetSignature(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		response.BadRequest(c, "user id is required")
+		return
+	}
+	sig, err := h.service.GetSignature(id)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, sig)
+}
+
+func (h *UserHandler) UpdateSignature(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		response.BadRequest(c, "user id is required")
+		return
+	}
+	var req struct {
+		SignatureImage string `json:"signatureImage" binding:"required"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "signatureImage is required")
+		return
+	}
+	sig, err := h.service.UpdateSignature(id, req.SignatureImage)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, sig)
+}
+
+func (h *UserHandler) DeleteSignature(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		response.BadRequest(c, "user id is required")
+		return
+	}
+	if err := h.service.DeleteSignature(id); err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"userId": id})
+}
+
 func RegisterUserRoutes(rg *gin.RouterGroup) {
 	h := NewUserHandler()
 	users := rg.Group("/users")
@@ -212,6 +278,9 @@ func RegisterUserRoutes(rg *gin.RouterGroup) {
 		users.PUT("/:id/password", h.ResetPassword)
 		users.GET("/:id/roles", h.GetRoles)
 		users.PUT("/:id/roles", h.SetRoles)
+		users.GET("/:id/signature", h.GetSignature)
+		users.PUT("/:id/signature", h.UpdateSignature)
+		users.DELETE("/:id/signature", h.DeleteSignature)
 	}
 	rg.GET("/me/roles", h.GetMyRoles)
 }

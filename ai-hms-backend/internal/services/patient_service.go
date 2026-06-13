@@ -838,7 +838,7 @@ func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID modeltypes.Legac
 	}
 	if len(patientUpdates) > 0 {
 		patientUpdates["LastModifyTime"] = now
-		if err := tx.Table("Register_PatientInfomation").Where(`"Id" = ?`, legacyID).Updates(patientUpdates).Error; err != nil {
+		if err := tx.Table("Register_PatientInfomation").Where(`"Id" = ? AND "TenantId" = ?`, legacyID, LegacyTenantID).Updates(patientUpdates).Error; err != nil {
 			return fmt.Errorf("failed to update legacy patient basic info: %w", err)
 		}
 	}
@@ -862,7 +862,7 @@ func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID modeltypes.Legac
 			return fmt.Errorf("failed to generate hospitalization id: %w", err)
 		}
 		hospCreate["Id"] = hospID
-		hospCreate["TenantId"] = tenantID
+		hospCreate["TenantId"] = LegacyTenantID
 		hospCreate["PatientId"] = legacyID
 		hospCreate["CreatorId"] = 0
 		hospCreate["CreateTime"] = now
@@ -954,7 +954,7 @@ func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*mod
 	}
 
 	var patient models.Patient
-	if err := s.db.First(&patient, `"Id" = ?`, id).Error; err != nil {
+	if err := s.db.Where(`"TenantId" = ?`, LegacyTenantID).First(&patient, `"Id" = ?`, id).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("patient not found")
 		}
@@ -971,14 +971,32 @@ func (s *PatientService) Update(id modeltypes.LegacyID, req UpdateRequest) (*mod
 	if req.Status != nil {
 		updates["TreatmentStatus"] = *req.Status
 	}
+	if req.BedNumber != nil {
+		updates["BedNumber"] = *req.BedNumber
+	}
+	if req.Diagnosis != nil {
+		updates["Diagnosis"] = *req.Diagnosis
+	}
+	if req.RiskLevel != nil {
+		updates["RiskLevel"] = *req.RiskLevel
+	}
+	if req.DryWeight != nil {
+		updates["DryWeight"] = *req.DryWeight
+	}
+	if req.DefaultMode != nil {
+		updates["DefaultMode"] = *req.DefaultMode
+	}
+	if req.DoctorName != nil {
+		updates["DoctorName"] = *req.DoctorName
+	}
 
 	if len(updates) > 0 {
-		if err := s.db.Model(&patient).Updates(updates).Error; err != nil {
+		if err := s.db.Model(&patient).Where(`"Id" = ? AND "TenantId" = ?`, id, LegacyTenantID).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 	}
 
-	if err := s.db.
+	if err := s.db.Where(`"TenantId" = ?`, LegacyTenantID).
 		Preload("VascularAccesses").
 		First(&patient, `"Id" = ?`, id).Error; err != nil {
 		return nil, err

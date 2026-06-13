@@ -49,8 +49,9 @@ const menuItems: MenuItem[] = [
   { key: 'schedule', path: '/schedule', icon: Calendar },
   { key: 'inventory', path: '/inventory', icon: Package },
   { key: 'deviceBinding', path: '/device-binding', icon: Server },
-  { key: 'wardManagement', path: '/ward-management', icon: Building2 },
-  { key: 'bedManagement', path: '/bed-management', icon: Bed },
+  { key: 'wardManagement', path: '/ward-management', icon: Building2, hidden: true },
+  { key: 'bedManagement', path: '/bed-management', icon: Bed, hidden: true },
+  { key: 'wardBedManagement', path: '/ward-bed-management', icon: Building2 },
   { key: 'educationManagement', path: '/education-management', icon: GraduationCap, hidden: true },
   { key: 'statistics', path: '/statistics', icon: BarChart3 },
   { key: 'masterData', path: '/master-data', icon: Database },
@@ -65,7 +66,7 @@ const menuGroups: MenuGroup[] = [
   { key: 'dailyWork', itemKeys: ['dashboard', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
   { key: 'schedule', itemKeys: ['schedule'] },
-  { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardManagement', 'bedManagement'] },
+  { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardBedManagement'] },
   { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics'] },
 ]
 
@@ -80,8 +81,8 @@ const roleMenuMap: Record<string, string[]> = {
   schedule: ['schedule'],
   inventory: ['inventory'],
   device_binding: ['deviceBinding'],
-  ward_management: ['wardManagement'],
-  bed_management: ['bedManagement'],
+  ward_management: ['wardManagement', 'wardBedManagement'],
+  bed_management: ['bedManagement', 'wardBedManagement'],
   education_management: ['educationManagement'],
   statistics: ['statistics'],
   master_data: ['masterData'],
@@ -126,8 +127,9 @@ export default function Sidebar({ isOpen }: SidebarProps) {
   const visibleMenuItems = useMemo(() => {
     return menuItems.filter(item => {
       if ('hidden' in item && item.hidden) return false
-      const originalKey = Object.entries(roleMenuMap).find(([, values]) => values.includes(item.key))?.[0]
-      return originalKey ? allowedMenuKeys.includes(originalKey) : false
+      return Object.entries(roleMenuMap).some(([permKey, values]) =>
+        values.includes(item.key) && allowedMenuKeys.includes(permKey)
+      )
     })
   }, [allowedMenuKeys])
 
@@ -212,13 +214,13 @@ export default function Sidebar({ isOpen }: SidebarProps) {
                       end={item.path === '/'}
                       title={translateNav(item.key)}
                       className={({ isActive }) =>
-                        `group relative w-full flex items-center justify-center py-2 my-0.5 rounded-lg transition-all ${
-                          isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                        `flex items-center justify-center py-2.5 my-1 rounded-[10px] transition-all ${
+                          isActive ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgba(29,99,255,0.28)]' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                         }`
                       }
                     >
-                      {({ isActive }) => (
-                        <item.icon size={18} className={isActive ? 'animate-pulse-slow' : ''} />
+                      {() => (
+                        <item.icon size={17} />
                       )}
                     </NavLink>
                   </Popover>
@@ -233,7 +235,7 @@ export default function Sidebar({ isOpen }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => toggleGroup(group.key)}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold tracking-wide text-slate-300 hover:text-white transition-colors"
+                className="w-full flex items-center justify-between px-2 h-[30px] text-[14px] font-extrabold tracking-[0.2px] text-slate-300 hover:text-white transition-colors"
               >
                 <span>{translateNav(`group.${group.key}`)}</span>
                 <ChevronDown size={13} className={`text-slate-500 transition-transform ${expanded ? '' : '-rotate-90'}`} />
@@ -245,15 +247,17 @@ export default function Sidebar({ isOpen }: SidebarProps) {
                   to={item.path}
                   end={item.path === '/'}
                   className={({ isActive }) =>
-                    `group relative w-full flex items-center px-2.5 py-2 my-0.5 rounded-lg transition-all ${
-                      isActive ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    `group relative my-1 flex h-[38px] w-full items-center gap-3 rounded-[10px] px-3 text-[15px] font-bold transition-all ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgba(29,99,255,0.28)] before:absolute before:left-0 before:top-[9px] before:h-5 before:w-[3px] before:rounded before:bg-blue-200'
+                        : 'text-slate-300 hover:bg-white/5 hover:text-white'
                     }`
                   }
                 >
-                  {({ isActive }) => (
+                  {() => (
                     <>
-                      <item.icon size={18} className={`shrink-0 ${isActive ? 'animate-pulse-slow' : ''}`} />
-                      <span className="ml-2.5 font-medium text-[13px] leading-5 whitespace-nowrap">
+                      <item.icon size={17} className="shrink-0" />
+                      <span className="whitespace-nowrap leading-5">
                         {translateNav(item.key)}
                       </span>
                     </>

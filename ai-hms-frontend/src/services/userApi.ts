@@ -1,8 +1,5 @@
 /**
  * 用户管理 REST API 模块
- *
- * 从 restClient.ts 中提取的用户相关接口，使用 restRequest 统一 helper。
- * 新代码优先导入此模块，restClient.ts 中的同名方法为历史兼容 facade。
  */
 
 import { restGet, restPost, restPut, restDelete } from './restRequest'
@@ -13,18 +10,29 @@ export interface RestUser {
   id: string
   username: string
   realName: string
-  role: string
-  roles?: string[]
-  roleNames?: string[]
   gender?: string
   type?: string
   accountType?: string
   phone?: string
   email?: string
   birthdate?: string
-  syncStatus?: string
-  updatedAt?: string
   status: string
+  sort?: number
+  idNumber?: string
+  icNumber?: string
+  avatar?: string
+  isCreateAccount?: boolean
+  bindStatus?: 'bound' | 'unbound'
+  isSyncCloud?: boolean
+  syncStatus?: string
+  createdAt?: string
+  updatedAt?: string
+  role: string
+  roles?: string[]
+  roleNames?: string[]
+  hasSignature?: boolean
+  signatureImageId?: string
+  signatureImage?: string
   departmentId: number | null
 }
 
@@ -32,13 +40,17 @@ export interface CreateUserRequest {
   username: string
   password?: string
   realName: string
-  role?: string
-  roles?: string[]
   gender?: string
+  type?: string
+  sort?: number
   phone?: string
   email?: string
-  type?: string
-  accountType?: string
+  birthdate?: string
+  idNumber?: string
+  icNumber?: string
+  avatar?: string
+  signatureImage?: string
+  roles?: string[]
   departmentId?: number | null
 }
 
@@ -54,7 +66,7 @@ export interface UserListParams {
   pageSize?: number
 }
 
-interface RestUserListResponse {
+interface UserListResponse {
   items: RestUser[]
   total: number
   page: number
@@ -62,26 +74,32 @@ interface RestUserListResponse {
   totalPages: number
 }
 
+interface SignatureResponse {
+  userId: string
+  signatureId?: string
+  signatureImage?: string
+}
+
 // ============ API 方法 ============
 
 async function getList(params?: UserListParams): Promise<{ items: RestUser[]; total: number }> {
-  const data = await restGet<RestUser[] | RestUserListResponse>('/api/v1/users', params as Record<string, string | number | boolean | undefined>)
+  const data = await restGet<RestUser[] | UserListResponse>('/api/v1/users', params as Record<string, string | number | boolean | undefined>)
   if (Array.isArray(data)) {
     return { items: data, total: data.length }
   }
   return { items: data.items, total: data.total }
 }
 
-async function getById(id: string): Promise<unknown> {
-  return restGet<unknown>(`/api/v1/users/${id}`)
+async function getById(id: string): Promise<RestUser> {
+  return restGet<RestUser>(`/api/v1/users/${id}`)
 }
 
-async function create(data: CreateUserRequest): Promise<unknown> {
-  return restPost<unknown>('/api/v1/users', data)
+async function create(data: CreateUserRequest): Promise<RestUser> {
+  return restPost<RestUser>('/api/v1/users', data)
 }
 
-async function update(id: string, data: UpdateUserRequest): Promise<unknown> {
-  return restPut<unknown>(`/api/v1/users/${id}`, data)
+async function update(id: string, data: UpdateUserRequest): Promise<RestUser> {
+  return restPut<RestUser>(`/api/v1/users/${id}`, data)
 }
 
 async function updateStatus(id: string, status: string): Promise<void> {
@@ -109,6 +127,18 @@ async function getMyRoles(): Promise<{ userId: string; username: string; realNam
   return restGet<{ userId: string; username: string; realName: string; roles: string[] }>('/api/v1/me/roles')
 }
 
+async function getSignature(id: string): Promise<SignatureResponse> {
+  return restGet<SignatureResponse>(`/api/v1/users/${id}/signature`)
+}
+
+async function updateSignature(id: string, signatureImage: string): Promise<SignatureResponse> {
+  return restPut<SignatureResponse>(`/api/v1/users/${id}/signature`, { signatureImage })
+}
+
+async function deleteSignature(id: string): Promise<void> {
+  return restDelete<void>(`/api/v1/users/${id}/signature`)
+}
+
 // ============ 统一导出 ============
 
 export const userApi = {
@@ -122,4 +152,7 @@ export const userApi = {
   getRoles,
   setRoles,
   getMyRoles,
+  getSignature,
+  updateSignature,
+  deleteSignature,
 }

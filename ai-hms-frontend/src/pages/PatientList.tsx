@@ -4,7 +4,7 @@ import { restApi, convertRestPatientList } from '@/services'
 import type { Patient } from '@/types/original'
 import {
   Search, Plus, Filter, ArrowRight, User as UserIcon,
-  BedDouble, Stethoscope, Activity, RefreshCw, AlertCircle, MoreHorizontal, Copy, Trash2
+  BedDouble, Stethoscope, Activity, RefreshCw, AlertCircle, Copy, Trash2
 } from 'lucide-react'
 import { LoadingState } from '@/components'
 import { CreatePatientModal } from '@/components/patient'
@@ -15,6 +15,22 @@ import { useAuth } from '@/contexts/AuthContext'
 import { getErrorMessage } from '@/services/restClient'
 
 type FilterType = 'all' | 'today' | 'active' | 'mine' | 'in_dept' | 'transferred'
+
+const FILTER_ITEMS: Array<{ key: FilterType; label: string; shortLabel: string; icon?: React.ReactNode }> = [
+  { key: 'all', label: '全部患者', shortLabel: '全部' },
+  { key: 'in_dept', label: '在科患者', shortLabel: '在科' },
+  { key: 'today', label: '今日治疗', shortLabel: '今日' },
+  { key: 'active', label: '透析中', shortLabel: '透析中' },
+  { key: 'mine', label: '我的患者', shortLabel: '我的' },
+  { key: 'transferred', label: '转出患者', shortLabel: '转出' },
+]
+
+const STAT_CARDS = [
+  { key: 'totalCount', label: '总人数', desc: '全部建档患者', color: 'bg-blue-500' },
+  { key: 'activeCount', label: '在科活跃', desc: '当前在院/在科患者', color: 'bg-emerald-500' },
+  { key: 'outpatientCount', label: '门诊', desc: '门诊透析患者', color: 'bg-teal-500' },
+  { key: 'inpatientCount', label: '住院', desc: '住院患者', color: 'bg-indigo-500' },
+] as const
 
 export default function PatientList() {
   const navigate = useNavigate()
@@ -28,23 +44,21 @@ export default function PatientList() {
   const [currentPage, setCurrentPage] = useState(1)
   const [total, setTotal] = useState(0)
   const [createModalOpen, setCreateModalOpen] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)  // 用于强制刷新列表
+  const [refreshKey, setRefreshKey] = useState(0)
   const [patientStats, setPatientStats] = useState<{totalCount:number; activeCount:number; outpatientCount:number; inpatientCount:number} | null>(null)
   const pageSize = 50
 
-  // 搜索防抖：输入停止 300ms 后触发后端搜索
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     debounceTimer.current = setTimeout(() => {
       setDebouncedSearch(searchTerm)
-      setCurrentPage(1) // 搜索变化时重置到第一页
+      setCurrentPage(1)
     }, 300)
     return () => {
       if (debounceTimer.current) clearTimeout(debounceTimer.current)
     }
   }, [searchTerm])
 
-  // 加载字典名称映射
   const dictTypeCodes = useMemo(() => [
     DICT_TYPES.INSURANCE_TYPE,
     DICT_TYPES.PATIENT_TYPE,
@@ -52,7 +66,6 @@ export default function PatientList() {
   ], [])
   const dictNameMaps = useDictNameMaps(dictTypeCodes)
 
-  // 构建后端查询参数：将可映射的筛选条件传给后端
   const buildQueryParams = useCallback(() => {
     const params: { page: number; pageSize: number; name?: string; status?: string; onlyActive?: boolean; onlyTransferred?: boolean } = {
       page: currentPage,
@@ -73,7 +86,6 @@ export default function PatientList() {
     return params
   }, [currentPage, debouncedSearch, activeFilter])
 
-  // Load patient data
   const loadPatients = useCallback(async () => {
     setLoading(true)
     setApiError(null)
@@ -95,32 +107,27 @@ export default function PatientList() {
 
   useEffect(() => {
     loadPatients()
-  }, [loadPatients, refreshKey])  // refreshKey 变化时强制刷新
+  }, [loadPatients, refreshKey])
 
-  // 加载患者统计
   useEffect(() => {
     restApi.getPatientStats().then(setPatientStats).catch(() => {})
   }, [refreshKey])
 
-  // 稳定的 Modal 回调（符合 Vercel React 最佳实践：rerender-functional-setstate）
   const handleCloseModal = useCallback(() => {
     setCreateModalOpen(false)
   }, [])
 
   const handleCreateSuccess = useCallback(() => {
     setCreateModalOpen(false)
-    // 重置到第一页并强制刷新列表
     setCurrentPage(1)
-    setRefreshKey(k => k + 1)  // 递增 refreshKey 触发 useEffect 重新执行
+    setRefreshKey(k => k + 1)
   }, [])
 
-  // 筛选切换时重置分页
   const handleFilterChange = useCallback((filter: FilterType) => {
     setActiveFilter(filter)
     setCurrentPage(1)
   }, [])
 
-  // 本地过滤：仅处理后端无法表达的筛选条件（today/mine/transferred）
   const filteredPatients = patients.filter(p => {
     if (!p.name || !p.id) return false
 
@@ -135,7 +142,6 @@ export default function PatientList() {
         }
         return true
       case 'transferred':
-        // 转出患者需要后端支持，当前显示全部但标记
         return true
       default:
         return true
@@ -146,9 +152,8 @@ export default function PatientList() {
     navigate(`/patients/${id}`)
   }
 
-  // 删除患者
   const handleDeletePatient = async (patient: Partial<Patient>, e: React.MouseEvent) => {
-    e.stopPropagation() // 阻止事件冒泡，避免触发导航
+    e.stopPropagation()
 
     if (!patient.id) return
 
@@ -174,91 +179,95 @@ export default function PatientList() {
     })
   }
 
+  const filterCounts: Record<string, number | undefined> = {
+    all: patientStats?.totalCount,
+    in_dept: patientStats?.activeCount,
+  }
+
   return (
-    <div className="h-full flex flex-col max-w-[1600px] mx-auto">
-      {/* Header */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-h2 font-bold text-foreground">全科患者管理</h2>
-          {apiError && (
-            <p className="text-orange-500 text-meta mt-1 inline-flex items-center">
-              <AlertCircle size={12} className="mr-1" />
-              {apiError}
-            </p>
-          )}
-        </div>
-        <div className="flex items-center space-x-3">
-          <button
-            onClick={loadPatients}
-            disabled={loading}
-            className="p-2 text-gray-500 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
-          >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="搜索姓名、ID、床号..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none w-64"
-            />
+    <div className="h-full flex flex-col max-w-[1600px] mx-auto space-y-4">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.28em] text-blue-600">Patient Management</p>
+            <h1 className="mt-1 text-2xl font-black tracking-tight text-slate-900">全科患者管理</h1>
+            <p className="mt-1 text-sm text-slate-500">统一维护患者档案、透析方案、医保类型、当前状态与床位信息。</p>
+            {apiError && (
+              <p className="mt-2 inline-flex items-center gap-1 text-xs text-orange-600">
+                <AlertCircle size={12} />
+                {apiError}
+              </p>
+            )}
           </div>
-          <button
-            onClick={() => setCreateModalOpen(true)}
-            className="flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 shadow-sm transition-colors"
-          >
-            <Plus size={16} className="mr-2" /> 新增建档
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadPatients}
+              disabled={loading}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            </button>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={15} />
+              <input
+                type="text"
+                placeholder="搜索姓名、ID、床号..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-9 w-56 rounded-lg border border-slate-200 bg-slate-50 pl-9 pr-4 text-sm outline-none transition focus:border-blue-400 focus:bg-white"
+              />
+            </div>
+            <button
+              onClick={() => setCreateModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-blue-700 shadow-sm"
+            >
+              <Plus size={16} /> 新增建档
+            </button>
+          </div>
         </div>
+      </section>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        {STAT_CARDS.map((card) => (
+          <div key={card.key} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className={`h-1 w-full ${card.color}`} />
+            <div className="p-4">
+              <div className="text-2xl font-black text-slate-900">
+                {patientStats?.[card.key] ?? '--'}
+              </div>
+              <div className="mt-0.5 text-sm font-bold text-slate-500">{card.label}</div>
+              <div className="mt-0.5 text-[11px] text-slate-400">{card.desc}</div>
+            </div>
+          </div>
+        ))}
       </div>
 
-      {/* 统计卡片 */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-surface-sunken rounded-md p-3">
-          <div className="text-h2 font-semibold text-foreground">{patientStats?.totalCount ?? '--'}</div>
-          <div className="text-meta text-foreground-muted">总人数</div>
-        </div>
-        <div className="bg-surface-sunken rounded-md p-3">
-          <div className="text-h2 font-semibold text-state-treating">{patientStats?.activeCount ?? '--'}</div>
-          <div className="text-meta text-foreground-muted">在科活跃</div>
-        </div>
-        <div className="bg-surface-sunken rounded-md p-3">
-          <div className="text-h2 font-semibold text-state-finished">{patientStats?.outpatientCount ?? '--'}</div>
-          <div className="text-meta text-foreground-muted">门诊</div>
-        </div>
-        <div className="bg-surface-sunken rounded-md p-3">
-          <div className="text-h2 font-semibold text-purple-600">{patientStats?.inpatientCount ?? '--'}</div>
-          <div className="text-meta text-foreground-muted">住院</div>
-        </div>
-      </div>
-
-      {/* Main Content Area */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col flex-1 overflow-hidden">
-        {/* Filter Tabs */}
-        <div className="p-4 border-b border-gray-100 flex items-center space-x-2 overflow-x-auto">
-          <button
-            onClick={() => handleFilterChange('all')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'all' ? 'bg-gray-100 text-gray-900' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            全部患者
-          </button>
-          <button
-            onClick={() => handleFilterChange('in_dept')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'in_dept' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            在科患者
-          </button>
-          <button
-            onClick={() => handleFilterChange('transferred')}
-            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors flex items-center whitespace-nowrap ${activeFilter === 'transferred' ? 'bg-rose-50 text-rose-700' : 'text-gray-500 hover:bg-gray-50'}`}
-          >
-            转出患者
-          </button>
-
-          <div className="flex-1"></div>
-          <Badge count={activeFilter !== 'all' && activeFilter !== 'in_dept' && activeFilter !== 'transferred' ? 1 : 0} size="small">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="flex items-center gap-1 overflow-x-auto border-b border-slate-100 px-3 py-2">
+          {FILTER_ITEMS.map((item) => {
+            const active = activeFilter === item.key
+            const count = filterCounts[item.key]
+            return (
+              <button
+                key={item.key}
+                onClick={() => handleFilterChange(item.key)}
+                className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold whitespace-nowrap transition ${
+                  active
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-700'
+                }`}
+              >
+                {item.label}
+                {count !== undefined && (
+                  <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${active ? 'bg-blue-500 text-blue-100' : 'bg-slate-100 text-slate-400'}`}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+          <div className="flex-1" />
+          <Badge count={0} size="small">
             <Dropdown
               menu={{
                 items: [
@@ -267,117 +276,121 @@ export default function PatientList() {
                   { key: 'mine', label: '我的患者', icon: <Stethoscope size={14} /> },
                 ],
                 onClick: ({ key }) => handleFilterChange(key as FilterType),
-                selectedKeys: [activeFilter],
+                selectedKeys: [],
               }}
               trigger={['click']}
             >
-              <button className="text-gray-400 hover:text-gray-600 p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                <Filter size={16} />
+              <button className="flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-400 transition hover:bg-slate-50 hover:text-slate-600">
+                <Filter size={13} />
+                更多筛选
               </button>
             </Dropdown>
           </Badge>
         </div>
 
-        {/* Table Content */}
         <div className="flex-1 overflow-auto">
           {loading ? (
             <LoadingState tip="加载中..." />
           ) : (
             <table data-testid="patient-list-table" className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-gray-500 font-medium sticky top-0 z-10">
+              <thead className="sticky top-0 z-10 bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 <tr>
-                  <th className="px-6 py-3">基本信息</th>
-                  <th className="px-6 py-3">类型 / 医保</th>
-                  <th className="px-6 py-3">治疗方案 (模式/干体重)</th>
-                  <th className="px-6 py-3">当前状态</th>
-                  <th className="px-6 py-3">主治医生</th>
-                  <th className="px-6 py-3 text-right">操作</th>
+                  <th className="px-5 py-3">基本信息</th>
+                  <th className="px-5 py-3">类型 / 医保</th>
+                  <th className="px-5 py-3">治疗方案</th>
+                  <th className="px-5 py-3">当前状态</th>
+                  <th className="px-5 py-3">主治医生</th>
+                  <th className="px-5 py-3 text-right">操作</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-slate-100">
                 {filteredPatients.map((patient) => (
                   <tr key={patient.id || ''} tabIndex={0} role="row"
                     onClick={() => patient.id && handleSelectPatient(patient.id)}
                     onKeyDown={(e) => { if (e.key === 'Enter' && patient.id) handleSelectPatient(patient.id) }}
-                    className="border-l-4 border-transparent hover:border-state-treating cursor-pointer group transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-inset">
-                    <td className="px-6 py-5">
-                      <div className="flex items-center">
-                        <div className={`w-10 h-10 rounded-full bg-slate-100 text-slate-500 flex items-center justify-center mr-3 border border-slate-200 shrink-0`}>
-                          <UserIcon size={18} />
+                    className="group cursor-pointer border-l-[3px] border-l-transparent transition-colors hover:border-l-blue-500 hover:bg-blue-50/30 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
+                  >
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 overflow-hidden">
+                          {patient.avatar ? (
+                            <img src={patient.avatar} alt={patient.name} className="h-full w-full object-cover" />
+                          ) : (
+                            <UserIcon size={16} />
+                          )}
                         </div>
-                        <div>
-                          <div className="font-bold text-gray-800">{patient.name}</div>
-                          <div className="text-xs text-gray-500">{patient.gender} · {patient.age}岁 · {patient.id}</div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-bold text-slate-900 truncate">{patient.name}</div>
+                          <div className="mt-0.5 text-[11px] text-slate-400">
+                            {patient.gender} · {patient.age}岁 · {patient.id}
+                          </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
+                    <td className="px-5 py-3.5">
                       <div className="space-y-1">
-                        <span className={`inline-block px-2 py-0.5 rounded text-meta border ${patient.patientType === '住院' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
-                          }`}>
+                        <span className={`inline-block rounded-md px-2 py-0.5 text-[11px] font-medium border ${
+                          patient.patientType === '住院' ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-green-50 text-green-600 border-green-100'
+                        }`}>
                           {getNameFromMap(dictNameMaps[DICT_TYPES.PATIENT_TYPE] || new Map(), patient.patientType)}
                         </span>
-                        <div className="text-xs text-gray-600">{getNameFromMap(dictNameMaps[DICT_TYPES.INSURANCE_TYPE] || new Map(), patient.insuranceType)}</div>
+                        <div className="text-[11px] text-slate-500">{getNameFromMap(dictNameMaps[DICT_TYPES.INSURANCE_TYPE] || new Map(), patient.insuranceType)}</div>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <div className="font-bold text-gray-800">{getNameFromMap(dictNameMaps[DICT_TYPES.DIALYSIS_MODE] || new Map(), patient.defaultMode)}</div>
-                        </div>
-                        <div className="h-6 w-px bg-gray-200"></div>
-                        <div>
-                          {/* eslint-disable no-restricted-syntax -- density:strict 故意小字（单位后缀） */}
-                          <div className="font-bold text-gray-800">{Math.round(patient.dryWeight ?? 0)} <span className="text-[10px] font-normal text-gray-400">kg</span></div>
-                          {/* eslint-enable no-restricted-syntax */}
-                        </div>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-slate-800">
+                          {getNameFromMap(dictNameMaps[DICT_TYPES.DIALYSIS_MODE] || new Map(), patient.defaultMode)}
+                        </span>
+                        <span className="text-slate-300">|</span>
+                        <span className="text-sm font-semibold text-slate-600">
+                          {Math.round(patient.dryWeight ?? 0)}
+                          <span className="text-[10px] font-normal text-slate-400"> kg</span>
+                        </span>
                       </div>
                     </td>
-                    <td className="px-6 py-5">
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border ${
                           patient.status === '透析中' ? 'bg-blue-100 text-blue-700 border-blue-200' :
                           patient.status === '候诊' ? 'bg-yellow-100 text-yellow-700 border-yellow-200' :
-                          'bg-gray-100 text-gray-600 border-gray-200'
+                          'bg-slate-100 text-slate-600 border-slate-200'
                         }`}>
                           {patient.status}
                         </span>
                         {patient.bedNumber && (
-                          <span className="font-mono font-bold text-gray-600 bg-gray-100 px-2 py-0.5 rounded text-xs border border-gray-200">
+                          <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-mono font-bold text-slate-600">
                             {patient.bedNumber}
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-6 py-5">
-                      <span className="text-gray-700 font-medium">{patient.doctorName}</span>
+                    <td className="px-5 py-3.5">
+                      <span className="text-sm text-slate-500 font-medium">
+                        {patient.doctorName || '--'}
+                      </span>
                     </td>
-                    <td className="px-6 py-5 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Dropdown
-                          menu={{
-                            items: [
-                              { key: 'copyId', label: '复制 ID', icon: <Copy size={14} /> },
-                              { type: 'divider' as const },
-                              { key: 'delete', label: '删除', icon: <Trash2 size={14} />, danger: true },
-                            ],
-                            onClick: ({ key, domEvent }) => {
-                              domEvent.stopPropagation()
-                              if (key === 'delete') handleDeletePatient(patient, domEvent as unknown as React.MouseEvent)
-                              if (key === 'copyId') { navigator.clipboard.writeText(patient.id || ''); message.success('已复制') }
-                            },
-                          }}
-                          trigger={['click']}
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigator.clipboard.writeText(patient.id || ''); message.success('已复制') }}
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-blue-600"
+                          title="复制ID"
                         >
-                          <button
-                            onClick={(e) => e.stopPropagation()}
-                            className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-full transition-colors"
-                          >
-                            <MoreHorizontal size={16} />
-                          </button>
-                        </Dropdown>
-                        <button className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
-                          <ArrowRight size={18} />
+                          <Copy size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => handleDeletePatient(patient, e)}
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                          title="删除"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                        <button
+                          className="rounded-lg p-2 text-slate-400 transition hover:bg-blue-50 hover:text-blue-600"
+                          title="进入详情"
+                        >
+                          <ArrowRight size={16} />
                         </button>
                       </div>
                     </td>
@@ -385,12 +398,22 @@ export default function PatientList() {
                 ))}
                 {filteredPatients.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
-                      <div data-testid="patient-empty-state" className="flex flex-col items-center">
-                        <div className="bg-gray-50 p-4 rounded-full mb-3">
-                          <Filter size={24} className="text-gray-300" />
+                    <td colSpan={6} className="px-6 py-16 text-center text-slate-400">
+                      <div data-testid="patient-empty-state" className="flex flex-col items-center gap-2">
+                        <div className="rounded-full bg-slate-100 p-4">
+                          <Filter size={24} className="text-slate-300" />
                         </div>
-                        <p>未找到符合条件的患者</p>
+                        <p className="text-sm font-semibold text-slate-500">未找到符合条件的患者</p>
+                        <p className="text-xs text-slate-400">请调整搜索关键词或清空筛选条件</p>
+                        {debouncedSearch && (
+                          <button
+                            type="button"
+                            onClick={() => { setSearchTerm(''); setDebouncedSearch('') }}
+                            className="mt-2 rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-500 transition hover:bg-slate-50"
+                          >
+                            清空搜索
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -400,25 +423,26 @@ export default function PatientList() {
           )}
         </div>
 
-        {/* Pagination */}
         {!loading && filteredPatients.length > 0 && (
-          <div className="p-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
             <span>
               显示 {filteredPatients.length} 条，共 {total || patients.length} 条
+              <span className="ml-2 text-slate-300">|</span>
+              <span className="ml-2">50 条/页</span>
             </span>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 上一页
               </button>
-              <span className="px-3 py-1">第 {currentPage} 页</span>
+              <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">第 {currentPage} 页</span>
               <button
                 onClick={() => setCurrentPage(p => p + 1)}
                 disabled={patients.length < pageSize}
-                className="px-3 py-1 rounded border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="rounded-lg border border-slate-200 px-3 py-1.5 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 下一页
               </button>
@@ -427,7 +451,6 @@ export default function PatientList() {
         )}
       </div>
 
-      {/* 新增患者弹窗 */}
       <CreatePatientModal
         open={createModalOpen}
         onClose={handleCloseModal}

@@ -2,6 +2,41 @@ import type { MonitorDevice } from '@/types/original'
 
 export type ModalType = 'COMPREHENSIVE' | 'PRESCRIPTION' | 'ORDERS' | 'SUMMARY' | null
 
+export type BedDisplayStatus = 'empty' | 'active' | 'warning' | 'danger' | 'offline'
+export type StatusFilter = 'ALL' | 'empty' | 'active' | 'warning' | 'danger' | 'offline'
+
+export function classifyBedStatus(device: MonitorDevice): BedDisplayStatus {
+  if (device.status === 'offline') return 'offline'
+  if (device.status === 'alarm') return 'danger'
+  if (device.status === 'warning') return 'warning'
+  if (!device.patientName && !device.patientId) return 'empty'
+  return 'active'
+}
+
+export interface MonitorSummary {
+  total: number
+  active: number
+  empty: number
+  warning: number
+  danger: number
+  offline: number
+}
+
+export function computeMonitorSummary(devices: MonitorDevice[]): MonitorSummary {
+  const summary: MonitorSummary = { total: 0, active: 0, empty: 0, warning: 0, danger: 0, offline: 0 }
+  for (const d of devices) {
+    summary.total++
+    switch (classifyBedStatus(d)) {
+      case 'active': summary.active++; break
+      case 'empty': summary.empty++; break
+      case 'warning': summary.warning++; break
+      case 'danger': summary.danger++; break
+      case 'offline': summary.offline++; break
+    }
+  }
+  return summary
+}
+
 export type MiniGraphPoint = { sbp: number; hr: number }
 
 export type HistoryPoint = {

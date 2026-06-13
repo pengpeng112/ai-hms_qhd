@@ -10,6 +10,7 @@
   "deviceBinding": "设备管理",
   "wardManagement": "病区管理",
   "bedManagement": "床位管理",
+  "wardBedManagement": "病区床位管理",
   "shiftConfig": "班次配置",
   "educationManagement": "宣教管理",
   "statistics": "统计报表",

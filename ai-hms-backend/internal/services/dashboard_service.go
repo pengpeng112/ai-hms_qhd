@@ -16,11 +16,14 @@ type DashboardService struct {
 
 const (
 	legacyPatientTable      = `"Register_PatientInfomation"`
+	legacyOutcomeTable      = `"Register_OutCome"`
 	legacyPatientShiftTable = `"Schedule_PatientShift"`
 	legacyShiftTable        = `"Schedule_Shift"`
 	legacyTreatmentTable    = `"Treatment_Treatment"`
 	legacyEquipmentTable    = `"Auxiliary_EquipmentInfomation"`
+	legacyDMLogTable        = `"Device_DMLog"`
 	inventoryTable          = "inventory_items"
+	treatmentBusinessDate   = `DATE(COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime"))`
 )
 
 func NewDashboardService() *DashboardService {
@@ -43,15 +46,17 @@ type HourlyCount struct {
 
 // DashboardStats 看板统计汇总
 type DashboardStats struct {
-	ActivePatients   int64         `json:"activePatients"`
-	ShiftCount       int64         `json:"shiftCount"`
-	EquipmentCount   int64         `json:"equipmentCount"`
-	TodaySchedules   int64         `json:"todaySchedules"`
-	TodayTreatments  int64         `json:"todayTreatments"`
-	AlertItems       int64         `json:"alertItems"`
-	TreatmentsByHour []HourlyCount `json:"treatmentsByHour"`
-	QualityByHour    []HourlyCount `json:"qualityByHour"`
-	AvgDialysisHours float64       `json:"avgDialysisHours"`
+	ActivePatients      int64         `json:"activePatients"`
+	ShiftCount          int64         `json:"shiftCount"`
+	EquipmentCount      int64         `json:"equipmentCount"`
+	TodaySchedules      int64         `json:"todaySchedules"`
+	TodayTreatments     int64         `json:"todayTreatments"`
+	RunningTreatments   int64         `json:"runningTreatments"`
+	CompletedTreatments int64         `json:"completedTreatments"`
+	AlertItems          int64         `json:"alertItems"`
+	TreatmentsByHour    []HourlyCount `json:"treatmentsByHour"`
+	QualityByHour       []HourlyCount `json:"qualityByHour"`
+	AvgDialysisHours    float64       `json:"avgDialysisHours"`
 }
 
 // GetStats 获取看板统计数据
@@ -64,18 +69,40 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	today := now.Format("2006-01-02")
 
 	// 1. 今日透析次数（真实表 Treatment_Treatment）
+	// 老库未上机记录常只有 SignInTime/CreateTime，不能仅按 StartTime 统计。
 	todayTreatmentsQuery := s.db.Table(legacyTreatmentTable).
 		Where(`"TenantId" = ?`, LegacyTenantID).
-		Where(`DATE("StartTime") = ?`, today)
+		Where(treatmentBusinessDate+` = ?`, today)
 	todayTreatments, err := countRows(todayTreatmentsQuery)
 	if err != nil {
 		return nil, err
 	}
 
-	// 2. 在科患者数（真实表 Register_PatientInfomation）
-	activePatientsQuery := s.db.Table(legacyPatientTable).
+	// 设备日志治疗状态：取每台设备当天最新 UF 记录。
+	latestDMLogQuery := s.db.Table(legacyDMLogTable).
+		Select(`DISTINCT ON ("FEPId") "FEPId", "UFVolume", "UFSetVolume", "LogTime"`).
+		Where(`DATE("LogTime") = ?`, today).
+		Where(`"UFSetVolume" IS NOT NULL AND "UFSetVolume" > 0 AND "UFVolume" IS NOT NULL`).
+		Order(`"FEPId", "LogTime" DESC`)
+	runningTreatments, err := countRows(s.db.Table(`(?) AS dm`, latestDMLogQuery).
+		Where(`dm."UFVolume" > 0 AND dm."UFVolume" < dm."UFSetVolume"`))
+	if err != nil {
+		return nil, err
+	}
+	completedTreatments, err := countRows(s.db.Table(`(?) AS dm`, latestDMLogQuery).
+		Where(`dm."UFVolume" >= dm."UFSetVolume"`))
+	if err != nil {
+		return nil, err
+	}
+
+	// 2. 在科患者数（与患者列表 onlyActive 保持一致：最新转归 Type=10）
+	activeSubquery := s.db.Table(legacyOutcomeTable).
+		Select(`DISTINCT ON ("PatientId") "PatientId", "Type"`).
 		Where(`"TenantId" = ?`, LegacyTenantID).
-		Where(`COALESCE("TreatmentStatus", '') NOT IN ('出院', '死亡')`)
+		Order(`"PatientId", "OutComeTime" DESC, "CreateTime" DESC`)
+	activePatientsQuery := s.db.Table(legacyPatientTable+` AS p`).
+		Joins(`INNER JOIN (?) AS oc ON oc."PatientId" = p."Id" AND oc."Type" = '10'`, activeSubquery).
+		Where(`p."TenantId" = ?`, LegacyTenantID)
 	activePatients, err := countRows(activePatientsQuery)
 	if err != nil {
 		return nil, err
@@ -121,7 +148,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	}
 	alertItems := inventoryAlerts
 
-	// 7. 今日按小时分布（按真实上机时间 StartTime 统计）
+	// 7. 今日按小时分布（按治疗业务时间统计）
 	slots := []string{"08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"}
 	byHour := make([]HourlyCount, 0, len(slots))
 	for _, slot := range slots {
@@ -129,7 +156,8 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		hour := parsedTime.Hour()
 		byHourQuery := s.db.Table(legacyTreatmentTable).
 			Where(`"TenantId" = ?`, LegacyTenantID).
-			Where(`DATE("StartTime") = ? AND EXTRACT(hour FROM "StartTime") = ?`, today, hour)
+			Where(treatmentBusinessDate+` = ?`, today).
+			Where(`EXTRACT(hour FROM COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime")) = ?`, hour)
 		count, err := countRows(byHourQuery)
 		if err != nil {
 			return nil, err
@@ -145,7 +173,7 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		label := fmt.Sprintf("%s", dayTime.Format("01/02"))
 		qualityByDayQuery := s.db.Table(legacyTreatmentTable).
 			Where(`"TenantId" = ?`, LegacyTenantID).
-			Where(`DATE("StartTime") = ? AND "Status" = ?`, day, "60")
+			Where(treatmentBusinessDate+` = ? AND "Status" = ?`, day, "60")
 		count, err := countRows(qualityByDayQuery)
 		if err != nil {
 			return nil, err
@@ -158,19 +186,22 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 	var avgResult struct{ AvgMinutes float64 }
 	s.db.Table(legacyTreatmentTable).
 		Select(`COALESCE(AVG(COALESCE("RealDuration", 0)), 0) AS "AvgMinutes"`).
-		Where(`"TenantId" = ? AND DATE("StartTime") = ?`, LegacyTenantID, today).
+		Where(`"TenantId" = ?`, LegacyTenantID).
+		Where(treatmentBusinessDate+` = ?`, today).
 		Scan(&avgResult)
 	avgHours = avgResult.AvgMinutes / 60.0
 
 	return &DashboardStats{
-		ActivePatients:   activePatients,
-		ShiftCount:       shiftCount,
-		EquipmentCount:   equipmentCount,
-		TodaySchedules:   todaySchedules,
-		TodayTreatments:  todayTreatments,
-		AlertItems:       alertItems,
-		TreatmentsByHour: byHour,
-		QualityByHour:    qualityByDay,
-		AvgDialysisHours: avgHours,
+		ActivePatients:      activePatients,
+		ShiftCount:          shiftCount,
+		EquipmentCount:      equipmentCount,
+		TodaySchedules:      todaySchedules,
+		TodayTreatments:     todayTreatments,
+		RunningTreatments:   runningTreatments,
+		CompletedTreatments: completedTreatments,
+		AlertItems:          alertItems,
+		TreatmentsByHour:    byHour,
+		QualityByHour:       qualityByDay,
+		AvgDialysisHours:    avgHours,
 	}, nil
 }

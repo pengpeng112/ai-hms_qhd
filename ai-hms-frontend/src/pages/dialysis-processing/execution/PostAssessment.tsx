@@ -1,5 +1,5 @@
 import { message } from 'antd'
-import { Clock, Heart, Scale, Thermometer, AlertTriangle } from 'lucide-react'
+import { Clock, Heart, Scale, Thermometer, AlertTriangle, Activity } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import type { RestTreatment } from '@/services'
 import { getErrorMessage } from '@/services/restClient'
@@ -185,7 +185,7 @@ function Field({ label, value, onChange, unit, type = 'text', required, placehol
 }) {
   return (
     <label className="block min-w-0">
-      <span className={`mb-2 block text-xs font-semibold ${required ? 'text-rose-500' : 'text-slate-400'}`}>
+      <span className={`mb-1 block text-[11px] font-semibold ${required ? 'text-rose-500' : 'text-slate-400'}`}>
         {required ? `* ${label}` : label}
       </span>
       <div className="relative">
@@ -194,7 +194,7 @@ function Field({ label, value, onChange, unit, type = 'text', required, placehol
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className="h-10 w-full rounded-lg border border-slate-200 px-3 pr-14 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400"
+          className="h-9 w-full rounded-lg border border-slate-200 px-3 pr-14 text-sm font-semibold text-slate-800 outline-none transition focus:border-blue-400"
         />
         {unit ? <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">{unit}</span> : null}
       </div>
@@ -205,14 +205,14 @@ function Field({ label, value, onChange, unit, type = 'text', required, placehol
 function CoagSelect({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <div>
-      <div className="mb-2 text-xs font-semibold text-slate-500">{label}</div>
-      <div className="flex gap-2">
+      <div className="mb-1.5 text-[11px] font-semibold text-slate-500">{label}</div>
+      <div className="flex gap-1.5">
         {COAG_OPTIONS.map((opt) => (
           <button
             key={opt}
             type="button"
             onClick={() => onChange(value === opt ? '' : opt)}
-            className={`rounded-lg border px-3 py-2 text-xs font-semibold transition ${
+            className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
               value === opt
                 ? 'border-blue-400 bg-blue-50 text-blue-700 shadow-sm'
                 : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'
@@ -243,7 +243,6 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
     setForm((current) => ({ ...current, hasDialysisEvent: has, complication: has ? current.complication : '' }))
   }
 
-  // 自动计算：透后净重 = 透后体重 - 额外体重
   const calcPostNetWeight = useMemo(() => {
     const w = parseOptionalNumber(form.weight)
     const e = parseOptionalNumber(form.extraWeight) ?? 0
@@ -251,7 +250,6 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
     return (w - e).toFixed(1)
   }, [form.weight, form.extraWeight])
 
-  // 自动计算：体重丢失 = 透前体重 - 透后净重
   const calcLossWeight = useMemo(() => {
     const preWeight = treatment?.beforeSigns?.weight
     const postNet = parseOptionalNumber(calcPostNetWeight)
@@ -259,7 +257,6 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
     return (preWeight - postNet).toFixed(1)
   }, [treatment, calcPostNetWeight])
 
-  // 同步自动计算结果到form
   useEffect(() => {
     if (calcPostNetWeight && calcPostNetWeight !== form.postNetWeight) {
       setForm((current) => ({ ...current, postNetWeight: calcPostNetWeight }))
@@ -273,6 +270,12 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
   }, [calcLossWeight])
 
   const hasEvent = useMemo(() => form.hasDialysisEvent, [form.hasDialysisEvent])
+
+  const missingRequiredFields = useMemo(() => [
+    !form.heartRate.trim() ? '透后心率' : '',
+    !form.respiration.trim() ? '透后呼吸' : '',
+    !form.temperature.trim() ? '透后体温' : '',
+  ].filter(Boolean), [form.heartRate, form.respiration, form.temperature])
 
   const handleSave = async () => {
     try {
@@ -301,92 +304,101 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
   }
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {treatmentLoading ? (
-        <section className="rounded-lg border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+        <section className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
           正在加载新患者治疗数据，透后评估表单已重置为空状态。
         </section>
       ) : null}
 
-      <section className="rounded-lg border border-slate-200 bg-white px-6 py-4 shadow-sm">
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-[auto_1fr_1fr] md:items-center">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-600 text-white">
-              <Clock size={18} />
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-slate-400">治疗时间</div>
-              <div className="mt-1 text-sm font-black text-slate-900">
-                {form.startTime || '--'} ~ {form.endTime || '--'}
-              </div>
-              <div className="text-xs text-slate-400">结束时间取超滤量稳定后自动判断</div>
-            </div>
-          </div>
-          <Field label="实际超滤量" value={form.realUfVolume} onChange={(value) => updateField('realUfVolume', value)} unit="ML" placeholder="取超滤量最大值" />
-          <Field label="实际置换液量" value={form.realSubstituteVolume} onChange={(value) => updateField('realSubstituteVolume', value)} unit="ML" placeholder="取置换液量最大值" />
-        </div>
-      </section>
+      <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500">
+        <span className="text-lg font-black text-slate-900">{patient.name}</span>
+        <span>ID: {patient.id}</span>
+        <span>{patient.gender} / {patient.age}岁</span>
+        <span>费用: {patient.costType || '--'}</span>
+        <span>方案: {patient.treatmentPlan || '--'}</span>
+        <span className="rounded-md bg-slate-100 px-2 py-0.5 font-semibold">干体重 {patient.dryWeight || 0}kg</span>
+      </div>
 
-      <section className="overflow-hidden rounded-lg border border-blue-100 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <span className="h-6 w-1 rounded-full bg-blue-600" />
-            <Scale size={16} className="text-blue-600" />
-            <h3 className="text-sm font-black text-slate-800">体重与生命体征</h3>
-          </div>
-          <button type="button" className="rounded-lg bg-blue-50 px-3 py-2 text-xs font-bold text-blue-600 opacity-60 cursor-not-allowed">
-            下机图片（待对接）
-          </button>
-        </div>
-        <div className="grid grid-cols-1 gap-5 p-5 md:grid-cols-2 xl:grid-cols-4">
-          <div>
-            <Field label="透后体重" value={form.weight} onChange={(value) => updateField('weight', value)} unit="KG" placeholder="优先从体重秤获取" />
-            <p className="mt-1 text-xs text-slate-400">来自透析室体重秤</p>
-          </div>
-          <div>
-            <Field label="透后净重" value={form.postNetWeight} onChange={(value) => updateField('postNetWeight', value)} unit="KG" placeholder="自动计算" />
-            <p className="mt-1 text-xs text-slate-400">= 透后体重 - 额外体重</p>
-          </div>
-          <div>
-            <Field label="体重丢失" value={form.lossWeight} onChange={(value) => updateField('lossWeight', value)} unit="KG" placeholder="自动计算" />
-            <p className="mt-1 text-xs text-slate-400">= 透前体重 - 透后净重</p>
-          </div>
-          <Field label="额外体重" value={form.extraWeight} onChange={(value) => updateField('extraWeight', value)} unit="KG" />
-          <div className="xl:col-span-1">
-            <div className="mb-2 text-xs font-semibold text-slate-400">透后血压 (MMHG)</div>
-            <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
-              <input value={form.sbp} onChange={(e) => updateField('sbp', e.target.value)} placeholder="收缩压" className="h-10 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none" />
-              <span className="text-slate-300">/</span>
-              <input value={form.dbp} onChange={(e) => updateField('dbp', e.target.value)} placeholder="舒张压" className="h-10 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none" />
-            </div>
-            <p className="mt-1 text-xs text-slate-400">优先取独立血压仪数据</p>
-          </div>
-          <Field label="测压部位" value={form.pressurePoint} onChange={(value) => updateField('pressurePoint', value)} />
-          <div>
-            <Field label="透后心率" value={form.heartRate} onChange={(value) => updateField('heartRate', value)} placeholder="优先取血压仪数据" required />
-            <p className="mt-1 text-xs text-slate-400">优先取独立血压仪数据</p>
-          </div>
-          <Field label="透后呼吸" value={form.respiration} onChange={(value) => updateField('respiration', value)} unit="次/分" required />
-          <Field label="透后体温" value={form.temperature} onChange={(value) => updateField('temperature', value)} unit="℃" required placeholder="点击输入" />
-          <Field label="实际摄入" value={form.realIntake} onChange={(value) => updateField('realIntake', value)} unit="ML" />
-          <Field label="血压实际测量时间" type="datetime-local" value={form.endTime} onChange={(value) => updateField('endTime', value)} />
-        </div>
-      </section>
-
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-5 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="h-6 w-1 rounded-full bg-orange-500" />
-            <Heart size={16} className="text-orange-500" />
-            <h3 className="text-sm font-black text-slate-800">临床观察与记录</h3>
-          </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-bold ${hasEvent ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
-            {hasEvent ? '已记录事件' : '无透析负面事件'}
+      <section className="overflow-hidden rounded-xl border border-indigo-100 bg-white shadow-sm">
+        <div className="flex items-center gap-2 border-b border-indigo-50 bg-indigo-50/40 px-4 py-3">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-600 text-white">
+            <Clock size={14} />
           </span>
+          <h3 className="text-sm font-bold text-slate-800">下机结项摘要</h3>
+          <span className="ml-auto text-[11px] text-slate-400">结束时间取超滤量稳定后自动判断</span>
         </div>
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
-          <div className="space-y-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-3">
+          <div>
+            <div className="text-[11px] font-semibold text-slate-400">治疗时间</div>
+            <div className="mt-1 text-sm font-bold text-slate-900">
+              {form.startTime ? form.startTime.slice(5, 16).replace('T', ' ') : '--'}
+              {' ~ '}
+              {form.endTime ? form.endTime.slice(5, 16).replace('T', ' ') : '--'}
+            </div>
+          </div>
+          <Field label="实际超滤量" value={form.realUfVolume} onChange={(v) => updateField('realUfVolume', v)} unit="ML" placeholder="取超滤量最大值" />
+          <Field label="实际置换液量" value={form.realSubstituteVolume} onChange={(v) => updateField('realSubstituteVolume', v)} unit="ML" placeholder="取置换液量最大值" />
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <span className="h-5 w-1 rounded-full bg-blue-600" />
+            <Scale size={15} className="text-blue-600" />
+            <h3 className="text-sm font-bold text-slate-800">体重与容量</h3>
+            <span className="ml-auto text-[11px] text-slate-300">自动计算</span>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+            <Field label="透后体重" value={form.weight} onChange={(v) => updateField('weight', v)} unit="KG" placeholder="体重秤获取" />
+            <Field label="额外体重" value={form.extraWeight} onChange={(v) => updateField('extraWeight', v)} unit="KG" />
+            <Field label="透后净重" value={form.postNetWeight} onChange={(v) => updateField('postNetWeight', v)} unit="KG" placeholder="= 透后体重 - 额外体重" />
+            <Field label="体重丢失" value={form.lossWeight} onChange={(v) => updateField('lossWeight', v)} unit="KG" placeholder="= 透前体重 - 透后净重" />
+            <Field label="实际摄入" value={form.realIntake} onChange={(v) => updateField('realIntake', v)} unit="ML" />
+            <Field label="* 透后心率" value={form.heartRate} onChange={(v) => updateField('heartRate', v)} required placeholder="优先取血压仪" />
+          </div>
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <span className="h-5 w-1 rounded-full bg-rose-500" />
+            <Activity size={15} className="text-rose-500" />
+            <h3 className="text-sm font-bold text-slate-800">透后血压与体征</h3>
+          </div>
+          <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3">
+            <div className="col-span-2 sm:col-span-1">
+              <div className="mb-1 text-[11px] font-semibold text-slate-400">透后血压 (mmHg)</div>
+              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+                <input value={form.sbp} onChange={(e) => updateField('sbp', e.target.value)} placeholder="收缩压" className="h-9 rounded-lg border border-slate-200 px-2.5 text-sm font-semibold outline-none" />
+                <span className="text-slate-300 text-sm">/</span>
+                <input value={form.dbp} onChange={(e) => updateField('dbp', e.target.value)} placeholder="舒张压" className="h-9 rounded-lg border border-slate-200 px-2.5 text-sm font-semibold outline-none" />
+              </div>
+            </div>
+            <Field label="测压部位" value={form.pressurePoint} onChange={(v) => updateField('pressurePoint', v)} />
+            <div>
+              <Field label="* 透后呼吸" value={form.respiration} onChange={(v) => updateField('respiration', v)} unit="次/分" required />
+            </div>
+            <Field label="* 透后体温" value={form.temperature} onChange={(v) => updateField('temperature', v)} unit="℃" required placeholder="点击输入" />
+            <div>
+              <Field label="血压测量时间" value={form.endTime} onChange={(v) => updateField('endTime', v)} type="datetime-local" />
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-orange-100 bg-orange-50/40 px-4 py-3">
+            <span className="h-5 w-1 rounded-full bg-orange-500" />
+            <AlertTriangle size={14} className="text-orange-500" />
+            <h3 className="text-sm font-bold text-slate-800">临床观察与风险</h3>
+            <span className={`ml-auto rounded-full px-2.5 py-0.5 text-[11px] font-bold ${hasEvent ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+              {hasEvent ? '已记录事件' : '无负面事件'}
+            </span>
+          </div>
+          <div className="space-y-4 p-4">
+            <div className="space-y-3">
               <CoagSelect label="透析器凝血分级" value={form.dialyzerCoag} onChange={(v) => updateField('dialyzerCoag', v)} />
               <CoagSelect label="血路管A端凝血分级" value={form.lineACoag} onChange={(v) => updateField('lineACoag', v)} />
               <CoagSelect label="血路管V端凝血分级" value={form.lineVCoag} onChange={(v) => updateField('lineVCoag', v)} />
@@ -394,18 +406,18 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
             <div>
               <div className="mb-2 flex items-center gap-4">
                 <span className="text-sm font-bold text-slate-700">发生透析事件</span>
-                <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-xs font-bold">
+                <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-0.5 text-xs font-bold">
                   <button
                     type="button"
                     onClick={() => toggleDialysisEvent(false)}
-                    className={`rounded-md px-3 py-1.5 ${!form.hasDialysisEvent ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500'}`}
+                    className={`rounded-md px-3 py-1 ${!form.hasDialysisEvent ? 'bg-white text-slate-700 shadow-sm' : 'text-slate-500'}`}
                   >
                     否
                   </button>
                   <button
                     type="button"
                     onClick={() => toggleDialysisEvent(true)}
-                    className={`rounded-md px-3 py-1.5 ${form.hasDialysisEvent ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500'}`}
+                    className={`rounded-md px-3 py-1 ${form.hasDialysisEvent ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500'}`}
                   >
                     是
                   </button>
@@ -417,48 +429,64 @@ export default function PostAssessment({ patient, treatment, treatmentLoading = 
                   onChange={(e) => updateField('complication', e.target.value)}
                   rows={3}
                   placeholder="请填写透析事件说明..."
-                  className="w-full resize-none rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-slate-700 outline-none"
+                  className="w-full resize-none rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-slate-700 outline-none"
                 />
               ) : null}
             </div>
-            <label className="block">
-              <span className="mb-2 block text-sm font-bold text-slate-700">透后备注</span>
-              <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={3} placeholder="透后备注、护理观察或交接提醒..." className="w-full resize-none rounded-lg border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 outline-none" />
-            </label>
           </div>
-          <div className="space-y-4">
-            <div className="grid grid-cols-[80px_1fr] items-center gap-4">
+        </section>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-4 py-3">
+            <span className="h-5 w-1 rounded-full bg-emerald-500" />
+            <Heart size={14} className="text-emerald-500" />
+            <h3 className="text-sm font-bold text-slate-800">事件、内瘘与交接记录</h3>
+          </div>
+          <div className="space-y-4 p-4">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-bold text-slate-700">透后备注</span>
+              <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} placeholder="透后备注、护理观察或交接提醒..." className="w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 outline-none" />
+            </label>
+            <div className="grid grid-cols-[80px_1fr] items-center gap-3">
               <span className="text-sm font-bold text-slate-700">内瘘情况:</span>
-              <input value={form.symptoms} onChange={(e) => updateField('symptoms', e.target.value)} placeholder="杂音强、震颤强..." className="h-10 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none" />
+              <input value={form.symptoms} onChange={(e) => updateField('symptoms', e.target.value)} placeholder="杂音强、震颤强..." className="h-9 rounded-lg border border-slate-200 px-3 text-sm font-semibold outline-none" />
             </div>
-            <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 cursor-pointer">
+            <label className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2.5 text-sm font-semibold text-blue-700 cursor-pointer">
               <input type="checkbox" checked={form.fistulaCareGuidance} onChange={(e) => updateField('fistulaCareGuidance', e.target.checked)} />是否进行内瘘/导管护理健康指导
             </label>
-            <div className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-700 flex items-center gap-2">
-              <AlertTriangle size={14} />
+            <div className="flex items-center gap-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2.5 text-xs text-amber-700">
+              <AlertTriangle size={13} />
               其他意外情况（管路折叠、渗脱等）字段待后端结构确认
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      <div className="flex items-center justify-between bg-white px-4 py-4 shadow-sm">
-        <div className="flex items-center gap-6 text-sm text-slate-500">
+      <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white/95 px-4 py-3.5 shadow-lg backdrop-blur">
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-500">
           <span className="flex items-center gap-1">
-            <Clock size={14} />
+            <Clock size={13} />
             评估时间：{new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}
           </span>
-          <span className="inline-flex items-center gap-2">
-            <Thermometer size={16} />
+          <span className="flex items-center gap-1">
+            <Thermometer size={13} />
             下机护士：{currentUser?.name || '未登录'}
           </span>
-          <span>{patient.name}</span>
+          <span>当前患者：{patient.name}（{patient.bedId}）</span>
+          {missingRequiredFields.length > 0 ? (
+            <span className="flex items-center gap-1 font-bold text-rose-500">
+              <AlertTriangle size={13} />
+              必填缺项：{missingRequiredFields.join('、')}
+            </span>
+          ) : (
+            <span className="font-bold text-emerald-600">必填项已完成</span>
+          )}
         </div>
         <div className="flex gap-3">
-          <button type="button" onClick={() => void handleSave()} disabled={treatmentLoading || saving || submitting} className="rounded-lg border border-slate-200 px-8 py-2.5 text-sm font-semibold text-slate-500 disabled:opacity-60">
+          <button type="button" onClick={() => void handleSave()} disabled={treatmentLoading || saving || submitting} className="rounded-lg border border-slate-200 bg-white px-6 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:opacity-60">
             {saving ? '暂存中...' : '暂存报告'}
           </button>
-          <button type="button" onClick={() => void handleSubmit()} disabled={treatmentLoading || saving || submitting} className="rounded-lg bg-blue-600 px-8 py-2.5 text-sm font-bold text-white disabled:opacity-60">
+          <button type="button" onClick={() => void handleSubmit()} disabled={treatmentLoading || saving || submitting} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white shadow-sm shadow-blue-900/20 transition hover:bg-blue-700 disabled:opacity-60">
             {submitting ? '提交中...' : '提交结项'}
           </button>
         </div>

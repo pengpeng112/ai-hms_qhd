@@ -15,6 +15,7 @@ type DictType struct {
 	Name        string     `gorm:"type:varchar(100);not null" json:"name"`
 	Description string     `gorm:"type:varchar(500)" json:"description"`
 	Icon        string     `gorm:"type:varchar(50)" json:"icon"` // 图标（emoji）
+	Source      string     `gorm:"type:varchar(20);default:local" json:"source"` // 来源：legacy 老库 / local 本地
 	SortOrder   int        `gorm:"type:int;default:0" json:"sortOrder"`
 	IsEnabled   bool       `gorm:"type:bool;default:true" json:"isEnabled"`
 	CreatedAt   time.Time  `json:"createdAt"`
@@ -42,6 +43,7 @@ type DictItem struct {
 	Code        string     `gorm:"type:varchar(50);not null" json:"code"`
 	Name        string     `gorm:"type:varchar(100);not null" json:"name"`
 	Description string     `gorm:"type:varchar(500)" json:"description"`
+	Source      string     `gorm:"type:varchar(20);default:local" json:"source"` // 来源：legacy 老库 / local 本地
 	SortOrder   int        `gorm:"type:int;default:0" json:"sortOrder"`
 	IsEnabled   bool       `gorm:"type:bool;default:true" json:"isEnabled"`
 	Extra       string     `gorm:"type:varchar(500)" json:"extra,omitempty"`     // 扩展字段，如颜色标识

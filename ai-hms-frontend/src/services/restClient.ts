@@ -4,7 +4,7 @@
  */
 
 import axios from 'axios'
-import { userApi, type CreateUserRequest, type UpdateUserRequest, type UserListParams } from './userApi'
+import { userApi, type CreateUserRequest, type UpdateUserRequest, type UserListParams, type RestUser } from './userApi'
 import { roleManagementApi, type AppRoleApi, type PermissionNodeApi } from './roleManagementApi'
 
 // API 配置
@@ -77,28 +77,10 @@ export interface RestPatient {
   dryWeight?: number
   defaultMode?: string
   doctorName?: string
+  imageBase64String?: string
 }
 
 // ============ 班次 & 排班类型 ============
-
-export interface RestUser {
-  id: string
-  username: string
-  realName: string
-  role: string
-  roles?: string[]
-  roleNames?: string[]
-  gender?: string
-  type?: string
-  accountType?: string
-  phone?: string
-  email?: string
-  birthdate?: string
-  syncStatus?: string
-  updatedAt?: string
-  status: string
-  departmentId: number | null
-}
 
 export interface RestInventoryItem {
   id: string
@@ -1786,6 +1768,8 @@ class RestApiService {
     equipmentCount: number
     todaySchedules: number
     todayTreatments: number
+    runningTreatments?: number
+    completedTreatments?: number
     alertItems: number
     treatmentsByHour: { name: string; value: number }[]
     qualityByHour: { name: string; value: number }[]
@@ -1796,6 +1780,8 @@ class RestApiService {
       equipmentCount: number
       todaySchedules: number
       todayTreatments: number
+      runningTreatments?: number
+      completedTreatments?: number
       alertItems: number
       treatmentsByHour: { name: string; value: number }[]
       qualityByHour: { name: string; value: number }[]
@@ -1921,6 +1907,9 @@ return response.data.data
 
   async getPatientStats(): Promise<{ totalCount: number; activeCount: number; outpatientCount: number; inpatientCount: number }> {
     const response = await apiClient.get<ApiSuccessResponse<{ totalCount: number; activeCount: number; outpatientCount: number; inpatientCount: number }>>('/api/v1/patients/stats')
+    if (!response.data.success) {
+      throw new Error('Failed to get patient stats')
+    }
     return response.data.data
   }
 
@@ -2223,6 +2212,7 @@ export function convertRestPatientToUI(restPatient: RestPatient): Partial<Patien
     dryWeight: restPatient.dryWeight ?? 65,
     defaultMode: restPatient.defaultMode || 'HD',
     doctorName: restPatient.doctorName || '',
+    avatar: restPatient.imageBase64String || undefined,
   }
 }
 

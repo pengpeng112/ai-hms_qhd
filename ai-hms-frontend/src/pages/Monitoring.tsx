@@ -8,10 +8,12 @@ import { useModalManager } from './monitoring/hooks/useModalManager'
 import StatusGrid from './monitoring/StatusGrid'
 import AlertList from './monitoring/AlertList'
 import PatientPanel from './monitoring/PatientPanel'
-import { cachedHistoryData } from './monitoring/types'
+import { cachedHistoryData, computeMonitorSummary } from './monitoring/types'
+import type { StatusFilter } from './monitoring/types'
 import {
   Monitor, Search, X, Activity, TrendingUp,
-  ClipboardList, Trash2, Plus, ChevronDown, FileEdit, Edit3, BarChart3, Sparkles
+  ClipboardList, Trash2, Plus, ChevronDown, FileEdit, Edit3, BarChart3, Sparkles,
+  Bed, AlertTriangle, WifiOff, RefreshCw
 } from 'lucide-react'
 import {
   LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip,
@@ -808,73 +810,124 @@ export const SummaryModal = ({
 export default function Monitoring() {
   const { t } = useTranslation(['monitoring', 'common'])
   const { devices, loading, loadError } = useMonitoringData()
-  const { filteredDevices, activeZone, setActiveZone, searchTerm, setSearchTerm } = useDeviceFilter(devices)
+  const { filteredDevices, activeZone, setActiveZone, searchTerm, setSearchTerm, statusFilter, setStatusFilter } = useDeviceFilter(devices)
   const { activeModal, selectedDevice, openModal, closeModal } = useModalManager()
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'warning':
-        return 'border-state-waiting bg-state-waiting-bg/30'
-      case 'alarm':
-        return 'border-state-alert bg-state-alert-bg'
-      case 'offline':
-        return 'border-gray-200 bg-state-offline-bg opacity-60'
-      case 'unknown':
-        return 'border-slate-200 bg-slate-50'
-      default:
-        return 'border-state-finished bg-white'
-    }
-  }
+  const summary = computeMonitorSummary(devices)
+
+  const statusFilterOptions: { key: StatusFilter; label: string; icon: React.ElementType }[] = [
+    { key: 'ALL', label: '全部', icon: Monitor },
+    { key: 'active', label: '透析中', icon: Activity },
+    { key: 'empty', label: '空床', icon: Bed },
+    { key: 'warning', label: '预警', icon: AlertTriangle },
+    { key: 'danger', label: '异常', icon: AlertTriangle },
+    { key: 'offline', label: '离线', icon: WifiOff },
+  ]
 
   return (
-    <div className="h-full flex flex-col max-w-[1800px] mx-auto">
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-800 flex items-center">
-            <Monitor className="mr-3 text-blue-600" /> {t('monitoring:title')}
-          </h2>
-          <p className="text-gray-500 text-sm mt-1">
-            {t('monitoring:subtitle.treating', { count: devices.filter((d) => !!d.patientName).length })}
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder={t('monitoring:search.placeholder')}
-              className="pl-9 pr-4 py-2 rounded-lg border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-48 bg-white"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+    <div className="h-full flex flex-col max-w-[1800px] mx-auto" style={{ background: '#f5f7fb' }}>
+      {/* 顶部标题区 */}
+      <div className="px-6 pt-6 pb-4 shrink-0">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-5">
+          <div>
+            <h2 className="text-2xl font-extrabold text-slate-800 flex items-center">
+              <Monitor className="mr-3 text-blue-600" size={28} /> {t('monitoring:title')}
+            </h2>
+            <p className="text-sm text-slate-500 mt-1.5">
+              {t('monitoring:subtitle.treating', { count: summary.active })} · 总床位 {summary.total} · 空床 {summary.empty}{summary.warning > 0 ? ` · 预警 ${summary.warning}` : ''}{summary.danger > 0 ? ` · 异常 ${summary.danger}` : ''}
+            </p>
           </div>
-          <div className="flex bg-white p-1 rounded-lg border border-gray-200 shadow-sm">
-            {['ALL', 'A', 'B', 'C'].map((z) => (
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+              <input
+                type="text"
+                placeholder={t('monitoring:search.placeholder')}
+                className="pl-9 pr-4 py-2 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 outline-none w-48 bg-white shadow-sm"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+              {['ALL', 'A', 'B', 'C'].map((z) => (
+                <button
+                  key={z}
+                  onClick={() => setActiveZone(z)}
+                  className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
+                    activeZone === z ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {z === 'ALL' ? '全部区域' : `${z}区`}
+                </button>
+              ))}
+            </div>
+            <button onClick={() => window.location.reload()} className="p-2 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-blue-500 hover:border-blue-300 transition-colors shadow-sm" title="刷新">
+              <RefreshCw size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* 统计概览卡 */}
+        <div className="grid grid-cols-3 lg:grid-cols-6 gap-3 mb-5">
+          {[
+            { label: '总床位', value: summary.total, icon: Monitor, color: 'bg-blue-50 text-blue-600', borderColor: 'border-blue-100' },
+            { label: '透析中', value: summary.active, icon: Activity, color: 'bg-emerald-50 text-emerald-600', borderColor: 'border-emerald-100' },
+            { label: '空床', value: summary.empty, icon: Bed, color: 'bg-slate-50 text-slate-500', borderColor: 'border-slate-100' },
+            { label: '预警', value: summary.warning, icon: AlertTriangle, color: 'bg-amber-50 text-amber-500', borderColor: 'border-amber-100' },
+            { label: '异常', value: summary.danger, icon: AlertTriangle, color: 'bg-red-50 text-red-500', borderColor: 'border-red-100' },
+            { label: '离线', value: summary.offline, icon: WifiOff, color: 'bg-slate-50 text-slate-400', borderColor: 'border-slate-100' },
+          ].map((stat) => (
+            <div key={stat.label}
+              className={`bg-white rounded-[14px] border ${stat.borderColor} px-4 py-3 flex items-center gap-3 shadow-sm`}>
+              <div className={`w-10 h-10 rounded-[12px] ${stat.color} flex items-center justify-center shrink-0`}>
+                <stat.icon size={20} />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 font-medium">{stat.label}</p>
+                <p className="text-xl font-extrabold text-slate-800">{stat.value}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* 状态筛选条 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-slate-400 mr-1 uppercase tracking-wider">状态筛选</span>
+          <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
+            {statusFilterOptions.map((opt) => (
               <button
-                key={z}
-                onClick={() => setActiveZone(z)}
-                className={`px-3 py-1 rounded-md text-xs font-bold transition-all ${
-                  activeZone === z ? 'bg-blue-600 text-white' : 'text-gray-500 hover:bg-gray-100'
+                key={opt.key}
+                onClick={() => setStatusFilter(opt.key)}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1.5 ${
+                  statusFilter === opt.key ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:bg-slate-100'
                 }`}
               >
-                {z === 'ALL' ? t('monitoring:zone.all') : t('monitoring:zone.label', { zone: z })}
+                <opt.icon size={12} />
+                {opt.label}
               </button>
             ))}
           </div>
+          {statusFilter !== 'ALL' && (
+            <span className="text-xs text-slate-400">
+              当前筛选 {filteredDevices.length} 个床位
+            </span>
+          )}
         </div>
       </div>
 
-      <StatusGrid
-        devices={filteredDevices}
-        loading={loading}
-        loadError={loadError}
-        getStatusColor={getStatusColor}
-        onOpenModal={openModal}
-        onReload={() => window.location.reload()}
-      />
+      {/* 床位卡片区 */}
+      <div className="px-6 flex-1 flex flex-col min-h-0">
+        <StatusGrid
+          devices={filteredDevices}
+          loading={loading}
+          loadError={loadError}
+          onOpenModal={openModal}
+          onReload={() => window.location.reload()}
+        />
 
-      {/* 报警列表 */}
-      <AlertList devices={filteredDevices} onOpenModal={openModal} />
+        {/* 报警列表 */}
+        <AlertList devices={filteredDevices} onOpenModal={openModal} />
+      </div>
 
       {/* 弹窗面板 */}
       <PatientPanel

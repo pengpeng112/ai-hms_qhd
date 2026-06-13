@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
-import { DatePicker, Button, Card, Modal, Spin, Tabs, Table, Tag, Statistic, Row, Col, Select, Input, InputNumber } from 'antd'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { DatePicker, Button, Modal, Spin, Tabs, Table, Tag, Select, Input, InputNumber } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
   getBoard, generateSchedule, confirmPlan, confirmDay, cancelShift, absentShift, moveShift,
@@ -40,12 +40,10 @@ export default function SmartSchedulePage() {
   const [diffs, setDiffs] = useState<DiffItem[]>([])
   const [crrts, setCrrts] = useState<CrrtItem[]>([])
 
-  // 状态
   const [moveSrc, setMoveSrc] = useState<{ id: number; patientId: number; name: string } | null>(null)
   const [dragSrc, setDragSrc] = useState<{ id: number; patientId: number; name: string } | null>(null)
   const [confirmDate, setConfirmDate] = useState<string>(currentDate.format('YYYY-MM-DD'))
 
-  // 弹窗
   const [menuCell, setMenuCell] = useState<{ cell: CellDTO; machineId: number; date: string; shiftId: number } | null>(null)
   const [tempModal, setTempModal] = useState(false)
   const [tempForm, setTempForm] = useState({ patientId: 0, wardId: 0, date: '', mode: 'HD' })
@@ -57,13 +55,16 @@ export default function SmartSchedulePage() {
   const [outageForm, setOutageForm] = useState({ machineId: 0, machineCode: '', startDate: '', endDate: '', type: 10, reason: '' })
   const [holidayLoading, setHolidayLoading] = useState(false)
 
-  // 管理面板
   const [adminOpen, setAdminOpen] = useState(false)
   const [adminTab, setAdminTab] = useState('ward')
   const [adm, setAdm] = useState<AdminState>({ wards: [], machines: [], patients: [], profiles: [], templates: [], shifts: [] })
   const [fWard, setFWard] = useState({ name: '', zoneType: 'A', sort: 1 })
   const [fMachine, setFMachine] = useState({ wardId: 0, code: '', machineType: 'HD', positionIndex: 1 })
   const [fPat, setFPat] = useState({ patientId: 0, name: '', gender: '男', zoneTag: 'A', homeWardId: 0, weeklyCount: 3, freqPattern: 10, shiftId: 0, defaultMode: 'HD', hdfEnabled: false, hdfWeekday: 1, infectionStatus: 'unknown' })
+
+  const [density, setDensity] = useState<'compact' | 'comfortable'>('comfortable')
+  const [hideQuality, setHideQuality] = useState(false)
+  const [matrixFullscreen, setMatrixFullscreen] = useState(false)
 
   const dateStr = currentDate.format('YYYY-MM-DD')
   const today = dayjs().format('YYYY-MM-DD')
@@ -160,169 +161,217 @@ export default function SmartSchedulePage() {
     setCurrentDate(monday)
   }
 
+  const matrixTopOffset = matrixFullscreen ? 120 : hideQuality ? 180 : 244
+  const machineColWidth = density === 'compact' ? 82 : 96
+  const minShiftColWidth = density === 'compact' ? 78 : 86
+  const cellHeight = density === 'compact' ? 38 : 44
+  const patientCardHeight = density === 'compact' ? 30 : 34
+
+  const matrixWrapRef = useRef<HTMLDivElement | null>(null)
+  const [matrixWidth, setMatrixWidth] = useState(0)
+
+  useEffect(() => {
+    const el = matrixWrapRef.current
+    if (!el) { setMatrixWidth(1200); return }
+    const update = () => setMatrixWidth(el.clientWidth)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const shiftCount = Math.max(1, (board?.dates?.length || 0) * (board?.shifts?.length || 1))
+  const autoShiftColWidth = matrixWidth > 0
+    ? Math.floor((matrixWidth - machineColWidth) / shiftCount)
+    : minShiftColWidth
+  const shiftColWidth = Math.max(minShiftColWidth, autoShiftColWidth)
+  const tableMinWidth = machineColWidth + shiftColWidth * shiftCount
+
+  const txName = density === 'compact' ? 'text-[12px]' : 'text-[13px]'
+  const txMode = density === 'compact' ? 'text-[10px]' : 'text-[11px]'
+  const txStatus = 'text-[11px]'
+
   return (
-    <div className="p-4">
-      <h1 className="text-xl font-bold mb-2">排班管理</h1>
+    <div className="flex flex-col h-screen overflow-hidden bg-slate-50">
+      <div className={`shrink-0 border-b bg-white px-4 ${matrixFullscreen ? 'py-1.5' : 'py-2'}`}>
+        <div className="flex flex-wrap items-center gap-1.5 text-sm">
+          <h1 className={`font-bold text-slate-800 ${matrixFullscreen ? 'text-base' : 'text-lg'}`}>排班管理</h1>
+          {!matrixFullscreen && <span className="text-xs text-slate-400 ml-2">高密度矩阵模式：压缩顶部信息，优先留给排班表</span>}
+          <span className="flex-1" />
+          <DatePicker value={currentDate} onChange={handleDateChange} allowClear={false} size="small" />
+          <Select value={weeks} onChange={setWeeks} size="small" style={{ width: 70 }} options={[{ value: 2, label: '2周' }, { value: 4, label: '4周' }]} />
+          <span className="text-[10px] text-slate-300" title="2周/4周为生成与质量评估范围，矩阵仍展示本周">生成范围</span>
+          <Button size="small" onClick={fetchData}>刷新</Button>
+          <Button size="small" type="primary" onClick={api.generate}>生成排班</Button>
+          <Button size="small" onClick={openAdmin}>管理</Button>
+          <Button size="small" type={density === 'comfortable' ? 'primary' : 'default'} onClick={() => setDensity('comfortable')}>舒适</Button>
+          <Button size="small" type={density === 'compact' ? 'primary' : 'default'} onClick={() => setDensity('compact')}>紧凑</Button>
+          <Button size="small" type={matrixFullscreen ? 'primary' : 'default'} onClick={() => setMatrixFullscreen(v => !v)}>{matrixFullscreen ? '退出全屏' : '全屏矩阵'}</Button>
+          <Button size="small" onClick={() => setHideQuality(v => !v)}>{hideQuality ? '显示统计' : '隐藏统计'}</Button>
+        </div>
 
-      {/* 工具栏 */}
-      <div className="flex flex-wrap gap-2 mb-2 items-center text-sm">
-        <DatePicker value={currentDate} onChange={handleDateChange} allowClear={false} />
-        <Select value={weeks} onChange={setWeeks} style={{ width: 80 }} options={[{ value: 2, label: '2 周' }, { value: 4, label: '4 周' }]} />
-        <Button onClick={fetchData}>刷新</Button>
-        <Button type="primary" onClick={api.generate}>生成排班</Button>
-        <Button onClick={openAdmin}>管理</Button>
+        <div className={`flex flex-wrap items-center gap-1.5 text-xs ${matrixFullscreen ? 'hidden' : 'mt-1.5'}`}>
+          <span className="text-slate-400">确认</span>
+          <Button size="small" onClick={api.confirmPlan}>整盘</Button>
+          <Select value={confirmDate} onChange={setConfirmDate} size="small" style={{ width: 118 }} options={board?.dates?.map((d, i) => ({ value: d, label: `${WD[i]} ${d.slice(5)}` })) || []} />
+          <Button size="small" onClick={() => api.confirmDay(2)}>次日</Button>
+          <Button size="small" onClick={() => api.confirmDay(3)}>当日</Button>
+          <span className="text-slate-300 mx-0.5">|</span>
+          <Button size="small" danger onClick={api.submitHoliday} loading={holidayLoading}>假日</Button>
+          <Button size="small" onClick={() => { setPlanForm({ patientId: 0, changeType: 'FREQ', newValue: '', effectiveDate: board?.dates?.[0] || dateStr }); setPlanModal(true) }}>方案变更</Button>
+          <Button size="small" danger onClick={() => { const cw = board?.wards?.[0]; setTempForm({ patientId: 0, wardId: cw?.id || 0, date: board?.dates?.[0] || dateStr, mode: 'HD' }); setTempModal(true) }}>+临时</Button>
+          <Button size="small" style={{ background: '#a21caf', borderColor: '#a21caf', color: '#fff' }} onClick={() => { const cw = (board?.wards || []).find(w => w.zoneType === 'C'); setCrrtForm({ patientId: 0, wardId: cw?.id || 0, startAt: `${board?.dates?.[0] || dateStr} 09:00`, endAt: '' }); setCrrtModal(true) }}>+CRRT</Button>
+        </div>
+
+        {msg && (
+          <div className={`mt-1 text-xs font-medium px-2 py-0.5 rounded ${msgErr ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>
+            {msg}
+            {moveSrc && <Button size="small" danger onClick={() => { setMoveSrc(null); notify('已取消移动') }} className="ml-2">取消移动</Button>}
+          </div>
+        )}
       </div>
 
-      {/* 确认 + 扰动工具栏 */}
-      <div className="flex flex-wrap gap-2 mb-2 items-center text-sm bg-gray-50 border rounded px-2 py-1.5">
-        <span className="text-gray-400 text-xs">确认</span>
-        <Button size="small" onClick={api.confirmPlan}>整盘确认</Button>
-        <Select value={confirmDate} onChange={setConfirmDate} size="small" style={{ width: 130 }} options={board?.dates?.map((d, i) => ({ value: d, label: `${WD[i]} ${d.slice(5)}` })) || []} />
-        <Button size="small" onClick={() => api.confirmDay(2)}>次日确认</Button>
-        <Button size="small" onClick={() => api.confirmDay(3)}>当日确认</Button>
-        <span className="text-gray-300">|</span>
-        <span className="text-gray-400 text-xs">扰动</span>
-        <Button size="small" danger onClick={api.submitHoliday} loading={holidayLoading}>设为假日</Button>
-        <Button size="small" onClick={() => { setPlanForm({ patientId: 0, changeType: 'FREQ', newValue: '', effectiveDate: board?.dates?.[0] || dateStr }); setPlanModal(true) }}>方案变更</Button>
-        <Button size="small" danger onClick={() => { const cw = board?.wards?.[0]; setTempForm({ patientId: 0, wardId: cw?.id || 0, date: board?.dates?.[0] || dateStr, mode: 'HD' }); setTempModal(true) }}>+临时透析</Button>
-        <Button size="small" style={{ background: '#a21caf', borderColor: '#a21caf', color: '#fff' }} onClick={() => { const cw = (board?.wards || []).find(w => w.zoneType === 'C'); setCrrtForm({ patientId: 0, wardId: cw?.id || 0, startAt: `${board?.dates?.[0] || dateStr} 09:00`, endAt: '' }); setCrrtModal(true) }}>+CRRT</Button>
+      <div className={`shrink-0 flex flex-wrap items-center gap-2 border-b bg-white px-4 ${matrixFullscreen ? 'hidden' : 'py-1.5'} ${hideQuality ? 'hidden' : ''}`}>
+        {quality && (
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-slate-600">
+            <span className="font-semibold text-slate-400">质量</span>
+            <span>达标率 <b className="text-slate-800">{Math.round(quality.onTargetRate * 100)}%</b></span>
+            <span>利用率 <b className="text-slate-800">{Math.round(quality.utilization * 100)}%</b></span>
+            <span>稳定率 <b className="text-slate-800">{Math.round(quality.stabilityRate * 100)}%</b></span>
+            <span>综合 <b className="text-slate-800">{quality.score}/100</b></span>
+            <span>冲突 <b className="text-red-600">{quality.openConflicts}</b></span>
+            <span>患者 <b className="text-slate-800">{quality.patientsOnTarget}/{quality.patientsTotal}</b></span>
+          </div>
+        )}
+        <span className="flex-1" />
+        <div className="flex items-center gap-1.5 text-xs">
+          <span className="text-slate-400">图例</span>
+          {['HD', 'HDF', 'CRRT'].map(m => <span key={m} className="px-1.5 py-0.5 rounded border bg-slate-50 text-slate-600">{m}</span>)}
+          <span className="text-slate-400">✓=确认级别 · 虚线=草稿 · 绿光=透析中</span>
+        </div>
       </div>
 
-      {/* 消息和操作状态 */}
-      <div className="flex flex-wrap gap-2 mb-2 text-xs items-center">
-        {['HD', 'HDF', 'CRRT'].map(m => <span key={m} className="px-2 py-0.5 rounded border bg-gray-50">{m}</span>)}
-        <span className="text-gray-400">✓=确认级别</span>
-        {msg && <span className={`font-medium px-2 py-0.5 rounded ${msgErr ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>{msg}</span>}
-        {moveSrc && <Button size="small" danger onClick={() => { setMoveSrc(null); notify('已取消移动') }}>取消移动{moveSrc.name}</Button>}
-      </div>
-
-      {/* CRRT 面板 */}
-      {crrts.length > 0 && (
-        <div className="mb-2 border rounded bg-purple-50 p-2 text-xs">
-          <div className="font-semibold mb-1 text-purple-800">CRRT 占用({crrts.length})</div>
-          {crrts.map(x => (
-            <div key={x.id} className="flex gap-3 py-0.5 border-b border-purple-100">
-              <span className="font-medium">{x.patientName || `#${x.patientId}`}</span>
-              <span className="font-mono text-gray-600">{x.machineCode}</span>
-              <span className="text-gray-500">{String(x.startAt).slice(0, 16).replace('T', ' ')} ~ {x.endAt ? String(x.endAt).slice(0, 16).replace('T', ' ') : '进行中'}</span>
-            </div>
+      {crrts.length > 0 && !matrixFullscreen && (
+        <div className="shrink-0 mx-4 mt-1 border rounded bg-purple-50 px-2 py-1 text-xs flex items-center gap-3 flex-wrap">
+          <span className="font-semibold text-purple-800">CRRT({crrts.length})</span>
+          {crrts.slice(0, 4).map(x => (
+            <span key={x.id} className="text-slate-600">
+              <b>{x.patientName || `#${x.patientId}`}</b> {x.machineCode} {String(x.startAt).slice(0, 16).replace('T', ' ')}~{x.endAt ? String(x.endAt).slice(0, 16).replace('T', ' ') : '进行中'}
+            </span>
           ))}
         </div>
       )}
 
-      <Spin spinning={loading}>
-        {/* 质量评分 */}
-        {quality && (
-          <Row gutter={8} className="mb-3">
-            <Col span={4}><Card size="small"><Statistic title="达标率" value={Math.round(quality.onTargetRate * 100)} suffix="%" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="利用率" value={Math.round(quality.utilization * 100)} suffix="%" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="稳定率" value={Math.round(quality.stabilityRate * 100)} suffix="%" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="综合分" value={quality.score} suffix="/100" /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="冲突" value={quality.openConflicts} /></Card></Col>
-            <Col span={4}><Card size="small"><Statistic title="患者" value={`${quality.patientsOnTarget}/${quality.patientsTotal}`} /></Card></Col>
-          </Row>
-        )}
-
-        <Tabs items={[
-          {
-            key: 'board', label: '周排班矩阵',
-            children: board ? (
-              <div className="overflow-auto border rounded bg-white" style={{ maxHeight: '70vh' }}>
-                <table className="border-collapse text-xs">
-                  <thead className="sticky top-0 z-20 bg-gray-100">
-                    <tr>
-                      <th className="sticky left-0 z-30 bg-gray-100 border px-2" rowSpan={2}>病区 / 机器</th>
-                      {board.dates?.map((d, i) => {
-                        const isToday = d === today
-                        return <th key={d} colSpan={board.shifts?.length || 1} className={`border px-1 ${isToday ? 'bg-amber-100' : ''}`}>{WD[i]}<div className="font-normal text-gray-400">{d.slice(5)}</div></th>
-                      })}
-                    </tr>
-                    <tr>
-                      {board.dates?.flatMap(d => (board.shifts || []).map(s => {
-                        const isToday = d === today
-                        return <th key={d + s.id} className={`border px-1 font-normal text-gray-500 ${isToday ? 'bg-amber-50' : ''}`}>{s.name.replace('班', '')}</th>
-                      }))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {board.wards?.map(w => (
-                      <><tr key={w.id}><td colSpan={1 + (board.shifts?.length || 1) * (board.dates?.length || 1)} className="bg-gray-50 border px-2 py-1 font-semibold">{w.name} <span className="text-gray-400 font-normal">({(w.machines || []).length}台)</span></td></tr>
-                        {(w.machines || []).map((m: MachineDTO) => (
-                          <tr key={m.id} className="hover:bg-sky-50">
-                            <td className="sticky left-0 z-10 bg-white border px-2 font-medium cursor-pointer hover:bg-rose-50 whitespace-nowrap" onClick={() => { setOutageForm({ machineId: m.id, machineCode: m.code, startDate: board.dates?.[0] || dateStr, endDate: board.dates?.[0] || dateStr, type: 10, reason: '' }); setOutageModal(true) }} title="点击登记停机">{m.code}<span className="ml-1 text-gray-400">{m.machineType}</span></td>
-                            {board.dates?.flatMap(d => (board.shifts || []).map(s => {
-                              const cell = m.cells?.[`${d}|${s.id}`] as CellDTO | undefined
-                              const isToday = d === today
-                              const isPast = d < today
-                              const colTint = isToday ? 'bg-amber-50' : isPast ? 'bg-gray-50' : ''
-                              const dropHL = (moveSrc || dragSrc) && !cell
-                              return (
-                                <td key={d + s.id}
-                                  onClick={() => onCellClick(m.id, d, s.id, cell || null)}
-                                  onDragOver={e => { if (!cell) e.preventDefault() }}
-                                  onDrop={() => onDrop(m.id, d, s.id, cell || null)}
-                                  className={`border p-0.5 min-w-[90px] h-[50px] align-middle cursor-pointer ${colTint} ${dropHL ? 'bg-green-50' : ''}`}>
-                                  {cell ? (
-                                    <div draggable onDragStart={() => setDragSrc({ id: cell.id, patientId: cell.patientId, name: cell.patientName })} onDragEnd={() => setDragSrc(null)}
-                                       className={`rounded-md border bg-white px-1 py-0.5 leading-tight ${cell.status === 10 ? 'border-dashed' : ''} ${cell.status === 50 ? 'shadow-[0_0_9px_1px_rgba(16,185,129,.55)]' : ''} ${cell.status === 60 ? 'opacity-75 border-gray-300' : ''}`}
-                                      style={{ borderColor: modeColor(cell.dialysisMode) }}>
-                                      <div className="flex items-center gap-1">
-                                        <span className="font-semibold text-xs text-gray-800 truncate">{cell.patientName || `#${cell.patientId}`}</span>
-                                        {cell.confirms > 0 && <span className="text-emerald-600 text-[9px]">{'●'.repeat(cell.confirms)}</span>}
+      <Spin spinning={loading} wrapperClassName="flex-1 overflow-hidden">
+        <Tabs
+          className="px-4 pt-1"
+          size="small"
+          tabBarExtraContent={
+            matrixFullscreen ? null : undefined
+          }
+          items={[
+            {
+              key: 'board', label: '周排班矩阵',
+              children: board ? (
+                <div ref={matrixWrapRef} className="overflow-auto rounded border bg-white" style={{ height: `calc(100vh - ${matrixTopOffset}px)` }}>
+                  <table
+                    className={density === 'compact' ? 'border-collapse text-[12px]' : 'border-collapse text-[13px]'}
+                    style={{ minWidth: Math.max(tableMinWidth, matrixWidth || 0), width: Math.max(tableMinWidth, matrixWidth || 0) }}
+                  >
+                    <thead className="sticky top-0 z-20 bg-gray-100">
+                      <tr>
+                        <th className="sticky left-0 z-30 bg-gray-100 border px-2" rowSpan={2} style={{ width: machineColWidth, minWidth: machineColWidth }}>病区 / 机器</th>
+                        {board.dates?.map((d, i) => {
+                          const isToday = d === today
+                          return <th key={d} colSpan={board.shifts?.length || 1} className={`border px-1 text-[13px] ${isToday ? 'bg-amber-100' : ''}`} style={{ width: shiftColWidth * (board.shifts?.length || 1), minWidth: shiftColWidth * (board.shifts?.length || 1) }}>{WD[i]}<div className="font-normal text-gray-400">{d.slice(5)}</div></th>
+                        })}
+                      </tr>
+                      <tr>
+                        {board.dates?.flatMap(d => (board.shifts || []).map(s => {
+                          const isToday = d === today
+                          return <th key={d + s.id} className={`border px-1 font-normal text-gray-500 text-[12px] ${isToday ? 'bg-amber-50' : ''}`} style={{ width: shiftColWidth, minWidth: shiftColWidth }}>{s.name.replace('班', '')}</th>
+                        }))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {board.wards?.map(w => (
+                        <><tr key={w.id}><td colSpan={1 + (board.shifts?.length || 1) * (board.dates?.length || 1)} className="bg-gray-100 border px-2 py-0.5 text-[12px] font-bold">{w.name} <span className="text-gray-400 font-normal">({(w.machines || []).length}台)</span></td></tr>
+                          {(w.machines || []).map((m: MachineDTO) => (
+                            <tr key={m.id} className="hover:bg-sky-50">
+                              <td className="sticky left-0 z-10 bg-white border px-2 font-bold cursor-pointer hover:bg-rose-50 whitespace-nowrap text-[13px]" style={{ width: machineColWidth, minWidth: machineColWidth }} onClick={() => { setOutageForm({ machineId: m.id, machineCode: m.code, startDate: board.dates?.[0] || dateStr, endDate: board.dates?.[0] || dateStr, type: 10, reason: '' }); setOutageModal(true) }} title="点击登记停机"><span className="text-slate-700">{m.code}</span><span className="ml-1 text-[11px] font-semibold text-slate-400">{m.machineType}</span></td>
+                              {board.dates?.flatMap(d => (board.shifts || []).map(s => {
+                                const cell = m.cells?.[`${d}|${s.id}`] as CellDTO | undefined
+                                const isToday = d === today
+                                const isPast = d < today
+                                const colTint = isToday ? 'bg-amber-50' : isPast ? 'bg-gray-50' : ''
+                                const dropHL = (moveSrc || dragSrc) && !cell
+                                return (
+                                  <td key={d + s.id}
+                                    onClick={() => onCellClick(m.id, d, s.id, cell || null)}
+                                    onDragOver={e => { if (!cell) e.preventDefault() }}
+                                    onDrop={() => onDrop(m.id, d, s.id, cell || null)}
+                                    className={`border align-middle cursor-pointer ${colTint} ${dropHL ? 'bg-green-50' : ''}`}
+                                    style={{ width: shiftColWidth, minWidth: shiftColWidth, height: cellHeight, padding: density === 'compact' ? 2 : 3 }}>
+                                    {cell ? (
+                                      <div draggable onDragStart={() => setDragSrc({ id: cell.id, patientId: cell.patientId, name: cell.patientName })} onDragEnd={() => setDragSrc(null)}
+                                        className={`rounded border bg-white leading-tight ${density === 'compact' ? 'px-1 py-[1px]' : 'px-1.5 py-1'} ${cell.status === 10 ? 'border-dashed' : ''} ${cell.status === 50 ? 'shadow-[0_0_9px_1px_rgba(16,185,129,.55)]' : ''} ${cell.status === 60 ? 'opacity-75 border-gray-300' : ''}`}
+                                        style={{ borderColor: modeColor(cell.dialysisMode), minHeight: patientCardHeight }}>
+                                        <div className="flex items-center gap-0.5">
+                                          <span className={`truncate ${txName} font-bold text-slate-900`}>{cell.patientName || `#${cell.patientId}`}</span>
+                                          {cell.confirms > 0 && <span className="text-emerald-600 text-[10px]">{'●'.repeat(cell.confirms)}</span>}
+                                        </div>
+                                        <div className="flex items-center justify-between gap-0.5">
+                                          <span className={`rounded font-black ${txMode} ${density === 'compact' ? 'px-1' : 'px-1.5'}`} style={{ color: modeColor(cell.dialysisMode), background: modeColor(cell.dialysisMode) + '1a' }}>{cell.dialysisMode}</span>
+                                          {cell.sourceType === 20 ? <span className={`${txStatus} font-black text-amber-600`}>临</span> : cell.status === 80 ? <span className={`${txStatus} font-black text-rose-500`}>缺</span> : cell.status === 50 ? <span className={`${txStatus} font-black text-emerald-600`}>透</span> : cell.status === 60 ? <span className={`${txStatus} font-black text-slate-400`}>完</span> : null}
+                                        </div>
                                       </div>
-                                      <div className="flex items-center justify-between gap-0.5">
-                                        <span className="text-[9px] font-bold px-1 rounded" style={{ color: modeColor(cell.dialysisMode), background: modeColor(cell.dialysisMode) + '1a' }}>{cell.dialysisMode}</span>
-                                        {cell.sourceType === 20 ? <span className="text-[9px] text-amber-600 font-bold">临</span> : cell.status === 80 ? <span className="text-[9px] text-rose-500 font-bold">缺</span> : cell.status === 50 ? <span className="text-[9px] text-emerald-600 font-bold">透</span> : cell.status === 60 ? <span className="text-[9px] text-slate-400 font-bold">完</span> : null}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center justify-center h-full opacity-10 text-gray-400 text-xs">空</div>
-                                  )}
-                                </td>
-                              )
-                            }))}
-                          </tr>
-                        ))}
-                      </>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : <div className="text-gray-400 text-center py-8">暂无排班数据，请先点击"写演示数据"再"生成排班"</div>,
-          },
-          {
-            key: 'conflicts', label: `冲突(${conflicts.length})`,
-            children: conflicts.length > 0 ? (
-              <div className="max-h-96 overflow-auto">
-                <Table dataSource={conflicts} rowKey="id" size="small" pagination={false}
-                  columns={[
-                    { title: '类型', dataIndex: 'conflictType', render: (v: string) => <Tag>{v}</Tag> },
-                    { title: '严重度', dataIndex: 'severity', render: (v: number) => <Tag color={v >= 20 ? 'red' : 'orange'}>{v >= 20 ? '报警' : '提示'}</Tag> },
-                    { title: '详情', dataIndex: 'detail' },
-                    { title: '操作', render: (_: unknown, r: ConflictItem) => <span><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); fetchData() }}>接受</Button><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); fetchData() }}>忽略</Button></span> },
-                  ]} />
-              </div>
-            ) : <div className="text-gray-400 text-center py-4">无待处理冲突</div>,
-          },
-          {
-            key: 'diffs', label: `差异(${diffs.length})`,
-            children: diffs.length > 0 ? (
-              <div className="max-h-96 overflow-auto">
-                {diffs.map(d => (
-                  <div key={d.patientId} className="flex items-center gap-3 py-1 border-b border-rose-100 text-xs">
-                    <span className="font-medium">{d.patientName || `#${d.patientId}`}</span>
-                    <span className="text-gray-500">应排{d.expected}·已排{d.scheduled}</span>
-                    <span className={d.diff > 0 ? 'text-rose-700 font-semibold' : 'text-sky-700'}>{d.diff > 0 ? `少排${d.diff}次` : `多排${-d.diff}次`}</span>
-                    {d.diff > 0 && <Button size="small" type="primary" danger onClick={() => api.doMakeup(d.patientId)}>一键补排</Button>}
-                  </div>
-                ))}
-              </div>
-            ) : <div className="text-gray-400 text-center py-4">无差异</div>,
-          },
-        ]} />
+                                    ) : (
+                                      <div className={dropHL ? 'h-full rounded border border-dashed border-emerald-300 bg-emerald-50' : 'h-full rounded bg-slate-50/60'} />
+                                    )}
+                                  </td>
+                                )
+                              }))}
+                            </tr>
+                          ))}
+                        </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : <div className="text-gray-400 text-center py-8">暂无排班数据，请先点击"写演示数据"再"生成排班"</div>,
+            },
+            {
+              key: 'conflicts', label: `冲突(${conflicts.length})`,
+              children: conflicts.length > 0 ? (
+                <div className="max-h-96 overflow-auto">
+                  <Table dataSource={conflicts} rowKey="id" size="small" pagination={false}
+                    columns={[
+                      { title: '类型', dataIndex: 'conflictType', render: (v: string) => <Tag>{v}</Tag> },
+                      { title: '严重度', dataIndex: 'severity', render: (v: number) => <Tag color={v >= 20 ? 'red' : 'orange'}>{v >= 20 ? '报警' : '提示'}</Tag> },
+                      { title: '详情', dataIndex: 'detail' },
+                      { title: '操作', render: (_: unknown, r: ConflictItem) => <span><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'accept'); fetchData() }}>接受</Button><Button size="small" type="link" onClick={async () => { await resolveConflict(r.id, 'ignore'); fetchData() }}>忽略</Button></span> },
+                    ]} />
+                </div>
+              ) : <div className="text-gray-400 text-center py-4">无待处理冲突</div>,
+            },
+            {
+              key: 'diffs', label: `差异(${diffs.length})`,
+              children: diffs.length > 0 ? (
+                <div className="max-h-96 overflow-auto">
+                  {diffs.map(d => (
+                    <div key={d.patientId} className="flex items-center gap-3 py-1 border-b border-rose-100 text-xs">
+                      <span className="font-medium">{d.patientName || `#${d.patientId}`}</span>
+                      <span className="text-gray-500">应排{d.expected}·已排{d.scheduled}</span>
+                      <span className={d.diff > 0 ? 'text-rose-700 font-semibold' : 'text-sky-700'}>{d.diff > 0 ? `少排${d.diff}次` : `多排${-d.diff}次`}</span>
+                      {d.diff > 0 && <Button size="small" type="primary" danger onClick={() => api.doMakeup(d.patientId)}>一键补排</Button>}
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="text-gray-400 text-center py-4">无差异</div>,
+            },
+          ]} />
       </Spin>
 
-      {/* 格子菜单 */}
       <Modal open={!!menuCell} onCancel={() => setMenuCell(null)} footer={null} title="排班操作" width={280}>
         {menuCell && (
           <div className="flex flex-col gap-2">
@@ -336,7 +385,6 @@ export default function SmartSchedulePage() {
         )}
       </Modal>
 
-      {/* 临时透析弹窗 */}
       <Modal open={tempModal} onCancel={() => setTempModal(false)} onOk={api.submitTemp} title="+ 临时透析(急诊加台)">
         <div className="flex flex-col gap-2">
           <label>病人ID <InputNumber value={tempForm.patientId} onChange={v => setTempForm({ ...tempForm, patientId: v || 0 })} className="w-full" /></label>
@@ -346,7 +394,6 @@ export default function SmartSchedulePage() {
         </div>
       </Modal>
 
-      {/* CRRT弹窗 */}
       <Modal open={crrtModal} onCancel={() => setCrrtModal(false)} onOk={api.submitCrrt} title="+ CRRT(C区)">
         <div className="flex flex-col gap-2">
           <label>病人ID <InputNumber value={crrtForm.patientId} onChange={v => setCrrtForm({ ...crrtForm, patientId: v || 0 })} className="w-full" /></label>
@@ -356,7 +403,6 @@ export default function SmartSchedulePage() {
         </div>
       </Modal>
 
-      {/* 方案变更弹窗 */}
       <Modal open={planModal} onCancel={() => setPlanModal(false)} onOk={api.submitPlan} title="方案变更">
         <div className="flex flex-col gap-2">
           <label>病人ID <InputNumber value={planForm.patientId} onChange={v => setPlanForm({ ...planForm, patientId: v || 0 })} className="w-full" /></label>
@@ -367,7 +413,6 @@ export default function SmartSchedulePage() {
         <div className="text-xs text-gray-400 mt-2">生效日后未确认排班将取消待重排,已确认报警人工</div>
       </Modal>
 
-      {/* 停机弹窗 */}
       <Modal open={outageModal} onCancel={() => setOutageModal(false)} onOk={api.submitOutage} title={`停机: ${outageForm.machineCode}`}>
         <div className="flex flex-col gap-2">
           <label>起 <Input value={outageForm.startDate} onChange={e => setOutageForm({ ...outageForm, startDate: e.target.value })} /></label>
@@ -377,7 +422,6 @@ export default function SmartSchedulePage() {
         </div>
       </Modal>
 
-      {/* 管理面板 */}
       <Modal open={adminOpen} onCancel={() => setAdminOpen(false)} footer={null} title="资源与病人维护" width={900}>
         <Tabs activeKey={adminTab} onChange={setAdminTab} items={[
           {

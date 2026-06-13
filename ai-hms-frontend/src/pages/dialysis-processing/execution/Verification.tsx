@@ -1,5 +1,5 @@
 import { message } from 'antd'
-import { CheckCircle2, ClipboardCheck, ShieldCheck, UserCheck } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ClipboardCheck, ShieldCheck, UserCheck } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { restApi } from '@/services'
 import type { RestTreatment } from '@/services'
@@ -114,11 +114,11 @@ function StaffSelect({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-2 block text-xs font-semibold text-slate-400">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-semibold text-slate-400">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none"
+        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none"
       >
         <option value="">请选择</option>
         {options.map((item) => (
@@ -134,12 +134,12 @@ function StaffSelect({
 function DateTimeInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-2 block text-xs font-semibold text-slate-400">{label}</span>
+      <span className="mb-1.5 block text-[11px] font-semibold text-slate-400">{label}</span>
       <input
         type="datetime-local"
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none"
+        className="h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-800 outline-none"
       />
     </label>
   )
@@ -149,27 +149,31 @@ function CheckResultRow({
   label,
   value,
   onChange,
+  tone = 'blue',
 }: {
   label: string
   value: CheckItemState
   onChange: (value: CheckItemState) => void
+  tone?: 'blue' | 'orange'
 }) {
+  const normalBg = tone === 'orange' ? 'bg-orange-600' : 'bg-blue-600'
+  const abnormalBg = 'bg-rose-500'
   return (
-    <div className="rounded-lg border border-slate-100 bg-white p-4">
+    <div className="rounded-lg border border-slate-100 bg-white px-3 py-2.5">
       <div className="flex items-center justify-between gap-3">
         <div className="text-sm font-bold text-slate-800">{label}</div>
-        <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-xs font-bold">
+        <div className="grid grid-cols-2 rounded-lg bg-slate-100 p-0.5 text-xs font-bold">
           <button
             type="button"
             onClick={() => onChange({ result: true, mistake: '' })}
-            className={`rounded-md px-3 py-1.5 ${value.result ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500'}`}
+            className={`rounded-md px-2.5 py-1 ${value.result ? `${normalBg} text-white shadow-sm` : 'text-slate-500'}`}
           >
             正常
           </button>
           <button
             type="button"
             onClick={() => onChange({ ...value, result: false })}
-            className={`rounded-md px-3 py-1.5 ${!value.result ? 'bg-rose-500 text-white shadow-sm' : 'text-slate-500'}`}
+            className={`rounded-md px-2.5 py-1 ${!value.result ? `${abnormalBg} text-white shadow-sm` : 'text-slate-500'}`}
           >
             异常
           </button>
@@ -181,7 +185,7 @@ function CheckResultRow({
           onChange={(e) => onChange({ ...value, mistake: e.target.value })}
           rows={2}
           placeholder="请输入异常原因"
-          className="mt-3 w-full resize-none rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm outline-none"
+          className="mt-2 w-full resize-none rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm outline-none"
         />
       ) : null}
     </div>
@@ -190,9 +194,22 @@ function CheckResultRow({
 
 function RoleCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 text-center shadow-sm">
-      <div className="text-xs font-semibold text-slate-400">{label}</div>
-      <div className="mt-2 text-sm font-black text-slate-900">{value || '请选择'}</div>
+    <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-center shadow-sm">
+      <div className="text-[11px] font-semibold text-slate-400">{label}</div>
+      <div className={`mt-1.5 text-sm font-bold ${value ? 'text-slate-900' : 'text-slate-400'}`}>
+        {value || '请选择'}
+      </div>
+    </div>
+  )
+}
+
+function WorkflowStep({ index, title, active }: { index: string; title: string; active: boolean }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-black text-white ${active ? 'bg-blue-600' : 'bg-slate-300'}`}>
+        {index}
+      </span>
+      <span className={`text-sm font-bold ${active ? 'text-slate-800' : 'text-slate-400'}`}>{title}</span>
     </div>
   )
 }
@@ -246,7 +263,6 @@ export default function Verification({
     return new Map(staffOptions.map((item) => [item.id, item.name]))
   }, [staffOptions])
 
-  // 当前用户的员工ID
   const currentUserId = useMemo(() => {
     const found = staffOptions.find(
       (s) => s.name === currentUser?.name || s.id === currentUser?.id
@@ -254,21 +270,17 @@ export default function Verification({
     return found?.id || ''
   }, [staffOptions, currentUser])
 
-  // 默认时间计算
   const defaultTimes = useMemo(() => {
     const startTime = treatment?.startTime ? new Date(treatment.startTime) : null
 
-    // 首次核对时间 = 签到时间（取开始时间替代）+ 1分钟
     const firstCheckTime = startTime
       ? formatDateTimeForPicker(new Date(startTime.getTime() + 1 * 60_000))
       : ''
 
-    // 二次核对时间 = 开始治疗时间 + 10分钟
     const secondCheckTime = startTime
       ? formatDateTimeForPicker(new Date(startTime.getTime() + 10 * 60_000))
       : ''
 
-    // 消毒时间 = 开始治疗时间 + 5分钟
     const disinfectionTime = startTime
       ? formatDateTimeForPicker(new Date(startTime.getTime() + 5 * 60_000))
       : ''
@@ -276,7 +288,6 @@ export default function Verification({
     return { firstCheckTime, secondCheckTime, disinfectionTime }
   }, [treatment])
 
-  // 当表单未填写时使用默认值（仅在加载后首次设置）
   useEffect(() => {
     if (loadingStaff || staffOptions.length === 0) return
     setFirstForm((current) => ({
@@ -378,118 +389,139 @@ export default function Verification({
     }
   }
 
+  const firstCheckItems = [firstForm.materials, firstForm.param, firstForm.vascular, firstForm.pipeline]
+  const secondCheckItems = [secondForm.dialysisMode, secondForm.prescription, secondForm.anticoagulant, secondForm.vascular, secondForm.lineConnection]
+  const firstNormalCount = firstCheckItems.filter((item) => item.result).length
+  const secondNormalCount = secondCheckItems.filter((item) => item.result).length
+  const hasFirstAbnormalWithoutReason = firstCheckItems.some((item) => !item.result && !item.mistake.trim())
+  const hasSecondAbnormalWithoutReason = secondCheckItems.some((item) => !item.result && !item.mistake.trim())
+  const disinfectionRegistered = !!disinfectionTime
+  const hasMissingRoles = !staffNameById.get(secondForm.qcNurseId)
+  const hasAbnormalities = hasFirstAbnormalWithoutReason || hasSecondAbnormalWithoutReason
+
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-4 pb-8">
       {treatmentLoading ? (
-        <section className="rounded-lg border border-blue-100 bg-blue-50 px-6 py-4 text-sm font-semibold text-blue-700">
+        <section className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
           正在加载新患者治疗数据，核对表单已切换为空状态。
         </section>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
-        <span className="text-xl font-black text-slate-900">{patient.name}</span>
-        <span>ID: {patient.id}</span>
-        <span>{patient.gender} / {patient.age}岁</span>
-        <span>治疗方案: {patient.treatmentPlan || '--'}</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-4">
+          <span className="text-lg font-black text-slate-900">{patient.name}</span>
+          <span className="text-xs text-slate-400">ID: {patient.id}</span>
+          <span className="text-xs text-slate-400">{patient.gender} / {patient.age}岁</span>
+          <span className="text-xs text-slate-400">方案: {patient.treatmentPlan || '--'}</span>
+          <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+            干体重 {patient.dryWeight || 0}kg
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-slate-400">
+          <WorkflowStep index="1" title="首次核对" active />
+          <span className="text-slate-200">→</span>
+          <WorkflowStep index="2" title="二次核对" active />
+          <span className="text-slate-200">→</span>
+          <WorkflowStep index="3" title="消毒登记" active />
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+        <section className="overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-blue-100 bg-blue-50/50 px-4 py-3">
             <UserCheck size={16} className="text-blue-600" />
-            <h3 className="text-sm font-black text-slate-800">首次核对</h3>
-            <span className="ml-auto text-xs text-slate-400">
-              默认取病区责任护士
-            </span>
+            <h3 className="text-sm font-bold text-slate-800">首次核对</h3>
+            <span className="ml-auto text-[11px] text-slate-400">默认取病区责任护士</span>
           </div>
-          <div className="space-y-5 p-5">
-            <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-              核对项目：透析模式、处方参数、耗材规格、患者身份、管路连接安全性。
+          <div className="space-y-3 p-4">
+            <div className="rounded-lg bg-blue-50/30 px-3 py-2.5 text-xs leading-5 text-slate-600">
+              核对透析模式、处方参数、耗材规格、患者身份与管路连接安全性。
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <StaffSelect label="核对人" value={firstForm.operatorId} options={staffOptions} onChange={(value) => setFirstForm((current) => ({ ...current, operatorId: value }))} />
               <DateTimeInput label="核对时间" value={firstForm.operateTime} onChange={(value) => setFirstForm((current) => ({ ...current, operateTime: value }))} />
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               <CheckResultRow label="耗材规格（透析器/血路管）" value={firstForm.materials} onChange={(value) => setFirstForm((current) => ({ ...current, materials: value }))} />
               <CheckResultRow label="处方参数（透析方式/处方内容）" value={firstForm.param} onChange={(value) => setFirstForm((current) => ({ ...current, param: value }))} />
               <CheckResultRow label="血管通路与患者身份" value={firstForm.vascular} onChange={(value) => setFirstForm((current) => ({ ...current, vascular: value }))} />
               <CheckResultRow label="管路连接与预冲" value={firstForm.pipeline} onChange={(value) => setFirstForm((current) => ({ ...current, pipeline: value }))} />
             </div>
-            <button type="button" onClick={() => void handleSaveFirst()} disabled={treatmentLoading || savingFirst || loadingStaff} className="h-11 w-full rounded-lg bg-blue-600 text-sm font-bold text-white disabled:opacity-60">
-              {treatmentLoading ? '治疗加载中...' : savingFirst ? '保存中...' : '确认并完成核对'}
+            <button type="button" onClick={() => void handleSaveFirst()} disabled={treatmentLoading || savingFirst || loadingStaff} className="h-10 w-full rounded-lg bg-blue-600 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-60">
+              {treatmentLoading ? '治疗加载中...' : savingFirst ? '保存中...' : '确认并完成首次核对'}
             </button>
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+        <section className="overflow-hidden rounded-xl border border-orange-100 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-orange-100 bg-orange-50/50 px-4 py-3">
             <ShieldCheck size={16} className="text-orange-500" />
-            <h3 className="text-sm font-black text-slate-800">二次核对</h3>
-            <span className="ml-auto text-xs text-slate-400">
-              不可与首次核对人相同
-            </span>
+            <h3 className="text-sm font-bold text-slate-800">二次核对</h3>
+            <span className="ml-auto text-[11px] text-orange-500 font-semibold">不可与首次核对人相同</span>
           </div>
-          <div className="space-y-5 p-5">
-            <div className="rounded-lg border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-              二次核对重点：核实透析参数、处方调整项、耗材效期及批号一致性。
+          <div className="space-y-3 p-4">
+            <div className="rounded-lg bg-orange-50/30 px-3 py-2.5 text-xs leading-5 text-slate-600">
+              需独立复核，不可与首次核对人相同，重点核对处方调整与批号一致性。
             </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <StaffSelect label="核对人" value={secondForm.operatorId} options={staffOptions.filter((s) => s.id !== firstForm.operatorId)} onChange={(value) => setSecondForm((current) => ({ ...current, operatorId: value }))} />
               <DateTimeInput label="核对时间" value={secondForm.operateTime} onChange={(value) => setSecondForm((current) => ({ ...current, operateTime: value }))} />
             </div>
-            <div className="space-y-3">
-              <CheckResultRow label="透析模式" value={secondForm.dialysisMode} onChange={(value) => setSecondForm((current) => ({ ...current, dialysisMode: value }))} />
-              <CheckResultRow label="处方内容" value={secondForm.prescription} onChange={(value) => setSecondForm((current) => ({ ...current, prescription: value }))} />
-              <CheckResultRow label="抗凝剂" value={secondForm.anticoagulant} onChange={(value) => setSecondForm((current) => ({ ...current, anticoagulant: value }))} />
-              <CheckResultRow label="血管通路" value={secondForm.vascular} onChange={(value) => setSecondForm((current) => ({ ...current, vascular: value }))} />
-              <CheckResultRow label="管路连接" value={secondForm.lineConnection} onChange={(value) => setSecondForm((current) => ({ ...current, lineConnection: value }))} />
+            <div className="space-y-2">
+              <CheckResultRow label="透析模式" value={secondForm.dialysisMode} onChange={(value) => setSecondForm((current) => ({ ...current, dialysisMode: value }))} tone="orange" />
+              <CheckResultRow label="处方内容" value={secondForm.prescription} onChange={(value) => setSecondForm((current) => ({ ...current, prescription: value }))} tone="orange" />
+              <CheckResultRow label="抗凝剂" value={secondForm.anticoagulant} onChange={(value) => setSecondForm((current) => ({ ...current, anticoagulant: value }))} tone="orange" />
+              <CheckResultRow label="血管通路" value={secondForm.vascular} onChange={(value) => setSecondForm((current) => ({ ...current, vascular: value }))} tone="orange" />
+              <CheckResultRow label="管路连接" value={secondForm.lineConnection} onChange={(value) => setSecondForm((current) => ({ ...current, lineConnection: value }))} tone="orange" />
             </div>
-            <button type="button" onClick={() => void handleSaveSecond()} disabled={treatmentLoading || savingSecond || loadingStaff} className="h-11 w-full rounded-lg bg-orange-500 text-sm font-bold text-white disabled:opacity-60">
-              {treatmentLoading ? '治疗加载中...' : savingSecond ? '保存中...' : '确认并完成核对'}
+            <button type="button" onClick={() => void handleSaveSecond()} disabled={treatmentLoading || savingSecond || loadingStaff} className="h-10 w-full rounded-lg bg-orange-500 text-sm font-bold text-white transition hover:bg-orange-600 disabled:opacity-60">
+              {treatmentLoading ? '治疗加载中...' : savingSecond ? '保存中...' : '确认并完成二次核对'}
             </button>
           </div>
         </section>
 
-        <section className="overflow-hidden rounded-lg border border-emerald-200 bg-emerald-50/30 shadow-sm">
-          <div className="flex items-center gap-2 border-b border-emerald-100 px-5 py-4">
+        <section className="overflow-hidden rounded-xl border border-emerald-200 bg-white shadow-sm">
+          <div className="flex items-center gap-2 border-b border-emerald-100 bg-emerald-50/50 px-4 py-3">
             <ClipboardCheck size={16} className="text-emerald-600" />
-            <h3 className="text-sm font-black text-slate-800">机器消毒登记</h3>
+            <h3 className="text-sm font-bold text-slate-800">机器消毒登记</h3>
           </div>
-          <div className="space-y-6 p-5">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-3 p-4">
+            <div className="rounded-lg bg-emerald-50/30 px-3 py-2.5 text-xs leading-5 text-slate-600">
+              固定类型与消毒液，仅登记时间和登记人。
+            </div>
+            <div className="grid grid-cols-2 gap-3">
               <label className="block">
-                <span className="mb-2 block text-xs font-semibold text-slate-400">消毒类型</span>
-                <input value="机器" readOnly disabled className="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-emerald-700" />
+                <span className="mb-1.5 block text-[11px] font-semibold text-slate-400">消毒类型</span>
+                <input value="机器" readOnly disabled className="h-9 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-emerald-700" />
               </label>
               <label className="block">
-                <span className="mb-2 block text-xs font-semibold text-slate-400">消毒液</span>
-                <input value="500mg/L含氯消毒液" readOnly disabled className="h-10 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-emerald-700" />
+                <span className="mb-1.5 block text-[11px] font-semibold text-slate-400">消毒液</span>
+                <input value="500mg/L含氯消毒液" readOnly disabled className="h-9 w-full rounded-lg border border-emerald-200 bg-white px-3 text-sm font-bold text-emerald-700" />
               </label>
             </div>
             <DateTimeInput label="消毒时间" value={disinfectionTime || defaultTimes.disinfectionTime} onChange={setDisinfectionTime} />
-            <div className="mt-28 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-4">
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-xs font-semibold text-emerald-600">登记人</div>
-                  <div className="mt-1 text-sm font-black text-slate-900">{disinfectionOperator}</div>
+                  <div className="text-[11px] font-semibold text-emerald-600">登记人</div>
+                  <div className="mt-0.5 text-sm font-black text-slate-900">{disinfectionOperator}</div>
                 </div>
-                <CheckCircle2 size={20} className="text-emerald-500" />
+                <CheckCircle2 size={18} className="text-emerald-500" />
               </div>
             </div>
-            <button type="button" onClick={() => void handleSaveDisinfection()} disabled={treatmentLoading || savingDisinfection} className="h-11 w-full rounded-lg bg-emerald-600 text-sm font-bold text-white disabled:opacity-60 hover:bg-emerald-700 transition">
+            <button type="button" onClick={() => void handleSaveDisinfection()} disabled={treatmentLoading || savingDisinfection} className="h-10 w-full rounded-lg bg-emerald-600 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60">
               {treatmentLoading ? '治疗加载中...' : savingDisinfection ? '保存中...' : '确认并保存消毒登记'}
             </button>
           </div>
         </section>
       </div>
 
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="border-l-4 border-slate-700 pl-3 text-sm font-black text-slate-800">人员配置与角色登记</h3>
-          <span className="text-xs text-slate-400">默认取本床位所在病区责任护士</span>
+          <h3 className="border-l-[3px] border-blue-500 pl-3 text-sm font-bold text-slate-800">人员配置与角色登记</h3>
+          <span className="text-[11px] text-slate-400">系统根据排班与核对记录自动建议人员</span>
         </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
           <RoleCard label="预冲护士" value={staffNameById.get(firstForm.operatorId) || currentUser?.name || ''} />
           <RoleCard label="穿刺/注射" value={staffNameById.get(firstForm.operatorId) || currentUser?.name || ''} />
           <RoleCard label="上机护士" value={staffNameById.get(firstForm.operatorId) || currentUser?.name || ''} />
@@ -498,11 +530,32 @@ export default function Verification({
         </div>
       </section>
 
+      {(hasAbnormalities || hasMissingRoles) && (
+        <section className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="flex items-center gap-1 font-bold text-amber-800">
+              <AlertTriangle size={14} />
+              提交前检查：
+            </span>
+            <span className="text-amber-700">
+              首次核对 {firstNormalCount}/4 正常，二次核对 {secondNormalCount}/5 正常
+              {disinfectionRegistered ? '，消毒已登记' : '，消毒未登记'}
+              {hasMissingRoles ? '；质控护士尚未选择' : ''}
+            </span>
+            {hasAbnormalities && (
+              <span className="text-rose-600 font-semibold">
+                异常项需填写原因后再提交生效
+              </span>
+            )}
+          </div>
+        </section>
+      )}
+
       <div className="flex items-center justify-between border-t border-slate-200 pt-4">
         <div className="text-xs text-slate-400">系统已根据当前排班与核对记录自动建议登记人员，请在提交前进行最后确认。</div>
         <div className="flex gap-3">
-          <button type="button" disabled className="rounded-lg border border-slate-200 bg-white px-8 py-2 text-sm font-semibold text-slate-400">暂存修改</button>
-          <button type="button" onClick={() => void handleSaveAll()} disabled={treatmentLoading || loadingStaff || savingAll} className="rounded-lg bg-blue-600 px-8 py-2 text-sm font-bold text-white disabled:opacity-60">
+          <button type="button" disabled className="rounded-lg border border-slate-200 bg-white px-6 py-2 text-sm font-semibold text-slate-400">暂存修改</button>
+          <button type="button" onClick={() => void handleSaveAll()} disabled={treatmentLoading || loadingStaff || savingAll} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white transition hover:bg-blue-700 disabled:opacity-50">
             {savingAll ? '提交中...' : '提交并生效'}
           </button>
         </div>

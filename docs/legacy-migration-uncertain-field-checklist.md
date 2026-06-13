@@ -20,4 +20,8 @@
 | DEV-1 | 设备管理 | 设备与床位绑定相关接口 | `Schedule_BedEquipmentRelChange` | 是否必须记录绑定变更历史 | 当前未强制写入变更表 | 是否要求每次变更写 `RelChange` | 待填写 |
 | DEV-2 | 设备管理 | `GET/PUT /api/v1/devices/...` | `Schedule_BedEquipmentRel` | `ParameterS` 状态值字典 | 当前未锁定统一枚举 | 是否固定为 `normal/warning/alarm/offline/maintenance` | 待填写 |
 | DEV-3 | 设备管理 | `GET/PUT /api/v1/devices/...` | `Auxiliary_EquipmentInfomation` | `Maintenance` 字段业务语义 | 当前按“运维信息”兼容处理 | 是否为“运维厂家ID”；若是请给关联主数据表 | 待填写 |
+| DASH-1 | 工作台-首页 | `GET /api/v1/dashboard/stats` | `Treatment_Treatment` | 今日治疗记录的业务日期口径 | 当前按 `COALESCE(StartTime, SignInTime, ReceptionTime, CreateTime)` 统计 | 是否确认未上机/补录治疗也应计入“今日透析” | 待填写 |
+| DASH-2 | 工作台-首页 | `GET /api/v1/dashboard/stats` | `Device_DMLog` | “透析中”“已完成”的统计来源 | 已按 `FEPId` 当天最新日志结合 `UFVolume/UFSetVolume` 统计：`UFVolume > 0 AND UFVolume < UFSetVolume` 为透析中，`UFVolume >= UFSetVolume` 为已完成 | 是否还需与排班/患者治疗记录关联到患者维度 | 已确认设备日志口径，患者维度待确认 |
+| DASH-3 | 工作台-首页 | `getTodayTreatments()` | 通用查询接口 `fetchFilteredData('Treatment')` | 前端治疗动态的数据源 | 当前保留旧前端通用查询，并增加失败日志 | 是否改为统一调用 `/api/v1/treatments` 或 `/api/v1/dashboard/stats` 增补明细字段 | 待填写 |
+| DASH-4 | 工作台-首页 | `GET /api/v1/dashboard/stats` | `Device_DMLog` | `UFVolume` 接近 0 / 接近 `UFSetVolume` 的容差阈值 | 当前采用保守精确边界：`UFVolume > 0 AND UFVolume < UFSetVolume`、`UFVolume >= UFSetVolume` | “接近”的容差按多少 ml 或百分比计算，例如 50ml/1%/5% | 待填写 |
 

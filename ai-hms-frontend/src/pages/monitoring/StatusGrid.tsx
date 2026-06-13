@@ -2,13 +2,13 @@ import { memo, useRef, useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import type { MonitorDevice } from '@/types/original'
 import {
-  Monitor, Wifi, Clock, ClipboardList, FileEdit, Droplet, AlertOctagon, AlertTriangle,
+  Monitor, Wifi, Clock, ClipboardList, FileEdit, Droplet, AlertOctagon,
+  Heart, Activity,
 } from 'lucide-react'
 import { AreaChart, Area, Line } from 'recharts'
-import { cachedGraphData, formatPositive, formatBloodPressure } from './types'
+import { cachedGraphData, formatPositive, formatBloodPressure, classifyBedStatus } from './types'
 import type { ModalType } from './types'
 
-// Mini 图表组件
 const MiniVitalsChart = memo(({ deviceId }: { deviceId: string }) => {
   const data = cachedGraphData.get(deviceId) || []
   const containerRef = useRef<HTMLDivElement>(null)
@@ -46,32 +46,176 @@ interface StatusGridProps {
   devices: MonitorDevice[]
   loading: boolean
   loadError: string | null
-  getStatusColor: (status: string) => string
   onOpenModal: (device: MonitorDevice, type: ModalType) => void
   onReload: () => void
 }
 
-export default function StatusGrid({ devices, loading, loadError, getStatusColor, onOpenModal, onReload }: StatusGridProps) {
+const EmptyBedCard = memo(({ device, onOpenModal }: { device: MonitorDevice; onOpenModal: StatusGridProps['onOpenModal'] }) => {
   const { t } = useTranslation('monitoring')
+  return (
+    <div className="rounded-[14px] bg-white border border-slate-100 p-4 flex flex-col justify-between min-h-[110px] hover:shadow-md hover:border-blue-200 transition-all duration-200"
+      style={{ boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-[12px] bg-slate-100 flex items-center justify-center text-slate-400 font-bold text-sm shrink-0">
+            {device.bedNumber}
+          </div>
+          <div>
+            <p className="font-bold text-sm text-slate-700">{device.bedNumber}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{t('card.idle')}</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center justify-between mt-2 pt-2 border-t border-slate-50">
+        <span className="text-xs text-slate-400 flex items-center gap-1">
+          <Wifi size={10} className={device.status === 'normal' ? 'text-green-400' : 'text-slate-300'} />
+          在线
+        </span>
+        <button onClick={() => device.status !== 'offline' && onOpenModal(device, 'COMPREHENSIVE')}
+          className="text-xs text-blue-500 hover:text-blue-700 font-medium px-2 py-1 rounded hover:bg-blue-50 transition-colors">
+          详情
+        </button>
+      </div>
+    </div>
+  )
+})
+EmptyBedCard.displayName = 'EmptyBedCard'
+
+const ActiveBedCard = memo(({ device, onOpenModal }: { device: MonitorDevice; onOpenModal: StatusGridProps['onOpenModal'] }) => {
+  const { t } = useTranslation('monitoring')
+  const displayStatus = classifyBedStatus(device)
+  const ufPercent = device.vitals.ufGoal > 0
+    ? Math.round((device.vitals.ufVolume / device.vitals.ufGoal) * 100)
+    : 0
+
+  const borderColor = displayStatus === 'danger' ? 'border-red-300 bg-red-50/30'
+    : displayStatus === 'warning' ? 'border-amber-300 bg-amber-50/30'
+    : 'border-blue-100 bg-white'
 
   return (
-    <div className="flex-1 overflow-y-auto pr-2 pb-10">
+    <div className={`rounded-[14px] border p-4 flex flex-col min-h-[220px] transition-all duration-200 hover:shadow-lg ${borderColor}`}
+      style={{ borderLeftWidth: '4px', boxShadow: displayStatus === 'danger' ? '0 4px 16px rgba(239,68,68,0.10)' : displayStatus === 'warning' ? '0 4px 16px rgba(245,158,11,0.10)' : '0 1px 3px rgba(15,23,42,0.04)' }}>
+      {/* Card header */}
+      <div className="flex justify-between items-start mb-3">
+        <div className="flex items-center min-w-0 flex-1 gap-3">
+          <div className={`w-10 h-10 rounded-[12px] flex items-center justify-center font-bold text-sm shrink-0 shadow-sm
+            ${displayStatus === 'danger' ? 'bg-red-500 text-white'
+            : displayStatus === 'warning' ? 'bg-amber-500 text-white'
+            : 'bg-slate-700 text-white'}`}>
+            {device.bedNumber}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <h4 className="font-bold text-sm text-slate-800 truncate">{device.patientName || '--'}</h4>
+              {displayStatus === 'danger' && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-red-100 text-red-600 shrink-0">异常</span>}
+              {displayStatus === 'warning' && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-600 shrink-0">预警</span>}
+            </div>
+            <div className="flex items-center text-xs text-slate-400 mt-0.5 gap-3">
+              <span className="flex items-center gap-1"><Wifi size={10} className="text-green-400" /> {device.mode || 'HD'}</span>
+              {device.timeRemaining !== '--' && <span className="flex items-center gap-1"><Clock size={10} /> {device.timeRemaining}</span>}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 gap-0.5">
+          <button onClick={() => onOpenModal(device, 'ORDERS')} className="p-1.5 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 transition-colors" title={t('action.viewOrders')}>
+            <ClipboardList size={15} />
+          </button>
+          <button onClick={() => onOpenModal(device, 'SUMMARY')} className="p-1.5 rounded-lg text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors" title={t('action.writeSummary')}>
+            <FileEdit size={15} />
+          </button>
+        </div>
+      </div>
+
+      {/* Vitals display */}
+      <button onClick={() => device.status !== 'offline' && onOpenModal(device, 'COMPREHENSIVE')}
+        className="w-full text-left bg-slate-50/80 rounded-[12px] p-3 mb-3 hover:bg-white hover:shadow-sm transition-colors border border-transparent hover:border-blue-200">
+        <div className="flex justify-between items-end mb-1">
+          <div className="flex flex-col">
+            <span className="text-xs font-medium text-slate-400 uppercase flex items-center gap-1">
+              <Heart size={10} className="text-red-400" /> {t('card.bp')}
+            </span>
+            <div className="flex items-baseline">
+              <span className={`text-lg font-bold font-mono leading-none ${displayStatus === 'danger' ? 'text-red-600' : 'text-slate-800'}`}>
+                {formatBloodPressure(device)}
+              </span>
+              <span className="text-xs text-slate-400 ml-1 font-medium">mmHg</span>
+            </div>
+          </div>
+          <div className="flex flex-col items-end">
+            <span className="text-xs font-medium text-slate-400 uppercase flex items-center gap-1">
+              <Activity size={10} className="text-emerald-400" /> {t('card.hr')}
+            </span>
+            <div className="flex items-baseline">
+              <span className="text-lg font-bold font-mono leading-none text-slate-800">{formatPositive(device.vitals.hr)}</span>
+              <span className="text-xs text-slate-400 ml-1 font-medium">bpm</span>
+            </div>
+          </div>
+        </div>
+        <MiniVitalsChart deviceId={device.id} />
+      </button>
+
+      {/* UF Progress */}
+      <button onClick={() => device.status !== 'offline' && onOpenModal(device, 'PRESCRIPTION')}
+        className="w-full text-left mt-auto">
+        <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
+          <span className="text-slate-500 flex items-center gap-1">
+            <Droplet size={10} className="text-blue-400" />
+            {device.vitals.ufGoal > 0
+              ? `${device.vitals.ufVolume.toFixed(2)} / ${device.vitals.ufGoal.toFixed(1)} L`
+              : '暂无超滤数据'}
+          </span>
+          <span className={`font-bold ${displayStatus === 'danger' ? 'text-red-500' : 'text-blue-600'}`}>{ufPercent}%</span>
+        </div>
+        <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden shadow-inner">
+          <div className={`h-full rounded-full transition-all duration-500 ${displayStatus === 'danger' ? 'bg-red-500' : 'bg-blue-500'}`}
+            style={{ width: `${Math.min(100, ufPercent)}%` }} />
+        </div>
+      </button>
+    </div>
+  )
+})
+ActiveBedCard.displayName = 'ActiveBedCard'
+
+const OfflineBedCard = memo(({ device }: { device: MonitorDevice }) => (
+  <div className="rounded-[14px] bg-white border border-slate-100 p-4 flex flex-col justify-between min-h-[110px] opacity-50 grayscale-[0.2]">
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-[12px] bg-slate-200 flex items-center justify-center text-slate-400 font-bold text-sm shrink-0">
+        {device.bedNumber}
+      </div>
+      <div>
+        <p className="font-bold text-sm text-slate-500">{device.bedNumber}</p>
+        <p className="text-xs text-slate-400 mt-0.5">离线</p>
+      </div>
+    </div>
+    <div className="flex items-center mt-2 pt-2 border-t border-slate-50">
+      <span className="text-xs text-slate-300 flex items-center gap-1">
+        <Wifi size={10} className="text-slate-300" /> 离线
+      </span>
+    </div>
+  </div>
+))
+OfflineBedCard.displayName = 'OfflineBedCard'
+
+export default function StatusGrid({ devices, loading, loadError, onOpenModal, onReload }: StatusGridProps) {
+
+  return (
+    <div className="flex-1 overflow-y-auto pb-10" style={{ scrollbarWidth: 'thin' }}>
       {/* 加载骨架 */}
       {loading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
           {Array.from({ length: 10 }).map((_, i) => (
-            <div key={i} className="rounded-lg border-2 border-gray-200 bg-gray-50 p-3 h-48 animate-pulse">
-              <div className="flex items-center gap-2 mb-3">
-                <div className="w-8 h-8 bg-gray-200 rounded-lg shrink-0" />
+            <div key={i} className="rounded-[14px] border border-slate-100 bg-white p-4 h-48 animate-pulse">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 bg-slate-100 rounded-[12px] shrink-0" />
                 <div className="flex-1 space-y-1.5">
-                  <div className="h-3 bg-gray-200 rounded w-3/4" />
-                  <div className="h-2 bg-gray-200 rounded w-1/2" />
+                  <div className="h-3 bg-slate-100 rounded w-3/4" />
+                  <div className="h-2 bg-slate-100 rounded w-1/2" />
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-1 py-2 border-t border-b border-gray-200 mb-3">
-                {[1,2,3].map(j => <div key={j} className="h-8 bg-gray-200 rounded" />)}
+              <div className="grid grid-cols-2 gap-3 py-2 mb-3">
+                {[1, 2].map(j => <div key={j} className="h-12 bg-slate-50 rounded-[10px]" />)}
               </div>
-              <div className="h-16 bg-gray-200 rounded-lg" />
+              <div className="h-16 bg-slate-50 rounded-[12px]" />
             </div>
           ))}
         </div>
@@ -80,10 +224,10 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
       {/* 错误提示 */}
       {!loading && loadError && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-state-alert-bg rounded-lg flex items-center justify-center mb-4">
-            <AlertOctagon size={32} className="text-state-alert" />
+          <div className="w-16 h-16 bg-red-50 rounded-[14px] flex items-center justify-center mb-4">
+            <AlertOctagon size={32} className="text-red-500" />
           </div>
-          <p className="text-base font-bold text-gray-700 mb-1">{loadError}</p>
+          <p className="text-base font-bold text-slate-700 mb-1">{loadError}</p>
           <button onClick={onReload} className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             刷新页面
           </button>
@@ -93,116 +237,21 @@ export default function StatusGrid({ devices, loading, loadError, getStatusColor
       {/* 空状态 */}
       {!loading && !loadError && devices.length === 0 && (
         <div className="flex flex-col items-center justify-center py-24 text-center">
-          <div className="w-16 h-16 bg-gray-100 rounded-lg flex items-center justify-center mb-4">
-            <Monitor size={32} className="text-foreground-muted" />
+          <div className="w-16 h-16 bg-slate-100 rounded-[14px] flex items-center justify-center mb-4">
+            <Monitor size={32} className="text-slate-400" />
           </div>
-          <p className="text-base font-bold text-gray-600 mb-1">暂无设备数据</p>
-          <p className="text-sm text-foreground-muted">请先在设备管理中录入透析机信息</p>
+          <p className="text-base font-bold text-slate-500 mb-1">暂无设备数据</p>
+          <p className="text-sm text-slate-400">请先在设备管理中录入透析机信息</p>
         </div>
       )}
 
       {/* 设备网格 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4" style={{ contain: 'layout style' }}>
         {!loading && !loadError && devices.map((device) => {
-          const ufPercent = device.vitals.ufGoal > 0
-            ? Math.round((device.vitals.ufVolume / device.vitals.ufGoal) * 100)
-            : 0
-
-          return (
-            <div
-              key={device.id}
-              className={`rounded-lg border-2 p-3 flex flex-col shadow-sm relative group ${getStatusColor(device.status)}`}
-              style={{ contain: 'layout style paint' }}
-            >
-              <div className="flex justify-between items-start mb-2 gap-1">
-                <div className="flex items-center min-w-0 flex-1">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm mr-2 shadow-sm shrink-0 ${
-                    device.status === 'alarm' ? 'bg-state-alert text-white'
-                    : device.status === 'warning' ? 'bg-state-waiting text-white'
-                    : 'bg-slate-800 text-white'
-                  }`}>
-                    {device.bedNumber}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h4 className="font-bold text-gray-900 text-sm flex items-center truncate">
-                      <span className="truncate">{device.patientName || t('card.idle')}</span>
-                    </h4>
-                    <div className="flex items-center text-meta text-gray-500 font-medium">
-                      <Wifi size={10} className={`mr-1 shrink-0 ${device.status === 'normal' ? 'text-green-500' : 'text-gray-300'}`} />
-                      <span className="text-blue-600">{device.mode || '--'}</span>
-                      <span className="mx-1 opacity-40">路</span>
-                      <Clock size={10} className="mr-0.5 shrink-0" /> {device.timeRemaining}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex shrink-0">
-                  <button onClick={() => onOpenModal(device, 'ORDERS')} className="p-1.5 hover:bg-white rounded text-foreground-muted hover:text-blue-600 transition-colors" title={t('action.viewOrders')}>
-                    <ClipboardList size={16} />
-                  </button>
-                  {device.patientName && (
-                    <button onClick={() => onOpenModal(device, 'SUMMARY')} className="p-1.5 hover:bg-white rounded text-foreground-muted hover:text-indigo-600 transition-colors" title={t('action.writeSummary')}>
-                      <FileEdit size={16} />
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-3 gap-1 mb-2 py-1.5 border-t border-b border-gray-100 text-meta font-medium text-gray-600">
-                <div className="flex flex-col">
-                  <span className="text-foreground-muted scale-90 origin-left">{t('card.dryWeight')}</span>
-                  <span className="text-gray-800 font-bold">--</span>
-                </div>
-                <div className="flex flex-col">
-                  <span className="text-foreground-muted scale-90 origin-left">{t('card.gainPct')}</span>
-                  <span className="text-blue-600 font-bold">--</span>
-                </div>
-                <div className="flex flex-col items-end">
-                  <span className="text-foreground-muted scale-90 origin-right">{t('card.vascularAccess')}</span>
-                  <span className="text-gray-800 font-bold">--</span>
-                </div>
-              </div>
-
-              <div onClick={() => device.status !== 'offline' && onOpenModal(device, 'COMPREHENSIVE')} className="bg-white/80 rounded-lg p-2 mb-2 cursor-pointer hover:bg-white hover:shadow-md transition-colors border border-transparent hover:border-blue-200">
-                <div className="flex justify-between items-end mb-1 px-1">
-                  <div className="flex flex-col">
-                    <span className="text-[9px] font-bold text-foreground-muted uppercase">{t('card.bp')}</span>
-                    <div className="flex items-baseline">
-                        <span className={`text-base font-bold font-mono leading-none ${device.status === 'alarm' ? 'text-state-alert' : 'text-gray-900'}`}>
-                        {formatBloodPressure(device)}
-                      </span>
-                      <span className="text-[9px] text-foreground-muted ml-0.5 font-bold">mmHg</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className="text-[9px] font-bold text-foreground-muted uppercase">{t('card.hr')}</span>
-                    <div className="flex items-baseline">
-                      <span className="text-base font-bold font-mono leading-none text-gray-900">{formatPositive(device.vitals.hr)}</span>
-                      <span className="text-[9px] text-foreground-muted ml-0.5 font-bold">bpm</span>
-                    </div>
-                  </div>
-                </div>
-                <MiniVitalsChart deviceId={device.id} />
-              </div>
-
-              <div onClick={() => device.status !== 'offline' && onOpenModal(device, 'PRESCRIPTION')} className="flex-1 cursor-pointer group/pres pt-1">
-                <div className="flex justify-between items-center text-meta mb-1 px-1 font-bold">
-                  <span className="text-gray-500 flex items-center">
-                    <Droplet size={10} className="mr-1 text-blue-500" />
-                    {device.vitals.ufGoal > 0 ? `${device.vitals.ufVolume.toFixed(2)}L / ${device.vitals.ufGoal.toFixed(1)}L` : '暂无超滤数据'}
-                  </span>
-                  <span className="text-blue-700">{ufPercent}%</span>
-                </div>
-                <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden mb-2 relative shadow-inner">
-                  <div className={`h-full rounded-full ${device.status === 'alarm' ? 'bg-state-alert' : 'bg-state-treating'}`} style={{ width: `${Math.min(100, ufPercent)}%` }}></div>
-                </div>
-              </div>
-              {device.status === 'alarm' && (
-                <div className="absolute bottom-1 right-1 text-state-alert flex items-center bg-state-alert-bg p-0.5 rounded-full">
-                    <AlertTriangle size={14} />
-                </div>
-              )}
-            </div>
-          )
+          const bedStatus = classifyBedStatus(device)
+          if (bedStatus === 'empty') return <EmptyBedCard key={device.id} device={device} onOpenModal={onOpenModal} />
+          if (bedStatus === 'offline') return <OfflineBedCard key={device.id} device={device} />
+          return <ActiveBedCard key={device.id} device={device} onOpenModal={onOpenModal} />
         })}
       </div>
     </div>

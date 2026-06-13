@@ -1327,7 +1327,7 @@ func (s *TreatmentService) Create(req TreatmentCreateRequest, tenantId, creatorI
 
 	values := map[string]any{
 		"Id":               id,
-		"TenantId":         tenantId,
+		"TenantId":         LegacyTenantID,
 		"PatientId":        req.PatientId,
 		"ScheduleId":       req.ScheduleId,
 		"ReceptionDrId":    req.ReceptionDrId,
@@ -2648,10 +2648,6 @@ func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisi
 		return nil, errors.New("database not available")
 	}
 
-	newID, err := nextLegacyID()
-	if err != nil {
-		return nil, err
-	}
 	now := time.Now()
 
 	equipmentID := int64(0)
@@ -2662,20 +2658,31 @@ func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisi
 	if req.DisinfectUserID != nil {
 		disinfectUserID = *req.DisinfectUserID
 	}
-	startTime := now.Format("2006-01-02 15:04:05")
+
+	var startTime *time.Time
 	if req.StartTime != nil && *req.StartTime != "" {
-		startTime = *req.StartTime
+		if t, err := parseTimeString(*req.StartTime); err == nil {
+			startTime = &t
+		}
+	}
+	if startTime == nil {
+		startTime = &now
+	}
+
+	var endTime *time.Time
+	if req.EndTime != nil && *req.EndTime != "" {
+		if t, err := parseTimeString(*req.EndTime); err == nil {
+			endTime = &t
+		}
 	}
 
 	columns := map[string]interface{}{
-		`"Id"`:              newID,
 		`"TenantId"`:        LegacyTenantID,
 		`"TreatmentId"`:     treatmentID,
 		`"EquipmentId"`:     equipmentID,
 		`"DisinfectUserId"`: disinfectUserID,
 		`"StartTime"`:       startTime,
 		`"CreatorId"`:       creatorID,
-		`"CreateTime"`:      now,
 		`"LastModifyTime"`:  now,
 	}
 	if req.DisinfectWay != nil {
@@ -2693,9 +2700,38 @@ func (s *TreatmentService) SaveDisinfection(treatmentID int64, req TreatmentDisi
 	if req.Note != nil {
 		columns[`"Note"`] = *req.Note
 	}
-	if req.EndTime != nil && *req.EndTime != "" {
-		columns[`"EndTime"`] = *req.EndTime
+	if endTime != nil {
+		columns[`"EndTime"`] = endTime
 	}
+
+	var existing struct {
+		ID int64 `gorm:"column:Id"`
+	}
+	err := s.db.Table(`"Auxiliary_EquipmentDisinfection"`).
+		Select(`"Id"`).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
+		Order(`"CreateTime" DESC`).
+		Limit(1).
+		First(&existing).Error
+	if err == nil {
+		res := s.db.Table(`"Auxiliary_EquipmentDisinfection"`).
+			Where(`"Id" = ? AND "TenantId" = ?`, existing.ID, LegacyTenantID).
+			Updates(columns)
+		if res.Error != nil {
+			return nil, fmt.Errorf("更新消毒登记失败: %w", res.Error)
+		}
+		return s.Get(treatmentID)
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, fmt.Errorf("查询消毒登记失败: %w", err)
+	}
+
+	newID, err := nextLegacyID()
+	if err != nil {
+		return nil, err
+	}
+	columns[`"Id"`] = newID
+	columns[`"CreateTime"`] = now
 
 	result := s.db.Table(`"Auxiliary_EquipmentDisinfection"`).Create(columns)
 	if result.Error != nil {
@@ -2725,7 +2761,7 @@ func (s *TreatmentService) SaveSummary(treatmentID int64, req TreatmentSummaryRe
 		return s.Get(treatmentID)
 	}
 
-	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ?`, treatmentID).Updates(updates)
+	result := s.db.Table(`"Treatment_Treatment"`).Where(`"Id" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).Updates(updates)
 	if result.Error != nil {
 		return nil, fmt.Errorf("保存治疗小结失败: %w", result.Error)
 	}
@@ -2750,4 +2786,19 @@ func (s *TreatmentService) syncScheduleStatus(treatmentID int64, targetStatus in
 	if res.Error != nil {
 		log.Printf("[treatment] syncScheduleStatus failed: scheduleId=%d target=%d err=%v", scheduleId, targetStatus, res.Error)
 	}
+}
+
+func parseTimeString(s string) (time.Time, error) {
+	layouts := []string{
+		"2006-01-02 15:04:05",
+		"2006-01-02T15:04:05Z07:00",
+		time.RFC3339,
+		"2006-01-02",
+	}
+	for _, l := range layouts {
+		if t, err := time.Parse(l, s); err == nil {
+			return t, nil
+		}
+	}
+	return time.Now(), fmt.Errorf("无法解析时间字符串: %s", s)
 }

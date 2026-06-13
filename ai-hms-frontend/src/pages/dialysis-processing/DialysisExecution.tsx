@@ -424,17 +424,17 @@ export default function DialysisExecution() {
       </button>
 
       <div className="flex min-w-0 flex-1 flex-col bg-white">
-        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-5">
-          <div className="mb-5 flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-2.5">
+          <div className="mb-3 flex items-center gap-[10px] overflow-x-auto no-scrollbar whitespace-nowrap">
             {tabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                className={`flex h-9 shrink-0 items-center rounded-[11px] px-4 text-[15px] font-black transition-colors ${
                   activeTab === tab
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgba(29,99,255,0.22)]'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
                 }`}
               >
                 {tab}
@@ -444,7 +444,7 @@ export default function DialysisExecution() {
           {selectedPatient ? <PatientSummaryHeader patient={selectedPatient} /> : null}
         </div>
 
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <div className="flex-1 overflow-y-auto bg-[#f5f7fb] p-5">
           {loadingPatients ? (
             <div className="rounded-lg border border-slate-200 bg-white p-10 text-center text-slate-500">
               正在加载患者列表...
@@ -452,28 +452,31 @@ export default function DialysisExecution() {
           ) : selectedPatient ? (
             <>
               {!loadingTreatment && treatmentLoadState === 'missing' ? (
-                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-5 py-4 text-emerald-900">
-                  <div className="text-base font-semibold">暂无治疗记录</div>
-                  <div className="mt-1 text-sm text-emerald-700">可先创建今日治疗记录，再继续录入和查看。</div>
+                <section className="mb-3 flex min-h-[58px] items-center gap-3 rounded-2xl border border-emerald-300 bg-emerald-50 px-4 py-2">
+                  <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-lg font-black text-white">+</div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[15px] font-black text-emerald-800">暂无治疗记录</div>
+                    <div className="text-[13px] font-semibold text-emerald-700">可先创建今日治疗记录，再继续录入和查看。</div>
+                  </div>
                   <button
                     type="button"
                     onClick={handleCreateTodayTreatment}
-                    className="mt-3 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+                    className="ml-auto h-[34px] shrink-0 rounded-[10px] bg-emerald-600 px-4 text-[13px] font-black text-white hover:bg-emerald-700"
                   >
                     创建治疗记录
                   </button>
-                </div>
+                </section>
               ) : null}
 
               {!loadingTreatment && (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') ? (
-                <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-5 py-4 text-rose-900">
-                  <div className="text-base font-semibold">
+                <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-rose-900">
+                  <div className="text-sm font-semibold">
                     {treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试'}
                   </div>
                   <button
                     type="button"
                     onClick={() => void reloadTodayTreatment()}
-                    className="mt-3 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-rose-700"
+                    className="mt-2 rounded-lg bg-rose-600 px-4 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-rose-700"
                   >
                     重试加载
                   </button>

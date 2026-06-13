@@ -18,6 +18,7 @@ import {
     DictConfig,
     WardManagement,
     BedManagement,
+    WardBedManagement,
     UserManagement,
     RoleManagement,
     EducationManagement,
@@ -108,6 +109,10 @@ const router = createBrowserRouter([
             {
                 path: 'dict-config',
                 element: <PermissionGuard><DictConfig /></PermissionGuard>,
+            },
+            {
+                path: 'ward-bed-management',
+                element: <WardBedManagement />,
             },
             {
                 path: 'ward-management',

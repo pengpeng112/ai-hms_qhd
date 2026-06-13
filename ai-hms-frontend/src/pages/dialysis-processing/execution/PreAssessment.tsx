@@ -15,10 +15,10 @@ const AV_SITE_OPTS = ['前臂中段', '上臂', '肘部']
 
 function AssessmentSection({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-4 flex items-center gap-2 border-b border-slate-100 pb-3">
+    <section className="rounded-lg border border-slate-200 bg-white p-3.5 shadow-sm">
+      <div className="mb-3 flex items-center gap-2 border-b border-slate-100 pb-2.5">
         {icon}
-        <h3 className="text-base font-bold text-slate-800">{title}</h3>
+        <h3 className="text-sm font-bold text-slate-800">{title}</h3>
       </div>
       {children}
     </section>
@@ -42,8 +42,8 @@ function FieldInput({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1.5 block text-sm font-medium text-slate-600">{label}</span>
-      <span className="flex h-10 items-center rounded-md border border-slate-200 bg-white px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+      <span className="mb-1 block text-xs font-medium text-slate-600">{label}</span>
+      <span className="flex h-[38px] items-center rounded-md border border-slate-200 bg-white px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
         <input
           value={value}
           onChange={(e) => onChange?.(e.target.value)}
@@ -70,8 +70,8 @@ function BpInput({
 }) {
   return (
     <label className="block min-w-0">
-      <span className="mb-1.5 block text-sm font-medium text-slate-600">透前血压</span>
-      <span className="flex h-10 items-center rounded-md border border-slate-200 bg-white px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+      <span className="mb-1 block text-xs font-medium text-slate-600">透前血压</span>
+      <span className="flex h-[38px] items-center rounded-md border border-slate-200 bg-white px-3 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
         <input
           value={sbp}
           onChange={(e) => onSbpChange?.(e.target.value)}
@@ -222,6 +222,15 @@ export default function PreAssessment({
 
   const [targetUfManuallyEdited, setTargetUfManuallyEdited] = useState(false)
 
+  const requiredMissing = useMemo(() => {
+    let count = 0
+    if (!form.refuseMeasure && !form.weight.trim()) count++
+    if (!form.targetUf.trim()) count++
+    if (!form.heartRate.trim()) count++
+    if (!form.temperature.trim()) count++
+    return count
+  }, [form])
+
   const handleTargetUfChange = (value: string) => {
     setTargetUfManuallyEdited(true)
     updateField('targetUf', value)
@@ -341,7 +350,7 @@ export default function PreAssessment({
     : '未开始'
 
   return (
-    <div className="space-y-5 pb-6">
+    <div className="space-y-4 pb-4">
       {treatmentLoading ? (
         <section className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
           正在切换患者并加载今日治疗，透前评估已清空旧患者数据。
@@ -349,41 +358,38 @@ export default function PreAssessment({
       ) : null}
 
       <AssessmentSection title="体重与容量评估" icon={<Scale size={18} className="text-blue-600" />}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <FieldInput label="* 透前体重" value={form.refuseMeasure ? '拒测' : form.weight} onChange={(v) => updateField('weight', v)} suffix="KG" disabled={form.refuseMeasure} placeholder="优先从体重秤获取" />
           <FieldInput label="额外体重" value={form.extraWeight} onChange={(v) => updateField('extraWeight', v)} suffix="KG" placeholder="来自治疗方案" />
           <FieldInput label="干体重" value={String(patient.dryWeight || '')} suffix="KG" disabled placeholder="来自患者方案" />
           <FieldInput label="体重增长" value={weightGain} suffix="KG" disabled placeholder="自动计算" />
           <FieldInput label="* 目标超滤量" value={displayTargetUf} onChange={handleTargetUfChange} suffix="L" placeholder="默认=体重增长+0.2" />
         </div>
-        <div className="mt-2 flex items-center gap-4 text-xs text-slate-600">
+        <div className="mt-1.5 flex items-center gap-4 text-xs text-slate-600">
           <label className="inline-flex items-center gap-1"><input type="checkbox" checked={form.refuseMeasure} onChange={(e) => updateField('refuseMeasure', e.target.checked)} />患者拒测</label>
           <label className="inline-flex items-center gap-1"><input type="checkbox" checked={form.bedridden} onChange={(e) => updateField('bedridden', e.target.checked)} />卧床</label>
           {weightWarning ? <span className="inline-flex items-center gap-1 text-amber-600"><AlertTriangle size={13} />{weightWarning}</span> : null}
         </div>
-        <div className="mt-4 rounded-md border border-dashed border-slate-200 bg-slate-50 p-3">
-          <div className="mb-2 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">称重照片历史</span>
-            <span className="text-xs text-slate-400">（功能待后端接口就绪）</span>
-          </div>
-          <div className="flex min-h-[80px] items-center justify-center rounded-md bg-white text-sm text-slate-400">
-            暂无称重照片
+        <div className="mt-3 rounded-md border border-dashed border-slate-200 bg-slate-50 px-3 py-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">称重照片历史：</span>
+            <span className="text-xs text-slate-400">暂无称重照片（功能完善后可补录）</span>
           </div>
         </div>
       </AssessmentSection>
 
       <AssessmentSection title="生命体征监测" icon={<Activity size={18} className="text-rose-500" />}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div>
             <BpInput sbp={form.sbp} dbp={form.dbp} onSbpChange={(v) => updateField('sbp', v)} onDbpChange={(v) => updateField('dbp', v)} />
             <p className="mt-1 text-xs text-slate-400">优先取独立血压仪数据</p>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">测压部位</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">测压部位</label>
             <select
               value={form.pressurePoint}
               onChange={(e) => updateField('pressurePoint', e.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-[38px] w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">请选择</option>
               {BP_SITES.map((site) => (
@@ -399,16 +405,19 @@ export default function PreAssessment({
           <FieldInput label="呼吸" value={form.respiration} onChange={(v) => updateField('respiration', v)} suffix="次/分" placeholder="点击输入" />
           <FieldInput label="疼痛评分" value={form.painScore} onChange={(v) => updateField('painScore', v)} suffix="分" />
         </div>
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+          提示：血压、心率、体温异常时，保存前请复核。
+        </div>
       </AssessmentSection>
 
       <AssessmentSection title="血管通路与神志状态" icon={<Stethoscope size={18} className="text-emerald-600" />}>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">A端位点</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">A端位点</label>
             <select
               value={form.aSite}
               onChange={(e) => updateField('aSite', e.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-[38px] w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">请选择</option>
               {aSiteOptions.map((site) => (
@@ -417,11 +426,11 @@ export default function PreAssessment({
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">V端位点</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">V端位点</label>
             <select
               value={form.vSite}
               onChange={(e) => updateField('vSite', e.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-[38px] w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">请选择</option>
               {vSiteOptions.map((site) => (
@@ -430,11 +439,11 @@ export default function PreAssessment({
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">神志状态</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">神志状态</label>
             <select
               value={form.consciousness}
               onChange={(e) => updateField('consciousness', e.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-[38px] w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">请选择</option>
               {CONSCIOUSNESS_OPTS.map((opt) => (
@@ -443,11 +452,11 @@ export default function PreAssessment({
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">护理分级</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">护理分级</label>
             <select
               value={form.nurseLevel}
               onChange={(e) => updateField('nurseLevel', e.target.value)}
-              className="h-10 w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="h-[38px] w-full rounded-md border border-slate-200 bg-white px-3 text-sm font-medium text-slate-800 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             >
               <option value="">请选择</option>
               {NURSING_LEVEL_OPTS.map((opt) => (
@@ -456,9 +465,9 @@ export default function PreAssessment({
             </select>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">血管通路体征历史</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">血管通路体征历史</label>
             <div className="flex min-h-10 flex-wrap gap-1.5 rounded-md border border-slate-200 bg-white p-2">
               {form.fistulaStatus.map((item) => (
                 <span key={item} className="inline-flex items-center rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
@@ -478,7 +487,7 @@ export default function PreAssessment({
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">透前皮肤记录</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">透前皮肤记录</label>
             <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-md border border-slate-200 bg-white p-2">
               {skinRecordHistory.slice(0, 5).map((item) => (
                 <button
@@ -503,9 +512,9 @@ export default function PreAssessment({
             </div>
           </div>
         </div>
-        <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">透前症状历史</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">透前症状历史</label>
             <div className="flex min-h-10 flex-wrap gap-1.5 rounded-md border border-slate-200 bg-white p-2">
               {form.symptoms.map((item) => (
                 <span key={item} className="inline-flex items-center rounded-md bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-700">
@@ -516,14 +525,14 @@ export default function PreAssessment({
             </div>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-600">透前备注</label>
+            <label className="mb-1 block text-xs font-medium text-slate-600">透前备注</label>
             <textarea value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={3} className="w-full resize-none rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none" placeholder="记录透前特殊情况、观察重点或护理提醒..." />
           </div>
         </div>
       </AssessmentSection>
 
-      <section className="rounded-lg bg-slate-950 px-6 py-5 text-white shadow-lg">
-        <div className="grid gap-4 md:grid-cols-4">
+      <section className="rounded-lg bg-slate-950 px-5 py-3.5 text-white shadow-lg">
+        <div className="grid gap-3 md:grid-cols-4">
           <div><div className="text-xs text-slate-400">透析机器开始时间</div><div className="mt-1 font-bold">{startTime}</div></div>
           <div><div className="text-xs text-slate-400">接诊医生</div><div className="mt-1 font-bold">{treatment?.doctorName || currentUser?.name || '未分配'}</div></div>
           <div><div className="text-xs text-slate-400">当前记录患者</div><div className="mt-1 font-bold">{patient.name}（{patient.bedId}）</div></div>
@@ -532,7 +541,7 @@ export default function PreAssessment({
       </section>
 
       <div className="flex items-center justify-between rounded-lg bg-white px-4 py-3 shadow-sm">
-        <div className="flex items-center gap-6 text-sm text-slate-500">
+        <div className="flex items-center gap-6 text-xs text-slate-500">
           <span className="flex items-center gap-1">
             <span className="text-xs text-slate-400">接诊医生:</span>
             <span className="font-medium text-slate-700">{treatment?.doctorName || currentUser?.name || '未分配'}</span>
@@ -542,6 +551,13 @@ export default function PreAssessment({
             <span className="text-xs text-slate-400">评估人:</span>
             <span className="font-medium text-slate-700">{currentUser?.name || '未知'}</span>
           </span>
+          <span className="text-xs text-slate-400">当前患者：{patient.name}（{patient.bedId}）</span>
+          {requiredMissing > 0 ? (
+            <span className="flex items-center gap-1 text-amber-600">
+              <AlertTriangle size={14} />
+              <span className="text-xs font-medium">必填未完成：{requiredMissing} 项</span>
+            </span>
+          ) : null}
           <span className="text-xs text-slate-400">{draftSavedAt ? `草稿已暂存于 ${draftSavedAt}` : ''}</span>
         </div>
         <div className="flex gap-3">
@@ -549,7 +565,7 @@ export default function PreAssessment({
             type="button"
             onClick={handleLoadDraft}
             disabled={treatmentLoading}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
           >
             恢复草稿
           </button>
@@ -557,11 +573,11 @@ export default function PreAssessment({
             type="button"
             onClick={handleSaveDraft}
             disabled={treatmentLoading}
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-60"
           >
             暂存草稿
           </button>
-          <button type="button" onClick={() => void handleSave()} disabled={saving || treatmentLoading} className="rounded-lg bg-blue-600 px-6 py-2 text-sm font-bold text-white disabled:opacity-60">
+          <button type="button" onClick={() => void handleSave()} disabled={saving || treatmentLoading} className="rounded-lg bg-blue-600 px-5 py-1.5 text-xs font-bold text-white shadow-sm shadow-blue-900/20 transition-colors hover:bg-blue-700 disabled:opacity-60">
             {treatmentLoading ? '治疗加载中...' : saving ? '提交中...' : '提交透前评估'}
           </button>
         </div>

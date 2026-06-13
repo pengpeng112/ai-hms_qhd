@@ -53,7 +53,7 @@ type Patient struct {
 	Status             string              `gorm:"column:TreatmentStatus" json:"status"`
 	DialysisNo         string              `gorm:"column:DialysisNo" json:"dialysisNo"`
 	PhoneNo            string              `gorm:"column:PhoneNo" json:"phoneNo"`
-	ImageBase64String  string              `gorm:"column:ImageBase64String" json:"-"`
+	ImageBase64String  string              `gorm:"column:ImageBase64String" json:"imageBase64String,omitempty"`
 	DoctorID      *string    `gorm:"-" json:"doctorId"` // 老库为 bigint，由服务层从 ResponsibilityDrId 转换
 	AdmissionDate *time.Time `gorm:"column:FirstDialysisDate" json:"admissionDate"`
 	CreatedAt     time.Time  `gorm:"column:CreateTime" json:"createdAt"`
