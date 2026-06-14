@@ -300,6 +300,9 @@ func (s *TreatmentService) List(req TreatmentListRequest) (*TreatmentListRespons
 	if req.PageSize <= 0 {
 		req.PageSize = 20
 	}
+	if req.PageSize > 200 {
+		req.PageSize = 200
+	}
 
 	query := s.db.Table(`"Treatment_Treatment"`).Where(`"TenantId" = ?`, LegacyTenantID)
 	if req.PatientId != nil {
@@ -2625,15 +2628,15 @@ func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req Treatment
 
 // TreatmentDisinfectionRequest 消毒登记请求
 type TreatmentDisinfectionRequest struct {
-	EquipmentID    *int64  `json:"equipmentId"`
-	DisinfectUserID *int64 `json:"disinfectUserId"`
-	DisinfectWay  *string `json:"disinfectWay"`
-	Type          *string `json:"type"`
-	Disinfectant  *string `json:"disinfectant"`
-	StartTime     *string `json:"startTime"`
-	EndTime       *string `json:"endTime"`
-	Description   *string `json:"description"`
-	Note          *string `json:"note"`
+	EquipmentID     *int64  `json:"equipmentId"`
+	DisinfectUserID *int64  `json:"disinfectUserId"`
+	DisinfectWay    *string `json:"disinfectWay"`
+	Type            *string `json:"type"`
+	Disinfectant    *string `json:"disinfectant"`
+	StartTime       *string `json:"startTime"`
+	EndTime         *string `json:"endTime"`
+	Description     *string `json:"description"`
+	Note            *string `json:"note"`
 }
 
 // TreatmentSummaryRequest 治疗小结保存请求

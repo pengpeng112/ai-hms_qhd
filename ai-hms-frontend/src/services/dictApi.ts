@@ -149,22 +149,27 @@ export const dictApi = {
 
   // 创建字典项
   createItem: async (data: DictItemCreateRequest): Promise<DictItem> => {
-    return post<DictItem>('/api/v1/dict/items', data)
+    const item = await post<DictItem>('/api/v1/dict/items', data)
+    dictCache.clear(data.typeCode)
+    return item
   },
 
   // 更新字典项（后端接收 snake_case key）
   updateItem: async (id: string, data: Partial<DictItem> & { parent_code?: string | null }): Promise<void> => {
-    return put<void>(`/api/v1/dict/items/${id}`, data)
+    await put<void>(`/api/v1/dict/items/${id}`, data)
+    dictCache.clear()
   },
 
   // 删除字典项
   deleteItem: async (id: string): Promise<void> => {
-    return del<void>(`/api/v1/dict/items/${id}`)
+    await del<void>(`/api/v1/dict/items/${id}`)
+    dictCache.clear()
   },
 
   // 切换字典项启用状态
   toggleItemEnabled: async (id: string): Promise<void> => {
-    return post<void>(`/api/v1/dict/items/${id}/toggle`)
+    await post<void>(`/api/v1/dict/items/${id}/toggle`)
+    dictCache.clear()
   },
 
   // 初始化字典数据

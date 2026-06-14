@@ -197,36 +197,48 @@ export default function DialysisExecution() {
     }
   }
 
+  const ensuringRef = useRef(false)
+
   const ensureTodayTreatment = async (status: number) => {
     if (!selectedPatient) return null
     const numericPatientId = Number(selectedPatient.id)
     if (!Number.isFinite(numericPatientId)) return null
 
-    if (currentTreatment) {
-      const updated = await restApi.updateTreatment(currentTreatment.id, {
+    if (ensuringRef.current) return null
+    ensuringRef.current = true
+    try {
+      if (currentTreatment) {
+        const updated = await restApi.updateTreatment(currentTreatment.id, {
+          status,
+          notes: currentTreatment.notes ?? '',
+        })
+        setCurrentTreatment(updated.data)
+        setTreatmentLoadState('ready')
+        return updated.data
+      }
+
+      if (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') {
+        message.error(treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试')
+        return null
+      }
+
+      const created = await restApi.createTreatment({
+        patientId: String(numericPatientId),
+        treatmentDate: new Date().toISOString(),
+        type: 1,
         status,
-        notes: currentTreatment.notes ?? '',
+        notes: '// TODO: 补充治疗子表 API',
       })
-      setCurrentTreatment(updated.data)
+      setCurrentTreatment(created.data)
       setTreatmentLoadState('ready')
-      return updated.data
-    }
-
-    if (treatmentLoadState === 'server-error' || treatmentLoadState === 'network-error') {
-      message.error(treatmentLoadState === 'network-error' ? '网络异常，请检查连接' : '治疗记录加载失败，请重试')
+      return created.data
+    } catch (error) {
+      console.error('[DialysisExecution] ensureTodayTreatment failed', error)
+      message.error(getErrorMessage(error))
       return null
+    } finally {
+      ensuringRef.current = false
     }
-
-    const created = await restApi.createTreatment({
-      patientId: String(numericPatientId),
-      treatmentDate: new Date().toISOString(),
-      type: 1,
-      status,
-      notes: '// TODO: 补充治疗子表 API',
-    })
-    setCurrentTreatment(created.data)
-    setTreatmentLoadState('ready')
-    return created.data
   }
 
   const handleCreateTodayTreatment = async () => {

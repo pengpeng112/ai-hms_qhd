@@ -22,10 +22,11 @@ import (
 	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/service"
 )
 
-// devSuperuser:开发模式下,未带 X-Role 的请求放行(便于本地联调)。
-// ⚠️ 生产环境严禁设置 DEV_SUPERUSER=true —— 届时未鉴权请求将被拒绝(401)。
-// 启动时若检测到 DEV_SUPERUSER=true 将打印强警告并记录到 /schedule/health。
-var devSuperuser = strings.EqualFold(os.Getenv("DEV_SUPERUSER"), "true")
+// isDevSuperuser:开发模式下,未带 X-Role 的请求放行(便于本地联调)。
+// release 模式下强制忽略 DEV_SUPERUSER，避免包初始化早于 gin.SetMode 导致防护失效。
+func isDevSuperuser() bool {
+	return strings.EqualFold(os.Getenv("DEV_SUPERUSER"), "true") && gin.Mode() != gin.ReleaseMode
+}
 
 // Server 持有数据库句柄。
 type Server struct {
@@ -47,8 +48,10 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 		log.Printf("[smart_schedule] 缺少排班唯一索引 %v —— 请由 DBA 执行 scripts/schedule_unique_indexes.sql 创建；缺失期间并发排班可能产生重复行（应用不会自动建索引）", missing)
 	}
 
-	if devSuperuser {
+	if isDevSuperuser() {
 		log.Println("[smart_schedule] ⚠️  DEV_SUPERUSER=true —— 所有角色校验已绕过！请确认仅在本地开发环境使用，生产环境严禁开启。")
+	} else if strings.EqualFold(os.Getenv("DEV_SUPERUSER"), "true") && gin.Mode() == gin.ReleaseMode {
+		log.Println("[smart_schedule] DEV_SUPERUSER=true 已在 release 模式下被强制忽略。")
 	}
 
 	// responseWrapper 必须先于 tenantMiddleware 注册：中间件按注册顺序执行，
@@ -141,7 +144,7 @@ func guard(roles ...string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		role := c.GetString("role")
 		if role == "" {
-			if devSuperuser {
+			if isDevSuperuser() {
 				c.Next()
 				return
 			}

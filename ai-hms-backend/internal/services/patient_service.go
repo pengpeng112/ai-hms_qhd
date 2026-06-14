@@ -413,14 +413,14 @@ func (s *PatientService) toTreatmentPlanDTO(plan legacyPatientPlan, drugNames ma
 
 // ListRequest 获取患者列表请求
 type ListRequest struct {
-	Page             int    `form:"page"`
-	PageSize         int    `form:"pageSize"`
-	Status           string `form:"status"`
-	BedNumber        string `form:"bedNumber"`
-	Name             string `form:"name"`
-	RiskLevel        string `form:"riskLevel"`
-	OnlyActive       bool   `form:"onlyActive"`
-	OnlyTransferred  bool   `form:"onlyTransferred"`
+	Page            int    `form:"page"`
+	PageSize        int    `form:"pageSize"`
+	Status          string `form:"status"`
+	BedNumber       string `form:"bedNumber"`
+	Name            string `form:"name"`
+	RiskLevel       string `form:"riskLevel"`
+	OnlyActive      bool   `form:"onlyActive"`
+	OnlyTransferred bool   `form:"onlyTransferred"`
 }
 
 // ListResponse 获取患者列表响应
@@ -444,6 +444,9 @@ func (s *PatientService) List(req ListRequest) (*ListResponse, error) {
 	}
 	if req.PageSize <= 0 {
 		req.PageSize = 20
+	}
+	if req.PageSize > 200 {
+		req.PageSize = 200
 	}
 
 	// TenantId=3 过滤（老血透库多租户）

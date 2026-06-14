@@ -191,6 +191,9 @@ export async function getEquipmentList(
     const response = await apiClient.get<ApiSuccessResponse<DeviceListApiResponse>>('/api/v1/devices', {
       params: { page, pageSize }
     })
+    if (!response.data.success) {
+      throw new Error('获取设备列表失败')
+    }
     const data = response.data.data
     return {
       data: data.items.map(toEquipmentInfo),
@@ -214,6 +217,9 @@ export async function getEquipmentById(id: number): Promise<EquipmentInfo | null
   const key = cacheKey('equipment:detail', id)
   return apiCache.withCache(key, async () => {
     const response = await apiClient.get<ApiSuccessResponse<DeviceApiItem>>(`/api/v1/devices/${id}`)
+    if (!response.data.success) {
+      throw new Error('获取设备详情失败')
+    }
     return toEquipmentInfo(response.data.data)
   }, CACHE_TTL.EQUIPMENT_LIST)
 }
@@ -227,6 +233,9 @@ export async function getEquipmentDisinfections(
     `/api/v1/devices/${equipmentId}/disinfections`,
     { params: { page, pageSize } }
   )
+  if (!response.data.success) {
+    throw new Error('获取消毒记录失败')
+  }
   const data = response.data.data
   return {
     data: data.items.map(toEquipmentDisinfection),
@@ -251,6 +260,9 @@ export async function getEquipmentUsageLogs(
     `/api/v1/devices/${equipmentId}/usage-logs`,
     { params: { page, pageSize } }
   )
+  if (!response.data.success) {
+    throw new Error('获取使用记录失败')
+  }
   const data = response.data.data
   return {
     data: data.items.map(toEquipmentUsageLog),
@@ -267,6 +279,9 @@ export async function getEquipmentMaintenanceRecords(
     `/api/v1/devices/${equipmentId}/maintenance-records`,
     { params: { page, pageSize } }
   )
+  if (!response.data.success) {
+    throw new Error('获取维护记录失败')
+  }
   const data = response.data.data
   return {
     data: data.items.map(toEquipmentMaintenanceRecord),

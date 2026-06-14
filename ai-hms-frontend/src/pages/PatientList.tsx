@@ -171,6 +171,7 @@ export default function PatientList() {
           await restApi.deletePatient(patientId)
           message.success('删除成功')
           loadPatients()
+          setRefreshKey(k => k + 1)
         } catch (error) {
           console.error('删除患者失败:', error)
           message.error(getErrorMessage(error))
@@ -423,7 +424,7 @@ export default function PatientList() {
           )}
         </div>
 
-        {!loading && filteredPatients.length > 0 && (
+        {!loading && (
           <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs text-slate-500">
             <span>
               显示 {filteredPatients.length} 条，共 {total || patients.length} 条
@@ -441,7 +442,7 @@ export default function PatientList() {
               <span className="rounded-lg bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">第 {currentPage} 页</span>
               <button
                 onClick={() => setCurrentPage(p => p + 1)}
-                disabled={patients.length < pageSize}
+                disabled={currentPage * pageSize >= (total || patients.length)}
                 className="rounded-lg border border-slate-200 px-3 py-1.5 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 下一页
