@@ -757,6 +757,12 @@ func (s *PatientService) Create(req CreateRequest, tenantID int64, creatorID str
 			return err
 		}
 
+		// 建档时同建一条草稿治疗方案：把模式/干体重落库（修复历史上 DryWeight 被丢弃、
+		// 裸患者无方案的问题），其余参数留待方案页补全。
+		if err := s.createDraftTreatmentPlan(tx, patient.ID, patient.Name, req, now); err != nil {
+			return err
+		}
+
 		return nil
 	})
 	if err != nil {
@@ -923,6 +929,73 @@ func (s *PatientService) createBasicInfo(tx *gorm.DB, patientID modeltypes.Legac
 		}
 	}
 
+	return nil
+}
+
+// 草稿治疗方案的临床默认值（建档种子）。
+const (
+	draftPlanDefaultK  = 2.0   // 钾离子浓度标准值（规则 B3/B4：标准 2.0）
+	draftPlanDefaultNa = 140.0 // 钠离子浓度默认值（当日处方 RNa 起算基线）
+)
+
+// createDraftTreatmentPlan 在建档事务内同建一条草稿 Plan_PatientPlan。
+// 种子 = 默认透析模式 + 干体重 + 临床默认（K=2.0 / Na=140）；
+// 草稿标记（契约02）= VascularAccessId=0 占位 + 透析液配方为空；
+// 频率留 0，待治疗方案页补全后方可进入排班。
+// 字段集与 LegacyCreateTreatmentPlan 保持一致，确保满足老库 Plan_PatientPlan 的 NOT NULL 约束。
+func (s *PatientService) createDraftTreatmentPlan(tx *gorm.DB, patientID modeltypes.LegacyID, patientName string, req CreateRequest, now time.Time) error {
+	planID, err := idgen.NextID()
+	if err != nil {
+		return fmt.Errorf("failed to generate draft plan id: %w", err)
+	}
+
+	createMap := map[string]any{
+		"Id":                      planID,
+		"TenantId":                LegacyTenantID,
+		"PatientId":               patientID,
+		"Name":                    patientName,
+		"CreatorId":               0,
+		"CreateTime":              now,
+		"OddWeekFrequency":        0, // 频率待方案页补全
+		"EvenWeekFrequency":       0,
+		"DialysisMethod":          normalizeLegacyDialysisMode(req.DefaultMode), // 种子：模式
+		"DialysisDuration":        0,
+		"DryWeight":               req.DryWeight, // 种子：干体重（修复历史丢弃）
+		"ExtraWeight":             0,
+		"BF":                      0,
+		"BV":                      0,
+		"FirstAnticoagulant":      0,
+		"FirstDosage":             0,
+		"MaintainAnticoagulant":   0,
+		"DilutionProportion":      0,
+		"InjectionRate":           0,
+		"InjectionDuration":       0,
+		"InjectionVolume":         0,
+		"Dialysate":               "", // 配方空 → 草稿标记
+		"DialysateFlow":           0,
+		"DialysateVolume":         0,
+		"NaIonCon":                draftPlanDefaultNa, // 默认：RNa 起算基线
+		"CaIonCon":                0,
+		"KIonCon":                 draftPlanDefaultK, // 默认：标准钾
+		"HCO3IonCon":              0,
+		"Conductivity":            0,
+		"DialysateTmp":            0,
+		"SubstituateVolume":       0,
+		"DilutionMnt":             "",
+		"IsDisabled":              false,
+		"LastModifyTime":          now,
+		"Frequency":               "",
+		"GlucoseCon":              0,
+		"DialysateGroupId":        0,
+		"AutoConfirmPrescription": boolToLegacyFlag(false),
+		"Note":                    "",
+		"SubstituateFlow":         0,
+		"VascularAccessId":        0, // 通路未定 → 草稿标记
+	}
+
+	if err := tx.Table(`"Plan_PatientPlan"`).Create(createMap).Error; err != nil {
+		return fmt.Errorf("failed to create draft treatment plan: %w", err)
+	}
 	return nil
 }
 
@@ -1441,6 +1514,20 @@ func normalizePlanStatus(status string, modeStatus string) string {
 
 func legacyPlanDisabled(status string) bool {
 	return strings.TrimSpace(status) == models.TreatmentPlanStatusInactive
+}
+
+// isLegacyPlanComplete 判定治疗方案是否"完整"（契约02 三/七.2，开方/上机门禁共用）。
+//
+// 草稿（未完成）= 透析液配方为空；完整 = 配方非空且未停用。
+// 说明：契约原文列"通路≠0 且 配方齐"。实测老库 Plan_PatientPlan.VascularAccessId 大多非零
+// （716/719 条），但血管通路在 patient.VascularAccesses 单独管理，方案页不回写通路，
+// 该字段语义不稳定。故以"透析液配方"作为完整性信号——这正是建档草稿留空、方案页补全时
+// 填入的字段，判据稳定且不误伤存量数据。详见契约02对齐说明。
+func isLegacyPlanComplete(plan *legacyPatientPlan) bool {
+	if plan == nil || plan.IsDisabled {
+		return false
+	}
+	return strings.TrimSpace(plan.Dialysate) != "" || plan.DialysateGroupID != 0
 }
 
 func boolToLegacyFlag(v bool) string {

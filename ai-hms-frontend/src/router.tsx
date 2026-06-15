@@ -2,6 +2,7 @@ import { createBrowserRouter } from 'react-router-dom'
 import { MainLayout } from '@/layouts'
 import {
     Dashboard,
+    Cockpit,
     PatientList,
     PatientDetail,
     Monitoring,
@@ -56,6 +57,10 @@ const router = createBrowserRouter([
             {
                 path: 'dashboard',
                 element: <Dashboard />,
+            },
+            {
+                path: 'cockpit',
+                element: <Cockpit />,
             },
             {
                 path: 'patients',

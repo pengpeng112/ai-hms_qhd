@@ -183,6 +183,7 @@ export interface RestTreatment {
   shiftId?: number
   treatmentType: string
   status: number       // 0-寰呭紑濮?1-杩涜涓?2-宸插畬鎴?3-宸插彇娑?
+  legacyStatus?: string  // 老库原始状态码(10/20/30/40/50/60)
   startTime?: string
   endTime?: string
   notes?: string

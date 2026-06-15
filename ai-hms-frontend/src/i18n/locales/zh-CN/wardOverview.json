@@ -19,6 +19,7 @@
   "process.disinfect": "待消毒",
   "process.completed": "已完成",
   "process.count": "{{count}}人",
+  "process.emptyState": "暂无治疗进度数据，开始治疗后自动刷新统计。",
 
   "bedStatus.active": "运行中",
   "bedStatus.empty": "空闲",
@@ -28,5 +29,23 @@
   "summary.active": "运行中",
   "summary.empty": "空闲",
   "summary.alarm": "报警",
-  "summary.maintenance": "维护"
+  "summary.maintenance": "维护",
+
+  "section.keyReminders": "重点提醒",
+  "section.deviceUsage": "设备利用概览",
+  "section.quickActions": "快捷操作",
+
+  "reminder.noAlarm": "当前暂无设备报警",
+  "reminder.alarmWarning": "有 {{count}} 台设备报警，请及时处理。",
+  "reminder.dialysisInProgress": "当前 {{count}} 名患者透析中，请关注实时监测。",
+  "reminder.noDialysis": "暂无透析中患者，等待治疗开始。",
+  "reminder.scheduled": "建议关注：排班患者 {{scheduled}} / {{total}}。",
+
+  "usage.totalDevices": "总设备 {{count}} 台",
+  "usage.breakdown": "运行 / 空闲 / 报警 / 维护",
+  "usage.utilizationRate": "利用率",
+
+  "quickAction.monitoring": "打开实时监控",
+  "quickAction.schedule": "查看今日排班",
+  "quickAction.dialysis": "进入透析执行"
 }

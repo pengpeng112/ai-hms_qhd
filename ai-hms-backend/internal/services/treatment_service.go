@@ -50,6 +50,7 @@ type TreatmentRealtimeResponse struct {
 	ShiftID            *int64                        `json:"shiftId,omitempty"`
 	TreatmentType      string                        `json:"treatmentType"`
 	Status             int                           `json:"status"`
+	LegacyStatus       string                        `json:"legacyStatus,omitempty"` // 老库原始状态码(10签到/20透前/30透中/40透后/50中断/60结束),供驾驶舱细分卡态;附加只读、不影响 Status
 	StartTime          *time.Time                    `json:"startTime,omitempty"`
 	EndTime            *time.Time                    `json:"endTime,omitempty"`
 	Notes              string                        `json:"notes,omitempty"`
@@ -1091,6 +1092,7 @@ func buildTreatmentRealtimeResponse(row legacyTreatmentHistoryRow, treatmentMode
 		ShiftID:            row.ShiftID,
 		TreatmentType:      inferTreatmentType(row, treatmentMode),
 		Status:             appStatusFromLegacy(row.Status, row.StartTime, row.EndTime, statusDict),
+		LegacyStatus:       strings.TrimSpace(row.Status),
 		StartTime:          row.StartTime,
 		EndTime:            row.EndTime,
 		Notes:              notes,
@@ -1313,6 +1315,13 @@ func (s *TreatmentService) Create(req TreatmentCreateRequest, tenantId, creatorI
 		return nil, errors.New("database not available")
 	}
 
+	// 方案完整性门禁（契约02 三）：若直接以上机态建治疗，同样校验方案已补全。
+	if req.Status == models.TreatmentStatusInProgress {
+		if err := s.ensurePlanCompleteForPatient(req.PatientId); err != nil {
+			return nil, err
+		}
+	}
+
 	id, err := nextLegacyID()
 	if err != nil {
 		return nil, err
@@ -1378,6 +1387,14 @@ type TreatmentUpdateRequest struct {
 func (s *TreatmentService) Update(id int64, req TreatmentUpdateRequest) (*TreatmentRealtimeResponse, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
+	}
+
+	// 方案完整性门禁（契约02 三）：经 Update 推进到上机（20→30）同样需校验方案已补全，
+	// 与 UpdateStatus 两条上机写入路径保持一致。
+	if req.Status != nil && *req.Status == models.TreatmentStatusInProgress {
+		if err := s.ensurePlanCompleteForTreatment(id); err != nil {
+			return nil, err
+		}
 	}
 
 	updates := map[string]any{
@@ -1464,6 +1481,13 @@ func (s *TreatmentService) Delete(id int64) error {
 func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 	if s.db == nil {
 		return errors.New("database not available")
+	}
+	// 方案完整性门禁（契约02 三）：上机（20→30）前校验治疗方案已补全。
+	// 草稿态方案（透析液配方为空，含建档时生成的草稿）不得上机，提示先到方案页完善。
+	if status == models.TreatmentStatusInProgress {
+		if err := s.ensurePlanCompleteForTreatment(id); err != nil {
+			return err
+		}
 	}
 	updates := map[string]any{
 		"Status":         legacyStatusFromApp(status),
@@ -2338,6 +2362,59 @@ func (s *TreatmentService) resolveTreatmentPatientID(treatmentID int64) (int64, 
 		return 0, err
 	}
 	return row.PatientID, nil
+}
+
+func (s *TreatmentService) resolveTreatmentPatientAndMode(treatmentID int64) (modeltypes.LegacyID, string, error) {
+	patientID, err := s.resolveTreatmentPatientID(treatmentID)
+	if err != nil {
+		return 0, "", err
+	}
+
+	var row struct {
+		DialysisMethod string `gorm:"column:DialysisMethod"`
+	}
+	err = s.db.Table(`"Plan_PatientPrescription"`).
+		Select(`"DialysisMethod"`).
+		Where(`"TenantId" = ? AND "TreatmentId" = ?`, LegacyTenantID, treatmentID).
+		Order(`"LastModifyTime" DESC`).
+		Order(`"Id" DESC`).
+		Limit(1).
+		Take(&row).Error
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return 0, "", err
+	}
+	return modeltypes.LegacyID(patientID), strings.TrimSpace(row.DialysisMethod), nil
+}
+
+// ensurePlanCompleteForTreatment 上机门禁：先按治疗解析患者和本次处方模式，再校验方案完整（契约02 三）。
+func (s *TreatmentService) ensurePlanCompleteForTreatment(treatmentID int64) error {
+	patientID, mode, err := s.resolveTreatmentPatientAndMode(treatmentID)
+	if err != nil {
+		return err
+	}
+	return s.ensurePlanCompleteForPatientAndMode(patientID, mode)
+}
+
+// ensurePlanCompleteForPatient 校验患者治疗方案是否完整（契约02 三，上机门禁核心）。
+// 草稿态（透析液配方为空）或无方案时返回拦截错误，引导医生先到治疗方案页补全。
+// 三条上机写入路径（Create / Update / UpdateStatus 进入 InProgress）共用此校验。
+func (s *TreatmentService) ensurePlanCompleteForPatient(patientID modeltypes.LegacyID) error {
+	return s.ensurePlanCompleteForPatientAndMode(patientID, "")
+}
+
+func (s *TreatmentService) ensurePlanCompleteForPatientAndMode(patientID modeltypes.LegacyID, mode string) error {
+	planService := &PatientService{db: s.db}
+	plan, err := planService.legacyPlanByMode(patientID, mode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("该患者尚无治疗方案，请先到治疗方案页创建并补全方案后再上机")
+		}
+		return err
+	}
+	if !isLegacyPlanComplete(plan) {
+		return errors.New("治疗方案尚未补全（透析液配方为空），请先到治疗方案页完善方案后再上机")
+	}
+	return nil
 }
 
 func (s *TreatmentService) upsertTreatmentSignsJSONSnapshot(treatmentID, creatorID int64, code string, payload any) error {

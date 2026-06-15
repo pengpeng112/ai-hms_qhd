@@ -623,6 +623,11 @@ func (s *PrescriptionService) LegacyCreate(patientID, doctorID, doctorName strin
 		}
 		return nil, err
 	}
+	// 方案完整性门禁（契约02 三）：草稿态方案（透析液配方为空）不得开当日处方，
+	// 提示医生先到治疗方案页补全。建档时生成的草稿方案在此被拦截。
+	if !isLegacyPlanComplete(plan) {
+		return nil, errors.New("治疗方案尚未补全（透析液配方为空），请先到治疗方案页完善方案后再开当日处方")
+	}
 
 	firstDrugID, err := (&PatientService{db: s.db}).findLegacyDrugIDByName(req.Anticoagulant.InitialDrug)
 	if err != nil {

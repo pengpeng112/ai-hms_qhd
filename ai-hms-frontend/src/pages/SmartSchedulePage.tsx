@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { DatePicker, Button, Modal, Spin, Tabs, Table, Tag, Select, Input, InputNumber } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import {
@@ -67,6 +68,19 @@ export default function SmartSchedulePage() {
   const [matrixFullscreen, setMatrixFullscreen] = useState(false)
 
   const dateStr = currentDate.format('YYYY-MM-DD')
+
+  // delta⑤ 轻量桥接：从治疗方案页带 ?planChangePatient=ID 跳入时，自动预填并打开「方案变更」模态。
+  const [searchParams, setSearchParams] = useSearchParams()
+  useEffect(() => {
+    const pid = searchParams.get('planChangePatient')
+    if (pid) {
+      setPlanForm({ patientId: Number(pid) || 0, changeType: 'FREQ', newValue: '', effectiveDate: dateStr })
+      setPlanModal(true)
+      searchParams.delete('planChangePatient')
+      setSearchParams(searchParams, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const today = dayjs().format('YYYY-MM-DD')
 
   const notify = (text: string, isErr?: boolean) => { setMsg(text); setMsgErr(!!isErr); setTimeout(() => setMsg(''), 5000) }

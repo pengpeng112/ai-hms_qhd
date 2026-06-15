@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -163,6 +164,7 @@ func newTestTreatmentService(t *testing.T) *TreatmentService {
 		`CREATE TABLE ["Auxiliary_JsonData"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "PatientId" INTEGER, "TreatmentId" INTEGER, "Code" TEXT, "CreatorId" INTEGER, "CreateTime" DATETIME, "LastModifyTime" DATETIME, "Value" TEXT)`,
 		`CREATE TABLE ["CodeDictionary_CodeDictionarys"] ("Id" INTEGER PRIMARY KEY, "Type" TEXT, "Code" TEXT, "Name" TEXT, "IsDisabled" BOOLEAN)`,
 		`CREATE TABLE ["Plan_PatientPrescription"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "TreatmentId" INTEGER, "DialysisMethod" TEXT, "LastModifyTime" DATETIME)`,
+		`CREATE TABLE Plan_PatientPlan ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "PatientId" INTEGER, "DialysisMethod" TEXT, "Dialysate" TEXT, "DialysateGroupId" INTEGER, "IsDisabled" BOOLEAN, "CreateTime" DATETIME, "LastModifyTime" DATETIME)`,
 		`CREATE TABLE ["Organ_Employee"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "UserId" INTEGER, "Name" TEXT)`,
 		`CREATE TABLE "Identity_Users" ("Id" INTEGER PRIMARY KEY, "UserName" TEXT)`,
 	}
@@ -171,6 +173,23 @@ func newTestTreatmentService(t *testing.T) *TreatmentService {
 		if err := db.Exec(statement).Error; err != nil {
 			t.Fatalf("create test schema failed: %v", err)
 		}
+	}
+
+	// 上机门禁（契约02 三）要求治疗方案完整：为默认测试患者 1001 播一张完整方案
+	// （透析液配方非空），使 UpdateStatus(上机) 通过门禁。草稿态拦截的专项用例另行覆盖。
+	planTime := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
+	if err := db.Table("Plan_PatientPlan").Create(map[string]any{
+		"Id":               int64(7001),
+		"TenantId":         LegacyTenantID,
+		"PatientId":        int64(1001),
+		"DialysisMethod":   "HD",
+		"Dialysate":        "碳酸氢盐透析液",
+		"DialysateGroupId": 0,
+		"IsDisabled":       false,
+		"CreateTime":       planTime,
+		"LastModifyTime":   planTime,
+	}).Error; err != nil {
+		t.Fatalf("seed complete plan failed: %v", err)
 	}
 
 	return &TreatmentService{db: db}
@@ -258,6 +277,104 @@ func TestTreatmentServiceUpdateStatusSetsStartTimeOnlyWhenMissing(t *testing.T) 
 			t.Fatalf("expected start time %v preserved, got %v", fixedStart, startTime)
 		}
 	})
+}
+
+// 方案完整性门禁（契约02 三）：草稿态方案（透析液配方为空）必须拦截上机，状态不得推进。
+func TestTreatmentServiceUpdateStatusBlocksDraftPlan(t *testing.T) {
+	svc := newTestTreatmentService(t)
+
+	// 患者 2002 仅有草稿方案：透析液配方为空（模拟建档时生成、尚未补全的方案）。
+	planTime := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
+	if err := svc.db.Table("Plan_PatientPlan").Create(map[string]any{
+		"Id":               int64(7002),
+		"TenantId":         LegacyTenantID,
+		"PatientId":        int64(2002),
+		"DialysisMethod":   "HD",
+		"Dialysate":        "",
+		"DialysateGroupId": 0,
+		"IsDisabled":       false,
+		"CreateTime":       planTime,
+		"LastModifyTime":   planTime,
+	}).Error; err != nil {
+		t.Fatalf("seed draft plan failed: %v", err)
+	}
+
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id":        int64(21),
+		"PatientId": int64(2002),
+		"Status":    legacyStatusFromApp(models.TreatmentStatusPending),
+	})
+
+	err := svc.UpdateStatus(id, models.TreatmentStatusInProgress)
+	if err == nil {
+		t.Fatalf("expected 上机 to be blocked by draft plan, got nil error")
+	}
+	if !strings.Contains(err.Error(), "治疗方案尚未补全") {
+		t.Fatalf("expected plan-incomplete error, got: %v", err)
+	}
+
+	// 门禁拦截后治疗状态不得推进到上机。
+	_, _, status := fetchTreatmentTimes(t, svc.db, id)
+	if status == legacyStatusFromApp(models.TreatmentStatusInProgress) {
+		t.Fatalf("status must not advance to 上机 when blocked, got %s", status)
+	}
+}
+
+func TestTreatmentServiceUpdateStatusUsesPrescriptionModeForPlanGate(t *testing.T) {
+	svc := newTestTreatmentService(t)
+
+	older := time.Date(2026, 4, 24, 8, 0, 0, 0, time.UTC)
+	newer := older.Add(time.Hour)
+	patientID := int64(3003)
+	if err := svc.db.Table("Plan_PatientPlan").Create([]map[string]any{
+		{
+			"Id":               int64(7003),
+			"TenantId":         LegacyTenantID,
+			"PatientId":        patientID,
+			"DialysisMethod":   "HDF",
+			"Dialysate":        "碳酸氢盐透析液",
+			"DialysateGroupId": 0,
+			"IsDisabled":       false,
+			"CreateTime":       older,
+			"LastModifyTime":   older,
+		},
+		{
+			"Id":               int64(7004),
+			"TenantId":         LegacyTenantID,
+			"PatientId":        patientID,
+			"DialysisMethod":   "HD",
+			"Dialysate":        "",
+			"DialysateGroupId": 0,
+			"IsDisabled":       false,
+			"CreateTime":       newer,
+			"LastModifyTime":   newer,
+		},
+	}).Error; err != nil {
+		t.Fatalf("seed multi-mode plans failed: %v", err)
+	}
+
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id":        int64(24),
+		"PatientId": patientID,
+		"Status":    legacyStatusFromApp(models.TreatmentStatusPending),
+	})
+	if err := svc.db.Table(`"Plan_PatientPrescription"`).Create(map[string]any{
+		"Id":             int64(8001),
+		"TenantId":       LegacyTenantID,
+		"TreatmentId":    id,
+		"DialysisMethod": "HDF",
+		"LastModifyTime": newer,
+	}).Error; err != nil {
+		t.Fatalf("seed prescription mode failed: %v", err)
+	}
+
+	if err := svc.UpdateStatus(id, models.TreatmentStatusInProgress); err != nil {
+		t.Fatalf("expected HDF complete plan to pass gate, got: %v", err)
+	}
+	_, _, status := fetchTreatmentTimes(t, svc.db, id)
+	if status != legacyStatusFromApp(models.TreatmentStatusInProgress) {
+		t.Fatalf("expected treatment to advance to in-progress, got %s", status)
+	}
 }
 
 func TestTreatmentServiceUpdateStatusSetsEndTimeOnComplete(t *testing.T) {

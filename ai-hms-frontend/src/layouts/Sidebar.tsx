@@ -4,6 +4,7 @@ import { Popover } from 'antd'
 import { getSelectedRoleUser, getMenusByRole, getRoleLabel } from '@/services/role'
 import {
   LayoutDashboard,
+  Gauge,
   type LucideIcon,
   Users,
   Monitor,
@@ -42,6 +43,7 @@ type MenuGroup = {
 
 const menuItems: MenuItem[] = [
   { key: 'dashboard', path: '/', icon: LayoutDashboard },
+  { key: 'cockpit', path: '/cockpit', icon: Gauge },
   { key: 'wardOverview', path: '/ward-overview', icon: HeartPulse },
   { key: 'patients', path: '/patients', icon: Users },
   { key: 'monitoring', path: '/monitoring', icon: Monitor },
@@ -63,7 +65,7 @@ const menuItems: MenuItem[] = [
 ]
 
 const menuGroups: MenuGroup[] = [
-  { key: 'dailyWork', itemKeys: ['dashboard', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
+  { key: 'dailyWork', itemKeys: ['dashboard', 'cockpit', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
   { key: 'schedule', itemKeys: ['schedule'] },
   { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardBedManagement'] },
@@ -73,7 +75,7 @@ const menuGroups: MenuGroup[] = [
 const defaultExpandedGroups = Object.fromEntries(menuGroups.map(group => [group.key, true])) as Record<string, boolean>
 
 const roleMenuMap: Record<string, string[]> = {
-  dashboard: ['dashboard'],
+  dashboard: ['dashboard', 'cockpit'],
   ward_overview: ['wardOverview'],
   patients: ['patients'],
   monitoring: ['monitoring'],

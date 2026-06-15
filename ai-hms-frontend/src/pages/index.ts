@@ -1,4 +1,5 @@
 export { default as Dashboard } from './Dashboard'
+export { default as Cockpit } from './Cockpit'
 export { default as PatientList } from './PatientList'
 export { default as PatientDetail } from './PatientDetail'
 export { default as Monitoring } from './Monitoring'

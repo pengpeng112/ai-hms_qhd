@@ -62,6 +62,7 @@ export default defineConfig([
       'src/pages/BedManagement.tsx',
       'src/pages/WardManagement.tsx',
       'src/pages/WardOverview.tsx',
+      'src/pages/Cockpit.tsx',
       'src/pages/UserManagement.tsx',
       'src/pages/Login.tsx',
       'src/pages/dialysis-processing/**',

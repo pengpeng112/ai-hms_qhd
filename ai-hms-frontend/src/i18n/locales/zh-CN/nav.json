@@ -1,5 +1,6 @@
 {
   "dashboard": "工作台",
+  "cockpit": "今日驾驶舱",
   "wardOverview": "病区概览",
   "patients": "患者管理",
   "monitoring": "实时监控",

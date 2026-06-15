@@ -2,10 +2,11 @@
 // 基于 UI 设计稿 v1.3 重构
 
 import { useState, useRef, useEffect } from 'react'
-import { message } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { message, Modal } from 'antd'
 import {
   ClipboardList, PlusCircle, RotateCcw,
-  Save, Search, Sparkles, X, Check
+  Save, Search, Sparkles, X, Check, AlertTriangle
 } from 'lucide-react'
 import MaterialSyncModal from '@/components/patient/modals/MaterialSyncModal'
 import type { MaterialSyncResult } from '@/components/patient/modals/MaterialSyncModal'
@@ -156,7 +157,7 @@ const NewPlanModal = ({ isOpen, onClose, patientName = '', onSave }: NewPlanModa
       flowRate: 500,
       na: 140,
       ca: 1.5,
-      k: 3,
+      k: 2.0, // 标准默认钾浓度（与建档草稿种子、后端默认一致）；≠2.0 时字段标红提示
       hco3: 35,
       glucose: '',
       conductivity: 14.1,
@@ -537,6 +538,21 @@ const NewPlanModal = ({ isOpen, onClose, patientName = '', onSave }: NewPlanModa
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+          {/* 方案完整性提示（契约02 三 · 与后端开方/上机门禁配套）：
+              草稿判定 = 透析液配方（分类或分组）为空，与后端 isLegacyPlanComplete 一致 */}
+          {!(formData.parameters.dialysateType?.trim() || formData.parameters.dialysateGroup) && (
+            <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4">
+              <AlertTriangle size={20} className="text-amber-500 shrink-0 mt-0.5" />
+              <div className="text-[13px] leading-relaxed">
+                <p className="font-black text-amber-700">草稿 · 未完成</p>
+                <p className="text-amber-600 font-medium mt-0.5">
+                  透析液配方（分类 / 分组）尚未填写。保存后仍为草稿；
+                  <b className="text-amber-700">开当日处方与上机前会被系统拦截</b>，请先补全透析液配方。
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* 模板选择区 */}
           <div className="relative" ref={templateRef}>
             <label className="text-sm font-black text-slate-700 mb-2 flex items-center gap-2">
@@ -746,6 +762,7 @@ const NewPlanModal = ({ isOpen, onClose, patientName = '', onSave }: NewPlanModa
 
 // 主组件
 export default function TreatmentPlanTab({ patientId = '', patientName = '', treatmentPlan = null }: TreatmentPlanTabProps) {
+  const navigate = useNavigate()
   const [isNewPlanModalOpen, setIsNewPlanModalOpen] = useState(false)
   const [isVascularModalOpen, setIsVascularModalOpen] = useState(false)
   const [syncModalKey, setSyncModalKey] = useState(0)
@@ -874,7 +891,7 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
       flowRate: 500,
       na: 140,
       ca: 1.5,
-      k: 3,
+      k: 2.0, // 标准默认钾浓度（与建档草稿种子、后端默认一致）；≠2.0 时字段标红提示
       hco3: 35,
       glucose: '',
       conductivity: 14.1,
@@ -1450,16 +1467,23 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
       // 检查是否已存在相同模式的治疗方案
       const existingPlan = apiTreatmentPlans.find(p => p.dialysisMode.mode === apiData.dialysisMode.mode)
 
+      // 频率变更 → 影响排班，保存后引导去「方案变更」按生效日重排（delta⑤ 轻量桥接）
+      let schedulingChanged = false
+
       // 生成调整记录 diff
       const diffParts: string[] = []
       if (existingPlan) {
         const oldPlan = convertApiPlanToUiPlan(existingPlan)
 
         // 全局参数对比（与任意一个方案比即可，因为全局参数应全部一致）
-        if (existingPlan.weeklyFrequency !== sharedFields.weeklyFrequency)
+        if (existingPlan.weeklyFrequency !== sharedFields.weeklyFrequency) {
           diffParts.push(`单周频次：由【${existingPlan.weeklyFrequency}】调整为【${sharedFields.weeklyFrequency}】`)
-        if (existingPlan.biweeklyFrequency !== sharedFields.biweeklyFrequency)
+          schedulingChanged = true
+        }
+        if (existingPlan.biweeklyFrequency !== sharedFields.biweeklyFrequency) {
           diffParts.push(`双周频次：由【${existingPlan.biweeklyFrequency}】调整为【${sharedFields.biweeklyFrequency}】`)
+          schedulingChanged = true
+        }
         if (existingPlan.duration !== sharedFields.duration)
           diffParts.push(`透析时长：由【${existingPlan.duration}h】调整为【${sharedFields.duration}h】`)
         if (existingPlan.dryWeight !== sharedFields.dryWeight)
@@ -1535,7 +1559,18 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
       }
       if (recordsResult.status === 'fulfilled') setAdjustmentRecords(recordsResult.value || [])
 
-      alert('治疗方案保存成功！')
+      message.success('治疗方案保存成功')
+      // delta⑤ 轻量桥接：频率变更影响排班，引导去「智能排班 · 方案变更」按生效日重排。
+      // 临床方案(次数)与排班骨架(模式码)按设计解耦，故不自动映射，由医生在排班页显式选模式+生效日。
+      if (schedulingChanged) {
+        Modal.confirm({
+          title: '透析频率已变更 · 是否同步排班？',
+          content: '本次方案的透析频率有调整，需按「生效日」重排排班。前往「智能排班 · 方案变更」处理？（仅取消生效日之后尚未确认的排班，已二次确认的将报警人工核对）',
+          okText: '去方案变更',
+          cancelText: '稍后处理',
+          onOk: () => navigate(`/schedule?planChangePatient=${patientId}`),
+        })
+      }
     } catch (error) {
       console.error('保存治疗方案失败:', error)
       message.error(getErrorMessage(error))

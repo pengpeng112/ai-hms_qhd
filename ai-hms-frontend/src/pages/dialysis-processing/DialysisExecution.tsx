@@ -1,6 +1,7 @@
 import { message } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { restApi } from '@/services'
 import type { RestPatient, RestTreatment } from '@/services'
 import { getErrorMessage, getRequestErrorKind, getTreatmentLoadErrorMessage } from '@/services/restClient'
@@ -52,6 +53,8 @@ function mapRestPatientToExecutionPatient(patient: RestPatient): Patient {
 }
 
 export default function DialysisExecution() {
+  const [searchParams] = useSearchParams()
+  const requestedPatientId = searchParams.get('patientId') || ''
   const [patients, setPatients] = useState<Patient[]>([])
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [activeTab, setActiveTab] = useState<ExecutionTabValue>(ExecutionTab.PRE_ASSESSMENT)
@@ -81,10 +84,15 @@ export default function DialysisExecution() {
     const loadPatients = async () => {
       setLoadingPatients(true)
       try {
-        const res = await restApi.getPatientList({ page: 1, pageSize: 200 })
+        const res = await restApi.getPatientList({ page: 1, pageSize: 500 })
         const items = (res.data.items || []).map(mapRestPatientToExecutionPatient)
         setPatients(items)
-        setSelectedPatientId((prev) => prev || items[0]?.id || '')
+        setSelectedPatientId((prev) => {
+          if (requestedPatientId && items.some((item) => item.id === requestedPatientId)) {
+            return requestedPatientId
+          }
+          return prev || items[0]?.id || ''
+        })
       } catch (error) {
         console.error('[DialysisExecution] load patients failed', error)
         message.error(getErrorMessage(error))
@@ -94,7 +102,7 @@ export default function DialysisExecution() {
     }
 
     void loadPatients()
-  }, [])
+  }, [requestedPatientId])
 
   useEffect(() => {
     if (!selectedPatientId) {
