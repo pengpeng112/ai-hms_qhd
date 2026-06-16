@@ -70,19 +70,19 @@ func RegisterPatientRoutesWithCore(r *gin.RouterGroup) {
 
 	patients := r.Group("/patients")
 	{
-		patients.GET("", handler.List)           // 获取患者列表
-		patients.POST("", handler.Create)        // 创建患者
+		patients.GET("", handler.List)    // 获取患者列表
+		patients.POST("", handler.Create) // 创建患者
 		// 注意：带子路径的路由必须在 :id 之前注册，避免 Gin 路由冲突
-		patients.GET("/stats", handler.Stats)    // 获取患者统计数据（必须在 /:id 之前）
-		patients.GET("/:id/core", coreHandler.GetCore)            // 患者核心信息（必须在 /:id 之前）
-		patients.GET("/:id/basic-info", basicInfoHandler.GetBasicInfo)    // 患者基本信息档案
-		patients.PUT("/:id/basic-info", basicInfoHandler.UpdateBasicInfo)  // 更新患者基本信息档案
+		patients.GET("/stats", handler.Stats)                                     // 获取患者统计数据（必须在 /:id 之前）
+		patients.GET("/:id/core", coreHandler.GetCore)                            // 患者核心信息（必须在 /:id 之前）
+		patients.GET("/:id/basic-info", basicInfoHandler.GetBasicInfo)            // 患者基本信息档案
+		patients.PUT("/:id/basic-info", basicInfoHandler.UpdateBasicInfo)         // 更新患者基本信息档案
 		patients.GET("/:id/hospitalization", hospitalizationHandler.GetByPatient) // 患者的当前住院信息
-		patients.GET("/:id/treatment-plans", handler.GetTreatmentPlans)   // 获取患者所有治疗方案（必须在 treatment-plan 之前）
-		patients.GET("/:id/treatment-plan", handler.GetTreatmentPlan)     // 获取患者治疗方案
-		patients.POST("/:id/treatment-plan", handler.CreateTreatmentPlan) // 创建患者治疗方案
-		patients.PUT("/:id/treatment-plan", handler.UpdateTreatmentPlan) // 更新患者治疗方案
-		patients.DELETE("/:id/treatment-plan", handler.DeleteTreatmentPlan) // 删除患者治疗方案
+		patients.GET("/:id/treatment-plans", handler.GetTreatmentPlans)           // 获取患者所有治疗方案（必须在 treatment-plan 之前）
+		patients.GET("/:id/treatment-plan", handler.GetTreatmentPlan)             // 获取患者治疗方案
+		patients.POST("/:id/treatment-plan", handler.CreateTreatmentPlan)         // 创建患者治疗方案
+		patients.PUT("/:id/treatment-plan", handler.UpdateTreatmentPlan)          // 更新患者治疗方案
+		patients.DELETE("/:id/treatment-plan", handler.DeleteTreatmentPlan)       // 删除患者治疗方案
 		// 方案调整记录
 		patients.GET("/:id/adjustment-records", handler.GetAdjustmentRecords)    // 获取方案调整记录
 		patients.POST("/:id/adjustment-records", handler.CreateAdjustmentRecord) // 创建方案调整记录
@@ -112,9 +112,24 @@ func RegisterPatientRoutesWithCore(r *gin.RouterGroup) {
 		patients.GET("/:id/prescriptions/:pid", prescriptionHandler.Get)
 		patients.PUT("/:id/prescriptions/:pid", prescriptionHandler.Update)
 		patients.POST("/:id/prescriptions/:pid/execute", prescriptionHandler.Execute)
+		patients.POST("/:id/prescriptions/:pid/sign", prescriptionHandler.Sign) // 签发（待签→已签，写留痕）
 		patients.POST("/:id/prescriptions/:pid/cancel", prescriptionHandler.Cancel)
-		patients.GET("/:id", handler.Get)        // 获取患者详情
-		patients.PUT("/:id", handler.Update)     // 更新患者
-		patients.DELETE("/:id", handler.Delete)  // 删除患者
+		patients.GET("/:id", handler.Get)       // 获取患者详情
+		patients.PUT("/:id", handler.Update)    // 更新患者
+		patients.DELETE("/:id", handler.Delete) // 删除患者
+	}
+
+	// 处方批量状态（驾驶舱医生墙：当日每患者 是否开方 / 是否已签）
+	prescriptions := r.Group("/prescriptions")
+	{
+		prescriptions.GET("/day-status", prescriptionHandler.DayStatus)
+	}
+
+	// 统一电子签名留痕（处方/方案/小结共用）
+	signHandler := NewSignHandler()
+	signRecords := r.Group("/sign-records")
+	{
+		signRecords.GET("", signHandler.List)
+		signRecords.POST("", signHandler.Create) // 通用签发（方案/小结）
 	}
 }

@@ -583,6 +583,55 @@ func (s *PrescriptionService) LegacyList(patientID string) ([]models.Prescriptio
 	return result, nil
 }
 
+// DayPrescriptionStatus 当日某患者的处方开单/签发状态（驾驶舱医生墙用）。
+type DayPrescriptionStatus struct {
+	PatientID       string `json:"patientId"`
+	HasPrescription bool   `json:"hasPrescription"`
+	Signed          bool   `json:"signed"` // 已签 = 老库 ConfirmTime 非空（契约02：已确认=已签）
+	PrescriptionID  string `json:"prescriptionId,omitempty"`
+}
+
+// DayStatus 批量返回指定日期「有处方的患者」的开方/签发状态，供驾驶舱医生墙。
+// 有关联治疗记录时按治疗业务日期匹配；无关联治疗记录时回退到处方 CreateTime，避免漏掉手工开方。
+func (s *PrescriptionService) DayStatus(date time.Time) ([]DayPrescriptionStatus, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	dayStart := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	dayEnd := dayStart.Add(24 * time.Hour)
+
+	var rows []legacyPatientPrescription
+	if err := s.db.Table(`"Plan_PatientPrescription" AS p`).
+		Select(`p.*`).
+		Joins(`LEFT JOIN "Treatment_Treatment" AS t ON t."Id" = p."TreatmentId" AND t."TenantId" = p."TenantId"`).
+		Where(`p."TenantId" = ? AND (
+			(t."Id" IS NOT NULL AND DATE(COALESCE(t."StartTime", t."SignInTime", t."ReceptionTime", t."CreateTime")) = DATE(?))
+			OR (t."Id" IS NULL AND p."CreateTime" >= ? AND p."CreateTime" < ?)
+		)`, LegacyTenantID, dayStart, dayStart, dayEnd).
+		Order(`COALESCE(t."StartTime", t."SignInTime", t."ReceptionTime", t."CreateTime", p."CreateTime") DESC`).
+		Order(`p."Id" DESC`).
+		Find(&rows).Error; err != nil {
+		return nil, err
+	}
+
+	seen := make(map[string]struct{}, len(rows))
+	result := make([]DayPrescriptionStatus, 0, len(rows))
+	for _, row := range rows {
+		pid := strconv.FormatInt(int64(row.PatientID), 10)
+		if _, ok := seen[pid]; ok {
+			continue // 同患者只取当日最新一条
+		}
+		seen[pid] = struct{}{}
+		result = append(result, DayPrescriptionStatus{
+			PatientID:       pid,
+			HasPrescription: true,
+			Signed:          row.ConfirmTime != nil && !row.ConfirmTime.IsZero(),
+			PrescriptionID:  strconv.FormatInt(row.ID, 10),
+		})
+	}
+	return result, nil
+}
+
 func (s *PrescriptionService) LegacyGet(patientID, prescriptionID string) (*models.Prescription, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
@@ -863,6 +912,50 @@ func (s *PrescriptionService) LegacyUpdate(patientID, prescriptionID string, req
 			return s.syncLegacyPrescriptionMaterials(tx, item.ID, *req.Materials)
 		}
 		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return s.LegacyGet(patientID, prescriptionID)
+}
+
+// LegacySign 签发当日处方（待签 → 已签，契约02 待签线）：
+// 落 ConfirmTime/ConfirmUserId 作"已签"信号（**不改执行态**，护士仍可后续执行），并写 sign_record 统一留痕。
+// 已签幂等（重复签不重复落 ConfirmTime，但仍补一条留痕便于审计）。
+func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, signerName string) (*models.Prescription, error) {
+	if s.db == nil {
+		return nil, errors.New("database not available")
+	}
+	item, err := s.loadLegacyPrescription(patientID, prescriptionID)
+	if err != nil {
+		return nil, err
+	}
+	if mapLegacyPrescriptionStatus(item.Status) == models.PrescriptionStatusCancelled {
+		return nil, errors.New("已取消的处方不能签发")
+	}
+
+	resolvedUserID, resolvedName, err := s.resolveLegacyUserID(signerID, signerName)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+
+	if err := s.db.Transaction(func(tx *gorm.DB) error {
+		if item.ConfirmTime == nil || item.ConfirmTime.IsZero() {
+			if err := tx.Table(`"Plan_PatientPrescription"`).
+				Where(`"Id" = ? AND "TenantId" = ?`, item.ID, LegacyTenantID).
+				Updates(map[string]any{
+					"ConfirmUserId":  resolvedUserID,
+					"ConfirmTime":    now,
+					"LastModifyTime": now,
+				}).Error; err != nil {
+				return err
+			}
+		}
+		signService := &SignService{db: tx}
+		_, err := signService.Sign(LegacyTenantID, models.SignTargetPrescription,
+			strconv.FormatInt(item.ID, 10), strconv.FormatInt(resolvedUserID, 10), resolvedName)
+		return err
 	}); err != nil {
 		return nil, err
 	}

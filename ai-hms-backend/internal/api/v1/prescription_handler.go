@@ -1,6 +1,9 @@
 package v1
 
 import (
+	"strings"
+	"time"
+
 	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	"github.com/elliotxin/ai-hms-backend/pkg/response"
@@ -17,6 +20,23 @@ func NewPrescriptionHandler() *PrescriptionHandler {
 	return &PrescriptionHandler{
 		service: services.NewPrescriptionService(),
 	}
+}
+
+// DayStatus 当日处方开方/签发状态批量查询（驾驶舱医生墙）
+// GET /api/v1/prescriptions/day-status?date=YYYY-MM-DD（缺省取今日）
+func (h *PrescriptionHandler) DayStatus(c *gin.Context) {
+	date := time.Now()
+	if raw := strings.TrimSpace(c.Query("date")); raw != "" {
+		if t, err := time.Parse("2006-01-02", raw); err == nil {
+			date = t
+		}
+	}
+	list, err := h.service.DayStatus(date)
+	if err != nil {
+		response.InternalError(c, err.Error())
+		return
+	}
+	response.Success(c, list)
 }
 
 // List 获取处方列表
@@ -138,6 +158,34 @@ func (h *PrescriptionHandler) Execute(c *gin.Context) {
 			return
 		}
 		if err.Error() == "已取消的处方不能执行" {
+			response.BadRequest(c, err.Error())
+			return
+		}
+		response.InternalError(c, err.Error())
+		return
+	}
+
+	response.Success(c, p)
+}
+
+// Sign 签发当日处方（待签 → 已签，写统一签名留痕；不改执行态）
+// POST /api/v1/patients/:id/prescriptions/:pid/sign
+func (h *PrescriptionHandler) Sign(c *gin.Context) {
+	patientID := c.Param("id")
+	prescriptionID := c.Param("pid")
+	if patientID == "" || prescriptionID == "" {
+		response.BadRequest(c, "患者ID和处方ID不能为空")
+		return
+	}
+
+	signerID := middleware.GetUserID(c)
+	p, err := h.service.LegacySign(patientID, prescriptionID, signerID, "")
+	if err != nil {
+		if err.Error() == "prescription not found" {
+			response.NotFound(c, "处方不存在")
+			return
+		}
+		if err.Error() == "已取消的处方不能签发" {
 			response.BadRequest(c, err.Error())
 			return
 		}

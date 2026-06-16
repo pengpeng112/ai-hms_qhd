@@ -129,6 +129,12 @@ func main() {
 			v1api.RegisterPatientRoutesWithCore(protected)
 			// 检验报告路由
 			v1api.RegisterLabReportRoutes(protected)
+			// RNa 智能钠处方计算路由（专利 P2/P4/P6）
+			v1api.RegisterRNaRoutes(protected)
+			// 处方开单参考数据聚合路由（体重/检验/上次治疗/钠清除比/血压心率）
+			v1api.RegisterPrescriptionContextRoutes(protected)
+			// 临床指标编码核对路由（用真实 LIS/HDIS 字典对齐候选码）
+			v1api.RegisterIndicatorMappingRoutes(protected)
 			// 检查报告路由
 			v1api.RegisterExamReportRoutes(protected)
 			// 检查报告外部同步路由（HDIS）

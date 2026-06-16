@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { message, Modal } from 'antd'
 import {
   ClipboardList, PlusCircle, RotateCcw,
-  Save, Search, Sparkles, X, Check, AlertTriangle
+  Save, Search, Sparkles, X, Check, AlertTriangle, PenLine
 } from 'lucide-react'
 import MaterialSyncModal from '@/components/patient/modals/MaterialSyncModal'
 import type { MaterialSyncResult } from '@/components/patient/modals/MaterialSyncModal'
@@ -26,7 +26,7 @@ import {
   type DrugCatalog
 } from '@/services/treatmentConfigApi'
 import { patientApi, type TreatmentPlan as ApiTreatmentPlan, type AdjustmentRecord } from '@/services/patientApi'
-import { restApi, type VascularAccessApi } from '@/services/restClient'
+import { restApi, type VascularAccessApi, type RestSignRecord } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import { dictCache, DICT_TYPES } from '@/services/dictApi'
 
@@ -769,6 +769,8 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
 
   // API 数据状态
   const [apiTreatmentPlans, setApiTreatmentPlans] = useState<ApiTreatmentPlan[]>([]) // 所有治疗方案
+  const [planSign, setPlanSign] = useState<RestSignRecord | null>(null) // 当前方案的签发留痕（待签线）
+  const [signingPlan, setSigningPlan] = useState(false)
   const [selectedMode, setSelectedMode] = useState<string>('') // 当前选中的模式
   const [dictOptions, setDictOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({}) // 字典选项
   const [vascularAccesses, setVascularAccesses] = useState<VascularAccessApi[]>([]) // 血管通路列表
@@ -1673,6 +1675,32 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
     }
   }
 
+  // 当前方案（取首个）及其签发留痕（契约02 待签线：方案新建/变更→待签→医生签发→已签）
+  const activePlanId = apiTreatmentPlans[0]?.id || ''
+  useEffect(() => {
+    if (!activePlanId) { setPlanSign(null); return }
+    let alive = true
+    restApi.getSignRecords('plan', activePlanId)
+      .then((rows) => { if (alive) setPlanSign(rows[0] || null) })
+      .catch(() => { if (alive) setPlanSign(null) })
+    return () => { alive = false }
+  }, [activePlanId])
+
+  const handleSignPlan = async () => {
+    if (!activePlanId || signingPlan) return
+    setSigningPlan(true)
+    try {
+      await restApi.signTarget('plan', activePlanId)
+      message.success('治疗方案已签发')
+      const rows = await restApi.getSignRecords('plan', activePlanId)
+      setPlanSign(rows[0] || null)
+    } catch (e) {
+      message.error(getErrorMessage(e))
+    } finally {
+      setSigningPlan(false)
+    }
+  }
+
   return (
     <div className="space-y-8 animate-fade-in pb-10">
       {/* 顶部操作栏 */}
@@ -1688,12 +1716,32 @@ export default function TreatmentPlanTab({ patientId = '', patientName = '', tre
             <RotateCcw size={18} className="text-indigo-500" /> 同步到处方
           </button>
         </div>
-        <button
-          onClick={handleSavePlan}
-          className="px-10 py-2.5 bg-blue-600 text-white text-sm font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center gap-2"
-        >
-          <Save size={18} /> 保存方案
-        </button>
+        <div className="flex items-center gap-3">
+          {activePlanId && (planSign ? (
+            <span
+              className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-50 text-emerald-600 text-sm font-black rounded-2xl border border-emerald-200"
+              title={`签发人 ${planSign.signerName || planSign.signerId} · ${new Date(planSign.signTime).toLocaleString()}`}
+            >
+              <Check size={16} /> 方案已签
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSignPlan}
+              disabled={signingPlan}
+              className="px-6 py-2.5 bg-violet-600 text-white text-sm font-black rounded-2xl hover:bg-violet-700 shadow-xl shadow-violet-100 transition-all flex items-center gap-2 disabled:opacity-60"
+            >
+              <PenLine size={18} /> {signingPlan ? '签发中…' : '签发方案'}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={handleSavePlan}
+            className="px-10 py-2.5 bg-blue-600 text-white text-sm font-black rounded-2xl hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all flex items-center gap-2"
+          >
+            <Save size={18} /> 保存方案
+          </button>
+        </div>
       </div>
 
       {/* 顶部参数卡片 - 始终显示 */}

@@ -91,6 +91,7 @@ export const DialysisParamsSection = memo(function DialysisParamsSection({
         onConfirm={(value) =>
           onChange((prev) => ({ ...prev, na: value }))
         }
+        hint="当日 RNa 钠处方起算基线"
       />
       <NumericInputField
         label="Ca离子浓度"
@@ -109,6 +110,8 @@ export const DialysisParamsSection = memo(function DialysisParamsSection({
         onConfirm={(value) =>
           onChange((prev) => ({ ...prev, k: value }))
         }
+        warn={!!values.k && Number(values.k) !== 2.0}
+        warnText={!!values.k && Number(values.k) !== 2.0 ? '特殊钾浓度（标准默认 2.0）' : undefined}
       />
       <NumericInputField
         label="HCO3-浓度"

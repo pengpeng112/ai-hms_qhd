@@ -11,6 +11,12 @@ import type {
   PrescriptionUpdateRequest,
 } from '@/services/orderApi'
 import type { Patient } from '../types'
+import {
+  PatientContextPanel,
+  type PrescriptionContextData,
+} from '@components/prescription/PatientContextPanel'
+import { fetchPatientContext, extractLatestSerumNa } from '@components/prescription/PatientContextUtils'
+import { RNaPrescriptionPanel } from '@components/prescription/RNaPrescriptionPanel'
 
 interface Props {
   patient: Patient
@@ -71,6 +77,26 @@ const EMPTY_FORM: PrescriptionFormState = {
   volume: '',
   notes: '',
 }
+
+// 抗凝药物五类预设：选中自动带出常用首剂量/每小时追加量（成人常规参考，需个体化）
+interface AnticoagulantOption {
+  key: string
+  category: '肝素' | '低分子肝素' | '萘莫司他' | '相对无肝素' | '无肝素'
+  drug: string
+  initialDose: string
+  hourlyDose: string
+}
+const ANTICOAGULANT_OPTIONS: AnticoagulantOption[] = [
+  { key: 'heparin',       category: '肝素',       drug: '普通肝素',       initialDose: '2000 U',  hourlyDose: '1000 U/h' },
+  { key: 'nadroparin',    category: '低分子肝素', drug: '那屈肝素钙',     initialDose: '4100 IU', hourlyDose: '0（单次）' },
+  { key: 'enoxaparin',    category: '低分子肝素', drug: '依诺肝素钠',     initialDose: '4000 IU', hourlyDose: '0（单次）' },
+  { key: 'dalteparin',    category: '低分子肝素', drug: '达肝素钠',       initialDose: '5000 IU', hourlyDose: '0（单次）' },
+  { key: 'nafamostat',    category: '萘莫司他',   drug: '甲磺酸萘莫司他', initialDose: '20 mg',   hourlyDose: '30 mg/h' },
+  { key: 'relative-free', category: '相对无肝素', drug: '相对无肝素',     initialDose: '1000 U',  hourlyDose: '0（盐水冲洗）' },
+  { key: 'heparin-free',  category: '无肝素',     drug: '无肝素',         initialDose: '0',       hourlyDose: '0（定期盐水冲洗）' },
+]
+const ANTICOAG_CATEGORIES: AnticoagulantOption['category'][] =
+  ['肝素', '低分子肝素', '萘莫司他', '相对无肝素', '无肝素']
 
 function normalizeDateYMD(value?: string) {
   if (!value) return ''
@@ -170,6 +196,8 @@ function EditableField({
   disabled,
   onChange,
   compact,
+  warn,
+  warnText,
 }: {
   label: string
   value: string
@@ -177,21 +205,27 @@ function EditableField({
   disabled: boolean
   onChange: (value: string) => void
   compact?: boolean
+  warn?: boolean
+  warnText?: string
 }) {
+  const inputClass = warn
+    ? 'border-red-400 bg-red-50 text-red-600'
+    : disabled
+      ? 'border-transparent bg-transparent text-slate-900'
+      : 'border-blue-300 bg-white text-slate-900 focus:border-blue-500'
   return (
     <label className="block min-w-0">
-      <div className={`${compact ? 'mb-1' : 'mb-2'} text-[11px] font-semibold text-slate-400`}>{label}</div>
+      <div className={`${compact ? 'mb-1' : 'mb-2'} text-[11px] font-semibold ${warn ? 'text-red-500' : 'text-slate-400'}`}>{label}{warn ? ' ⚠' : ''}</div>
       <div className="relative">
         <input
           value={disabled ? value || '--' : value}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className={`${compact ? 'h-9' : 'h-10'} w-full rounded-lg border px-3 text-sm font-bold outline-none ${unit ? 'pr-14' : ''} ${
-            disabled ? 'border-transparent bg-transparent text-slate-900' : 'border-blue-300 bg-white text-slate-900 focus:border-blue-500'
-          }`}
+          className={`${compact ? 'h-9' : 'h-10'} w-full rounded-lg border px-3 text-sm font-bold outline-none ${unit ? 'pr-14' : ''} ${inputClass}`}
         />
-        {unit ? <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-slate-400">{unit}</span> : null}
+        {unit ? <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium ${warn ? 'text-red-400' : 'text-slate-400'}`}>{unit}</span> : null}
       </div>
+      {warn && warnText ? <div className="mt-1 text-[11px] font-semibold text-red-500">{warnText}</div> : null}
     </label>
   )
 }
@@ -239,6 +273,22 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [currentPrescription, setCurrentPrescription] = useState<Prescription | null>(null)
   const [form, setForm] = useState<PrescriptionFormState>(EMPTY_FORM)
+  // RNa 开单参考聚合数据（含 LIS 最近血钠，供 RNa 取 C_pre）
+  const [contextData, setContextData] = useState<PrescriptionContextData | null>(null)
+
+  const loadContext = async () => {
+    try {
+      setContextData(await fetchPatientContext(patient.id))
+    } catch (error) {
+      console.error('[TodayPrescription] context load failed', error)
+      setContextData(null)
+    }
+  }
+
+  useEffect(() => {
+    void loadContext()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [patient.id])
 
   useEffect(() => {
     const loadData = async () => {
@@ -332,6 +382,45 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
   const updateField = (key: keyof PrescriptionFormState, value: string) => {
     setForm((current) => ({ ...current, [key]: value }))
   }
+
+  // RNa 智能钠处方：C_pre 取 LIS 最近血钠；身高/年龄/性别取真实档案(聚合接口 demographics)；超滤量唯一来源=form.extraWeight
+  const latestSerumNa = extractLatestSerumNa(contextData)
+  const demo = contextData?.demographics
+  const rnaData = useMemo(() => ({
+    cPre: latestSerumNa,
+    preWeight: metrics.preWeight || undefined,
+    dryWeight:
+      parseOptionalNumber(form.dryWeight) ?? treatmentPlan?.dryWeight ?? patient.dryWeight ?? 60,
+    ufOverride: parseOptionalNumber(form.extraWeight),
+    patient: {
+      height: demo?.heightCm ?? 165, // 真实身高(档案)，缺失回退 165cm，面板可覆盖
+      age: demo?.ageYears ?? patient.age ?? 50,
+      isMale: demo?.isMale ?? (patient.gender?.includes('男') || patient.gender?.toLowerCase() === 'male'),
+    },
+  }), [latestSerumNa, demo, metrics.preWeight, form.dryWeight, form.extraWeight, treatmentPlan, patient])
+
+  // 采纳 RNa 计算的透析液钠：写入处方并进入编辑态
+  const handleAdoptRNa = (cd: number) => {
+    setForm((current) => ({ ...current, na: String(cd) }))
+    setEditing(true)
+    message.success(`已采纳透析液钠 ${cd} mmol/L，请确认后保存`)
+  }
+
+  // 选择抗凝药物：写入药名 + 自动带出常用首剂量/每小时追加量（可再调）
+  const handleSelectAnticoagulant = (key: string) => {
+    const opt = ANTICOAGULANT_OPTIONS.find((o) => o.key === key)
+    if (!opt) return
+    setForm((current) => ({
+      ...current,
+      initialDrug: opt.drug,
+      maintenanceDrug: opt.drug,
+      initialDose: opt.initialDose,
+      maintenanceDose: opt.hourlyDose,
+    }))
+  }
+  const selectedAnticoagKey =
+    ANTICOAGULANT_OPTIONS.find((o) => o.drug === form.initialDrug.trim())?.key ??
+    (form.initialDrug.trim() ? 'custom' : '')
 
   const handleExtractToday = async () => {
     try {
@@ -489,6 +578,23 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
             <MetricCard label="透析时间" value={metrics.duration} unit="H" />
           </div>
 
+          {/* RNa 开单决策：左=患者数据汇总(只读参考)，右=RNa 智能钠处方 */}
+          <div className="grid items-start gap-4 xl:grid-cols-2">
+            <PatientContextPanel
+              patientId={patient.id}
+              externalData={contextData}
+              onRefresh={() => void loadContext()}
+            />
+            <RNaPrescriptionPanel
+              data={rnaData}
+              cPreSource={latestSerumNa !== undefined ? 'lab_report' : undefined}
+              onAdopt={handleAdoptRNa}
+              defaultRNa={1.0}
+              vuf={parseOptionalNumber(form.extraWeight)}
+              onVufChange={(v) => updateField('extraWeight', v.toFixed(1))}
+            />
+          </div>
+
           <div className="grid gap-4 xl:grid-cols-2">
             <SectionCard title="核心处方参数" icon={<Activity size={16} className="text-blue-600" />}>
               <div className="space-y-3 p-4">
@@ -517,6 +623,28 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
               icon={<Droplets size={16} className={hasAnticoagulant ? 'text-orange-500' : 'text-slate-400'} />}
             >
               <div className="p-4">
+                {editing && (
+                  <label className="mb-3 block">
+                    <div className="mb-1 text-[11px] font-semibold text-slate-400">抗凝药物（选中自动带出常用剂量）</div>
+                    <select
+                      value={selectedAnticoagKey}
+                      onChange={(e) => handleSelectAnticoagulant(e.target.value)}
+                      className="h-9 w-full rounded-lg border border-blue-300 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:border-blue-500"
+                    >
+                      <option value="" disabled>请选择抗凝药物</option>
+                      {ANTICOAG_CATEGORIES.map((cat) => (
+                        <optgroup key={cat} label={cat}>
+                          {ANTICOAGULANT_OPTIONS.filter((o) => o.category === cat).map((o) => (
+                            <option key={o.key} value={o.key}>{o.drug}（{o.category}）</option>
+                          ))}
+                        </optgroup>
+                      ))}
+                      {selectedAnticoagKey === 'custom' && (
+                        <option value="custom">{form.initialDrug}（既往方案）</option>
+                      )}
+                    </select>
+                  </label>
+                )}
                 {hasAnticoagulant ? (
                   <div className="space-y-3">
                     <div className="rounded-lg bg-orange-50 px-3 py-2 text-sm font-bold text-orange-800">
@@ -550,7 +678,16 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
                 <div className="grid grid-cols-1 gap-2.5">
                   <EditableField label="Na 浓度" value={form.na} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('na', v)} />
                   <EditableField label="Ca 浓度" value={form.ca} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('ca', v)} />
-                  <EditableField label="K 浓度" value={form.k} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('k', v)} />
+                  <EditableField
+                    label="K 浓度"
+                    value={form.k}
+                    unit="mmol/L"
+                    disabled={!editing}
+                    compact
+                    warn={(() => { const k = parseOptionalNumber(form.k); return k !== undefined && k !== 2.0 })()}
+                    warnText={(() => { const k = parseOptionalNumber(form.k); return k !== undefined && k !== 2.0 ? '特殊钾浓度(标准默认 2.0)' : undefined })()}
+                    onChange={(v) => updateField('k', v)}
+                  />
                   <EditableField label="HCO₃ 浓度" value={form.hco3} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('hco3', v)} />
                   <EditableField label="葡萄糖" value={form.glucose} unit="mmol/L" disabled={!editing} compact onChange={(v) => updateField('glucose', v)} />
                 </div>

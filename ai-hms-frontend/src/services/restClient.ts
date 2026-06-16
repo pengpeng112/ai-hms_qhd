@@ -175,6 +175,23 @@ export interface RestDuringParam {
   lastModifyTime: string
 }
 
+export interface RestPrescriptionDayStatus {
+  patientId: string
+  hasPrescription: boolean
+  signed: boolean // 已签 = 后端 ConfirmTime 非空
+  prescriptionId?: string
+}
+
+// 统一电子签名留痕（处方/方案/小结共用）
+export interface RestSignRecord {
+  id: string
+  targetType: string // prescription / plan / summary
+  targetId: string
+  signerId: string
+  signerName?: string
+  signTime: string
+}
+
 export interface RestTreatment {
   id: number
   tenantId: number
@@ -1912,6 +1929,47 @@ return response.data.data
       throw new Error('Failed to get patient stats')
     }
     return response.data.data
+  }
+
+  // 驾驶舱医生墙：当日每患者 是否开方/是否已签（批量，签发=ConfirmTime 非空）
+  async getPrescriptionDayStatus(date: string): Promise<RestPrescriptionDayStatus[]> {
+    const response = await apiClient.get<ApiSuccessResponse<RestPrescriptionDayStatus[]>>(
+      '/api/v1/prescriptions/day-status',
+      { params: { date } }
+    )
+    if (!response.data.success) {
+      throw new Error('Failed to get prescription day status')
+    }
+    return response.data.data || []
+  }
+
+  // 签发处方（待签→已签，写统一签名留痕；不改执行态）
+  async signPrescription(patientId: string, prescriptionId: string): Promise<void> {
+    const response = await apiClient.post<ApiSuccessResponse<unknown>>(
+      `/api/v1/patients/${patientId}/prescriptions/${prescriptionId}/sign`
+    )
+    if (!response.data.success) {
+      throw new Error('Failed to sign prescription')
+    }
+  }
+
+  /** 通用签发（方案/小结）：写一条统一签名留痕 */
+  async signTarget(targetType: 'plan' | 'summary', targetId: string): Promise<void> {
+    const response = await apiClient.post<ApiSuccessResponse<unknown>>('/api/v1/sign-records', { targetType, targetId })
+    if (!response.data.success) {
+      throw new Error('Failed to sign target')
+    }
+  }
+
+  /** 查询某对象的签名留痕（审计/展示） */
+  async getSignRecords(targetType: string, targetId: string): Promise<RestSignRecord[]> {
+    const response = await apiClient.get<ApiSuccessResponse<RestSignRecord[]>>('/api/v1/sign-records', {
+      params: { targetType, targetId },
+    })
+    if (!response.data.success) {
+      throw new Error('Failed to get sign records')
+    }
+    return response.data.data || []
   }
 
   /**

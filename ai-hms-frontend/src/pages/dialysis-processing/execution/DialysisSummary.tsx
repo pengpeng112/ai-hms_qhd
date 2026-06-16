@@ -1,11 +1,11 @@
 import { message } from 'antd'
-import { CheckCircle2, Copy, FileText, NotebookPen, Save, ShieldCheck, TrendingUp, Waves } from 'lucide-react'
+import { CheckCircle2, Copy, FileText, NotebookPen, Save, ShieldCheck, TrendingUp, Waves, PenLine } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { restApi } from '@/services'
 import type { RestTreatment } from '@/services'
 import { orderApi } from '@/services/orderApi'
 import type { Order } from '@/services/orderApi'
-import { getErrorMessage } from '@/services/restClient'
+import { getErrorMessage, type RestSignRecord } from '@/services/restClient'
 import type { Patient } from '../types'
 
 interface Props {
@@ -47,6 +47,8 @@ export default function DialysisSummary({ patient, treatment, treatmentLoading =
   const [treatmentSummary, setTreatmentSummary] = useState('')
   const [saving, setSaving] = useState(false)
   const [lastTreatmentId, setLastTreatmentId] = useState<number | null>(null)
+  const [summarySign, setSummarySign] = useState<RestSignRecord | null>(null) // 小结签发留痕（待签线）
+  const [signingSummary, setSigningSummary] = useState(false)
 
   useEffect(() => {
     if (treatment && treatment.id !== lastTreatmentId) {
@@ -59,6 +61,31 @@ export default function DialysisSummary({ patient, treatment, treatmentLoading =
       setLastTreatmentId(null)
     }
   }, [treatment?.id, treatment, lastTreatmentId])
+
+  // 小结签发留痕（契约02 待签线：治疗结束→护士签→医生签发→已签）
+  useEffect(() => {
+    if (!treatment) { setSummarySign(null); return }
+    let alive = true
+    restApi.getSignRecords('summary', String(treatment.id))
+      .then((rows) => { if (alive) setSummarySign(rows[0] || null) })
+      .catch(() => { if (alive) setSummarySign(null) })
+    return () => { alive = false }
+  }, [treatment])
+
+  const handleSignSummary = async () => {
+    if (!treatment || signingSummary) return
+    setSigningSummary(true)
+    try {
+      await restApi.signTarget('summary', String(treatment.id))
+      message.success('治疗小结已签发')
+      const rows = await restApi.getSignRecords('summary', String(treatment.id))
+      setSummarySign(rows[0] || null)
+    } catch (e) {
+      message.error(getErrorMessage(e))
+    } finally {
+      setSigningSummary(false)
+    }
+  }
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -290,6 +317,18 @@ export default function DialysisSummary({ patient, treatment, treatmentLoading =
           <button type="button" onClick={() => void handleSaveSummary()} disabled={!treatment || treatmentLoading || saving} className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white shadow-sm shadow-blue-900/20 transition hover:bg-blue-700 disabled:opacity-50">
             <Save size={14} />{saving ? '保存中...' : '保存小结'}
           </button>
+          {treatment && (summarySign ? (
+            <span
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-bold text-emerald-600"
+              title={`签发人 ${summarySign.signerName || summarySign.signerId} · ${formatDateTime(summarySign.signTime)}`}
+            >
+              <CheckCircle2 size={14} />小结已签
+            </span>
+          ) : (
+            <button type="button" onClick={() => void handleSignSummary()} disabled={treatmentLoading || signingSummary} className="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 px-5 py-2 text-xs font-bold text-white shadow-sm shadow-violet-900/20 transition hover:bg-violet-700 disabled:opacity-50">
+              <PenLine size={14} />{signingSummary ? '签发中…' : '签发小结'}
+            </button>
+          ))}
         </div>
       </div>
     </div>

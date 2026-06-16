@@ -1,0 +1,620 @@
+[
+  {
+    "conceptId": "SERUM_K",
+    "conceptNameZh": "血清钾",
+    "conceptNameEn": "Serum Potassium",
+    "category": "electrolyte",
+    "nameKeywords": [
+      "血钾",
+      "钾",
+      "K+",
+      "Potassium",
+      "钾离子"
+    ],
+    "itemCodeHints": [
+      "K",
+      "K+",
+      "XK"
+    ],
+    "indexCodeHints": [
+      "K",
+      "SERUM_K"
+    ],
+    "loinc": [
+      "2823-3"
+    ],
+    "sourceTables": [
+      "lab_report_items",
+      "patient_key_indicators"
+    ],
+    "prescriptionParam": "prescription.parameters.k",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 3.5,
+    "dialysisTargetHigh": 5.5,
+    "criticalHigh": 6.5,
+    "criticalLow": 2.5,
+    "highAction": "降低透析液K浓度（建议1.0~1.5 mmol/L）",
+    "lowAction": "升高透析液K浓度（建议2.0~3.0 mmol/L），警惕心律失常",
+    "priority": 1
+  },
+  {
+    "conceptId": "SERUM_NA",
+    "conceptNameZh": "血清钠",
+    "conceptNameEn": "Serum Sodium",
+    "category": "electrolyte",
+    "nameKeywords": [
+      "血钠",
+      "钠",
+      "Na+",
+      "Sodium",
+      "钠离子"
+    ],
+    "itemCodeHints": [
+      "NA",
+      "Na+",
+      "XNA"
+    ],
+    "indexCodeHints": [
+      "NA",
+      "SERUM_NA"
+    ],
+    "loinc": [
+      "2951-2"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.parameters.na",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 136.0,
+    "dialysisTargetHigh": 145.0,
+    "criticalHigh": 155.0,
+    "criticalLow": 125.0,
+    "highAction": "降低透析液Na浓度；注意容量管理",
+    "lowAction": "升高透析液Na浓度；注意低钠血症原因",
+    "priority": 2
+  },
+  {
+    "conceptId": "SERUM_CA",
+    "conceptNameZh": "血清钙",
+    "conceptNameEn": "Serum Calcium",
+    "category": "electrolyte",
+    "nameKeywords": [
+      "血钙",
+      "钙",
+      "Ca2+",
+      "Calcium",
+      "总钙",
+      "离子钙"
+    ],
+    "itemCodeHints": [
+      "CA",
+      "Ca2+",
+      "TCA",
+      "ICA"
+    ],
+    "indexCodeHints": [
+      "CA",
+      "SERUM_CA"
+    ],
+    "loinc": [
+      "17861-6",
+      "1995-0"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.parameters.ca",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 2.1,
+    "dialysisTargetHigh": 2.5,
+    "criticalHigh": 3.0,
+    "criticalLow": 1.75,
+    "highAction": "降低透析液Ca浓度至1.0~1.25 mmol/L；检查维生素D用量",
+    "lowAction": "升高透析液Ca浓度至1.5~1.75 mmol/L",
+    "priority": 2
+  },
+  {
+    "conceptId": "SERUM_P",
+    "conceptNameZh": "血清磷",
+    "conceptNameEn": "Serum Phosphorus",
+    "category": "electrolyte",
+    "nameKeywords": [
+      "血磷",
+      "磷",
+      "Phosphorus",
+      "无机磷",
+      "磷酸盐"
+    ],
+    "itemCodeHints": [
+      "P",
+      "IP",
+      "PHOS"
+    ],
+    "indexCodeHints": [
+      "P",
+      "SERUM_P"
+    ],
+    "loinc": [
+      "2777-1"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "order.category=磷结合剂",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 1.13,
+    "dialysisTargetHigh": 1.78,
+    "criticalHigh": 2.5,
+    "criticalLow": 0.8,
+    "highAction": "加强磷结合剂医嘱；饮食干预；必要时增加透析时长",
+    "lowAction": "减少磷结合剂剂量；注意营养状态",
+    "priority": 2
+  },
+  {
+    "conceptId": "SERUM_HCO3",
+    "conceptNameZh": "碳酸氢根",
+    "conceptNameEn": "Bicarbonate",
+    "category": "electrolyte",
+    "nameKeywords": [
+      "碳酸氢根",
+      "HCO3",
+      "碳酸氢盐",
+      "Bicarbonate",
+      "二氧化碳结合力",
+      "CO2CP",
+      "TCO2"
+    ],
+    "itemCodeHints": [
+      "HCO3",
+      "CO2",
+      "CO2CP",
+      "TCO2"
+    ],
+    "indexCodeHints": [
+      "HCO3",
+      "CO2CP"
+    ],
+    "loinc": [
+      "1963-8",
+      "2028-9"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.parameters.hco3",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 22.0,
+    "dialysisTargetHigh": 26.0,
+    "criticalHigh": 32.0,
+    "criticalLow": 15.0,
+    "highAction": "降低透析液HCO3浓度",
+    "lowAction": "升高透析液HCO3浓度（35~38 mmol/L）",
+    "priority": 3
+  },
+  {
+    "conceptId": "HEMOGLOBIN",
+    "conceptNameZh": "血红蛋白",
+    "conceptNameEn": "Hemoglobin",
+    "category": "anemia",
+    "nameKeywords": [
+      "血红蛋白",
+      "Hb",
+      "HGB",
+      "Hemoglobin",
+      "血色素"
+    ],
+    "itemCodeHints": [
+      "HGB",
+      "HB"
+    ],
+    "indexCodeHints": [
+      "HGB",
+      "HB"
+    ],
+    "loinc": [
+      "718-7"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "order.category=促红素",
+    "unit": "g/L",
+    "dialysisTargetLow": 110.0,
+    "dialysisTargetHigh": 130.0,
+    "criticalHigh": 150.0,
+    "criticalLow": 70.0,
+    "highAction": "减少EPO剂量或暂停（>130 g/L）；警惕血栓风险",
+    "lowAction": "增加EPO剂量；评估铁储备；排查出血/感染",
+    "priority": 1
+  },
+  {
+    "conceptId": "FERRITIN",
+    "conceptNameZh": "血清铁蛋白",
+    "conceptNameEn": "Serum Ferritin",
+    "category": "anemia",
+    "nameKeywords": [
+      "铁蛋白",
+      "Ferritin",
+      "SF",
+      "血清铁蛋白"
+    ],
+    "itemCodeHints": [
+      "FER",
+      "FERR",
+      "SF"
+    ],
+    "indexCodeHints": [
+      "FER",
+      "FERRITIN"
+    ],
+    "loinc": [
+      "2276-4"
+    ],
+    "sourceTables": [
+      "lab_report_items",
+      "patient_key_indicators"
+    ],
+    "prescriptionParam": "order.category=铁剂",
+    "unit": "μg/L",
+    "dialysisTargetLow": 200.0,
+    "dialysisTargetHigh": 500.0,
+    "criticalHigh": 800.0,
+    "criticalLow": 100.0,
+    "highAction": "暂停静脉铁剂（>500 μg/L）",
+    "lowAction": "启动或加强静脉铁剂治疗（<200 μg/L）",
+    "priority": 2
+  },
+  {
+    "conceptId": "TSAT",
+    "conceptNameZh": "转铁蛋白饱和度",
+    "conceptNameEn": "Transferrin Saturation",
+    "category": "anemia",
+    "nameKeywords": [
+      "转铁蛋白饱和度",
+      "TSAT",
+      "铁饱和度",
+      "Transferrin Saturation"
+    ],
+    "itemCodeHints": [
+      "TSAT",
+      "TS",
+      "ISAT"
+    ],
+    "indexCodeHints": [
+      "TSAT"
+    ],
+    "loinc": [
+      "2502-3"
+    ],
+    "sourceTables": [
+      "lab_report_items",
+      "patient_key_indicators"
+    ],
+    "prescriptionParam": "order.category=铁剂",
+    "unit": "%",
+    "dialysisTargetLow": 20.0,
+    "dialysisTargetHigh": 50.0,
+    "criticalHigh": 60.0,
+    "criticalLow": 10.0,
+    "highAction": "暂停铁剂（>50%）",
+    "lowAction": "补充铁剂（<20%）；联合铁蛋白综合判断",
+    "priority": 2
+  },
+  {
+    "conceptId": "KTV",
+    "conceptNameZh": "Kt/V",
+    "conceptNameEn": "Kt/V",
+    "category": "adequacy",
+    "nameKeywords": [
+      "Kt/V",
+      "KTV",
+      "尿素清除指数"
+    ],
+    "itemCodeHints": [
+      "KTV",
+      "KT/V",
+      "SPKTV"
+    ],
+    "indexCodeHints": [
+      "KTV",
+      "KT_V"
+    ],
+    "loinc": [],
+    "sourceTables": [
+      "patient_key_indicators"
+    ],
+    "prescriptionParam": "prescription.duration",
+    "prescriptionParamAlt": "prescription.dialysisMode.bloodFlow",
+    "unit": "",
+    "dialysisTargetLow": 1.2,
+    "dialysisTargetHigh": null,
+    "criticalHigh": null,
+    "criticalLow": 1.0,
+    "highAction": "充分性达标，维持现方案",
+    "lowAction": "延长透析时长（+30min）或提高血流量；检查血管通路",
+    "priority": 1
+  },
+  {
+    "conceptId": "URR",
+    "conceptNameZh": "尿素清除率",
+    "conceptNameEn": "Urea Reduction Ratio",
+    "category": "adequacy",
+    "nameKeywords": [
+      "尿素清除率",
+      "URR",
+      "Urea Reduction"
+    ],
+    "itemCodeHints": [
+      "URR"
+    ],
+    "indexCodeHints": [
+      "URR"
+    ],
+    "loinc": [],
+    "sourceTables": [
+      "patient_key_indicators"
+    ],
+    "prescriptionParam": "prescription.duration",
+    "unit": "%",
+    "dialysisTargetLow": 65.0,
+    "dialysisTargetHigh": null,
+    "criticalHigh": null,
+    "criticalLow": 55.0,
+    "highAction": "充分性达标",
+    "lowAction": "延长透析时长或提高血流量",
+    "priority": 1
+  },
+  {
+    "conceptId": "PT",
+    "conceptNameZh": "凝血酶原时间",
+    "conceptNameEn": "Prothrombin Time",
+    "category": "coagulation",
+    "nameKeywords": [
+      "凝血酶原时间",
+      "PT",
+      "凝血时间",
+      "Prothrombin"
+    ],
+    "itemCodeHints": [
+      "PT"
+    ],
+    "indexCodeHints": [
+      "PT"
+    ],
+    "loinc": [
+      "5902-2"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.anticoagulant",
+    "unit": "s",
+    "dialysisTargetLow": 11.0,
+    "dialysisTargetHigh": 14.0,
+    "criticalHigh": 25.0,
+    "criticalLow": null,
+    "highAction": "考虑无肝素透析或减少抗凝剂量",
+    "lowAction": "凝血功能正常，常规抗凝",
+    "priority": 2
+  },
+  {
+    "conceptId": "APTT",
+    "conceptNameZh": "活化部分凝血活酶时间",
+    "conceptNameEn": "Activated Partial Thromboplastin Time",
+    "category": "coagulation",
+    "nameKeywords": [
+      "活化部分凝血",
+      "APTT",
+      "aPTT",
+      "部分凝血活酶"
+    ],
+    "itemCodeHints": [
+      "APTT",
+      "APTT-R"
+    ],
+    "indexCodeHints": [
+      "APTT"
+    ],
+    "loinc": [
+      "14979-9",
+      "3173-2"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.anticoagulant.initialDose",
+    "unit": "s",
+    "dialysisTargetLow": 28.0,
+    "dialysisTargetHigh": 43.0,
+    "criticalHigh": 90.0,
+    "criticalLow": null,
+    "highAction": "减少普通肝素剂量；考虑改低分子肝素",
+    "lowAction": "抗凝不足，适当增加剂量",
+    "priority": 2
+  },
+  {
+    "conceptId": "PLT",
+    "conceptNameZh": "血小板计数",
+    "conceptNameEn": "Platelet Count",
+    "category": "coagulation",
+    "nameKeywords": [
+      "血小板",
+      "PLT",
+      "Platelet",
+      "血板"
+    ],
+    "itemCodeHints": [
+      "PLT",
+      "BPC"
+    ],
+    "indexCodeHints": [
+      "PLT"
+    ],
+    "loinc": [
+      "777-3"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.anticoagulant",
+    "unit": "×10⁹/L",
+    "dialysisTargetLow": 100.0,
+    "dialysisTargetHigh": 400.0,
+    "criticalHigh": null,
+    "criticalLow": 50.0,
+    "highAction": "血小板正常，常规抗凝",
+    "lowAction": "<50×10⁹/L 考虑无肝素透析或局部枸橼酸抗凝",
+    "priority": 2
+  },
+  {
+    "conceptId": "IPTH",
+    "conceptNameZh": "全段甲状旁腺激素",
+    "conceptNameEn": "Intact PTH",
+    "category": "bone_mineral",
+    "nameKeywords": [
+      "甲状旁腺素",
+      "iPTH",
+      "PTH",
+      "甲状旁腺激素",
+      "全段PTH"
+    ],
+    "itemCodeHints": [
+      "PTH",
+      "IPTH",
+      "I-PTH"
+    ],
+    "indexCodeHints": [
+      "PTH",
+      "IPTH"
+    ],
+    "loinc": [
+      "2731-8"
+    ],
+    "sourceTables": [
+      "patient_key_indicators",
+      "lab_report_items"
+    ],
+    "prescriptionParam": "order.category=维生素D",
+    "unit": "pg/mL",
+    "dialysisTargetLow": 150.0,
+    "dialysisTargetHigh": 600.0,
+    "criticalHigh": 1000.0,
+    "criticalLow": 100.0,
+    "highAction": "加强活性维生素D（骨化三醇）；考虑拟钙剂（西那卡塞）",
+    "lowAction": "减少或暂停活性维生素D；警惕动力缺失性骨病",
+    "priority": 2
+  },
+  {
+    "conceptId": "ALBUMIN",
+    "conceptNameZh": "白蛋白",
+    "conceptNameEn": "Albumin",
+    "category": "nutrition",
+    "nameKeywords": [
+      "白蛋白",
+      "ALB",
+      "Albumin",
+      "血清白蛋白"
+    ],
+    "itemCodeHints": [
+      "ALB"
+    ],
+    "indexCodeHints": [
+      "ALB",
+      "ALBUMIN"
+    ],
+    "loinc": [
+      "1751-7"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": null,
+    "note": "影响干体重评估和营养医嘱，无直接处方参数对应",
+    "unit": "g/L",
+    "dialysisTargetLow": 40.0,
+    "dialysisTargetHigh": null,
+    "criticalHigh": null,
+    "criticalLow": 30.0,
+    "highAction": "营养状态良好，维持",
+    "lowAction": "<35 g/L 提示营养不良；加强营养医嘱；考虑饮食干预",
+    "priority": 3
+  },
+  {
+    "conceptId": "CRP",
+    "conceptNameZh": "C反应蛋白",
+    "conceptNameEn": "C-Reactive Protein",
+    "category": "inflammation",
+    "nameKeywords": [
+      "C反应蛋白",
+      "CRP",
+      "hs-CRP",
+      "高敏CRP",
+      "超敏CRP"
+    ],
+    "itemCodeHints": [
+      "CRP",
+      "HSCRP",
+      "HS-CRP"
+    ],
+    "indexCodeHints": [
+      "CRP",
+      "HSCRP"
+    ],
+    "loinc": [
+      "1988-5",
+      "30522-7"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": null,
+    "note": "炎症标志物，升高时EPO抵抗风险增加",
+    "unit": "mg/L",
+    "dialysisTargetLow": null,
+    "dialysisTargetHigh": 10.0,
+    "criticalHigh": 50.0,
+    "criticalLow": null,
+    "highAction": "排查感染/炎症来源；EPO可能需要增量",
+    "lowAction": "炎症控制良好",
+    "priority": 4
+  },
+  {
+    "conceptId": "GLUCOSE",
+    "conceptNameZh": "血糖",
+    "conceptNameEn": "Blood Glucose",
+    "category": "metabolic",
+    "nameKeywords": [
+      "血糖",
+      "GLU",
+      "Glucose",
+      "空腹血糖",
+      "随机血糖"
+    ],
+    "itemCodeHints": [
+      "GLU",
+      "GLU0",
+      "FBG"
+    ],
+    "indexCodeHints": [
+      "GLU",
+      "GLUCOSE"
+    ],
+    "loinc": [
+      "2345-7",
+      "1558-6"
+    ],
+    "sourceTables": [
+      "lab_report_items"
+    ],
+    "prescriptionParam": "prescription.parameters.glucose",
+    "unit": "mmol/L",
+    "dialysisTargetLow": 3.9,
+    "dialysisTargetHigh": 10.0,
+    "criticalHigh": 20.0,
+    "criticalLow": 2.8,
+    "highAction": "糖尿病患者注意透析液葡萄糖浓度；优化降糖方案",
+    "lowAction": "低血糖风险，透析中注意监测；可选含葡萄糖透析液",
+    "priority": 3
+  }
+]
