@@ -46,6 +46,7 @@ type TreatmentRealtimeResponse struct {
 	ID                 int64                         `json:"id"`
 	TenantID           int64                         `json:"tenantId"`
 	PatientID          string                        `json:"patientId"`
+	WardID             *int64                        `json:"wardId,omitempty"`
 	TreatmentDate      string                        `json:"treatmentDate"`
 	ShiftID            *int64                        `json:"shiftId,omitempty"`
 	TreatmentType      string                        `json:"treatmentType"`
@@ -200,6 +201,7 @@ type legacyTreatmentHistoryRow struct {
 	TmrPath              string     `gorm:"column:TmrPath"`
 	TmrTime              *time.Time `gorm:"column:TmrTime"`
 	TmrPages             int        `gorm:"column:TmrPages"`
+	WardID               *int64     `gorm:"column:WardId"`
 }
 
 type legacyTreatmentSigns struct {
@@ -1088,6 +1090,7 @@ func buildTreatmentRealtimeResponse(row legacyTreatmentHistoryRow, treatmentMode
 		ID:                 row.ID,
 		TenantID:           row.TenantID,
 		PatientID:          strconv.FormatInt(row.PatientID, 10),
+		WardID:             row.WardID,
 		TreatmentDate:      treatmentDate.Format(time.RFC3339),
 		ShiftID:            row.ShiftID,
 		TreatmentType:      inferTreatmentType(row, treatmentMode),

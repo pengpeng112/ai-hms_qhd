@@ -91,6 +91,17 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 	// 补透(护士长/主班)
 	rg.POST("/patients/:id/makeup", guard(RoleHeadNurse, RoleChargeNurse), s.makeup)
 
+	// 医护人力排班·月基线(④ v1)：主任排医生/护士长排护士
+	rg.POST("/staff-duty", guard(RoleHeadNurse, RoleDoctor), s.upsertStaffDuty)
+	rg.GET("/staff-duty", guard(RoleHeadNurse, RoleDoctor, RoleChargeNurse), s.listStaffDuty)
+	rg.DELETE("/staff-duty/:id", guard(RoleHeadNurse, RoleDoctor), s.deleteStaffDuty)
+	rg.GET("/duty/resolve", s.resolveDuty)
+	// 日覆盖 + 接班（④ v2）
+	rg.POST("/staff-duty/override", guard(RoleHeadNurse, RoleChargeNurse, RoleDoctor), s.createOverride)
+	rg.GET("/duty/my-duties", s.myDuties)
+	rg.POST("/duty/check-in", s.checkIn)
+	rg.GET("/duty/check-in/status", s.checkInStatus)
+
 	s.registerAdmin(rg) // 资源/病人/骨架/模板维护 + 冲突处理(P1)
 }
 
@@ -847,4 +858,166 @@ func (s *Server) healthCheck(c *gin.Context) {
 		}
 	}
 	c.JSON(http.StatusOK, h)
+}
+
+// upsertStaffDuty POST /staff-duty —— 建/改一条月基线排班。
+func (s *Server) upsertStaffDuty(c *gin.Context) {
+	var req struct {
+		StaffId   int64  `json:"staffId"`
+		StaffName string `json:"staffName"`
+		DutyRole  string `json:"dutyRole"`
+		WardId    int64  `json:"wardId"`
+		DutyDate  string `json:"dutyDate"`
+		Shift     string `json:"shift"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+	day, err := time.Parse("2006-01-02", req.DutyDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dutyDate 格式应为 yyyy-MM-dd"})
+		return
+	}
+	res, e := service.UpsertStaffDuty(s.DB, tenantOf(c), service.StaffDutyInput{
+		StaffId: req.StaffId, StaffName: req.StaffName, DutyRole: req.DutyRole,
+		WardId: req.WardId, DutyDate: day, Shift: req.Shift,
+	}, userOf(c))
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// listStaffDuty GET /staff-duty?wardId=&month=YYYY-MM —— 查某室某月排班。
+func (s *Server) listStaffDuty(c *gin.Context) {
+	wardId, _ := strconv.ParseInt(c.Query("wardId"), 10, 64)
+	if wardId <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wardId 必填"})
+		return
+	}
+	monthStart, err := time.Parse("2006-01", c.Query("month"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "month 格式应为 yyyy-MM"})
+		return
+	}
+	monthEnd := monthStart.AddDate(0, 1, 0)
+	rows, e := service.ListStaffDuty(s.DB, tenantOf(c), wardId, monthStart, monthEnd)
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, rows)
+}
+
+// deleteStaffDuty DELETE /staff-duty/:id
+func (s *Server) deleteStaffDuty(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的ID"})
+		return
+	}
+	if e := service.DeleteStaffDuty(s.DB, tenantOf(c), id); e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"ok": true})
+}
+
+// resolveDuty GET /duty/resolve?wardId=&date=YYYY-MM-DD&dutyRole= —— 解析当班人。
+func (s *Server) resolveDuty(c *gin.Context) {
+	wardId, _ := strconv.ParseInt(c.Query("wardId"), 10, 64)
+	day, err := time.Parse("2006-01-02", c.Query("date"))
+	if wardId <= 0 || err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wardId 必填、date 格式 yyyy-MM-dd"})
+		return
+	}
+	res, e := service.ResolveDuty(s.DB, tenantOf(c), wardId, day, c.Query("dutyRole"))
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// createOverride POST /staff-duty/override —— 当日覆盖，不动月基线。
+func (s *Server) createOverride(c *gin.Context) {
+	var req struct {
+		DutyDate        string `json:"dutyDate"`
+		WardId          int64  `json:"wardId"`
+		DutyRole        string `json:"dutyRole"`
+		OriginalStaffId int64  `json:"originalStaffId"`
+		ActualStaffId   int64  `json:"actualStaffId"`
+		ActualStaffName string `json:"actualStaffName"`
+		Reason          string `json:"reason"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+	day, err := time.Parse("2006-01-02", req.DutyDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "dutyDate 格式应为 yyyy-MM-dd"})
+		return
+	}
+	res, e := service.CreateOverride(s.DB, tenantOf(c), service.OverrideInput{
+		DutyDate: day, WardId: req.WardId, DutyRole: req.DutyRole,
+		OriginalStaffId: req.OriginalStaffId, ActualStaffId: req.ActualStaffId,
+		ActualStaffName: req.ActualStaffName, Reason: req.Reason,
+	}, userOf(c))
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// myDuties GET /duty/my-duties?date= —— 今日我被排/被顶的(室,角色)列表。
+func (s *Server) myDuties(c *gin.Context) {
+	day, err := time.Parse("2006-01-02", c.Query("date"))
+	if err != nil {
+		day = time.Now()
+	}
+	res, e := service.ResolveMyDuties(s.DB, tenantOf(c), userOf(c), day)
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// checkIn POST /duty/check-in —— 接班激活。
+func (s *Server) checkIn(c *gin.Context) {
+	var req struct {
+		WardId       int64  `json:"wardId"`
+		ShiftId      int64  `json:"shiftId"`
+		OperatorType int64  `json:"operatorType"`
+		Type         int64  `json:"type"`
+		Note         string `json:"note"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误"})
+		return
+	}
+	res, e := service.CheckIn(s.DB, tenantOf(c), userOf(c), req.WardId, req.ShiftId, req.OperatorType, req.Type, req.Note)
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// checkInStatus GET /duty/check-in/status?date= —— 今日是否已接班。
+func (s *Server) checkInStatus(c *gin.Context) {
+	day, err := time.Parse("2006-01-02", c.Query("date"))
+	if err != nil {
+		day = time.Now()
+	}
+	ok, e := service.IsCheckedIn(s.DB, tenantOf(c), userOf(c), day)
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"checkedIn": ok})
 }

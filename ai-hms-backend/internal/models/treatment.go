@@ -203,7 +203,8 @@ type Order struct {
 	GroupID    *string             `gorm:"type:varchar(36)" json:"groupId,omitempty"`
 	DoctorID   string              `gorm:"type:varchar(36);not null" json:"doctorId"`
 	DoctorName string              `gorm:"type:varchar(50)" json:"doctorName"`
-	Status     string              `gorm:"type:varchar(20);default:待执行" json:"status"` // 待执行, 执行中, 已执行, 已停止
+	Status     string              `gorm:"type:varchar(20);default:待执行" json:"status"` // 待执行, 执行中, 已执行, 已停止（coarse，给执行 UI）
+	SignStatus string              `gorm:"-" json:"signStatus,omitempty"`               // 待签粒度（派生只读，不占库列）：草稿/待签/已签/已核对/已执行
 	StartTime  time.Time           `json:"startTime"`
 	EndTime    *time.Time          `json:"endTime"`
 	Frequency  *string             `gorm:"type:varchar(50)" json:"frequency"`           // qd, bid, tid, qod, etc.
@@ -242,6 +243,17 @@ const (
 	OrderStatusExecuting = "执行中"
 	OrderStatusExecuted  = "已执行"
 	OrderStatusStopped   = "已停止"
+)
+
+// OrderSignStatus 医嘱待签粒度（契约02：保留 草稿/待签/已签/已核对/已执行 粒度）。
+// 与 coarse Status 并存、互不影响：Status 给执行 UI，SignStatus 给待签墙/审计。
+const (
+	OrderSignDraft     = "草稿"
+	OrderSignSubmitted = "待签"
+	OrderSignConfirmed = "已签"
+	OrderSignChecked   = "已核对"
+	OrderSignExecuted  = "已执行"
+	OrderSignVoided    = "已作废"
 )
 
 // OrderPriority 常量

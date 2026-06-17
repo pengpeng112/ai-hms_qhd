@@ -3,7 +3,7 @@
  *
  * 封装 /api/v2 下全部排班接口，使用 restRequest 统一 helper。
  */
-import { restGet, restPost } from './restRequest'
+import { restGet, restPost, restDelete } from './restRequest'
 
 // ============ 类型定义 ============
 
@@ -333,6 +333,66 @@ export function setInfectionStatus(patientId: number, payload: InfectionRequest)
 
 export function waiveInfection(patientId: number) {
   return restPost<unknown>(`/api/v2/patients/${patientId}/infection-waive`, {})
+}
+
+// ============ 医护人力排班·月基线 ============
+
+export const DUTY_ROLES = ['当班医生', '主班护士', '当班护士'] as const
+
+export interface StaffDuty {
+  id: number
+  staffId: number
+  staffName: string
+  dutyRole: string
+  wardId: number
+  dutyDate: string
+  shift: string
+}
+export interface StaffDutyInput {
+  staffId: number
+  staffName: string
+  dutyRole: string
+  wardId: number
+  dutyDate: string
+  shift: string
+}
+export interface ResolvedDuty {
+  staffId: number
+  staffName: string
+  dutyRole: string
+  wardId: number
+  dutyDate: string
+  source: string
+}
+
+export function upsertStaffDuty(p: StaffDutyInput) {
+  return restPost<StaffDuty>('/api/v2/staff-duty', p)
+}
+export function listStaffDuty(wardId: number, month: string) {
+  return restGet<StaffDuty[]>(`/api/v2/staff-duty?wardId=${wardId}&month=${encodeURIComponent(month)}`)
+}
+export function deleteStaffDuty(id: number) {
+  return restDelete<{ ok: boolean }>(`/api/v2/staff-duty/${id}`)
+}
+export function resolveDuty(wardId: number, date: string, dutyRole: string) {
+  return restGet<ResolvedDuty | null>(`/api/v2/duty/resolve?wardId=${wardId}&date=${date}&dutyRole=${encodeURIComponent(dutyRole)}`)
+}
+
+export interface OverrideInput {
+  dutyDate: string; wardId: number; dutyRole: string
+  originalStaffId?: number; actualStaffId: number; actualStaffName: string; reason?: string
+}
+export function createOverride(p: OverrideInput) {
+  return restPost<unknown>('/api/v2/staff-duty/override', p)
+}
+export function getMyDuties(date: string) {
+  return restGet<ResolvedDuty[]>(`/api/v2/duty/my-duties?date=${date}`)
+}
+export function getCheckInStatus(date: string) {
+  return restGet<{ checkedIn: boolean }>(`/api/v2/duty/check-in/status?date=${date}`)
+}
+export function checkIn(p: { wardId: number; shiftId?: number; operatorType: number; type: number; note?: string }) {
+  return restPost<unknown>('/api/v2/duty/check-in', p)
 }
 
 // ============ 演示 ============

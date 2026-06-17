@@ -49,6 +49,7 @@ const menuItems: MenuItem[] = [
   { key: 'monitoring', path: '/monitoring', icon: Monitor },
   { key: 'dialysisProcessing', path: '/dialysis-processing', icon: ClipboardCheck },
   { key: 'schedule', path: '/schedule', icon: Calendar },
+  { key: 'staffSchedule', path: '/staff-schedule', icon: Calendar },
   { key: 'inventory', path: '/inventory', icon: Package },
   { key: 'deviceBinding', path: '/device-binding', icon: Server },
   { key: 'wardManagement', path: '/ward-management', icon: Building2, hidden: true },
@@ -56,6 +57,7 @@ const menuItems: MenuItem[] = [
   { key: 'wardBedManagement', path: '/ward-bed-management', icon: Building2 },
   { key: 'educationManagement', path: '/education-management', icon: GraduationCap, hidden: true },
   { key: 'statistics', path: '/statistics', icon: BarChart3 },
+  { key: 'qcScoring', path: '/qc-scoring', icon: BarChart3 },
   { key: 'masterData', path: '/master-data', icon: Database },
   { key: 'treatmentConfig', path: '/treatment-config', icon: Layers },
   { key: 'dictConfig', path: '/dict-config', icon: BookOpen },
@@ -67,9 +69,9 @@ const menuItems: MenuItem[] = [
 const menuGroups: MenuGroup[] = [
   { key: 'dailyWork', itemKeys: ['dashboard', 'cockpit', 'wardOverview', 'monitoring', 'dialysisProcessing'] },
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
-  { key: 'schedule', itemKeys: ['schedule'] },
+  { key: 'schedule', itemKeys: ['schedule', 'staffSchedule'] },
   { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardBedManagement'] },
-  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics'] },
+  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics', 'qcScoring'] },
 ]
 
 const defaultExpandedGroups = Object.fromEntries(menuGroups.map(group => [group.key, true])) as Record<string, boolean>
@@ -80,13 +82,13 @@ const roleMenuMap: Record<string, string[]> = {
   patients: ['patients'],
   monitoring: ['monitoring'],
   dialysis_processing: ['dialysisProcessing'],
-  schedule: ['schedule'],
+  schedule: ['schedule', 'staffSchedule'],
   inventory: ['inventory'],
   device_binding: ['deviceBinding'],
   ward_management: ['wardManagement', 'wardBedManagement'],
   bed_management: ['bedManagement', 'wardBedManagement'],
   education_management: ['educationManagement'],
-  statistics: ['statistics'],
+  statistics: ['statistics', 'qcScoring'],
   master_data: ['masterData'],
   treatment_config: ['treatmentConfig'],
   dict_config: ['dictConfig'],

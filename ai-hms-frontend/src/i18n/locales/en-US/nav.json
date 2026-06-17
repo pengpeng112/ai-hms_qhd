@@ -7,6 +7,8 @@
   "dialysisProcessing": "Dialysis Processing",
   "schedule": "Schedule",
   "smartSchedule": "Smart Schedule",
+  "staffSchedule": "Staff Roster",
+  "qcScoring": "QC Scoring",
   "inventory": "Inventory",
   "deviceBinding": "Device Management",
   "wardManagement": "Ward Management",

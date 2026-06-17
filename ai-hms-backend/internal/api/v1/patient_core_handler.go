@@ -132,4 +132,12 @@ func RegisterPatientRoutesWithCore(r *gin.RouterGroup) {
 		signRecords.GET("", signHandler.List)
 		signRecords.POST("", signHandler.Create) // 通用签发（方案/小结）
 	}
+
+	// 医疗质控赋分
+	qcHandler := NewQCHandler()
+	qc := r.Group("/qc")
+	{
+		qc.GET("/doctors", qcHandler.Doctors)
+		qc.GET("/doctor/:id", qcHandler.DoctorDetail)
+	}
 }

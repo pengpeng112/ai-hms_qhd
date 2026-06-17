@@ -269,6 +269,58 @@ type TenantSetting struct {
 
 func (TenantSetting) TableName() string { return "Schedule_TenantSetting" }
 
+// StaffDuty 医护人力排班·月基线（④ v1，契约04/05）
+type StaffDuty struct {
+	BaseModel
+	StaffId   int64     `gorm:"column:StaffId;index;not null" json:"staffId"`
+	StaffName string    `gorm:"column:StaffName;size:64" json:"staffName"`
+	DutyRole  string    `gorm:"column:DutyRole;size:32;not null" json:"dutyRole"`
+	WardId    int64     `gorm:"column:WardId;index;not null" json:"wardId"`
+	DutyDate  time.Time `gorm:"column:DutyDate;type:date;index;not null" json:"dutyDate"`
+	Shift     string    `gorm:"column:Shift;size:16" json:"shift"`
+}
+
+func (StaffDuty) TableName() string { return "Schedule_StaffDuty" }
+
+const (
+	DutyRoleDoctor      = "当班医生"
+	DutyRoleChargeNurse = "主班护士"
+	DutyRoleDutyNurse   = "当班护士"
+)
+
+// StaffDutyOverride 当日覆盖（顶班/换班/请假）（④ v2）
+type StaffDutyOverride struct {
+	BaseModel
+	DutyDate        time.Time `gorm:"column:DutyDate;type:date;index;not null" json:"dutyDate"`
+	WardId          int64     `gorm:"column:WardId;index;not null" json:"wardId"`
+	DutyRole        string    `gorm:"column:DutyRole;size:32;not null" json:"dutyRole"`
+	OriginalStaffId int64     `gorm:"column:OriginalStaffId" json:"originalStaffId"`
+	ActualStaffId   int64     `gorm:"column:ActualStaffId;not null" json:"actualStaffId"`
+	ActualStaffName string    `gorm:"column:ActualStaffName;size:64" json:"actualStaffName"`
+	Reason          string    `gorm:"column:Reason;size:128" json:"reason"`
+	ChangedBy       int64     `gorm:"column:ChangedBy" json:"changedBy"`
+}
+
+func (StaffDutyOverride) TableName() string { return "Schedule_StaffDutyOverride" }
+
+// CheckIn 接班记录（复用老库 Schedule_CheckIn）
+type CheckIn struct {
+	Id             int64     `gorm:"column:Id;primaryKey;autoIncrement" json:"id"`
+	TenantId       int64     `gorm:"column:TenantId" json:"tenantId"`
+	ShiftId        int64     `gorm:"column:ShiftId" json:"shiftId"`
+	WardId         int64     `gorm:"column:WardId" json:"wardId"`
+	ClockInTime    time.Time `gorm:"column:ClockInTime" json:"clockInTime"`
+	OperatorType   int64     `gorm:"column:OperatorType" json:"operatorType"`
+	Type           int64     `gorm:"column:Type" json:"type"`
+	Note           string    `gorm:"column:Note" json:"note"`
+	OperatorId     int64     `gorm:"column:OperatorId" json:"operatorId"`
+	CreatorId      int64     `gorm:"column:CreatorId" json:"creatorId"`
+	CreateTime     time.Time `gorm:"column:CreateTime" json:"createTime"`
+	LastModifyTime time.Time `gorm:"column:LastModifyTime" json:"lastModifyTime"`
+}
+
+func (CheckIn) TableName() string { return "Schedule_CheckIn" }
+
 // AllModels 返回全部模型,供 AutoMigrate 使用(当前系统禁止 AutoMigrate,此函数仅作文档参考)。
 func AllModels() []interface{} {
 	return []interface{}{
@@ -276,8 +328,6 @@ func AllModels() []interface{} {
 		&PatientProfile{}, &PlanChange{},
 		&PatientShift{}, &CrrtSession{},
 		&ScheduleTemplate{}, &ScheduleTemplateItem{}, &ConflictQueue{},
-		&TenantSetting{}, &Patient{},
-}
-
-
+		&TenantSetting{}, &Patient{}, &StaffDuty{}, &StaffDutyOverride{},
+	}
 }

@@ -278,6 +278,57 @@ func mapLegacyOrderStatus(item legacyPatientOrder, now time.Time, dayStatus *int
 	return models.OrderStatusExecuting
 }
 
+// mapLegacyDaySignStatus 老库日医嘱状态 → 待签粒度（契约02：保留 草稿/待签/已签/已核对/已执行）。
+// 与 mapLegacyDayOrderStatus（coarse 压平）并行：本函数不压平，供待签墙/审计区分粒度。
+func mapLegacyDaySignStatus(raw int, dict map[int]string) string {
+	if name := strings.TrimSpace(dict[raw]); name != "" {
+		switch {
+		case strings.Contains(name, "作废"), strings.Contains(name, "取消"), strings.Contains(name, "不执行"):
+			return models.OrderSignVoided
+		case strings.Contains(name, "执行"):
+			return models.OrderSignExecuted
+		case strings.Contains(name, "核对"):
+			return models.OrderSignChecked
+		case strings.Contains(name, "确认"), strings.Contains(name, "确定"):
+			return models.OrderSignConfirmed
+		case strings.Contains(name, "提交"):
+			return models.OrderSignSubmitted
+		case strings.Contains(name, "草稿"):
+			return models.OrderSignDraft
+		case strings.Contains(name, "停"):
+			return models.OrderSignVoided
+		}
+	}
+	switch {
+	case raw >= 50:
+		return models.OrderSignVoided
+	case raw >= 40:
+		return models.OrderSignExecuted
+	case raw >= 30:
+		return models.OrderSignChecked
+	case raw >= 20:
+		return models.OrderSignConfirmed
+	case raw >= 10:
+		return models.OrderSignSubmitted
+	default:
+		return models.OrderSignDraft
+	}
+}
+
+// mapLegacyOrderSignStatus 医嘱待签粒度（有日状态走日状态，否则按启停/时间粗推）。
+func mapLegacyOrderSignStatus(item legacyPatientOrder, now time.Time, dayStatus *int, dayStatusDict map[int]string) string {
+	if dayStatus != nil {
+		return mapLegacyDaySignStatus(*dayStatus, dayStatusDict)
+	}
+	if item.IsDisabled || (item.EndTime != nil && item.EndTime.Before(now)) {
+		return models.OrderSignVoided
+	}
+	if item.StartTime != nil && item.StartTime.After(now) {
+		return models.OrderSignSubmitted
+	}
+	return models.OrderSignExecuted
+}
+
 func (s *OrderService) loadLatestLegacyDayOrderStatus(tenantID int64, orderIDs []int64) (map[int64]int, error) {
 	result := make(map[int64]int, len(orderIDs))
 	if len(orderIDs) == 0 {
@@ -419,6 +470,7 @@ func (s *OrderService) listLegacyOrders(req OrderListRequest) ([]models.Order, e
 			dayStatus = &v
 		}
 		status := mapLegacyOrderStatus(row, now, dayStatus, dayStatusDict)
+		signStatus := mapLegacyOrderSignStatus(row, now, dayStatus, dayStatusDict)
 		if len(statusFilter) > 0 {
 			if _, ok := statusFilter[status]; !ok {
 				continue
@@ -458,6 +510,7 @@ func (s *OrderService) listLegacyOrders(req OrderListRequest) ([]models.Order, e
 			DoctorID:   strconv.FormatInt(row.OperatorID, 10),
 			DoctorName: operatorName,
 			Status:     status,
+			SignStatus: signStatus,
 			StartTime:  startTime,
 			EndTime:    endTime,
 			Frequency:  nil,

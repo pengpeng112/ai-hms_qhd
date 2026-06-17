@@ -6,8 +6,9 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { message } from 'antd'
-import { Activity, Clock, RefreshCw, ArrowRight, AlertTriangle, BedDouble, Stethoscope, Users, PenLine } from 'lucide-react'
+import { Activity, Clock, RefreshCw, ArrowRight, AlertTriangle, BedDouble, Stethoscope, Users, PenLine, LogIn } from 'lucide-react'
 import { restApi, getErrorMessage } from '@/services'
+import { getMyDuties, getCheckInStatus, checkIn as checkInApi, type ResolvedDuty } from '@/services/smartScheduleApi'
 
 // ===== 护士镜头：床位工作流卡态 =====
 type BedState = 'pending' | 'preTreatment' | 'inProgress' | 'readyOff' | 'completed' | 'interrupted'
@@ -42,6 +43,7 @@ interface BedCard {
   queueNo: string
   startTime?: string
   state: BedState
+  wardId?: number | null
 }
 
 interface DoctorCard {
@@ -54,6 +56,7 @@ interface DoctorCard {
   state: DoctorState
   note: string // 异常值摘要 或 处方提示
   prescriptionId?: string // 待签卡一键签发用
+  wardId?: number | null
 }
 
 function isTimeDone(startTime: string | undefined, durationMinutes: number | undefined): boolean {
@@ -115,6 +118,44 @@ export default function Cockpit() {
   const [error, setError] = useState<string | null>(null)
   const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
+  const [checkedIn, setCheckedIn] = useState<boolean | null>(null)
+  const [myDuties, setMyDuties] = useState<ResolvedDuty[]>([])
+  const [checkingIn, setCheckingIn] = useState(false)
+
+  const loadDuty = useCallback(async () => {
+    const today = todayParam()
+    try {
+      const [status, duties] = await Promise.all([getCheckInStatus(today), getMyDuties(today)])
+      setCheckedIn(!!status?.checkedIn)
+      setMyDuties(duties || [])
+    } catch {
+      setCheckedIn(null)
+    }
+  }, [])
+
+  useEffect(() => { loadDuty() }, [loadDuty])
+
+  const doCheckIn = async () => {
+    if (myDuties.length === 0) return
+    setCheckingIn(true)
+    try {
+      for (const duty of myDuties) {
+        const isDoctor = duty.dutyRole === '当班医生'
+        await checkInApi({
+          wardId: duty.wardId,
+          operatorType: isDoctor ? 10 : 20,
+          type: duty.dutyRole === '主班护士' || isDoctor ? 10 : 20,
+        })
+      }
+      message.success('已接班，当日权限已激活')
+      await loadDuty()
+    } catch (e) {
+      message.error(getErrorMessage(e))
+    } finally {
+      setCheckingIn(false)
+    }
+  }
+
   const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
@@ -148,6 +189,7 @@ export default function Cockpit() {
           queueNo: t.queueNo || '',
           startTime: t.startTime,
           state: deriveBedState(t.status, t.legacyStatus || '', t.startTime, t.durationMinutes),
+          wardId: t.wardId,
         }
       })
       beds.sort((a, b) => STATE_META[a.state].sort - STATE_META[b.state].sort || a.bedNumber.localeCompare(b.bedNumber, 'zh'))
@@ -180,6 +222,7 @@ export default function Cockpit() {
           state,
           note,
           prescriptionId: rx?.prescriptionId,
+          wardId: t.wardId,
         }
       })
       docs.sort((a, b) => DOCTOR_META[a.state].sort - DOCTOR_META[b.state].sort || a.bedNumber.localeCompare(b.bedNumber, 'zh'))
@@ -196,19 +239,29 @@ export default function Cockpit() {
 
   useEffect(() => { loadData() }, [loadData])
 
+  const [scope, setScope] = useState<'all' | 'mine'>('all')
+  const myWardIds = useMemo(() => new Set(myDuties.map((d) => d.wardId)), [myDuties])
+  const canMine = checkedIn === true && myWardIds.size > 0
+  const inScope = useCallback(
+    (wardId?: number | null) => scope === 'all' || (canMine && wardId != null && myWardIds.has(wardId)),
+    [scope, canMine, myWardIds],
+  )
+  const visibleBeds = useMemo(() => bedCards.filter((card) => inScope(card.wardId)), [bedCards, inScope])
+  const visibleDocs = useMemo(() => doctorCards.filter((card) => inScope(card.wardId)), [doctorCards, inScope])
+
   const bedCounts = useMemo(() => {
     const c: Record<BedState, number> = { pending: 0, preTreatment: 0, inProgress: 0, readyOff: 0, completed: 0, interrupted: 0 }
-    for (const card of bedCards) c[card.state]++
+    for (const card of visibleBeds) c[card.state]++
     return c
-  }, [bedCards])
+  }, [visibleBeds])
 
   const docCounts = useMemo(() => {
     const c: Record<DoctorState, number> = { alarm: 0, abnormal: 0, needRx: 0, needSign: 0, signed: 0 }
-    for (const card of doctorCards) c[card.state]++
+    for (const card of visibleDocs) c[card.state]++
     return c
-  }, [doctorCards])
+  }, [visibleDocs])
 
-  const total = lens === 'nurse' ? bedCards.length : doctorCards.length
+  const total = lens === 'nurse' ? visibleBeds.length : visibleDocs.length
   const goExecute = (patientId: string) => navigate(`/dialysis-processing?patientId=${encodeURIComponent(patientId)}`)
 
   const [signingId, setSigningId] = useState<string | null>(null)
@@ -243,6 +296,17 @@ export default function Cockpit() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1">
+            <button type="button" onClick={() => setScope('all')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${scope === 'all' ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>
+              全室
+            </button>
+            <button type="button" onClick={() => canMine && setScope('mine')} disabled={!canMine}
+              title={canMine ? '只看我当班室的病人' : '接班后可用（今日有当班排班）'}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-all ${scope === 'mine' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-700'} ${!canMine ? 'opacity-40 cursor-not-allowed' : ''}`}>
+              我的病人
+            </button>
+          </div>
           {/* 镜头切换 */}
           <div className="flex items-center bg-white border border-slate-200 rounded-xl p-1">
             <button type="button" onClick={() => setLens('nurse')}
@@ -260,6 +324,24 @@ export default function Cockpit() {
           </button>
         </div>
       </div>
+
+      {checkedIn === false && myDuties.length > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 mb-5">
+          <div className="flex items-center gap-3 text-[13px]">
+            <LogIn size={18} className="text-amber-500 shrink-0" />
+            <div>
+              <span className="font-black text-amber-700">今日尚未接班</span>
+              <span className="text-amber-600 ml-2">
+                你今日当班：{myDuties.map((d) => d.dutyRole).join('、')}。确认接班后激活「当班」权限与「我的病人」过滤。
+              </span>
+            </div>
+          </div>
+          <button type="button" onClick={doCheckIn} disabled={checkingIn}
+            className="shrink-0 px-4 py-2 rounded-xl bg-amber-500 text-white text-sm font-bold hover:bg-amber-600 disabled:opacity-50">
+            {checkingIn ? '接班中...' : '确认接班'}
+          </button>
+        </div>
+      )}
 
       {/* Summary */}
       {lens === 'nurse' ? (
@@ -307,7 +389,7 @@ export default function Cockpit() {
         </div>
       ) : lens === 'nurse' ? (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {bedCards.map((card) => {
+          {visibleBeds.map((card) => {
             const meta = STATE_META[card.state]
             return (
               <button type="button" key={card.treatmentId} onClick={() => goExecute(card.patientId)}
@@ -332,7 +414,7 @@ export default function Cockpit() {
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-4">
-          {doctorCards.map((card) => {
+          {visibleDocs.map((card) => {
             const meta = DOCTOR_META[card.state]
             return (
               <div key={card.treatmentId} role="button" tabIndex={0} onClick={() => goExecute(card.patientId)}

@@ -7,6 +7,8 @@ import {
     PatientDetail,
     Monitoring,
     SmartSchedulePage,
+    StaffSchedulePage,
+    QCScoringPage,
     Statistics,
     Settings,
     RoleSelect,
@@ -79,8 +81,16 @@ const router = createBrowserRouter([
                 element: <SmartSchedulePage />,
             },
             {
+                path: 'staff-schedule',
+                element: <StaffSchedulePage />,
+            },
+            {
                 path: 'statistics',
                 element: <Statistics />,
+            },
+            {
+                path: 'qc-scoring',
+                element: <QCScoringPage />,
             },
             {
                 path: 'settings',

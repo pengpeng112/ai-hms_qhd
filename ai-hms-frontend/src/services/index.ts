@@ -207,6 +207,14 @@ export {
   setInfectionStatus,
   waiveInfection,
   seedDemo,
+  upsertStaffDuty,
+  listStaffDuty,
+  deleteStaffDuty,
+  resolveDuty,
+  createOverride,
+  getMyDuties,
+  getCheckInStatus,
+  checkIn,
 } from './smartScheduleApi'
 export type {
   WeekBoard,
@@ -216,4 +224,19 @@ export type {
   DiffItem,
   CrrtItem,
   IncompleteItem,
+  StaffDuty,
+  StaffDutyInput,
+  ResolvedDuty,
 } from './smartScheduleApi'
+
+export {
+  getQCDoctors,
+  getQCDoctorDetail,
+  QC_ITEM_LABELS,
+  QC_ITEM_ORDER,
+} from './qcApi'
+export type {
+  QCDoctorScore,
+  QCPatientScore,
+  QCPatientRow,
+} from './qcApi'
