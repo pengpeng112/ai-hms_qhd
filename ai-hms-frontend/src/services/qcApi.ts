@@ -3,6 +3,7 @@ import { apiClient } from './restClient'
 
 export interface QCDoctorScore {
   doctorId: string
+  doctorName?: string
   patientCount: number
   quantityScore: number
   qualityScore: number
@@ -47,3 +48,5 @@ export const QC_ITEM_LABELS: Record<string, string> = {
   PTH: 'PTH',
 }
 export const QC_ITEM_ORDER = ['bloodPressure', 'heartRate', 'CTR', 'dialysisAdequacy', 'fluidControl', 'anemia', 'nutrition', 'calcium', 'phosphorus', 'PTH']
+// 数据源尚未接入的指标（不计入达标率/质量分，前端标注"待接"）。CTR 待接 ACTRS/胸片。
+export const QC_NOT_CONNECTED = new Set<string>(['CTR'])

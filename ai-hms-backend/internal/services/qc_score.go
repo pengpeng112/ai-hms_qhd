@@ -11,11 +11,11 @@ type QCInput struct {
 }
 
 type QCPatientScore struct {
-	Base     int            `json:"base"`
-	Items    map[string]int `json:"items"`
+	Base     int             `json:"base"`
+	Items    map[string]int  `json:"items"`
 	OnTarget map[string]bool `json:"onTarget"`
-	Quality  int            `json:"quality"`
-	Total    int            `json:"total"`
+	Quality  int             `json:"quality"`
+	Total    int             `json:"total"`
 }
 
 var qcItemMax = map[string]int{
@@ -244,6 +244,7 @@ func ScorePatient(in QCInput) QCPatientScore {
 
 type QCDoctorScore struct {
 	DoctorID      string             `json:"doctorId"`
+	DoctorName    string             `json:"doctorName"`
 	PatientCount  int                `json:"patientCount"`
 	QuantityScore int                `json:"quantityScore"`
 	QualityScore  int                `json:"qualityScore"`

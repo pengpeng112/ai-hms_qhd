@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -10,6 +11,9 @@ import (
 	"github.com/elliotxin/ai-hms-backend/internal/database"
 	"gorm.io/gorm"
 )
+
+// 从检验结果文本中提取首个数值（兜底解析带单位/箭头/比较符的 LIS 结果）。
+var qcNumberRe = regexp.MustCompile(`[-+]?[0-9]*\.?[0-9]+`)
 
 type QCService struct {
 	db       *gorm.DB
@@ -26,12 +30,25 @@ func monthRange(year, month int) (time.Time, time.Time) {
 	return start, start.AddDate(0, 1, 0)
 }
 
+// parseFloatPtr 解析检验结果为数值；nil = 非数值（如"阴性"）。
+// LIS_ExaminationItem.Result 为 varchar，实务常带单位/箭头/比较符（"12.5↑"、"12.5 g/L"、"<0.01"、">120"），
+// 故整体解析失败时回退到"提取首个数值"，避免有效检验值被静默当缺测、拉低质控赋分。
 func parseFloatPtr(s string) *float64 {
-	v, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
-	if err != nil {
+	s = strings.TrimSpace(s)
+	if s == "" {
 		return nil
 	}
-	return &v
+	if v, err := strconv.ParseFloat(s, 64); err == nil {
+		return &v
+	}
+	m := qcNumberRe.FindString(s)
+	if m == "" {
+		return nil
+	}
+	if v, err := strconv.ParseFloat(m, 64); err == nil {
+		return &v
+	}
+	return nil
 }
 
 func (s *QCService) conceptByID(id string) *config.IndicatorConcept {
@@ -180,7 +197,31 @@ func (s *QCService) ScoreDoctorDetail(doctorID int64, year, month int) (QCDoctor
 		scores = append(scores, ps)
 		detail = append(detail, QCPatientRow{PatientID: strconv.FormatInt(p.ID, 10), PatientName: p.Name, Score: ps})
 	}
-	return AggregateDoctor(strconv.FormatInt(doctorID, 10), scores), detail, nil
+	d := AggregateDoctor(strconv.FormatInt(doctorID, 10), scores)
+	d.DoctorName = s.resolveDoctorName(doctorID)
+	return d, detail, nil
+}
+
+func (s *QCService) resolveDoctorName(doctorID int64) string {
+	if doctorID <= 0 {
+		return ""
+	}
+	var emp struct {
+		Name string `gorm:"column:Name"`
+	}
+	if err := s.db.Table(`"Organ_Employee"`).Select(`"Name"`).
+		Where(`"UserId" = ? AND "TenantId" = ?`, doctorID, LegacyTenantID).
+		Order(`"Id" ASC`).First(&emp).Error; err == nil && strings.TrimSpace(emp.Name) != "" {
+		return strings.TrimSpace(emp.Name)
+	}
+	var u struct {
+		UserName string `gorm:"column:UserName"`
+	}
+	if err := s.db.Table(`"Identity_Users"`).Select(`"UserName"`).
+		Where(`"Id" = ?`, doctorID).First(&u).Error; err == nil && strings.TrimSpace(u.UserName) != "" {
+		return strings.TrimSpace(u.UserName)
+	}
+	return strconv.FormatInt(doctorID, 10)
 }
 
 func (s *QCService) ScoreDoctors(year, month int) ([]QCDoctorScore, error) {
