@@ -11,6 +11,8 @@ import (
 	"github.com/elliotxin/ai-hms-backend/internal/models"
 	legacymodels "github.com/elliotxin/ai-hms-backend/internal/models/legacy"
 	modeltypes "github.com/elliotxin/ai-hms-backend/internal/models/types"
+	schedmodel "github.com/elliotxin/ai-hms-backend/internal/smart_schedule/model"
+	schedsvc "github.com/elliotxin/ai-hms-backend/internal/smart_schedule/service"
 	"github.com/elliotxin/ai-hms-backend/internal/utils/idgen"
 	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
@@ -919,6 +921,24 @@ func (s *PrescriptionService) LegacyUpdate(patientID, prescriptionID string, req
 	return s.LegacyGet(patientID, prescriptionID)
 }
 
+func (s *PrescriptionService) patientWardToday(patientID int64, now time.Time) int64 {
+	start := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	end := start.AddDate(0, 0, 1)
+	var row struct {
+		WardID *int64 `gorm:"column:WardId"`
+	}
+	err := s.db.Table(`"Treatment_Treatment"`).
+		Select(`"WardId"`).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND COALESCE("StartTime","SignInTime","ReceptionTime","CreateTime") >= ? AND COALESCE("StartTime","SignInTime","ReceptionTime","CreateTime") < ?`,
+			LegacyTenantID, patientID, start, end).
+		Order(`COALESCE("StartTime","SignInTime","ReceptionTime","CreateTime") DESC`).
+		Limit(1).Take(&row).Error
+	if err != nil || row.WardID == nil {
+		return 0
+	}
+	return *row.WardID
+}
+
 // LegacySign 签发当日处方（待签 → 已签，契约02 待签线）：
 // 落 ConfirmTime/ConfirmUserId 作"已签"信号（**不改执行态**，护士仍可后续执行），并写 sign_record 统一留痕。
 // 已签幂等（重复签不重复落 ConfirmTime，但仍补一条留痕便于审计）。
@@ -939,6 +959,12 @@ func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, si
 		return nil, err
 	}
 	now := time.Now()
+
+	if wardID := s.patientWardToday(int64(item.PatientID), now); wardID > 0 {
+		if duty, derr := schedsvc.ResolveDuty(s.db, LegacyTenantID, wardID, now, schedmodel.DutyRoleDoctor); derr == nil && duty != nil && duty.StaffId != resolvedUserID {
+			return nil, errors.New("仅当班医生可签发当日处方（当前签发人非该病区今日当班医生）")
+		}
+	}
 
 	if err := s.db.Transaction(func(tx *gorm.DB) error {
 		if item.ConfirmTime == nil || item.ConfirmTime.IsZero() {

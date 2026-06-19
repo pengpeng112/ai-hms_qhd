@@ -189,6 +189,10 @@ func (h *PrescriptionHandler) Sign(c *gin.Context) {
 			response.BadRequest(c, err.Error())
 			return
 		}
+		if strings.Contains(err.Error(), "仅当班医生") {
+			response.Forbidden(c, err.Error())
+			return
+		}
 		response.InternalError(c, err.Error())
 		return
 	}
