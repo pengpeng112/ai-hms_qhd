@@ -218,8 +218,11 @@ func (s *InfectiousService) Dispose(patientID int64, recordID string, in Disposi
 					return e
 				}
 				// 退册：标记患者停用（老库列对齐：本院退册若用其它状态列，按实际调整）
-				_ = tx.Table(`"Register_PatientInfomation"`).Where(`"Id" = ? AND "TenantId" = ?`, patientID, s.tenantID).
-					Update(`"IsDisabled"`, true).Error
+				if e := tx.Table(`"Register_PatientInfomation"`).
+					Where(`"Id" = ? AND "TenantId" = ?`, patientID, s.tenantID).
+					Update(`"IsDisabled"`, true).Error; e != nil {
+					return e
+				}
 			}
 		}
 		return tx.Model(&models.PatientInfectious{}).Where("id = ?", rec.ID).Updates(updates).Error

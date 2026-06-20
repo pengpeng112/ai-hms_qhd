@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -9,16 +11,20 @@ import (
 	"gorm.io/gorm"
 )
 
+var infTestDBSeq atomic.Int64
+
 func newInfTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+	dsn := fmt.Sprintf("file:inftest%d?mode=memory&cache=shared", infTestDBSeq.Add(1))
+	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err := db.AutoMigrate(&models.PatientInfectious{}, &models.SignRecord{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	db.Exec(`CREATE TABLE ["Register_OutCome"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "PatientId" INTEGER, "Type" TEXT, "Reason" TEXT, "OutComeTime" DATETIME, "Note" TEXT, "CreateTime" DATETIME, "LastModifyTime" DATETIME)`)
+	db.Exec("CREATE TABLE `\"Register_OutCome\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `PatientId` INTEGER, `Type` TEXT, `Reason` TEXT, `OutComeTime` DATETIME, `Note` TEXT, `CreateTime` DATETIME, `LastModifyTime` DATETIME)")
+	db.Exec("CREATE TABLE `\"Register_PatientInfomation\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `Name` TEXT, `DialysisNo` TEXT, `\"IsDisabled\"` BOOLEAN DEFAULT 0)")
 	return db
 }
 
@@ -137,6 +143,7 @@ func TestInf_Dispose_DoubleSign(t *testing.T) {
 func TestInf_Dispose_TransferOutWritesOutCome(t *testing.T) {
 	db := newInfTestDB(t)
 	s := &InfectiousService{db: db, tenantID: 3}
+	db.Exec("INSERT INTO `\"Register_PatientInfomation\"` (`Id`,`TenantId`,`Name`,`\"IsDisabled\"`) VALUES (3003,3,'丙患者',0)")
 	rec, _ := s.Screen(3003, ScreenInput{ScreenDate: time.Now(), Source: "manual",
 		Items: []ScreenItem{{Item: "抗-HCV", Result: models.InfItemPositive}}})
 	s.Dispose(3003, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "doctor", SignerID: "9", SignerName: "张"})
@@ -145,5 +152,10 @@ func TestInf_Dispose_TransferOutWritesOutCome(t *testing.T) {
 	db.Table(`"Register_OutCome"`).Where(`"PatientId" = ? AND "Type" = ?`, 3003, models.OutcomeTypeOut).Count(&cnt)
 	if cnt != 1 {
 		t.Fatalf("transfer_out 应写 1 条 Register_OutCome 转出, got %d", cnt)
+	}
+	var disabled bool
+	db.Raw("SELECT `\"IsDisabled\"` FROM `\"Register_PatientInfomation\"` WHERE `Id` = ?", 3003).Scan(&disabled)
+	if !disabled {
+		t.Fatalf("transfer_out 双签后患者应退册 IsDisabled=true")
 	}
 }
