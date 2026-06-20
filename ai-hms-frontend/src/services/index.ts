@@ -240,3 +240,14 @@ export type {
   QCPatientScore,
   QCPatientRow,
 } from './qcApi'
+
+// ============ 传染病筛查 A1 ============
+export { infectiousApi } from './infectiousApi'
+export type {
+  InfectiousRecord,
+  GateResult,
+  InfectiousScreenBody,
+  InfectiousDisposeBody,
+  InfectiousHistoryResponse,
+  InfectiousAlertsResponse,
+} from './infectiousApi'
