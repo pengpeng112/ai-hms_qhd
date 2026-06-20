@@ -159,3 +159,21 @@ func TestInf_Dispose_TransferOutWritesOutCome(t *testing.T) {
 		t.Fatalf("transfer_out 双签后患者应退册 IsDisabled=true")
 	}
 }
+
+func TestInf_Alerts(t *testing.T) {
+	db := newInfTestDB(t)
+	s := &InfectiousService{db: db, tenantID: 3}
+	now := time.Now()
+	s.Screen(4001, ScreenInput{ScreenDate: now, Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemPositive}}}) // 阳性未处置
+	s.Screen(4002, ScreenInput{ScreenDate: now.AddDate(0, -7, 0), Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemNegative}}}) // 过期
+	a, err := s.Alerts()
+	if err != nil {
+		t.Fatalf("Alerts: %v", err)
+	}
+	if len(a.Positives) != 1 || a.Positives[0].PatientID != "4001" {
+		t.Fatalf("阳性未处置卡应 1 条 4001, got %+v", a.Positives)
+	}
+	if len(a.Due) != 1 || a.Due[0].PatientID != "4002" {
+		t.Fatalf("到期卡应 1 条 4002, got %+v", a.Due)
+	}
+}

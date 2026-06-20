@@ -232,3 +232,34 @@ func (s *InfectiousService) Dispose(patientID int64, recordID string, in Disposi
 	}
 	return s.latest(patientID)
 }
+
+type InfectiousAlerts struct {
+	Positives []models.PatientInfectious `json:"positives"` // 阳性未处置(最高优先级)
+	Due       []models.PatientInfectious `json:"due"`       // 到期/将到期
+}
+
+// Alerts 取本租户：阳性未处置 + 到期(≤14天或已过期)。各患者取其最新一条参与判定。
+func (s *InfectiousService) Alerts() (*InfectiousAlerts, error) {
+	var all []models.PatientInfectious
+	if err := s.db.Where("tenant_id = ?", s.tenantID).
+		Order("patient_id, screen_date DESC, created_at DESC").Find(&all).Error; err != nil {
+		return nil, err
+	}
+	latestByPatient := map[string]models.PatientInfectious{}
+	for _, r := range all {
+		if _, ok := latestByPatient[r.PatientID]; !ok {
+			latestByPatient[r.PatientID] = r
+		}
+	}
+	res := &InfectiousAlerts{}
+	cutoff := time.Now().AddDate(0, 0, 14)
+	for _, r := range latestByPatient {
+		if r.ResultOverall == models.InfectiousPositive && r.HandledAt == nil {
+			res.Positives = append(res.Positives, r)
+		}
+		if r.NextDueDate != nil && r.NextDueDate.Before(cutoff) {
+			res.Due = append(res.Due, r)
+		}
+	}
+	return res, nil
+}
