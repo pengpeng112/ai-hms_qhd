@@ -101,3 +101,49 @@ func TestInf_Gate_PendingNotAllowNormal(t *testing.T) {
 		t.Fatalf("pending 应 fail-closed REQUIRE_C_ZONE, got %s", g.State)
 	}
 }
+
+func TestInf_Dispose_DoubleSign(t *testing.T) {
+	db := newInfTestDB(t)
+	s := &InfectiousService{db: db, tenantID: 3}
+	rec, _ := s.Screen(3001, ScreenInput{ScreenDate: time.Now(), Source: "manual",
+		Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemPositive}}})
+
+	// 仅医生签 → 未处置，仍 FROZEN
+	if _, err := s.Dispose(3001, rec.ID, DispositionInput{Disposition: models.InfectiousDispCZoneCRRT, Role: "doctor", SignerID: "9", SignerName: "张医生"}); err != nil {
+		t.Fatalf("doctor sign: %v", err)
+	}
+	if g := s.CanScheduleRoutine(3001); g.State != GateFrozen {
+		t.Fatalf("单签后仍应 FROZEN, got %s", g.State)
+	}
+	// 意见不一致 → 拒
+	if _, err := s.Dispose(3001, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "head_nurse", SignerID: "8", SignerName: "李护士长"}); err == nil {
+		t.Fatalf("意见不一致应拒")
+	}
+	// 护士长同意 c_zone_crrt → 双签齐 → C_ZONE_CRRT
+	if _, err := s.Dispose(3001, rec.ID, DispositionInput{Disposition: models.InfectiousDispCZoneCRRT, Role: "head_nurse", SignerID: "8", SignerName: "李护士长"}); err != nil {
+		t.Fatalf("headnurse sign: %v", err)
+	}
+	if g := s.CanScheduleRoutine(3001); g.State != GateCZoneCRRT {
+		t.Fatalf("双签后应 C_ZONE_CRRT, got %s", g.State)
+	}
+
+	// 非阳性记录 dispose → 拒
+	neg, _ := s.Screen(3002, ScreenInput{ScreenDate: time.Now(), Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemNegative}}})
+	if _, err := s.Dispose(3002, neg.ID, DispositionInput{Disposition: models.InfectiousDispCZoneCRRT, Role: "doctor", SignerID: "9", SignerName: "张"}); err == nil {
+		t.Fatalf("非阳性应拒处置")
+	}
+}
+
+func TestInf_Dispose_TransferOutWritesOutCome(t *testing.T) {
+	db := newInfTestDB(t)
+	s := &InfectiousService{db: db, tenantID: 3}
+	rec, _ := s.Screen(3003, ScreenInput{ScreenDate: time.Now(), Source: "manual",
+		Items: []ScreenItem{{Item: "抗-HCV", Result: models.InfItemPositive}}})
+	s.Dispose(3003, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "doctor", SignerID: "9", SignerName: "张"})
+	s.Dispose(3003, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "head_nurse", SignerID: "8", SignerName: "李"})
+	var cnt int64
+	db.Table(`"Register_OutCome"`).Where(`"PatientId" = ? AND "Type" = ?`, 3003, models.OutcomeTypeOut).Count(&cnt)
+	if cnt != 1 {
+		t.Fatalf("transfer_out 应写 1 条 Register_OutCome 转出, got %d", cnt)
+	}
+}
