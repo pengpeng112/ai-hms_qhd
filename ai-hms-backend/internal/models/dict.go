@@ -109,5 +109,6 @@ const (
 	// 医嘱扩展字典
 	DictTypeOrderRoute     = "ORDER_ROUTE"     // 用法
 	DictTypeOrderFrequency = "ORDER_FREQUENCY" // 频次
-	DictTypeOrderTiming    = "ORDER_TIMING"    // 使用时机
+	DictTypeOrderTiming            = "ORDER_TIMING"            // 使用时机
+	DictTypeInfectiousScreenItem   = "INFECTIOUS_SCREEN_ITEM"   // 传染病筛查项(院方可配)
 )

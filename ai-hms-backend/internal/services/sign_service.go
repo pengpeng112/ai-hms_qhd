@@ -23,9 +23,10 @@ func NewSignService() *SignService {
 }
 
 var validSignTargets = map[string]struct{}{
-	models.SignTargetPrescription: {},
-	models.SignTargetPlan:         {},
-	models.SignTargetSummary:      {},
+	models.SignTargetPrescription:          {},
+	models.SignTargetPlan:                  {},
+	models.SignTargetSummary:               {},
+	models.SignTargetInfectiousDisposition: {},
 }
 
 func normalizeSignRecordError(err error) error {
