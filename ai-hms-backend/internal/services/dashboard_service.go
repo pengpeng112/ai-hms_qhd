@@ -205,3 +205,13 @@ func (s *DashboardService) GetStats() (*DashboardStats, error) {
 		AvgDialysisHours:    avgHours,
 	}, nil
 }
+
+// InfectiousAlertCounts 返回(阳性未处置数, 到期/将到期数)，供驾驶舱卡。
+func (s *DashboardService) InfectiousAlertCounts() (int, int, error) {
+	inf := &InfectiousService{db: s.db, tenantID: LegacyTenantID}
+	a, err := inf.Alerts()
+	if err != nil {
+		return 0, 0, err
+	}
+	return len(a.Positives), len(a.Due), nil
+}
