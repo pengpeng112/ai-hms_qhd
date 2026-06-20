@@ -92,3 +92,12 @@ func TestInf_Gate_FailOpenOnMissingTable(t *testing.T) {
 		t.Fatalf("表缺应 fail-open ALLOW_NORMAL, got %s", g.State)
 	}
 }
+
+func TestInf_Gate_PendingNotAllowNormal(t *testing.T) {
+	db := newInfTestDB(t)
+	s := &InfectiousService{db: db, tenantID: 3}
+	s.Screen(2100, ScreenInput{ScreenDate: time.Now(), Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemIndeterminate}}})
+	if g := s.CanScheduleRoutine(2100); g.State != GateRequireCZone {
+		t.Fatalf("pending 应 fail-closed REQUIRE_C_ZONE, got %s", g.State)
+	}
+}

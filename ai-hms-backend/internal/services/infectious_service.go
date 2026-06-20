@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
@@ -84,21 +85,28 @@ func (s *InfectiousService) Screen(patientID int64, in ScreenInput) (*models.Pat
 	return rec, nil
 }
 
-// latest 取该患者最新一条筛查记录（无则 nil,nil）
-func (s *InfectiousService) latest(patientID int64) (*models.PatientInfectious, error) {
+// latest 取该患者最新一条筛查记录（无则 nil,nil）。
+// 内置 recover：若 DB 驱动 panic（如表缺失），转为 error 返回，由调用方 fail-open。
+func (s *InfectiousService) latest(patientID int64) (rec *models.PatientInfectious, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rec = nil
+			err = fmt.Errorf("infectious latest panic: %v", r)
+		}
+	}()
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
-	var rec models.PatientInfectious
-	err := s.db.Where("patient_id = ?", strconv.FormatInt(patientID, 10)).
-		Order("screen_date DESC, created_at DESC").First(&rec).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
+	var row models.PatientInfectious
+	e := s.db.Where("patient_id = ?", strconv.FormatInt(patientID, 10)).
+		Order("screen_date DESC, created_at DESC").First(&row).Error
+	if errors.Is(e, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
-	if err != nil {
-		return nil, err
+	if e != nil {
+		return nil, e
 	}
-	return &rec, nil
+	return &row, nil
 }
 
 type GateState string
@@ -116,13 +124,7 @@ type GateResult struct {
 }
 
 // CanScheduleRoutine 四态门禁。基础设施错误(表缺/查询失败)→fail-open ALLOW_NORMAL+日志；业务判定→fail-closed。
-func (s *InfectiousService) CanScheduleRoutine(patientID int64) (result GateResult) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("[infectious-gate] fail-open: panic in CanScheduleRoutine(%d): %v", patientID, r)
-			result = GateResult{State: GateAllowNormal}
-		}
-	}()
+func (s *InfectiousService) CanScheduleRoutine(patientID int64) GateResult {
 	rec, err := s.latest(patientID)
 	if err != nil {
 		log.Printf("[infectious-gate] fail-open: latest(%d) error: %v", patientID, err)
@@ -139,10 +141,17 @@ func (s *InfectiousService) CanScheduleRoutine(patientID int64) (result GateResu
 		if rec.Disposition == models.InfectiousDispCZoneCRRT {
 			return GateResult{State: GateCZoneCRRT, Reason: "阳性患者仅可 C 区全警戒 + CRRT 机器"}
 		}
-		return GateResult{State: GateFrozen, Reason: "阳性患者已转出退册"}
+		if rec.Disposition == models.InfectiousDispTransferOut {
+			return GateResult{State: GateFrozen, Reason: "阳性患者已转出退册，不再排班"}
+		}
+		return GateResult{State: GateFrozen, Reason: "阳性患者处置状态异常，已冻结"}
 	}
 	if rec.NextDueDate != nil && rec.NextDueDate.Before(time.Date(today.Year(), today.Month(), today.Day(), 0, 0, 0, 0, today.Location())) {
 		return GateResult{State: GateRequireCZone, Reason: "传染病筛查已过期(>6月)，请复查后再排常规（可 C 区全警戒）"}
 	}
-	return GateResult{State: GateAllowNormal}
+	if rec.ResultOverall == models.InfectiousNegative {
+		return GateResult{State: GateAllowNormal}
+	}
+	// pending/未出结果 等 → 结果未明，fail-closed 仅可 C 区
+	return GateResult{State: GateRequireCZone, Reason: "传染病筛查结果未明（待定/待复核），暂不得上常规，可 C 区全警戒"}
 }
