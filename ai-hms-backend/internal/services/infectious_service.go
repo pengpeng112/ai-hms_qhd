@@ -98,7 +98,7 @@ func (s *InfectiousService) latest(patientID int64) (rec *models.PatientInfectio
 		return nil, errors.New("database not available")
 	}
 	var row models.PatientInfectious
-	e := s.db.Where("patient_id = ?", strconv.FormatInt(patientID, 10)).
+	e := s.db.Where("tenant_id = ? AND patient_id = ?", s.tenantID, strconv.FormatInt(patientID, 10)).
 		Order("screen_date DESC, created_at DESC").First(&row).Error
 	if errors.Is(e, gorm.ErrRecordNotFound) {
 		return nil, nil
@@ -159,7 +159,7 @@ func (s *InfectiousService) CanScheduleRoutine(patientID int64) GateResult {
 // HistoryWithGate 返回该患者全部筛查记录（最新在前）+ 当前门禁状态。
 func (s *InfectiousService) HistoryWithGate(patientID int64) ([]models.PatientInfectious, GateResult, error) {
 	var rows []models.PatientInfectious
-	err := s.db.Where("patient_id = ?", strconv.FormatInt(patientID, 10)).
+	err := s.db.Where("tenant_id = ? AND patient_id = ?", s.tenantID, strconv.FormatInt(patientID, 10)).
 		Order("screen_date DESC, created_at DESC").Find(&rows).Error
 	if err != nil {
 		return nil, GateResult{}, err
@@ -220,8 +220,12 @@ func (s *InfectiousService) Dispose(patientID int64, recordID string, in Disposi
 			if rec.Disposition == models.InfectiousDispCZoneCRRT {
 				updates["zone_tag"] = "c_zone"
 			} else { // transfer_out → 写 Register_OutCome 转出
+				ocID, idErr := nextLegacyID() // Register_OutCome.Id 为应用生成的老库主键(非自增)，必须显式赋值
+				if idErr != nil {
+					return idErr
+				}
 				oc := map[string]any{
-					"TenantId": s.tenantID, "PatientId": patientID, "Type": models.OutcomeTypeOut,
+					"Id": ocID, "TenantId": s.tenantID, "PatientId": patientID, "Type": models.OutcomeTypeOut,
 					"Reason": "传染病阳性转外院", "OutComeTime": now, "Note": fmt.Sprintf("阳性双处理转出(rec=%s)", rec.ID),
 					"CreateTime": now, "LastModifyTime": now,
 				}

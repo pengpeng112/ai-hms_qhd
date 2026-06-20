@@ -23,7 +23,7 @@ func newInfTestDB(t *testing.T) *gorm.DB {
 	if err := db.AutoMigrate(&models.PatientInfectious{}, &models.SignRecord{}); err != nil {
 		t.Fatalf("migrate: %v", err)
 	}
-	db.Exec("CREATE TABLE `\"Register_OutCome\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `PatientId` INTEGER, `Type` TEXT, `Reason` TEXT, `OutComeTime` DATETIME, `Note` TEXT, `CreateTime` DATETIME, `LastModifyTime` DATETIME)")
+	db.Exec("CREATE TABLE `\"Register_OutCome\"` (`Id` BIGINT PRIMARY KEY, `TenantId` INTEGER, `PatientId` INTEGER, `Type` TEXT, `Reason` TEXT, `OutComeTime` DATETIME, `Note` TEXT, `CreateTime` DATETIME, `LastModifyTime` DATETIME)")
 	db.Exec("CREATE TABLE `\"Register_PatientInfomation\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `Name` TEXT, `DialysisNo` TEXT, `\"IsDisabled\"` BOOLEAN DEFAULT 0)")
 	return db
 }

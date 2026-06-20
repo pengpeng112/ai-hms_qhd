@@ -14,7 +14,7 @@ type DictType struct {
 	Code        string     `gorm:"type:varchar(50);uniqueIndex;not null" json:"code"`
 	Name        string     `gorm:"type:varchar(100);not null" json:"name"`
 	Description string     `gorm:"type:varchar(500)" json:"description"`
-	Icon        string     `gorm:"type:varchar(50)" json:"icon"` // 图标（emoji）
+	Icon        string     `gorm:"type:varchar(50)" json:"icon"`                 // 图标（emoji）
 	Source      string     `gorm:"type:varchar(20);default:local" json:"source"` // 来源：legacy 老库 / local 本地
 	SortOrder   int        `gorm:"type:int;default:0" json:"sortOrder"`
 	IsEnabled   bool       `gorm:"type:bool;default:true" json:"isEnabled"`
@@ -107,8 +107,8 @@ const (
 	// 转归字典
 	DictTypeOutcome = "OUTCOME" // 患者转归（一级：在科/转出，二级：具体原因）
 	// 医嘱扩展字典
-	DictTypeOrderRoute     = "ORDER_ROUTE"     // 用法
-	DictTypeOrderFrequency = "ORDER_FREQUENCY" // 频次
-	DictTypeOrderTiming            = "ORDER_TIMING"            // 使用时机
-	DictTypeInfectiousScreenItem   = "INFECTIOUS_SCREEN_ITEM"   // 传染病筛查项(院方可配)
+	DictTypeOrderRoute           = "ORDER_ROUTE"            // 用法
+	DictTypeOrderFrequency       = "ORDER_FREQUENCY"        // 频次
+	DictTypeOrderTiming          = "ORDER_TIMING"           // 使用时机
+	DictTypeInfectiousScreenItem = "INFECTIOUS_SCREEN_ITEM" // 传染病筛查项(院方可配)
 )

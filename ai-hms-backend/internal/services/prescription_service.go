@@ -967,7 +967,7 @@ func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, si
 				return nil, errors.New(g.Reason + "；如确认本次 C 区全警戒安置请勾选 cZoneAck")
 			}
 		case GateCZoneCRRT:
-			if normalizeLegacyDialysisMode(item.DialysisMethod) != "CRRT" {
+			if !strings.EqualFold(strings.TrimSpace(item.DialysisMethod), "CRRT") {
 				return nil, errors.New("阳性患者仅可 C 区全警戒 + CRRT 机器，请将处方改为 CRRT 模式")
 			}
 		}
