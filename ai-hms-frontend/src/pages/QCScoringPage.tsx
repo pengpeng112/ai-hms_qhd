@@ -73,7 +73,7 @@ export default function QCScoringPage() {
                 <td className="py-2.5 px-3 text-right font-mono font-black text-blue-600">{d.totalScore}</td>
                 {QC_ITEM_ORDER.map((k) => (
                   QC_NOT_CONNECTED.has(k)
-                    ? <td key={k} className="py-2.5 px-2 text-right font-mono text-[12px] text-slate-300" title="数据源待接入，暂不计入达标率">待接</td>
+                    ? <td key={k} className="py-2.5 px-2 text-right font-mono text-[12px] text-slate-300" title="数据源待接入，当前按缺测计 0">待接</td>
                     : <td key={k} className={`py-2.5 px-2 text-right font-mono text-[12px] font-bold ${rateColor(d.onTargetRate?.[k] ?? 0)}`}>{pct(d.onTargetRate?.[k] ?? 0)}</td>
                 ))}
                 <td className="py-2.5 px-3 text-slate-300"><ChevronRight size={16} /></td>
@@ -105,7 +105,7 @@ export default function QCScoringPage() {
                     <td className="py-2 px-2 text-right font-mono font-black text-blue-600">{p.score.total}</td>
                     {QC_ITEM_ORDER.map((k) => {
                       if (QC_NOT_CONNECTED.has(k)) {
-                        return <td key={k} className="py-2 px-1.5 text-right font-mono text-[12px] text-slate-300" title="数据源待接入">待接</td>
+                        return <td key={k} className="py-2 px-1.5 text-right font-mono text-[12px] text-slate-300" title="数据源待接入，当前按缺测计 0">待接</td>
                       }
                       const v = p.score.items?.[k] ?? 0
                       return <td key={k} className={`py-2 px-1.5 text-right font-mono text-[12px] ${v > 0 ? 'text-emerald-600' : v < 0 ? 'text-rose-600' : 'text-slate-400'}`}>{v > 0 ? `+${v}` : v}</td>

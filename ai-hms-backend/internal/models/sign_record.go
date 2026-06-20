@@ -6,7 +6,7 @@ import "time"
 // 处方 / 方案 / 小结 三类待签共用此表，避免改老库加字段。
 // v1 = 轻量留痕（谁 / 何时 / 签了什么）；法律级签名（CA/图像）留 SignatureBlob 接口后做。
 //
-// ⚠️ 本项目 AutoMigrate 永久禁用：此表须由 DBA 按 docs/sign_record.sql 建表后方可运行。
+// ⚠️ 本项目 AutoMigrate 永久禁用：此独立新表应由部署阶段按 docs/sql/deploy_new_tables.sql 建表后方可运行。
 type SignRecord struct {
 	ID            string    `gorm:"column:id;type:varchar(36);primaryKey" json:"id"`
 	TenantID      int64     `gorm:"column:tenant_id;index;not null" json:"tenantId"`

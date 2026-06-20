@@ -7,6 +7,7 @@
   "tab.security": "Security & Privacy",
   "tab.integration": "Integrations",
   "tab.logs": "Logs",
+  "tab.hisOracle": "HIS Oracle Sync",
 
   "account.title": "Basic Information",
   "account.avatar": "Change Avatar",
@@ -92,5 +93,31 @@
   "logs.lastFetchedAt": "Last fetched at",
 
   "action.logout": "Log Out",
-  "action.changeAvatar": "Change"
+  "action.changeAvatar": "Change",
+
+  "hisOracle.title": "HIS Oracle Connection & Sync",
+  "hisOracle.connectionTitle": "Connection",
+  "hisOracle.host": "Host",
+  "hisOracle.port": "Port",
+  "hisOracle.service": "Service Name",
+  "hisOracle.username": "Username",
+  "hisOracle.password": "Password",
+  "hisOracle.passwordHint": "Leave blank to keep current password",
+  "hisOracle.testConnection": "Test Connection",
+  "hisOracle.testing": "Testing...",
+  "hisOracle.connected": "Connected",
+  "hisOracle.connectFailed": "Connection Failed",
+  "hisOracle.latency": "Latency",
+  "hisOracle.syncJobsTitle": "Sync Jobs",
+  "hisOracle.jobEnabled": "Enabled",
+  "hisOracle.jobDisabled": "Disabled",
+  "hisOracle.jobLastRun": "Last Run",
+  "hisOracle.jobNeverRun": "Never",
+  "hisOracle.actionSave": "Save Config",
+  "hisOracle.actionInitJobs": "Init Sync Jobs",
+  "hisOracle.saveSuccess": "Config saved",
+  "hisOracle.saveFailed": "Save failed",
+  "hisOracle.testSuccess": "Connection OK",
+  "hisOracle.testFailed": "Connection failed",
+  "hisOracle.initJobsSuccess": "Sync jobs initialized"
 }

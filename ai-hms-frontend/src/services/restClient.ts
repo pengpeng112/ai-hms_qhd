@@ -1,4 +1,4 @@
-﻿/**
+/**
  * REST API 客户端
  * 用于对接后端 REST 接口
  */
@@ -1033,6 +1033,111 @@ export interface HdisIntegrationSettingsUpdatePayload {
 export interface HdisRefreshTokenResult {
   tokenExpiresAt: string | null
   tokenStatus: 'MISSING' | 'UNKNOWN' | 'VALID' | 'EXPIRING' | 'EXPIRED'
+}
+
+// ============ HIS Oracle Sync ============
+
+export interface HisOracleConfig {
+  host: string
+  port: number
+  service: string
+  username: string
+  password?: string
+}
+
+export interface HisOracleConnectionTestRequest {
+  host: string
+  port: number
+  service: string
+  username: string
+  password: string
+}
+
+export interface HisOracleConnectionTestResult {
+  connected: boolean
+  latency_ms?: number
+  error?: string
+}
+
+export interface SyncJobConfig {
+  id: string
+  jobCode: string
+  sourceSystem: string
+  syncType: string
+  enabled: boolean
+  cronExpr?: string
+  intervalSeconds?: number
+  batchSize: number
+  timeoutSeconds: number
+  maxRetry: number
+  cursorType: string
+  cursorValue?: string
+  overwritePolicy: string
+  lastRunAt?: string
+  nextRunAt?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SyncJobUpdateRequest {
+  enabled?: boolean
+  cronExpr?: string
+  intervalSeconds?: number
+  batchSize?: number
+  timeoutSeconds?: number
+  maxRetry?: number
+  cursorType?: string
+  cursorValue?: string
+  overwritePolicy?: string
+}
+
+export interface SyncJobRun {
+  id: string
+  jobCode: string
+  sourceSystem: string
+  syncType: string
+  status: string
+  startedAt: string
+  finishedAt?: string
+  durationMs?: number
+  fetchedCount: number
+  createdCount: number
+  updatedCount: number
+  skippedCount: number
+  failedCount: number
+  cursorBefore?: string
+  cursorAfter?: string
+  errorMessage?: string
+  createdAt: string
+}
+
+export interface HisExamSyncResult {
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  errors?: string[]
+}
+
+export interface UnmatchedPatientItem {
+  patientId: string
+  name: string
+  examCnt: number
+}
+
+export interface UnmatchedPatientResponse {
+  items: UnmatchedPatientItem[]
+  total: number
+  page: number
+  pageSize: number
+}
+
+export interface PatientSearchItem {
+  id: number
+  name: string
+  gender: string
+  age: number
+  dialysisNo?: string
 }
 
 export type SystemLogSource = 'app' | 'error' | 'all'
@@ -2155,6 +2260,97 @@ return response.data.data
       throw new Error('获取工作量统计失败')
     }
     return response.data
+  }
+
+  // ============ HIS Oracle 同步 API ============
+
+  async testHisOracleConnection(req: HisOracleConnectionTestRequest): Promise<HisOracleConnectionTestResult> {
+    const response = await apiClient.post<ApiSuccessResponse<HisOracleConnectionTestResult>>(
+      '/api/v1/sync/his-oracle/test', req
+    )
+    if (!response.data.success) {
+      const err = response.data as unknown as ApiErrorResponse
+      throw new Error(err.error?.message || '连接测试失败')
+    }
+    return response.data.data
+  }
+
+  async getSyncJobs(): Promise<SyncJobConfig[]> {
+    const response = await apiClient.get<ApiSuccessResponse<SyncJobConfig[]>>('/api/v1/sync/jobs')
+    if (!response.data.success) {
+      throw new Error('获取同步任务列表失败')
+    }
+    return response.data.data
+  }
+
+  async getSyncJob(code: string): Promise<SyncJobConfig> {
+    const response = await apiClient.get<ApiSuccessResponse<SyncJobConfig>>(`/api/v1/sync/jobs/${code}`)
+    if (!response.data.success) {
+      throw new Error('获取同步任务失败')
+    }
+    return response.data.data
+  }
+
+  async updateSyncJob(code: string, payload: SyncJobUpdateRequest): Promise<SyncJobConfig> {
+    const response = await apiClient.put<ApiSuccessResponse<SyncJobConfig>>(`/api/v1/sync/jobs/${code}`, payload)
+    if (!response.data.success) {
+      throw new Error('更新同步任务失败')
+    }
+    return response.data.data
+  }
+
+  async getSyncJobRuns(code: string): Promise<SyncJobRun[]> {
+    const response = await apiClient.get<ApiSuccessResponse<SyncJobRun[]>>(`/api/v1/sync/jobs/${code}/runs`)
+    if (!response.data.success) {
+      throw new Error('获取运行历史失败')
+    }
+    return response.data.data
+  }
+
+  async seedSyncJobs(): Promise<void> {
+    const response = await apiClient.post<ApiSuccessResponse<unknown>>('/api/v1/sync/jobs/seed')
+    if (!response.data.success) {
+      throw new Error('初始化同步任务失败')
+    }
+  }
+
+  async runSyncJob(code: string): Promise<{ runId: string; status: string }> {
+    const response = await apiClient.post<ApiSuccessResponse<{ runId: string; status: string }>>(`/api/v1/sync/jobs/${code}/run`)
+    if (!response.data.success) {
+      throw new Error('启动同步失败')
+    }
+    return response.data.data
+  }
+
+  async getUnmatchedPatients(params?: { page?: number; pageSize?: number; keyword?: string }): Promise<UnmatchedPatientResponse> {
+    const query = new URLSearchParams()
+    if (params?.page) query.set('page', String(params.page))
+    if (params?.pageSize) query.set('pageSize', String(params.pageSize))
+    if (params?.keyword) query.set('keyword', params.keyword)
+    const qs = query.toString()
+    const response = await apiClient.get<ApiSuccessResponse<UnmatchedPatientResponse>>(`/api/v1/sync/unmatched-patients${qs ? `?${qs}` : ''}`)
+    if (!response.data.success) {
+      throw new Error('获取未匹配患者失败')
+    }
+    return response.data.data
+  }
+
+  async bindExternalPatientMapping(externalPatientId: string, legacyPatientId: number): Promise<void> {
+    const response = await apiClient.post<ApiSuccessResponse<unknown>>('/api/v1/sync/external-mappings/bind', {
+      externalPatientId,
+      legacyPatientId,
+    })
+    if (!response.data.success) {
+      throw new Error('绑定失败')
+    }
+  }
+
+  async searchPatients(keyword: string): Promise<PatientSearchItem[]> {
+    const response = await apiClient.get<ApiSuccessResponse<PatientSearchItem[]>>('/api/v1/patients/search', { params: { keyword } })
+    if (!response.data.success) {
+      throw new Error('搜索患者失败')
+    }
+    return response.data.data
   }
 }
 

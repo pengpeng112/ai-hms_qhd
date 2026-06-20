@@ -1,86 +1,32 @@
-# Docs 文档索引
+# Docs 鏂囨。绱㈠紩
 
-> 生成时间：2026-06-09 | 系统：ai-hms_qhd  
-> 目的：为 AI 解析提供文档导航，说明每份文档的用途和有效状态。
+> 鏇存柊鏃堕棿锛?026-06-20
+> 鐩殑锛氫繚鐣欏綋鍓嶅紑鍙戙€侀儴缃层€佹暟鎹簱缁存姢鍜屽巻鍙叉牳瀵规墍闇€鏂囨。锛涘巻鍙查樁娈靛寘宸叉眹鎬诲埌 `history-change-summary.md` 鍚庢竻鐞嗐€?
+## 褰撳墠缁存姢鏂囨。
 
----
+| 鏂囨。/鐩綍 | 鐢ㄩ€?|
+|---|---|
+| `database-change-maintenance.md` | 鏁版嵁搴撳彉鏇寸淮鎶ゆ竻鍗曪細DBA 鑰佽〃鍙樻洿 vs 閮ㄧ讲鑷姩鏂拌〃 |
+| `his-oracle-exam-report-sync-analysis.md` | HIS Oracle 妫€鏌ユ姤鍛婂悓姝ュ垎鏋愩€佽璁°€佸疄鐜板拰楠岃瘉璁板綍 |
+| `history-change-summary.md` | 宸叉竻鐞嗗巻鍙查樁娈?浜や粯鍖呯殑鍔熻兘鍙樻洿姹囨€伙紝渚夸簬鍚庢湡鏍稿 |
+| `legacy-migration-uncertain-field-checklist.md` | 鑰佸簱瀛楁璇箟涓嶇‘瀹氶」娓呭崟 |
+| `migration-ledger.md` | 杩佺Щ鍙拌处 |
+| `v1-v2-boundary.md` | 涓荤郴缁熶笌鎺掔彮 V2 鐨勮鍐欒竟鐣?|
+| `deployment-nginx-security.md` | 閮ㄧ讲涓?Nginx 瀹夊叏璇存槑 |
+| `鎺掔彮妯″潡浜ゆ帴鏂囨。.md` | 鎺掔彮妯″潡鏁翠綋浜ゆ帴鏂囨。 |
+| `sql/` | 褰撳墠浠嶉渶淇濈暀鐨?SQL 鑴氭湰鍙傝€?鎵ц鏉愭枡 |
+| `鎺掔彮鍔熻兘璇存槑/` | 鎺掔彮 v1.4 鍙傝€冨疄鐜帮紝浠呬緵閫昏緫姣斿 |
 
-## 根目录文档
+## 鎺ㄨ崘闃呰椤哄簭
 
-| 文件 | 状态 | 用途 |
-|------|------|------|
-| `排班模块交接文档.md` | ★ 最新 | **核心交接文档**：数据库结构、API 清单、状态机、前端对照、环境变量、硬规则、已知问题 |
-| `README.md` | ★ 最新 | 本索引文件 |
-| `legacy-migration-uncertain-field-checklist.md` | 持续参考 | 老库字段映射不确定项清单，排班模块与老表对接时的字段语义参考 |
+1. `database-change-maintenance.md`锛氬厛鏄庣‘鏁版嵁搴撳彉鏇磋竟鐣屻€?2. `his-oracle-exam-report-sync-analysis.md`锛欻IS 鍚屾鐩稿叧寮€鍙?鎺掓煡蹇呰銆?3. `鎺掔彮妯″潡浜ゆ帴鏂囨。.md` + `v1-v2-boundary.md`锛氭帓鐝浉鍏冲紑鍙戝繀璇汇€?4. `legacy-migration-uncertain-field-checklist.md`锛氬瓧娈靛惈涔変笉纭畾鏃跺厛鏌ャ€?5. `history-change-summary.md`锛氶渶瑕佽拷婧巻鍙查樁娈垫敼鍔ㄦ椂鏌ャ€?
+## SQL 鑴氭湰
 
----
+| 鑴氭湰 | 鐢ㄩ€?|
+|---|---|
+| `sql/deploy_new_tables.sql` | 閮ㄧ讲闃舵鑷姩鎵ц锛氱嫭绔嬫柊琛ㄥ缓琛?|
+| `sql/old_table_extensions_dba.sql` | DBA 浜哄伐鎵ц锛氳€佽〃鎵╁瓧娈点€侀粯璁ゅ€间慨姝ｃ€佸彲閫夊洖濉?|
 
-## `sql/` — SQL 脚本参考
+## 娓呯悊璇存槑
 
-| 文件 | 状态 | 用途 |
-|------|------|------|
-| `v2_merge_legacy.sql` | ★ 已执行 | **核心迁移脚本**：ALTER TABLE 添加 v2 新列 + 数据从旧表同步到 Schedule_* |
-| `v1.3_v2_tables.sql` | 参考 | v1.3 阶段 v2 表 DDL 定义 |
-| `v1.2_v2_tables.sql` | 参考 | v1.2 阶段 v2 表 DDL 定义 |
-| `schedule_extension_tables.sql` | 参考 | 扩展表 (PatientShiftExt 等) DDL |
-| `schedule_conflict_queue.sql` | 参考 | 冲突队列表 DDL |
-| `schedule_patient_shift_unique_safety_net.sql` | 参考 | 唯一索引安全网 SQL |
-| `schedule_performance_indexes.sql` | 参考 | 性能索引 SQL |
-| `schedule_status60_template_audit.sql` | 参考 | Status=60 模板审计 SQL |
-
----
-
-## `排班功能说明/` — 排班设计参考
-
-### `透析排班-backend-v1.4/` — v1.4 参考后端代码 ★
-
-完整的独立 Go 后端参考实现，包含以下模块：
-
-| 路径 | 说明 |
-|------|------|
-| `cmd/server/main.go` | 入口 |
-| `internal/api/api.go` + `api_admin.go` | API 路由 (含上机/下机/审计) |
-| `internal/config/config.go` | 配置管理 |
-| `internal/db/db.go` | 数据库连接 + 迁移 + 唯一索引 |
-| `internal/model/models.go` | GORM 模型 (14 张表) |
-| `internal/repo/repo.go` | 数据访问层 |
-| `internal/sched/` | 排班引擎 (board/constants/engine/newpatient/util/week + tests) |
-| `internal/seed/seed.go` | 演示数据 |
-| `internal/service/` | 13 个业务服务 (admin/crrt/diff/lifecycle/makeup/ops/perturb/quality/schedule/template/treatment/weekview + integration_test) |
-| `web/index.html` | 独立 Web UI (React 内嵌) |
-
-**v1.4 与当前系统的主要差异**：
-- 使用 `ScheduleDate` 列名 (当前用 `TreatmentTime`)
-- 使用 `Schedule_Machine` 表 (当前用 `Schedule_Bed`)
-- 使用 `*int64` 可空字段 (当前用 `int64 NOT NULL DEFAULT 0`)
-- 有独立的 `StartTreatment/CompleteTreatment` 实现 (当前已补全)
-- 有 `auditMiddleware` 请求审计 (当前由主系统中间件负责)
-- 有 `GET /health` 系统探活 (当前有 `GET /schedule/health` 数据健康检查)
-
----
-
-## 不在本文档索引中的目录/文件
-
-以下目录/文件**已清理**，不再保留：
-
-- `local-test/` — 本地测试报告（过时）
-- `schedule-plan/` — 旧版排班开发计划（过时）
-- `ui-mockups/` — UI 线框图（过时）
-- `remediation-skills/` — 空目录
-- `排班功能说明/透析排班-backend/` — v1.0 参考代码（已删除）
-- `排班功能说明/透析排班-backend-v1.1(1)/` — v1.1 参考代码（已删除）
-- `排班功能说明/透析排班-backend-v1.2/` — v1.2 参考代码（已删除）
-- `排班功能说明/透析排班-backend-v1.3/` — v1.3 参考代码（已删除）
-- `排班功能说明/*.docx` — Word 文档（已删除）
-- `排班功能说明/*.zip` — 压缩包（已删除）
-- 根目录 33 个过期 .md 文件（已删除）
-
----
-
-## AI 解析时推荐阅读顺序
-
-1. **`排班模块交接文档.md`** → 全面了解当前系统状态
-2. **`sql/v2_merge_legacy.sql`** → 理解表结构和数据迁移
-3. **`legacy-migration-uncertain-field-checklist.md`** → 理解字段映射不确定项
-4. **`排班功能说明/透析排班-backend-v1.4/`** → 参考 v1.4 独立后端实现
-5. 当前源代码：`ai-hms-backend/internal/smart_schedule/` → 实际运行代码
+宸插垹闄ゆ棩鏈熷瀷璇勪及鐩綍銆佸巻鍙茶ˉ涓佸寘銆侀噸澶嶆柟妗堛€佹紨绀洪潤鎬佽祫婧愬拰鍘嗗彶婧愮爜鍓湰銆傚垹闄ゅ墠宸插湪 `history-change-summary.md` 涓眹鎬诲叧閿彉鏇达紱濡傞渶瀹屾暣鍘嗗彶鏂囦欢锛屽彲閫氳繃 Git 鍘嗗彶杩芥函銆?

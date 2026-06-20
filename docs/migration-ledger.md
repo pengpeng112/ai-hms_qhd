@@ -99,7 +99,8 @@
 | 排班唯一索引 | `ai-hms-backend/scripts/schedule_unique_indexes.sql` | DBA 建索引（含重复探测） |
 | 转归记录 | `ai-hms-backend/scripts/migrate_outcome_record_door_rule.sql` | 转归门规则迁移 |
 | 病史字段 | `ai-hms-backend/scripts/migrate_medical_history_fields.sql` | 病史字段迁移 |
-| v2 合并 | `docs/sql/v2_merge_legacy.sql` | v2 合并老库 SQL |
+| 老表扩字段 | `docs/sql/old_table_extensions_dba.sql` | DBA 人工执行的老表扩字段、默认值修正和可选回填 SQL |
+| 自动新表 | `docs/sql/deploy_new_tables.sql` | 部署阶段幂等执行的独立新表 SQL |
 | 转归记录 | `ai-hms-backend/internal/database/migrate_outcome.sql` | 转归记录迁移 |
 
 ### 评估与改进

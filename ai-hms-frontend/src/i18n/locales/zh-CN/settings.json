@@ -7,6 +7,7 @@
   "tab.security": "安全与隐私",
   "tab.integration": "集成配置",
   "tab.logs": "日志排查",
+  "tab.hisOracle": "HIS Oracle 同步",
 
   "account.title": "基本信息",
   "account.avatar": "更换头像",
@@ -92,5 +93,31 @@
   "logs.lastFetchedAt": "最近刷新时间",
 
   "action.logout": "退出登录",
-  "action.changeAvatar": "更换"
+  "action.changeAvatar": "更换",
+
+  "hisOracle.title": "HIS Oracle 数据源连接与同步",
+  "hisOracle.connectionTitle": "数据源连接",
+  "hisOracle.host": "主机地址",
+  "hisOracle.port": "端口",
+  "hisOracle.service": "Service Name",
+  "hisOracle.username": "用户名",
+  "hisOracle.password": "密码",
+  "hisOracle.passwordHint": "留空表示不更新密码",
+  "hisOracle.testConnection": "测试连接",
+  "hisOracle.testing": "测试中...",
+  "hisOracle.connected": "已连接",
+  "hisOracle.connectFailed": "连接失败",
+  "hisOracle.latency": "延迟",
+  "hisOracle.syncJobsTitle": "同步任务",
+  "hisOracle.jobEnabled": "已启用",
+  "hisOracle.jobDisabled": "已停用",
+  "hisOracle.jobLastRun": "上次运行",
+  "hisOracle.jobNeverRun": "从未运行",
+  "hisOracle.actionSave": "保存配置",
+  "hisOracle.actionInitJobs": "初始化同步任务",
+  "hisOracle.saveSuccess": "配置已保存",
+  "hisOracle.saveFailed": "保存失败",
+  "hisOracle.testSuccess": "连接成功",
+  "hisOracle.testFailed": "连接失败",
+  "hisOracle.initJobsSuccess": "同步任务已初始化"
 }

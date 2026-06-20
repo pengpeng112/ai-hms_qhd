@@ -23,6 +23,7 @@
   "settings": "系统设置",
   "userManagement": "用户管理",
   "roleManagement": "角色管理",
+  "syncCenter": "同步中心",
 
   "brand.full": "AI-HMS 智能透析",
   "brand.short": "AI",

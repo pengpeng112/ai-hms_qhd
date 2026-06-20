@@ -12,6 +12,7 @@ const routeMetaMap: Record<string, RouteMeta> = {
   '/schedule': { title: '排班管理', breadcrumb: ['排班管理'] },
   '/statistics': { title: '统计报表', breadcrumb: ['统计报表'] },
   '/settings': { title: '系统设置', breadcrumb: ['系统设置'] },
+  '/sync-center': { title: '同步管理中心', breadcrumb: ['同步管理中心'] },
   '/ward-overview': { title: '病区概览', breadcrumb: ['病区概览'] },
   '/dialysis-processing': { title: '透析执行', breadcrumb: ['透析执行'] },
   '/inventory': { title: '耗材管理', breadcrumb: ['基础数据', '耗材管理'] },

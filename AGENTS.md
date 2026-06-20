@@ -24,6 +24,9 @@
 - Backend connects only to the legacy dialysis PostgreSQL (`LEGACY_DB_*` env vars, falls back to `DB_*`).
 - `internal/database/migrate.go` permanently blocks `AutoMigrate` and `DropTables` — never re-enable.
 - GORM config: `SingularTable: true`, `NoLowerCase: true`. Legacy table/column names are case-sensitive; raw SQL must use double quotes (e.g. `WHERE "Id" = ?`).
+- DB change boundary: old-table `ALTER TABLE`, old-table default changes, column renames, and old-table unique indexes require DBA manual scripts/review. Do not run them from app startup or request paths.
+- Independent new tables may be created by deployment-stage idempotent SQL only; app runtime still must not execute DDL. Current catalog and rationale live in `docs/database-change-maintenance.md`.
+- New independent tables currently include: `exam_reports`, `exam_report_items`, `external_patient_mappings`, `sync_job_configs`, `sync_job_runs`, `sign_record`, `Schedule_StaffDuty`, `Schedule_StaffDutyOverride`, `Schedule_Patient`.
 - `JWT_SECRET`, `APP_SECRET`, `CORS_ALLOWED_ORIGINS` are required env vars — server exits without them.
 - `AUTH_EMERGENCY_ENABLED=false` by default. Do not introduce default-credential fallbacks.
 

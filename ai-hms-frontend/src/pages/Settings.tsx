@@ -6,6 +6,9 @@ import {
   getErrorMessage,
   restApi,
   type HdisIntegrationSettingsUpdatePayload,
+  type HisOracleConnectionTestResult,
+  type SyncJobConfig,
+  type SyncJobRun,
   type SystemLogEntry,
   type SystemLogLevel,
   type SystemLogSource,
@@ -13,7 +16,7 @@ import {
 } from '@/services/restClient'
 import {
   User as UserIcon, Bell, Shield, Monitor,
-  LogOut, Lock, Mail, Save, Smartphone, Check, Link2, RefreshCw, AlertCircle, FileText, Play, Pause
+  LogOut, Lock, Mail, Save, Smartphone, Check, Link2, RefreshCw, AlertCircle, FileText, Play, Pause, Database
 } from 'lucide-react'
 
 // Static Toggle component (定义在组件外部)
@@ -30,7 +33,7 @@ const Toggle = ({ checked, onChange, disabled }: ToggleProps) => (
   </label>
 )
 
-type TabId = 'account' | 'notifications' | 'display' | 'security' | 'integration' | 'logs'
+type TabId = 'account' | 'notifications' | 'display' | 'security' | 'integration' | 'his-oracle' | 'logs'
 
 type LogLevelFilter = '' | SystemLogLevel
 
@@ -101,6 +104,19 @@ export default function Settings() {
     lastError: '',
     servicePasswordConfigured: false,
   })
+  const [hisOracleForm, setHisOracleForm] = useState({
+    host: '',
+    port: 1521,
+    service: 'orcl',
+    username: '',
+    password: '',
+  })
+  const [hisOracleTesting, setHisOracleTesting] = useState(false)
+  const [hisOracleTestResult, setHisOracleTestResult] = useState<HisOracleConnectionTestResult | null>(null)
+  const [hisOracleJobs, setHisOracleJobs] = useState<SyncJobConfig[]>([])
+  const [hisOracleJobsLoaded, setHisOracleJobsLoaded] = useState(false)
+  const [hisOracleRuns, setHisOracleRuns] = useState<Record<string, SyncJobRun[]>>({})
+  const [hisOracleRunning, setHisOracleRunning] = useState<Record<string, boolean>>({})
   const [logsLoading, setLogsLoading] = useState(false)
   const [logsRefreshing, setLogsRefreshing] = useState(false)
   const [logsAutoRefresh, setLogsAutoRefresh] = useState(true)
@@ -208,6 +224,77 @@ export default function Settings() {
     }
   }
 
+  const testHisOracleConnection = async () => {
+    setHisOracleTesting(true)
+    setHisOracleTestResult(null)
+    try {
+      const result = await restApi.testHisOracleConnection({
+        host: hisOracleForm.host,
+        port: hisOracleForm.port,
+        service: hisOracleForm.service,
+        username: hisOracleForm.username,
+        password: hisOracleForm.password,
+      })
+      setHisOracleTestResult(result)
+    } catch (error) {
+      setHisOracleTestResult({ connected: false, error: getErrorMessage(error) })
+    } finally {
+      setHisOracleTesting(false)
+    }
+  }
+
+  const loadHisOracleJobs = useCallback(async () => {
+    try {
+      const jobs = await restApi.getSyncJobs()
+      setHisOracleJobs(jobs)
+      setHisOracleJobsLoaded(true)
+    } catch {
+      setHisOracleJobs([])
+      setHisOracleJobsLoaded(true)
+    }
+  }, [])
+
+  const initHisOracleJobs = async () => {
+    try {
+      await restApi.seedSyncJobs()
+      alert(t('settings:hisOracle.initJobsSuccess'))
+      await loadHisOracleJobs()
+    } catch {
+      alert(t('settings:hisOracle.saveFailed'))
+    }
+  }
+
+  const handleRunJob = async (code: string) => {
+    setHisOracleRunning(prev => ({ ...prev, [code]: true }))
+    try {
+      await restApi.runSyncJob(code)
+      alert(`${code} 同步已启动`)
+      setTimeout(() => {
+        handleLoadRuns(code)
+        loadHisOracleJobs()
+      }, 2000)
+    } catch (e) {
+      alert(getErrorMessage(e))
+    } finally {
+      setHisOracleRunning(prev => ({ ...prev, [code]: false }))
+    }
+  }
+
+  const handleLoadRuns = async (code: string) => {
+    try {
+      const runs = await restApi.getSyncJobRuns(code)
+      setHisOracleRuns(prev => ({ ...prev, [code]: runs }))
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'his-oracle' && !hisOracleJobsLoaded) {
+      void loadHisOracleJobs()
+    }
+  }, [activeTab, hisOracleJobsLoaded, loadHisOracleJobs])
+
   const loadSystemLogs = useCallback(async (silent = false) => {
     if (silent) {
       setLogsRefreshing(true)
@@ -297,6 +384,7 @@ export default function Settings() {
             <TabButton id="display" label={t('settings:tab.display')} icon={Monitor} activeTab={activeTab} onClick={setActiveTab} />
             <TabButton id="security" label={t('settings:tab.security')} icon={Shield} activeTab={activeTab} onClick={setActiveTab} />
             <TabButton id="integration" label={t('settings:tab.integration')} icon={Link2} activeTab={activeTab} onClick={setActiveTab} />
+            <TabButton id="his-oracle" label={t('settings:tab.hisOracle')} icon={Database} activeTab={activeTab} onClick={setActiveTab} />
             <TabButton id="logs" label={t('settings:tab.logs')} icon={FileText} activeTab={activeTab} onClick={setActiveTab} />
             <div className="h-px bg-gray-100 my-2"></div>
             <button
@@ -765,6 +853,199 @@ export default function Settings() {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === 'his-oracle' && (
+            <div className="max-w-3xl">
+              <h3 className="text-lg font-bold text-gray-800 mb-6 pb-2 border-b border-gray-100">
+                {t('settings:hisOracle.title')}
+              </h3>
+
+              <div className="space-y-6">
+                <div className="p-4 border border-gray-200 rounded-lg bg-gray-50/60">
+                  <h4 className="font-semibold text-gray-800 mb-4">{t('settings:hisOracle.connectionTitle')}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:hisOracle.host')}</label>
+                      <input
+                        type="text"
+                        value={hisOracleForm.host}
+                        onChange={(e) => setHisOracleForm(prev => ({ ...prev, host: e.target.value }))}
+                        placeholder="10.10.8.216"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:hisOracle.port')}</label>
+                      <input
+                        type="number"
+                        value={hisOracleForm.port}
+                        onChange={(e) => setHisOracleForm(prev => ({ ...prev, port: Number(e.target.value || 1521) }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:hisOracle.service')}</label>
+                      <input
+                        type="text"
+                        value={hisOracleForm.service}
+                        onChange={(e) => setHisOracleForm(prev => ({ ...prev, service: e.target.value }))}
+                        placeholder="orcl"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:hisOracle.username')}</label>
+                      <input
+                        type="text"
+                        value={hisOracleForm.username}
+                        onChange={(e) => setHisOracleForm(prev => ({ ...prev, username: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">{t('settings:hisOracle.password')}</label>
+                      <input
+                        type="password"
+                        value={hisOracleForm.password}
+                        onChange={(e) => setHisOracleForm(prev => ({ ...prev, password: e.target.value }))}
+                        placeholder={t('settings:hisOracle.passwordHint')}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 mt-4">
+                    <button
+                      type="button"
+                      onClick={() => void testHisOracleConnection()}
+                      disabled={hisOracleTesting}
+                      className="px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-60 inline-flex items-center gap-2 text-sm"
+                    >
+                      <Link2 size={16} className={hisOracleTesting ? 'animate-spin' : ''} />
+                      {hisOracleTesting ? t('settings:hisOracle.testing') : t('settings:hisOracle.testConnection')}
+                    </button>
+                  </div>
+
+                  {hisOracleTestResult && (
+                    <div className={`mt-3 p-3 rounded-lg text-sm ${hisOracleTestResult.connected ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+                      {hisOracleTestResult.connected
+                        ? `${t('settings:hisOracle.connected')} · ${t('settings:hisOracle.latency')}: ${hisOracleTestResult.latency_ms}ms`
+                        : `${t('settings:hisOracle.connectFailed')}: ${hisOracleTestResult.error}`}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-gray-800">{t('settings:hisOracle.syncJobsTitle')}</h4>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void initHisOracleJobs()}
+                        className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-50 text-xs"
+                      >
+                        {t('settings:hisOracle.actionInitJobs')}
+                      </button>
+                    </div>
+                  </div>
+                  {hisOracleJobs.length === 0 ? (
+                    <div className="text-sm text-gray-500 py-4">
+                      {hisOracleJobsLoaded ? '暂无同步任务' : '加载中...'}
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {hisOracleJobs.map((job) => (
+                        <div key={job.jobCode} className="flex items-center justify-between p-3 border border-gray-200 rounded-lg">
+                          <div>
+                            <div className="text-sm font-medium text-gray-800">{job.jobCode}</div>
+                            <div className="text-xs text-gray-500 mt-0.5">
+                              {job.enabled ? t('settings:hisOracle.jobEnabled') : t('settings:hisOracle.jobDisabled')}
+                              {job.lastRunAt ? ` · ${t('settings:hisOracle.jobLastRun')}: ${new Date(job.lastRunAt).toLocaleString()}` : ` · ${t('settings:hisOracle.jobNeverRun')}`}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${job.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                              {job.enabled ? t('settings:hisOracle.jobEnabled') : t('settings:hisOracle.jobDisabled')}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!job.enabled || hisOracleRunning[job.jobCode]}
+                              onClick={() => void handleRunJob(job.jobCode)}
+                              className={`px-3 py-1 rounded-lg text-xs font-medium inline-flex items-center gap-1 ${
+                                !job.enabled ? 'bg-gray-100 text-gray-400 cursor-not-allowed' :
+                                'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                              }`}
+                            >
+                              <Play size={12} className={hisOracleRunning[job.jobCode] ? 'animate-spin' : ''} />
+                              运行
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-4 border border-gray-200 rounded-lg">
+                  <h4 className="font-semibold text-gray-800 mb-3">运行历史</h4>
+                  {hisOracleJobs.map((job) => {
+                    const runs = hisOracleRuns[job.jobCode]
+                    if (!runs || runs.length === 0) return null
+                    return (
+                      <div key={job.jobCode} className="mb-4 last:mb-0">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-gray-700">{job.jobCode}</span>
+                          <button
+                            type="button"
+                            onClick={() => void handleLoadRuns(job.jobCode)}
+                            className="text-xs text-blue-600 hover:text-blue-800"
+                          >
+                            刷新
+                          </button>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="text-left text-gray-500 border-b border-gray-100">
+                                <th className="pb-1 font-medium">时间</th>
+                                <th className="pb-1 font-medium">状态</th>
+                                <th className="pb-1 font-medium">耗时</th>
+                                <th className="pb-1 font-medium">获取</th>
+                                <th className="pb-1 font-medium">新增</th>
+                                <th className="pb-1 font-medium">失败</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {runs.slice(0, 5).map((run) => (
+                                <tr key={run.id} className="border-b border-gray-50">
+                                  <td className="py-1 text-gray-600">{new Date(run.startedAt).toLocaleString()}</td>
+                                  <td className="py-1">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                      run.status === 'success' ? 'bg-green-100 text-green-600' :
+                                      run.status === 'partial' ? 'bg-amber-100 text-amber-600' :
+                                      run.status === 'failed' ? 'bg-red-100 text-red-600' :
+                                      'bg-blue-100 text-blue-600'
+                                    }`}>{run.status}</span>
+                                  </td>
+                                  <td className="py-1 text-gray-500">{run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : '-'}</td>
+                                  <td className="py-1 text-gray-600">{run.fetchedCount}</td>
+                                  <td className="py-1 text-gray-600">{run.createdCount}</td>
+                                  <td className="py-1 text-gray-600">{run.failedCount}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {hisOracleJobs.every((j) => !hisOracleRuns[j.jobCode] || hisOracleRuns[j.jobCode].length === 0) && (
+                    <div className="text-sm text-gray-400 py-2">暂无运行记录，点击「运行」启动同步</div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

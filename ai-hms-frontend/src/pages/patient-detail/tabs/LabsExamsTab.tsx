@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Beaker, Microscope, ExternalLink, BarChart2, Loader2 } from 'lucide-react'
+import { Beaker, Microscope, ExternalLink, BarChart2, Loader2, ChevronDown, ChevronUp } from 'lucide-react'
 import { message } from 'antd'
 import { SectionHeader, DetailCard } from '@/components/ui'
 import { LabTrendModal, LabHistoryModal } from '@/components/patient/modals'
@@ -99,6 +99,30 @@ function normalizeExamDate(report: ExamReportApi): string {
   return toDateOnly(report.examDate || report.createdAt)
 }
 
+function parseConclusionSections(conclusion: string): { label: string; content: string }[] {
+  if (!conclusion) return []
+  const re = /【(.+?)】([^【]*)/g
+  const sections: { label: string; content: string }[] = []
+  let m: RegExpExecArray | null
+  while ((m = re.exec(conclusion)) !== null) {
+    sections.push({ label: m[1], content: m[2].trim() })
+  }
+  if (sections.length === 0 && conclusion.trim()) {
+    sections.push({ label: '结论', content: conclusion.trim() })
+  }
+  return sections
+}
+
+const sourceSystemLabels: Record<string, string> = {
+  HIS_ORACLE_EXAM: 'HIS Oracle',
+  HDIS_EXAM: 'HDIS',
+  LOCAL: '本地',
+}
+
+function getSourceLabel(source: string): string {
+  return sourceSystemLabels[source] || source || '未知'
+}
+
 export default function LabsExamsTab({ patient }: LabsExamsTabProps) {
   const { t } = useTranslation('patient')
 
@@ -112,6 +136,9 @@ export default function LabsExamsTab({ patient }: LabsExamsTabProps) {
   const [labReports, setLabReports] = useState<LabReportApi[]>([])
   const [examReports, setExamReports] = useState<ExamReportApi[]>([])
   const [examSyncSummary, setExamSyncSummary] = useState<LabReportSyncResult | null>(null)
+  const [examExpandedId, setExamExpandedId] = useState<string | null>(null)
+
+  const toggleExamExpand = (id: string) => { setExamExpandedId(prev => prev === id ? null : id) }
 
   const loadLabReports = useCallback(async () => {
     if (!patient.id) return
@@ -354,25 +381,58 @@ export default function LabsExamsTab({ patient }: LabsExamsTabProps) {
                 </div>
               )}
 
-              {!examLoading && sortedExamReports.map((report) => (
+              {!examLoading && sortedExamReports.map((report) => {
+                const isExpanded = examExpandedId === report.id
+                const sections = parseConclusionSections(report.conclusion)
+                return (
                 <div
                   key={report.id}
                   className="p-5 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-200 group cursor-pointer transition-all"
+                  onClick={() => toggleExamExpand(report.id)}
                 >
-                  <div className="flex justify-between items-start mb-3">
+                  <div className="flex justify-between items-start mb-2">
                     <div>
-                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{report.department || '检查科室'}</p>
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{report.department || '检查科室'}</p>
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                          report.sourceSystem === 'HIS_ORACLE_EXAM' ? 'bg-orange-100 text-orange-600' :
+                          report.sourceSystem === 'HDIS_EXAM' ? 'bg-blue-100 text-blue-600' :
+                          'bg-gray-100 text-gray-500'
+                        }`}>
+                          {getSourceLabel(report.sourceSystem)}
+                        </span>
+                      </div>
                       <h5 className="text-sm font-black text-slate-800 mt-1">{report.title || '-'}</h5>
                     </div>
-                    <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-1 rounded shadow-sm shrink-0">
-                      {normalizeExamDate(report)}
-                    </span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="text-[10px] font-mono text-slate-400 bg-white px-2 py-1 rounded shadow-sm">
+                        {normalizeExamDate(report)}
+                      </span>
+                      <span className="text-slate-300">
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </span>
+                    </div>
                   </div>
-                  <p className="text-xs font-bold text-slate-700 leading-relaxed group-hover:text-slate-800">
-                    {report.conclusion || '暂无检查结论'}
-                  </p>
+                  {!isExpanded ? (
+                    <p className="text-xs font-bold text-slate-700 leading-relaxed line-clamp-2">
+                      {sections.length > 0 ? sections[0].content || '暂无检查结论' : '暂无检查结论'}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 mt-3 pt-3 border-t border-slate-200">
+                      {sections.map((sec, i) => (
+                        <div key={i} className="text-xs">
+                          <span className="font-black text-slate-600">{sec.label}: </span>
+                          <span className="text-slate-700">{sec.content || '—'}</span>
+                        </div>
+                      ))}
+                      <div className="flex items-center gap-4 text-[10px] text-slate-400 pt-1">
+                        {report.externalReportId && <span>报告号: {report.externalReportId}</span>}
+                        {report.syncedAt && <span>同步于: {report.syncedAt}</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              ))}
+              )})}
             </div>
           </DetailCard>
         </div>

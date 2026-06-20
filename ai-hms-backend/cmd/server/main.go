@@ -139,10 +139,18 @@ func main() {
 			v1api.RegisterExamReportRoutes(protected)
 			// 检查报告外部同步路由（HDIS）
 			v1api.RegisterExamSyncRoutes(protected, cfg.Hdis)
+			// 检查报告 HIS Oracle 同步路由
+			v1api.RegisterHisExamSyncRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
 			// 患者关键指标路由（HDIS Record）
 			v1api.RegisterKeyIndicatorRoutes(protected, cfg.Hdis)
 			// 检验报告外部同步路由（HDIS/LIS）
 			v1api.RegisterLisSyncRoutes(protected, cfg.Hdis)
+			// HIS Oracle 连接测试路由
+			v1api.RegisterHisOracleConfigRoutes(protected)
+			// 同步任务管理路由
+			v1api.RegisterSyncJobRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
+			// 同步患者管理路由（未匹配患者/绑定）
+			v1api.RegisterSyncPatientRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
 
 			// 住院信息路由
 			v1api.RegisterHospitalizationRoutes(protected)

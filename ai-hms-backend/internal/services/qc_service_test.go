@@ -45,10 +45,29 @@ func TestQCConceptMatches(t *testing.T) {
 }
 
 func TestQCParseFloatPtr(t *testing.T) {
-	if v := parseFloatPtr(" 12.5 "); v == nil || *v != 12.5 {
-		t.Fatalf("parse 12.5 fail: %v", v)
+	// 纯数字
+	num := []struct {
+		in   string
+		want float64
+	}{
+		{" 12.5 ", 12.5},
+		{"12.5↑", 12.5},
+		{"12.5 g/L", 12.5},
+		{"<0.01", 0.01},
+		{">120", 120},
+		{"6.5%", 6.5},
+		{"-3.2", -3.2},
 	}
-	if v := parseFloatPtr("阴性"); v != nil {
-		t.Fatalf("non-numeric should be nil, got %v", *v)
+	for _, c := range num {
+		v := parseFloatPtr(c.in)
+		if v == nil || *v != c.want {
+			t.Errorf("parse %q = %v, want %v", c.in, v, c.want)
+		}
+	}
+	// 非数值 → nil
+	for _, s := range []string{"阴性", "未见异常", "", "  "} {
+		if v := parseFloatPtr(s); v != nil {
+			t.Errorf("parse %q 应为 nil, got %v", s, *v)
+		}
 	}
 }

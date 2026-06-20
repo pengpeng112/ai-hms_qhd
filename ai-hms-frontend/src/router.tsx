@@ -11,6 +11,7 @@ import {
     QCScoringPage,
     Statistics,
     Settings,
+    SyncCenterPage,
     RoleSelect,
     WardOverview,
     MasterData,
@@ -95,6 +96,10 @@ const router = createBrowserRouter([
             {
                 path: 'settings',
                 element: <PermissionGuard><Settings /></PermissionGuard>,
+            },
+            {
+                path: 'sync-center',
+                element: <PermissionGuard><SyncCenterPage /></PermissionGuard>,
             },
             {
                 path: 'ward-overview',

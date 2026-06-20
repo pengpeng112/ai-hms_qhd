@@ -17,6 +17,7 @@ type Config struct {
 	JWT       JWTConfig
 	CORS      CORSConfig
 	Hdis      HdisConfig
+	HisOracle HisOracleConfig
 	AppSecret string
 
 	OrderCronEnabled bool
@@ -88,6 +89,15 @@ type HdisConfig struct {
 	Secret                string
 }
 
+// HisOracleConfig HIS Oracle 数据源配置
+type HisOracleConfig struct {
+	Host     string
+	Port     int
+	Service  string
+	Username string
+	Password string
+}
+
 // Load 加载配置
 func Load() (*Config, error) {
 	// 加载 .env 文件（如果存在）
@@ -140,6 +150,13 @@ func Load() (*Config, error) {
 			BrowserTimeoutSeconds: getEnvInt("HDIS_BROWSER_TIMEOUT_SECONDS", 120),
 			TargetOrganID:         getEnv("HDIS_TARGET_ORGAN_ID", ""),
 			Secret:                mustGetEnv("APP_SECRET"),
+		},
+		HisOracle: HisOracleConfig{
+			Host:     getEnv("HIS_ORACLE_HOST", ""),
+			Port:     getEnvInt("HIS_ORACLE_PORT", 1521),
+			Service:  getEnv("HIS_ORACLE_SERVICE", "orcl"),
+			Username: getEnv("HIS_ORACLE_USER", ""),
+			Password: getEnv("HIS_ORACLE_PASSWORD", ""),
 		},
 		AppSecret: mustGetEnv("APP_SECRET"),
 

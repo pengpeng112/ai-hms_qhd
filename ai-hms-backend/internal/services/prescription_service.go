@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -961,7 +962,11 @@ func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, si
 	now := time.Now()
 
 	if wardID := s.patientWardToday(int64(item.PatientID), now); wardID > 0 {
-		if duty, derr := schedsvc.ResolveDuty(s.db, LegacyTenantID, wardID, now, schedmodel.DutyRoleDoctor); derr == nil && duty != nil && duty.StaffId != resolvedUserID {
+		duty, derr := schedsvc.ResolveDuty(s.db, LegacyTenantID, wardID, now, schedmodel.DutyRoleDoctor)
+		if derr != nil {
+			log.Printf("[prescription-oncall] ResolveDuty 失败, ward=%d patient=%s rx=%s signer=%s: %v",
+				wardID, patientID, prescriptionID, signerID, derr)
+		} else if duty != nil && duty.StaffId != resolvedUserID {
 			return nil, errors.New("仅当班医生可签发当日处方（当前签发人非该病区今日当班医生）")
 		}
 	}

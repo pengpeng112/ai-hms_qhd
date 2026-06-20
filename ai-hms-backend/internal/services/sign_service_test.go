@@ -16,7 +16,7 @@ func newTestSignService(t *testing.T) *SignService {
 	if err != nil {
 		t.Fatalf("open sqlite failed: %v", err)
 	}
-	// 测试库允许 AutoMigrate（生产禁用，由 DBA 按 docs/sign_record.sql 建表）
+	// 测试库允许 AutoMigrate（生产禁用，由部署阶段按 docs/sql/deploy_new_tables.sql 建表）
 	if err := db.AutoMigrate(&models.SignRecord{}); err != nil {
 		t.Fatalf("migrate sign_record failed: %v", err)
 	}

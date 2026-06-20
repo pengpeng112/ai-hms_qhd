@@ -214,6 +214,11 @@ func (s *QCService) resolveDoctorName(doctorID int64) string {
 		Order(`"Id" ASC`).First(&emp).Error; err == nil && strings.TrimSpace(emp.Name) != "" {
 		return strings.TrimSpace(emp.Name)
 	}
+	if err := s.db.Table(`"Organ_Employee"`).Select(`"Name"`).
+		Where(`"Id" = ? AND "TenantId" = ?`, doctorID, LegacyTenantID).
+		Order(`"Id" ASC`).First(&emp).Error; err == nil && strings.TrimSpace(emp.Name) != "" {
+		return strings.TrimSpace(emp.Name)
+	}
 	var u struct {
 		UserName string `gorm:"column:UserName"`
 	}
@@ -221,7 +226,7 @@ func (s *QCService) resolveDoctorName(doctorID int64) string {
 		Where(`"Id" = ?`, doctorID).First(&u).Error; err == nil && strings.TrimSpace(u.UserName) != "" {
 		return strings.TrimSpace(u.UserName)
 	}
-	return strconv.FormatInt(doctorID, 10)
+	return ""
 }
 
 func (s *QCService) ScoreDoctors(year, month int) ([]QCDoctorScore, error) {

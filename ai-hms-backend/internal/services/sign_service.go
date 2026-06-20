@@ -13,7 +13,7 @@ import (
 )
 
 // SignService 统一电子签名留痕服务（处方/方案/小结三类共用，契约02 待签线 / 契约05 #5）。
-// 依赖新表 sign_record；本项目 AutoMigrate 永久禁用，须 DBA 先建表（docs/sign_record.sql）。
+// 依赖独立新表 sign_record；本项目 AutoMigrate 永久禁用，应由部署阶段执行 docs/sql/deploy_new_tables.sql。
 type SignService struct {
 	db *gorm.DB
 }
@@ -34,11 +34,11 @@ func normalizeSignRecordError(err error) error {
 	}
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == "42P01" {
-		return errors.New("sign_record 表不存在，请先由 DBA 执行 ai-hms-backend/docs/sign_record.sql")
+		return errors.New("sign_record 表不存在，请先在部署阶段执行 docs/sql/deploy_new_tables.sql")
 	}
 	lower := strings.ToLower(err.Error())
 	if strings.Contains(lower, "sign_record") && (strings.Contains(lower, "does not exist") || strings.Contains(lower, "undefined_table")) {
-		return errors.New("sign_record 表不存在，请先由 DBA 执行 ai-hms-backend/docs/sign_record.sql")
+		return errors.New("sign_record 表不存在，请先在部署阶段执行 docs/sql/deploy_new_tables.sql")
 	}
 	return err
 }

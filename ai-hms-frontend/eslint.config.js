@@ -53,6 +53,7 @@ export default defineConfig([
       'src/pages/Inventory.tsx',
       'src/pages/MasterData.tsx',
       'src/pages/Settings.tsx',
+      'src/pages/SyncCenterPage.tsx',
       'src/pages/Statistics.tsx',
       'src/pages/TreatmentConfig.tsx',
       'src/pages/TreatmentConfig/**',
