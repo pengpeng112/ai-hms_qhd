@@ -178,8 +178,13 @@ func (h *PrescriptionHandler) Sign(c *gin.Context) {
 		return
 	}
 
+	var signBody struct {
+		CZoneAck bool `json:"cZoneAck"`
+	}
+	_ = c.ShouldBindJSON(&signBody)
+
 	signerID := middleware.GetUserID(c)
-	p, err := h.service.LegacySign(patientID, prescriptionID, signerID, "")
+	p, err := h.service.LegacySign(patientID, prescriptionID, signerID, "", signBody.CZoneAck)
 	if err != nil {
 		if err.Error() == "prescription not found" {
 			response.NotFound(c, "处方不存在")
@@ -190,6 +195,10 @@ func (h *PrescriptionHandler) Sign(c *gin.Context) {
 			return
 		}
 		if strings.Contains(err.Error(), "仅当班医生") {
+			response.Forbidden(c, err.Error())
+			return
+		}
+		if strings.Contains(err.Error(), "冻结") || strings.Contains(err.Error(), "cZoneAck") || strings.Contains(err.Error(), "CRRT") {
 			response.Forbidden(c, err.Error())
 			return
 		}

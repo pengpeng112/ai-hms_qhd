@@ -943,7 +943,7 @@ func (s *PrescriptionService) patientWardToday(patientID int64, now time.Time) i
 // LegacySign 签发当日处方（待签 → 已签，契约02 待签线）：
 // 落 ConfirmTime/ConfirmUserId 作"已签"信号（**不改执行态**，护士仍可后续执行），并写 sign_record 统一留痕。
 // 已签幂等（重复签不重复落 ConfirmTime，但仍补一条留痕便于审计）。
-func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, signerName string) (*models.Prescription, error) {
+func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, signerName string, cZoneAck bool) (*models.Prescription, error) {
 	if s.db == nil {
 		return nil, errors.New("database not available")
 	}
@@ -953,6 +953,24 @@ func (s *PrescriptionService) LegacySign(patientID, prescriptionID, signerID, si
 	}
 	if mapLegacyPrescriptionStatus(item.Status) == models.PrescriptionStatusCancelled {
 		return nil, errors.New("已取消的处方不能签发")
+	}
+
+	// 传染病四态门禁（规则A1）
+	{
+		inf := &InfectiousService{db: s.db, tenantID: LegacyTenantID}
+		g := inf.CanScheduleRoutine(int64(item.PatientID))
+		switch g.State {
+		case GateFrozen:
+			return nil, errors.New(g.Reason)
+		case GateRequireCZone:
+			if !cZoneAck {
+				return nil, errors.New(g.Reason + "；如确认本次 C 区全警戒安置请勾选 cZoneAck")
+			}
+		case GateCZoneCRRT:
+			if normalizeLegacyDialysisMode(item.DialysisMethod) != "CRRT" {
+				return nil, errors.New("阳性患者仅可 C 区全警戒 + CRRT 机器，请将处方改为 CRRT 模式")
+			}
+		}
 	}
 
 	resolvedUserID, resolvedName, err := s.resolveLegacyUserID(signerID, signerName)
