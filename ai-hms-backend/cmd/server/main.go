@@ -152,6 +152,9 @@ func main() {
 			// 同步患者管理路由（未匹配患者/绑定）
 			v1api.RegisterSyncPatientRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
 
+			// 传染病筛查/门禁路由
+			v1api.RegisterInfectiousRoutes(protected)
+
 			// 住院信息路由
 			v1api.RegisterHospitalizationRoutes(protected)
 

@@ -156,6 +156,17 @@ func (s *InfectiousService) CanScheduleRoutine(patientID int64) GateResult {
 	return GateResult{State: GateRequireCZone, Reason: "传染病筛查结果未明（待定/待复核），暂不得上常规，可 C 区全警戒"}
 }
 
+// HistoryWithGate 返回该患者全部筛查记录（最新在前）+ 当前门禁状态。
+func (s *InfectiousService) HistoryWithGate(patientID int64) ([]models.PatientInfectious, GateResult, error) {
+	var rows []models.PatientInfectious
+	err := s.db.Where("patient_id = ?", strconv.FormatInt(patientID, 10)).
+		Order("screen_date DESC, created_at DESC").Find(&rows).Error
+	if err != nil {
+		return nil, GateResult{}, err
+	}
+	return rows, s.CanScheduleRoutine(patientID), nil
+}
+
 type DispositionInput struct {
 	Disposition string `json:"disposition"` // c_zone_crrt / transfer_out
 	Role        string `json:"role"`        // doctor / head_nurse
