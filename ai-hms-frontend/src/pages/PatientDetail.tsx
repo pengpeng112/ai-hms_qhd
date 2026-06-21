@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { message } from 'antd'
-import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar, ShieldAlert } from 'lucide-react'
 import { restApi, convertCoreResponseToPatient } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
@@ -12,6 +12,7 @@ import {
   OverviewTab, BasicInfoTab, TreatmentPlanTab, MedicalRecordTab,
   SchemeOrderTab, LabsExamsTab, VascularTab, HistoryTab, MonthlySummaryTab,
 } from './patient-detail/tabs'
+import InfectiousPanel from '@/components/infectious/InfectiousPanel'
 import PatientHeader from './patient-detail/PatientHeader'
 import ClinicalFocusDrawer from './patient-detail/ClinicalFocusDrawer'
 import TodoPopover from './patient-detail/TodoPopover'
@@ -27,6 +28,7 @@ type SectionID =
   | 'vascular'        // 血管通路评估
   | 'history'         // 治疗详情历史
   | 'monthly_summary' // 月份评估小结
+  | 'infectious'      // 传染病筛查
 
 const MENU_ITEMS: { key: SectionID; label: string; icon: React.ReactNode }[] = [
   { key: 'overview',        label: '全息透析概览', icon: <Activity size={18} /> },
@@ -35,6 +37,7 @@ const MENU_ITEMS: { key: SectionID; label: string; icon: React.ReactNode }[] = [
   { key: 'medical_record',  label: '临床病史档案', icon: <ClipboardList size={18} /> },
   { key: 'scheme_order',    label: '长期方案/医嘱', icon: <FileText size={18} /> },
   { key: 'labs_exams',      label: '检查检验报告', icon: <FlaskConical size={18} /> },
+  { key: 'infectious',      label: '传染病筛查',   icon: <ShieldAlert size={18} /> },
   { key: 'vascular',        label: '血管通路评估', icon: <GitBranch size={18} /> },
   { key: 'history',         label: '治疗详情历史', icon: <Clock size={18} /> },
   { key: 'monthly_summary', label: '月份评估小结', icon: <Calendar size={18} /> },
@@ -224,6 +227,8 @@ export default function PatientDetail() {
         return <SchemeOrderTab patient={patient} />
       case 'labs_exams':
         return <LabsExamsTab patient={patient} />
+      case 'infectious':
+        return <InfectiousPanel patientId={patient.id} />
       case 'vascular':
         return <VascularTab patient={patient} />
       case 'history':

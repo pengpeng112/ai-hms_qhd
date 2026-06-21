@@ -9,6 +9,7 @@ import { message } from 'antd'
 import { Activity, Clock, RefreshCw, ArrowRight, AlertTriangle, BedDouble, Stethoscope, Users, PenLine, LogIn } from 'lucide-react'
 import { restApi, getErrorMessage } from '@/services'
 import { getMyDuties, getCheckInStatus, checkIn as checkInApi, type ResolvedDuty } from '@/services/smartScheduleApi'
+import InfectiousAlertCards from '@/components/infectious/InfectiousAlertCards'
 
 // ===== 护士镜头：床位工作流卡态 =====
 type BedState = 'pending' | 'preTreatment' | 'inProgress' | 'readyOff' | 'completed' | 'interrupted'
@@ -342,6 +343,9 @@ export default function Cockpit() {
           </button>
         </div>
       )}
+
+      {/* 传染病预警卡 */}
+      <InfectiousAlertCards />
 
       {/* Summary */}
       {lens === 'nurse' ? (

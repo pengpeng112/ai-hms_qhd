@@ -200,4 +200,26 @@ CREATE TABLE IF NOT EXISTS "Schedule_Patient" (
 CREATE INDEX IF NOT EXISTS "idx_schedule_patient_tenant"
     ON "Schedule_Patient" ("TenantId");
 
+-- 10. patient_infectious — 传染病筛查与阳性处置（规则A1 / 契约05批次2）
+CREATE TABLE IF NOT EXISTS patient_infectious (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id varchar(64) NOT NULL,
+    screen_date date,
+    items text,
+    source varchar(8),
+    result_overall varchar(8),
+    positive_markers varchar(128),
+    next_due_date date,
+    disposition varchar(16),
+    handled_doctor_id varchar(64),
+    handled_headnurse_id varchar(64),
+    handled_at timestamptz,
+    zone_tag varchar(16),
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_inf_tenant_patient ON patient_infectious (tenant_id, patient_id);
+
 COMMIT;

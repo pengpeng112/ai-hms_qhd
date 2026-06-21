@@ -26,6 +26,7 @@ var RequiredNewTables = []RequiredNewTable{
 	{Table: "external_patient_mappings", Feature: "外部患者映射", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "sync_job_configs", Feature: "同步任务配置", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "sync_job_runs", Feature: "同步任务运行历史", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "patient_infectious", Feature: "传染病筛查与阳性处置", DDL: "docs/sql/deploy_new_tables.sql"},
 }
 
 // VerifyRequiredTables 只读检查新表是否已存在，返回缺失的表名列表（绝不执行任何 DDL）。

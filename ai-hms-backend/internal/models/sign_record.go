@@ -24,7 +24,8 @@ func (SignRecord) TableName() string { return "sign_record" }
 
 // 待签对象类型（契约02 待签线，三类共用）。
 const (
-	SignTargetPrescription = "prescription"
-	SignTargetPlan         = "plan"
-	SignTargetSummary      = "summary"
+	SignTargetPrescription          = "prescription"
+	SignTargetPlan                  = "plan"
+	SignTargetSummary               = "summary"
+	SignTargetInfectiousDisposition = "infectious_disposition"
 )
