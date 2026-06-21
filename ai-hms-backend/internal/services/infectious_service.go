@@ -225,17 +225,17 @@ func (s *InfectiousService) Dispose(patientID int64, recordID string, in Disposi
 					return idErr
 				}
 				oc := map[string]any{
-					"Id": ocID, "TenantId": s.tenantID, "PatientId": patientID, "Type": models.OutcomeTypeOut,
+					"Id": ocID, "TenantId": s.tenantID, "PatientId": patientID, "Type": "20", // 转出（老库 Register_OutCome.Type 码值，非中文）
 					"Reason": "传染病阳性转外院", "OutComeTime": now, "Note": fmt.Sprintf("阳性双处理转出(rec=%s)", rec.ID),
 					"CreateTime": now, "LastModifyTime": now,
 				}
 				if e := tx.Table(`"Register_OutCome"`).Create(oc).Error; e != nil {
 					return e
 				}
-				// 退册：标记患者停用（老库列对齐：本院退册若用其它状态列，按实际调整）
+				// 退册：老库 Register_PatientInfomation 退册列为 OutComeStatus（'20'=转出），无 IsDisabled 列
 				if e := tx.Table(`"Register_PatientInfomation"`).
 					Where(`"Id" = ? AND "TenantId" = ?`, patientID, s.tenantID).
-					Update(`"IsDisabled"`, true).Error; e != nil {
+					Update(`"OutComeStatus"`, "20").Error; e != nil {
 					return e
 				}
 			}

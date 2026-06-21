@@ -24,7 +24,7 @@ func newInfTestDB(t *testing.T) *gorm.DB {
 		t.Fatalf("migrate: %v", err)
 	}
 	db.Exec("CREATE TABLE `\"Register_OutCome\"` (`Id` BIGINT PRIMARY KEY, `TenantId` INTEGER, `PatientId` INTEGER, `Type` TEXT, `Reason` TEXT, `OutComeTime` DATETIME, `Note` TEXT, `CreateTime` DATETIME, `LastModifyTime` DATETIME)")
-	db.Exec("CREATE TABLE `\"Register_PatientInfomation\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `Name` TEXT, `DialysisNo` TEXT, `\"IsDisabled\"` BOOLEAN DEFAULT 0)")
+	db.Exec("CREATE TABLE `\"Register_PatientInfomation\"` (`Id` INTEGER PRIMARY KEY, `TenantId` INTEGER, `Name` TEXT, `DialysisNo` TEXT, `\"OutComeStatus\"` TEXT)")
 	return db
 }
 
@@ -143,20 +143,20 @@ func TestInf_Dispose_DoubleSign(t *testing.T) {
 func TestInf_Dispose_TransferOutWritesOutCome(t *testing.T) {
 	db := newInfTestDB(t)
 	s := &InfectiousService{db: db, tenantID: 3}
-	db.Exec("INSERT INTO `\"Register_PatientInfomation\"` (`Id`,`TenantId`,`Name`,`\"IsDisabled\"`) VALUES (3003,3,'丙患者',0)")
+	db.Exec("INSERT INTO `\"Register_PatientInfomation\"` (`Id`,`TenantId`,`Name`,`\"OutComeStatus\"`) VALUES (3003,3,'丙患者','10')")
 	rec, _ := s.Screen(3003, ScreenInput{ScreenDate: time.Now(), Source: "manual",
 		Items: []ScreenItem{{Item: "抗-HCV", Result: models.InfItemPositive}}})
 	s.Dispose(3003, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "doctor", SignerID: "9", SignerName: "张"})
 	s.Dispose(3003, rec.ID, DispositionInput{Disposition: models.InfectiousDispTransferOut, Role: "head_nurse", SignerID: "8", SignerName: "李"})
 	var cnt int64
-	db.Table(`"Register_OutCome"`).Where(`"PatientId" = ? AND "Type" = ?`, 3003, models.OutcomeTypeOut).Count(&cnt)
+	db.Table(`"Register_OutCome"`).Where(`"PatientId" = ? AND "Type" = ?`, 3003, "20").Count(&cnt)
 	if cnt != 1 {
 		t.Fatalf("transfer_out 应写 1 条 Register_OutCome 转出, got %d", cnt)
 	}
-	var disabled bool
-	db.Raw("SELECT `\"IsDisabled\"` FROM `\"Register_PatientInfomation\"` WHERE `Id` = ?", 3003).Scan(&disabled)
-	if !disabled {
-		t.Fatalf("transfer_out 双签后患者应退册 IsDisabled=true")
+	var outComeStatus string
+	db.Raw("SELECT `\"OutComeStatus\"` FROM `\"Register_PatientInfomation\"` WHERE `Id` = ?", 3003).Scan(&outComeStatus)
+	if outComeStatus != "20" {
+		t.Fatalf("transfer_out 双签后患者应退册 OutComeStatus=20, got %s", outComeStatus)
 	}
 }
 
@@ -164,7 +164,7 @@ func TestInf_Alerts(t *testing.T) {
 	db := newInfTestDB(t)
 	s := &InfectiousService{db: db, tenantID: 3}
 	now := time.Now()
-	s.Screen(4001, ScreenInput{ScreenDate: now, Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemPositive}}}) // 阳性未处置
+	s.Screen(4001, ScreenInput{ScreenDate: now, Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemPositive}}})                   // 阳性未处置
 	s.Screen(4002, ScreenInput{ScreenDate: now.AddDate(0, -7, 0), Source: "manual", Items: []ScreenItem{{Item: "HBsAg", Result: models.InfItemNegative}}}) // 过期
 	a, err := s.Alerts()
 	if err != nil {
