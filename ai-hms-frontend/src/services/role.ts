@@ -188,6 +188,7 @@ const SUPPORTED_MENU_KEYS = new Set([
   'settings',
   'user_management',
   'role_management',
+  'cnrds_report',
 ])
 
 const PERMISSION_TO_MENU_KEY: Record<string, string> = {
@@ -209,6 +210,7 @@ const PERMISSION_TO_MENU_KEY: Record<string, string> = {
   'menu.settings': 'settings',
   'menu.user_management': 'user_management',
   'menu.role_management': 'role_management',
+  'menu.cnrds_report': 'cnrds_report',
 }
 
 const normalizePermissionToMenuKey = (code: string): string | null => {
@@ -250,7 +252,7 @@ const ALL_MENU_KEYS = [
   'dialysis_processing', 'schedule', 'inventory', 'device_binding',
   'ward_management', 'bed_management', 'education_management',
   'statistics', 'master_data', 'treatment_config', 'dict_config', 'settings',
-  'user_management', 'role_management',
+  'user_management', 'role_management', 'cnrds_report',
 ]
 
 export async function getMenusByRole(role: AppRole): Promise<string[]> {
@@ -296,6 +298,7 @@ export function getMenuKeyByPath(pathname: string): string | null {
   if (path === '/role-management') return 'role_management'
   if (path === '/settings') return 'settings'
   if (path === '/statistics') return 'statistics'
+  if (path === '/cnrds-report') return 'cnrds_report'
   if (path === '/schedule-templates' || path.startsWith('/schedule-templates/')) return 'schedule'
   if (path === '/shift-config') return 'schedule'
   return null

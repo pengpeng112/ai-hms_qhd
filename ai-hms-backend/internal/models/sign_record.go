@@ -28,4 +28,5 @@ const (
 	SignTargetPlan                  = "plan"
 	SignTargetSummary               = "summary"
 	SignTargetInfectiousDisposition = "infectious_disposition"
+	SignTargetWaterQualityHandling  = "water_quality_handling"
 )

@@ -141,6 +141,10 @@ func main() {
 			v1api.RegisterExamSyncRoutes(protected, cfg.Hdis)
 			// 检查报告 HIS Oracle 同步路由
 			v1api.RegisterHisExamSyncRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
+			// ACTRS 胸片分析微服务集成路由
+			v1api.RegisterActrRoutes(protected, cfg.Actrs, cfg.LegacyTenantID)
+			// CNRDS 上报路由
+			v1api.RegisterCnrdsRoutes(protected, cfg.LegacyTenantID)
 			// 患者关键指标路由（HDIS Record）
 			v1api.RegisterKeyIndicatorRoutes(protected, cfg.Hdis)
 			// 检验报告外部同步路由（HDIS/LIS）
@@ -154,6 +158,9 @@ func main() {
 
 			// 传染病筛查/门禁路由
 			v1api.RegisterInfectiousRoutes(protected)
+
+			// 消毒监管路由
+			v1api.RegisterDisinfectionRoutes(protected)
 
 			// 住院信息路由
 			v1api.RegisterHospitalizationRoutes(protected)
@@ -189,6 +196,10 @@ func main() {
 			v1api.RegisterMonitoringRoutes(protected)
 			v1api.RegisterMonthlySummaryRoutes(protected)
 			v1api.RegisterConsumableRoutes(protected)
+			// 水质监测路由
+			v1api.RegisterWaterQualityRoutes(protected)
+			// 血管通路全生命周期路由
+			v1api.RegisterVascularAccessEventRoutes(protected)
 		}
 
 		admin := v1.Group("")

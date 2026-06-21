@@ -18,6 +18,7 @@ type Config struct {
 	CORS      CORSConfig
 	Hdis      HdisConfig
 	HisOracle HisOracleConfig
+	Actrs     ActrsConfig
 	AppSecret string
 
 	OrderCronEnabled bool
@@ -98,6 +99,15 @@ type HisOracleConfig struct {
 	Password string
 }
 
+// ActrsConfig ACTRS 胸片分析微服务配置
+type ActrsConfig struct {
+	Enabled    bool
+	BaseURL    string
+	Username   string
+	Password   string
+	TimeoutSec int
+}
+
 // Load 加载配置
 func Load() (*Config, error) {
 	// 加载 .env 文件（如果存在）
@@ -157,6 +167,13 @@ func Load() (*Config, error) {
 			Service:  getEnv("HIS_ORACLE_SERVICE", "orcl"),
 			Username: getEnv("HIS_ORACLE_USER", ""),
 			Password: getEnv("HIS_ORACLE_PASSWORD", ""),
+		},
+		Actrs: ActrsConfig{
+			Enabled:    getEnvBool("ACTRS_ENABLED", false),
+			BaseURL:    getEnv("ACTRS_BASE_URL", ""),
+			Username:   getEnv("ACTRS_USERNAME", ""),
+			Password:   getEnv("ACTRS_PASSWORD", ""),
+			TimeoutSec: getEnvInt("ACTRS_TIMEOUT_SEC", 10),
 		},
 		AppSecret: mustGetEnv("APP_SECRET"),
 

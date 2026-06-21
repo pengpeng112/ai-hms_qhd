@@ -1,0 +1,8 @@
+{
+  "bacteria":     {"label":"细菌菌落数","enabled":true,"limitType":"max","max":100,"intervention":50,"unit":"CFU/mL","frequencyDays":90,"samplePoint":"ro_outlet"},
+  "endotoxin":    {"label":"内毒素","enabled":true,"limitType":"max","max":0.25,"intervention":0.125,"unit":"EU/mL","frequencyDays":90,"samplePoint":"ro_outlet"},
+  "conductivity": {"label":"电导率","enabled":true,"limitType":"range","min":13,"max":15,"unit":"mS/cm","frequencyDays":0,"samplePoint":"machine"},
+  "free_chlorine":{"label":"余氯","enabled":false,"limitType":"max","max":0.1,"unit":"mg/L","frequencyDays":90,"samplePoint":"ro_outlet"},
+  "hardness":     {"label":"硬度","enabled":false,"limitType":"max","max":20,"unit":"mg/L","frequencyDays":90,"samplePoint":"ro_outlet"},
+  "chemical_aluminum":{"label":"化学·铝","enabled":false,"limitType":"max","unit":"mg/L","frequencyDays":365,"samplePoint":"ro_outlet"}
+}

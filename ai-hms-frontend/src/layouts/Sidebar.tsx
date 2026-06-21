@@ -23,6 +23,7 @@ import {
   GraduationCap,
   ChevronDown,
   RefreshCw,
+  FileSpreadsheet,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -64,6 +65,7 @@ const menuItems: MenuItem[] = [
   { key: 'dictConfig', path: '/dict-config', icon: BookOpen },
   { key: 'settings', path: '/settings', icon: Settings },
   { key: 'syncCenter', path: '/sync-center', icon: RefreshCw },
+  { key: 'cnrdsReport', path: '/cnrds-report', icon: FileSpreadsheet },
   { key: 'userManagement', path: '/user-management', icon: Users },
   { key: 'roleManagement', path: '/role-management', icon: Settings },
 ]
@@ -73,7 +75,7 @@ const menuGroups: MenuGroup[] = [
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
   { key: 'schedule', itemKeys: ['schedule', 'staffSchedule'] },
   { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardBedManagement'] },
-  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics', 'qcScoring', 'syncCenter'] },
+  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics', 'qcScoring', 'syncCenter', 'cnrdsReport'] },
 ]
 
 const defaultExpandedGroups = Object.fromEntries(menuGroups.map(group => [group.key, true])) as Record<string, boolean>
@@ -91,6 +93,7 @@ const roleMenuMap: Record<string, string[]> = {
   bed_management: ['bedManagement', 'wardBedManagement'],
   education_management: ['educationManagement'],
   statistics: ['statistics', 'qcScoring'],
+  cnrds_report: ['cnrdsReport'],
   master_data: ['masterData'],
   treatment_config: ['treatmentConfig'],
   dict_config: ['dictConfig'],

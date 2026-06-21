@@ -90,7 +90,9 @@ func Initialize(cfg *config.DatabaseConfig, logCfg *config.LoggingConfig, parame
 		return fmt.Errorf("failed to set client_encoding to UTF8: %w", err)
 	}
 
-	log.Printf("[LEGACY-DB] connected to legacy hemodialysis database (%s:%s/%s), AutoMigrate permanently disabled", cfg.Host, cfg.Port, cfg.DBName)
+	LogRequiredTablesStatus(DB)
+
+	log.Printf("[LEGACY-DB] connected to legacy hemodialysis database (%s:%s/%s), AutoMigrate permanently disabled; 独立新表请通过部署阶段执行 docs/sql/deploy_new_tables.sql 创建", cfg.Host, cfg.Port, cfg.DBName)
 	return nil
 }
 

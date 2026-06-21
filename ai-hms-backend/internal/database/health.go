@@ -6,7 +6,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// RequiredNewTable 应用依赖、应由部署阶段幂等建表脚本创建的新表。
+// RequiredNewTable 应用依赖的独立新表。
 type RequiredNewTable struct {
 	Table   string // 表名
 	Feature string // 依赖该表的功能
@@ -27,6 +27,11 @@ var RequiredNewTables = []RequiredNewTable{
 	{Table: "sync_job_configs", Feature: "同步任务配置", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "sync_job_runs", Feature: "同步任务运行历史", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "patient_infectious", Feature: "传染病筛查与阳性处置", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "patient_actr", Feature: "ACTRS CTR/ACTR 镜像", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "cnrds_report", Feature: "CNRDS 上报", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "water_quality", Feature: "透析用水/透析液质量监测", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "disinfection_compliance", Feature: "透析机消毒监管", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "vascular_access_event", Feature: "血管通路全生命周期", DDL: "docs/sql/deploy_new_tables.sql"},
 }
 
 // VerifyRequiredTables 只读检查新表是否已存在，返回缺失的表名列表（绝不执行任何 DDL）。

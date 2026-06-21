@@ -1,0 +1,444 @@
+/* ========== RO Water-Treatment Remote Ops Center ========== */
+/* All selectors namespaced under .ro-center to prevent style leaks */
+
+.ro-center {
+  /* Design-token variables (from demo :root) */
+  --ink: #070B14;
+  --ink2: #0A1120;
+  --panel: #0F1A2E;
+  --panel2: #15233E;
+  --line: rgba(255, 255, 255, 0.08);
+  --line2: rgba(255, 255, 255, 0.14);
+  --teal: #19E3C8;
+  --tealD: #0E9E8C;
+  --cyan: #39D7E6;
+  --amber: #FFB23E;
+  --red: #FF5B6E;
+  --green: #46E08A;
+  --violet: #A593FF;
+  --blue: #5AA9FF;
+  --text: #EAF1FB;
+  --muted: #92A2BC;
+  --muted2: #5C6C88;
+  --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --display: 'Archivo', system-ui, -apple-system, sans-serif;
+  --cjk: 'PingFang SC', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+
+  font-family: var(--display), var(--cjk);
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+/* ---------- window chrome ---------- */
+.ro-center .window {
+  background: var(--ink2);
+  border: 1px solid var(--line2);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.ro-center .win-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 14px;
+  background: rgba(10, 17, 32, 0.85);
+  border-bottom: 1px solid var(--line);
+}
+.ro-center .wd {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.ro-center .win-bar .u {
+  font-family: var(--mono);
+  font-size: 10.5px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  text-transform: uppercase;
+}
+
+/* ---------- subtitle ---------- */
+.ro-center .ro-sub {
+  margin-top: 10px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  letter-spacing: 0.14em;
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+
+/* ---------- grid layout ---------- */
+.ro-center .roview { margin-top: 22px }
+.ro-center .ro-grid {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+}
+
+/* ---------- left side: units + alarms ---------- */
+.ro-center .ro-side {
+  border-right: 1px solid var(--line);
+  padding: 15px 15px 14px;
+  background: rgba(8, 14, 26, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ro-center .ro-side .sh {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  color: var(--muted2);
+  text-transform: uppercase;
+  display: flex;
+  justify-content: space-between;
+}
+.ro-center .ro-unit {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: linear-gradient(160deg, var(--panel), var(--ink2));
+}
+.ro-center .ro-unit.sel {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 1px rgba(25, 227, 200, 0.28), 0 0 22px -8px var(--teal);
+}
+.ro-center .ro-unit .ud {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+  box-shadow: 0 0 8px currentColor;
+}
+.ro-center .ud.run  { background: var(--green); color: var(--green) }
+.ro-center .ud.flush { background: var(--cyan);  color: var(--cyan)  }
+.ro-center .ud.alarm { background: var(--red);   color: var(--red)   }
+.ro-center .ro-unit .un {
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+.ro-center .ro-unit .un small {
+  display: block;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  color: var(--muted2);
+  font-weight: 400;
+  letter-spacing: 0.04em;
+}
+.ro-center .ro-unit .ust {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.ro-center .st-run   { background: rgba(70, 224, 138, 0.12);  color: var(--green) }
+.ro-center .st-flush  { background: rgba(57, 215, 230, 0.12);  color: var(--cyan)  }
+.ro-center .st-alarm  { background: rgba(255, 91, 110, 0.14);  color: var(--red)   }
+
+/* ---------- alarms ---------- */
+.ro-center .ro-alarms {
+  margin-top: 4px;
+  border-top: 1px solid var(--line);
+  padding-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ro-center .ro-al {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border-left: 2px solid var(--muted2);
+}
+.ro-center .ro-al.w  { border-left-color: var(--amber) }
+.ro-center .ro-al.w b { color: var(--amber) }
+.ro-center .ro-al.c  { border-left-color: var(--red) }
+.ro-center .ro-al.c b { color: var(--red) }
+.ro-center .ro-al b  { color: var(--text); font-weight: 600 }
+.ro-center .ro-al time {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted2);
+}
+
+/* ---------- right main ---------- */
+.ro-center .ro-main { padding: 16px 18px }
+
+/* ---------- gauges ---------- */
+.ro-center .ro-gaug {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.ro-center .gau {
+  background: rgba(10, 17, 32, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 13px;
+}
+.ro-center .gau .gl {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+.ro-center .gau .gv {
+  font-family: var(--mono);
+  font-size: 25px;
+  font-weight: 600;
+  margin-top: 5px;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+.ro-center .gau .gv small {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 3px;
+}
+.ro-center .gau .gbar {
+  height: 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  margin-top: 9px;
+  overflow: hidden;
+}
+.ro-center .gau .gbar i {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+}
+.ro-center .gau.ok .gv       { color: #eafcf7 }
+.ro-center .gau.ok .gbar i   { background: linear-gradient(90deg, var(--teal), var(--cyan)) }
+.ro-center .gau.warn          { border-color: rgba(255, 178, 62, 0.4) }
+.ro-center .gau.warn .gv      { color: var(--amber) }
+.ro-center .gau.warn .gbar i  { background: var(--amber) }
+
+/* ---------- lower row: trend + ctrl ---------- */
+.ro-center .ro-low {
+  display: grid;
+  grid-template-columns: 1.55fr 1fr;
+  gap: 14px;
+  margin-top: 14px;
+}
+.ro-center .ro-trend {
+  background: rgba(10, 17, 32, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+.ro-center .ro-trend .tt {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+.ro-center .ro-trend .tt em {
+  font-style: normal;
+  color: var(--amber);
+}
+
+/* ---------- remote-control buttons ---------- */
+.ro-center .ro-ctrl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ro-center .ro-ctrl .ch {
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  color: var(--muted2);
+  text-transform: uppercase;
+}
+.ro-center .ro-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  background: rgba(25, 227, 200, 0.04);
+  font-size: 12.5px;
+  color: var(--text);
+  cursor: pointer;
+  transition: 0.18s;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+.ro-center .ro-btn:hover {
+  background: rgba(25, 227, 200, 0.12);
+  border-color: var(--teal);
+  transform: translateX(2px);
+}
+.ro-center .ro-btn .bi { font-size: 14px }
+.ro-center .ro-btn .bk {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted2);
+  letter-spacing: 0.05em;
+}
+
+/* ---------- footer ---------- */
+.ro-center .ro-foot {
+  margin-top: 18px;
+  font-size: 11.5px;
+  color: var(--muted2);
+  text-align: center;
+  font-style: italic;
+}
+
+/* ---------- animated process schematic ---------- */
+.ro-center .ro-flow {
+  background: rgba(10, 17, 32, 0.55);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 14px 13px;
+}
+.ro-center .ro-flow .fl-h {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: var(--muted2);
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.ro-center .ro-flow .live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--green);
+}
+.ro-center .ro-flow .live i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: ro-pulse 1.6s infinite;
+}
+.ro-center .ro-flow .fl-h .rg {
+  margin-left: auto;
+  color: var(--teal);
+}
+.ro-center .fl-track {
+  display: flex;
+  align-items: center;
+}
+.ro-center .fnode {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 74px;
+  text-align: center;
+}
+.ro-center .fnode .fic {
+  width: 42px;
+  height: 42px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  background: linear-gradient(160deg, var(--panel2), var(--ink2));
+  border: 1px solid var(--line2);
+  position: relative;
+}
+.ro-center .fnode.ro .fic {
+  border-color: rgba(255, 178, 62, 0.45);
+  box-shadow: 0 0 18px -6px var(--amber);
+}
+.ro-center .fnode.out .fic {
+  border-color: var(--teal);
+  box-shadow: 0 0 18px -6px var(--teal);
+}
+.ro-center .fnode .fnm {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+}
+.ro-center .fnode .fvl {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.ro-center .fnode .fvl.w { color: var(--amber) }
+.ro-center .fnode .fvl.g { color: var(--teal) }
+.ro-center .spin {
+  animation: ro-spin 2.4s linear infinite;
+}
+@keyframes ro-spin { to { transform: rotate(360deg) } }
+.ro-center .fpipe {
+  flex: 1;
+  height: 3px;
+  align-self: flex-start;
+  margin-top: 20px;
+  border-radius: 2px;
+  opacity: 0.85;
+  background: linear-gradient(90deg, var(--teal) 0 42%, transparent 42% 100%);
+  background-size: 14px 100%;
+  animation: ro-pipeflow 0.8s linear infinite;
+  box-shadow: 0 0 6px rgba(25, 227, 200, 0.45);
+}
+@keyframes ro-pipeflow { to { background-position: -14px 0 } }
+@keyframes ro-pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.ro-center .ro-flow .conc {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted2);
+  text-align: right;
+  margin-top: 7px;
+}
+
+/* ---------- blueprint overlay (disabled/placeholder) ---------- */
+.ro-center .ro-blueprint {
+  position: relative;
+  opacity: 0.45;
+  filter: grayscale(0.55);
+  pointer-events: none;
+}
+.ro-center .ro-bp-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 2;
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  color: #FFB23E;
+  border: 1px solid rgba(255, 178, 62, 0.5);
+  border-radius: 6px;
+  padding: 2px 8px;
+  background: rgba(20, 17, 10, 0.7);
+  pointer-events: none;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 880px) {
+  .ro-center .ro-grid { grid-template-columns: 1fr }
+  .ro-center .ro-low  { grid-template-columns: 1fr }
+  .ro-center .ro-gaug { grid-template-columns: repeat(2, 1fr) }
+}

@@ -27,6 +27,7 @@ var validSignTargets = map[string]struct{}{
 	models.SignTargetPlan:                  {},
 	models.SignTargetSummary:               {},
 	models.SignTargetInfectiousDisposition: {},
+	models.SignTargetWaterQualityHandling:  {},
 }
 
 func normalizeSignRecordError(err error) error {

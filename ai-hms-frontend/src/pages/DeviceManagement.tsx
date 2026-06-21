@@ -8,7 +8,7 @@ import type { TFunction } from 'i18next'
 import {
   Search, RefreshCw, Settings, Wrench,
   AlertTriangle, CheckCircle, XCircle, Clock, ChevronRight,
-  X, Shield, Cpu
+  X, Shield, Cpu, Droplets
 } from 'lucide-react'
 import {
   getAllEquipments,
@@ -20,6 +20,9 @@ import {
 } from '@/services/equipment'
 import type { EquipmentStats, EquipmentOverview } from '@/services/equipment'
 import type { EquipmentInfo, EquipmentDisinfection, EquipmentMaintenanceRecord, EquipmentUsageLog } from '@/services/types/api'
+import ROCenterPanel from '@/components/water-quality/ROCenterPanel'
+import DisinfectionPanel from '@/components/disinfection/DisinfectionPanel'
+import DisinfectAlertCards from '@/components/disinfection/DisinfectAlertCards'
 
 // ============ 类型定义 ============
 interface EquipmentCardProps {
@@ -381,6 +384,10 @@ export default function DeviceManagement() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [brandFilter, setBrandFilter] = useState<string>('all')
 
+  // 页面 Tab 切换
+  type DeviceTab = 'equipment' | 'waterQuality' | 'disinfection'
+  const [activeTab, setActiveTab] = useState<DeviceTab>('equipment')
+
   // 详情弹窗状态
   const [selectedEquipment, setSelectedEquipment] = useState<EquipmentInfo | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -496,14 +503,41 @@ export default function DeviceManagement() {
     return counts
   }, [equipments])
 
+  // 消毒面板所需的 deviceIds 与 deviceLabel（来自 A3）
+  const deviceIds = useMemo(() => equipments.map((e) => e.Id), [equipments])
+  const deviceNameMap = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const e of equipments) m.set(e.Id, e.Name || `Device ${e.Id}`)
+    return m
+  }, [equipments])
+  const deviceLabelFn = useCallback((id: number) => deviceNameMap.get(id) ?? String(id), [deviceNameMap])
+
   return (
     <div className="min-h-screen bg-gray-50 p-6">
       {/* 页面标题 */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-800">{t('title')}</h1>
-        <p className="text-gray-500 mt-1">{t('subtitle')}</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800">{t('title')}</h1>
+          <p className="text-gray-500 mt-1">{t('subtitle')}</p>
+        </div>
+        <div className="flex items-center bg-white border border-gray-200 rounded-xl p-1">
+          <button type="button" onClick={() => setActiveTab('equipment')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'equipment' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Cpu size={15} /> 透析设备
+          </button>
+          <button type="button" onClick={() => setActiveTab('waterQuality')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'waterQuality' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Droplets size={15} /> 水质监测
+          </button>
+          <button type="button" onClick={() => setActiveTab('disinfection')}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'disinfection' ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            <Shield size={15} /> 消毒监管
+          </button>
+        </div>
       </div>
 
+      {activeTab === 'equipment' && (
+      <>
       {/* 统计卡片 */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard
@@ -622,6 +656,17 @@ export default function DeviceManagement() {
           onClose={handleCloseDetail}
           t={t}
         />
+      )}
+      </>
+      )}
+
+      {activeTab === 'waterQuality' && <ROCenterPanel />}
+
+      {activeTab === 'disinfection' && (
+        <>
+          <DisinfectAlertCards deviceIds={deviceIds} />
+          <DisinfectionPanel deviceIds={deviceIds} deviceLabel={deviceLabelFn} />
+        </>
       )}
     </div>
   )

@@ -10,6 +10,9 @@ import { Activity, Clock, RefreshCw, ArrowRight, AlertTriangle, BedDouble, Steth
 import { restApi, getErrorMessage } from '@/services'
 import { getMyDuties, getCheckInStatus, checkIn as checkInApi, type ResolvedDuty } from '@/services/smartScheduleApi'
 import InfectiousAlertCards from '@/components/infectious/InfectiousAlertCards'
+import WqAlertCards from '@/components/water-quality/WqAlertCards'
+import VascularAlertCards from '@/components/vascular/VascularAlertCards'
+import ActrButton from '@/components/actr/ActrButton'
 
 // ===== 护士镜头：床位工作流卡态 =====
 type BedState = 'pending' | 'preTreatment' | 'inProgress' | 'readyOff' | 'completed' | 'interrupted'
@@ -326,6 +329,15 @@ export default function Cockpit() {
         </div>
       </div>
 
+      {/* 传染病预警卡 */}
+      <InfectiousAlertCards />
+
+      {/* 水质预警卡 */}
+      <WqAlertCards />
+
+      {/* 血管通路告警卡 */}
+      <VascularAlertCards />
+
       {checkedIn === false && myDuties.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 mb-5">
           <div className="flex items-center gap-3 text-[13px]">
@@ -343,9 +355,6 @@ export default function Cockpit() {
           </button>
         </div>
       )}
-
-      {/* 传染病预警卡 */}
-      <InfectiousAlertCards />
 
       {/* Summary */}
       {lens === 'nurse' ? (
@@ -436,14 +445,17 @@ export default function Cockpit() {
                 </div>
                 <div className="flex items-center justify-between text-[12px] gap-2">
                   <span className={`truncate ${card.state === 'alarm' ? 'text-rose-600 font-black' : card.state === 'abnormal' ? 'text-orange-500 font-bold' : 'text-slate-400'}`}>{card.note}</span>
-                  {card.state === 'needSign' && card.prescriptionId ? (
-                    <button type="button" onClick={(e) => { e.stopPropagation(); handleSign(card) }} disabled={signingId === card.patientId}
-                      className="flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 disabled:opacity-50 transition-all">
-                      <PenLine size={12} /> {signingId === card.patientId ? '签发中' : '签发'}
-                    </button>
-                  ) : (
-                    <span className="flex items-center gap-1 text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity shrink-0">开方 <ArrowRight size={13} /></span>
-                  )}
+                  <div className="flex items-center gap-1 shrink-0">
+                    <ActrButton patientId={card.patientId} prescriptionId={card.prescriptionId} />
+                    {card.state === 'needSign' && card.prescriptionId ? (
+                      <button type="button" onClick={(e) => { e.stopPropagation(); handleSign(card) }} disabled={signingId === card.patientId}
+                        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600 text-white font-bold hover:bg-violet-700 disabled:opacity-50 transition-all">
+                        <PenLine size={12} /> {signingId === card.patientId ? '签发中' : '签发'}
+                      </button>
+                    ) : (
+                      <span className="flex items-center gap-1 text-blue-500 font-bold opacity-0 group-hover:opacity-100 transition-opacity">开方 <ArrowRight size={13} /></span>
+                    )}
+                  </div>
                 </div>
               </div>
             )

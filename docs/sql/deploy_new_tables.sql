@@ -222,4 +222,139 @@ CREATE TABLE IF NOT EXISTS patient_infectious (
 );
 CREATE INDEX IF NOT EXISTS idx_inf_tenant_patient ON patient_infectious (tenant_id, patient_id);
 
+-- 11. patient_actr — ACTRS CTR/ACTR 镜像（契约05/07）
+CREATE TABLE IF NOT EXISTS patient_actr (
+    id               varchar(36) PRIMARY KEY,
+    tenant_id        bigint NOT NULL,
+    patient_id       varchar(64) NOT NULL,
+    dialysis_no      varchar(64),
+    actrs_xray_id    bigint NOT NULL,
+    analysis_date    timestamptz,
+    ctr              numeric,
+    actr             numeric,
+    actr1            numeric,
+    actr2            numeric,
+    actr_norm        numeric,
+    heart_width      integer,
+    lung_width       integer,
+    tilt_angle       numeric,
+    qc_pass          integer NOT NULL DEFAULT 0,
+    qc_pa_ap         varchar(8),
+    qc_warnings      varchar(256),
+    model_version    varchar(32),
+    source           varchar(16),
+    image_path       varchar(256),
+    overlay_path     varchar(256),
+    mask_path        varchar(256),
+    doctor_correction numeric,
+    corrected_by     varchar(64),
+    corrected_at     timestamptz,
+    adopted_by       varchar(64),
+    adopted_at       timestamptz,
+    adopted_prescription_id varchar(32),
+    adopted_dry_weight       numeric,
+    adopted_uf_quantity      numeric,
+    notes            varchar(256),
+    synced_at        timestamptz,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    updated_at       timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_actr_tenant_patient_xray
+    ON patient_actr (tenant_id, patient_id, actrs_xray_id);
+CREATE INDEX IF NOT EXISTS idx_actr_tenant_patient
+    ON patient_actr (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_actr_adopted_prescription
+    ON patient_actr (tenant_id, adopted_prescription_id);
+
+-- 12. cnrds_report — CNRDS 上报包（规则 A4）
+CREATE TABLE IF NOT EXISTS cnrds_report (
+    id            varchar(36) PRIMARY KEY,
+    tenant_id     bigint NOT NULL,
+    period        varchar(16),
+    report_type   varchar(12),
+    event_type    varchar(16),
+    patient_id    varchar(64),
+    content       text,
+    patient_count int NOT NULL DEFAULT 0,
+    status        varchar(12) NOT NULL DEFAULT 'draft',
+    export_ref    varchar(256),
+    reviewed_by   varchar(64),
+    submitted_at  timestamptz,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cnrds_tenant_type_period
+    ON cnrds_report (tenant_id, report_type, period);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cnrds_monthly_unique
+    ON cnrds_report (tenant_id, report_type, period) WHERE report_type = 'monthly';
+
+-- 13. water_quality — 透析用水/透析液质量监测（规则A2 / 契约05批次2）
+CREATE TABLE IF NOT EXISTS water_quality (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    test_date date,
+    test_type varchar(24),
+    sample_point varchar(16),
+    device_id varchar(64),
+    value numeric,
+    unit varchar(16),
+    standard_limit varchar(32),
+    result varchar(8),
+    source varchar(12),
+    next_due_date date,
+    handled_engineer_id varchar(64),
+    handled_headnurse_id varchar(64),
+    handled_at timestamptz,
+    action varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_wq_tenant_type_date ON water_quality (tenant_id, test_type, test_date);
+
+-- 14. disinfection_compliance — 透析机消毒监管伴生表（规则A3 / 契约05批次2）
+CREATE TABLE IF NOT EXISTS disinfection_compliance (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    disinfection_id bigint NOT NULL,
+    device_id bigint,
+    concentration varchar(32),
+    residual_check varchar(8),
+    result varchar(8),
+    source varchar(12),
+    doc_ref varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_dc_disinfection ON disinfection_compliance (disinfection_id);
+CREATE INDEX IF NOT EXISTS idx_dc_tenant_device ON disinfection_compliance (tenant_id, device_id);
+
+-- 15. vascular_access_event — 血管通路全生命周期节点（规则B1 / 契约05批次2）
+CREATE TABLE IF NOT EXISTS vascular_access_event (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    access_id bigint NOT NULL,
+    patient_id bigint,
+    event_type varchar(16),
+    event_date date,
+    detail text,
+    operator_id varchar(64),
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_vae_tenant_patient ON vascular_access_event (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_vae_access ON vascular_access_event (access_id);
+
+COMMENT ON TABLE vascular_access_event IS '血管通路全生命周期事件表';
+
+COMMENT ON COLUMN vascular_access_event.id IS '主键ID';
+COMMENT ON COLUMN vascular_access_event.tenant_id IS '租户ID';
+COMMENT ON COLUMN vascular_access_event.access_id IS '血管通路ID，对应老库 Register_VascularAccess.Id';
+COMMENT ON COLUMN vascular_access_event.patient_id IS '患者ID，冗余保存用于按患者查询';
+COMMENT ON COLUMN vascular_access_event.event_type IS '事件类型：establish/maturation/first_use/physical_check/complication/intervention/failure/replacement';
+COMMENT ON COLUMN vascular_access_event.event_date IS '事件发生日期';
+COMMENT ON COLUMN vascular_access_event.detail IS '事件明细JSON，按事件类型约定结构';
+COMMENT ON COLUMN vascular_access_event.operator_id IS '操作人ID';
+COMMENT ON COLUMN vascular_access_event.note IS '备注';
+COMMENT ON COLUMN vascular_access_event.created_at IS '创建时间';
+
 COMMIT;

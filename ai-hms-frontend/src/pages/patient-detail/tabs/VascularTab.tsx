@@ -6,6 +6,7 @@ import { Syringe, Activity, Edit3, Wrench, Trash2, ShieldX, Loader2, Plus, Clipb
 import { message, Modal } from 'antd'
 import { SectionHeader, DetailCard, LabelValue } from '@/components/ui'
 import { VascularAccessModal, VascularInterventionModal, type InterventionFormData } from '@/components/patient/modals'
+import VascularTimeline from '@/components/vascular/VascularTimeline'
 import { restApi, type VascularAccessApi, type VascularAccessInterventionApi, type VascularAccessInterventionCreateRequest } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import { dictCache, DICT_TYPES } from '@/services/dictApi'
@@ -497,6 +498,15 @@ export default function VascularTab({ patient }: VascularTabProps) {
           </div>
         </DetailCard>
       </div>
+
+      {/* 全程时间线 — B1 血管通路全生命周期 */}
+      <VascularTimeline
+        patientId={Number(patient.id)}
+        accessOptions={vascularHistory
+          .filter(v => !v.isDisabled)
+          .map(v => ({ value: Number(v.id), label: `${v.accessType}${v.surgeryDate ? ` (${v.surgeryDate})` : ''}` }))
+        }
+      />
 
       {/* 血管通路编辑弹窗 */}
       <VascularAccessModal

@@ -26,6 +26,7 @@ import {
     UserManagement,
     RoleManagement,
     EducationManagement,
+    CnrdsReportPage,
 } from '@/pages'
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
@@ -100,6 +101,10 @@ const router = createBrowserRouter([
             {
                 path: 'sync-center',
                 element: <PermissionGuard><SyncCenterPage /></PermissionGuard>,
+            },
+            {
+                path: 'cnrds-report',
+                element: <PermissionGuard><CnrdsReportPage /></PermissionGuard>,
             },
             {
                 path: 'ward-overview',

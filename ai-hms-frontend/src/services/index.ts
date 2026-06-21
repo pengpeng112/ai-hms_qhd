@@ -77,6 +77,8 @@ export { userApi } from './userApi'
 export type { RestUser, CreateUserRequest, UpdateUserRequest, UserListParams } from './userApi'
 export { roleManagementApi } from './roleManagementApi'
 export type { AppRoleApi, PermissionNodeApi } from './roleManagementApi'
+export { vascularEventApi } from './vascularEventApi'
+export type { VascTimelineEntry, VascReminder } from './vascularEventApi'
 
 // ============ 临时 Mock 辅助函数 ============
 
@@ -251,3 +253,19 @@ export type {
   InfectiousHistoryResponse,
   InfectiousAlertsResponse,
 } from './infectiousApi'
+
+// ============ ACTRS 胸片分析 ============
+export { actrApi } from './actrApi'
+export type { ActrStatus, PatientACTR, AdoptActrRequest } from './actrApi'
+
+// ============ 水质监测 A2 ============
+export { waterQualityApi } from './waterQualityApi'
+export type { WaterQualityRecord, ConductivityPoint, WaterQualityAlerts } from './waterQualityApi'
+
+// ============ CNRDS 上报 A4 ==========
+export { cnrdsApi } from './cnrdsApi'
+export type { CnrdsReport, CnrdsContentRow } from './cnrdsApi'
+
+// ============ 消毒监管 A3 ============
+export { disinfectionApi } from './disinfectionApi'
+export type { MachineDisinfStatus, DisinfAlerts, DisinfRecordBody, DisinfComplianceBody } from './disinfectionApi'
