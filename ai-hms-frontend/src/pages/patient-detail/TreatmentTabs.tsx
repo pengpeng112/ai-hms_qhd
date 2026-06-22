@@ -3,7 +3,7 @@ import { Segmented } from 'antd'
 import { useTranslation } from 'react-i18next'
 import type { Patient } from '@/types/original'
 import type { TreatmentSubTab } from './types'
-import { TreatmentPlanTab, SchemeOrderTab, VascularTab } from './tabs'
+import { TreatmentPlanTab, SchemeOrderTab, VascularTab, AdverseTab, MedicationTab, DryWeightTab } from './tabs'
 
 interface TreatmentTabsProps {
   patient: Patient
@@ -25,6 +25,9 @@ export default function TreatmentTabs({ patient, defaultSub = 'plan', onSubChang
     { label: t('tab.sub.plan'), value: 'plan' },
     { label: t('tab.sub.schemeOrder'), value: 'schemeOrder' },
     { label: t('tab.sub.vascular'), value: 'vascular' },
+    { label: t('tab.sub.adverse'), value: 'adverse' },
+    { label: t('tab.sub.medication'), value: 'medication' },
+    { label: t('tab.sub.dryWeight'), value: 'dryWeight' },
   ]
 
   return (
@@ -34,6 +37,9 @@ export default function TreatmentTabs({ patient, defaultSub = 'plan', onSubChang
         {subTab === 'plan' && <TreatmentPlanTab patientId={patient.id} patientName={patient.name} />}
         {subTab === 'schemeOrder' && <SchemeOrderTab patient={patient} />}
         {subTab === 'vascular' && <VascularTab patient={patient} />}
+        {subTab === 'adverse' && <AdverseTab patient={patient} />}
+        {subTab === 'medication' && <MedicationTab patient={patient} />}
+        {subTab === 'dryWeight' && <DryWeightTab patient={patient} />}
       </div>
     </div>
   )

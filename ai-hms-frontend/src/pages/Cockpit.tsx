@@ -13,6 +13,7 @@ import InfectiousAlertCards from '@/components/infectious/InfectiousAlertCards'
 import WqAlertCards from '@/components/water-quality/WqAlertCards'
 import VascularAlertCards from '@/components/vascular/VascularAlertCards'
 import ActrButton from '@/components/actr/ActrButton'
+import AdverseAlertCards from '@/components/adverse/AdverseAlertCards'
 
 // ===== 护士镜头：床位工作流卡态 =====
 type BedState = 'pending' | 'preTreatment' | 'inProgress' | 'readyOff' | 'completed' | 'interrupted'
@@ -337,6 +338,9 @@ export default function Cockpit() {
 
       {/* 血管通路告警卡 */}
       <VascularAlertCards />
+
+      {/* 不良事件告警卡 */}
+      <AdverseAlertCards />
 
       {checkedIn === false && myDuties.length > 0 && (
         <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-5 py-3.5 mb-5">

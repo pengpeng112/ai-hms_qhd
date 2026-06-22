@@ -132,7 +132,7 @@ CREATE INDEX IF NOT EXISTS idx_sync_job_runs_status
 CREATE TABLE IF NOT EXISTS sign_record (
     id             VARCHAR(36)  NOT NULL,
     tenant_id      BIGINT       NOT NULL,
-    target_type    VARCHAR(16)  NOT NULL,
+    target_type    VARCHAR(32)  NOT NULL,
     target_id      VARCHAR(64)  NOT NULL,
     signer_id      VARCHAR(64)  NOT NULL,
     signer_name    VARCHAR(64),
@@ -357,4 +357,256 @@ COMMENT ON COLUMN vascular_access_event.operator_id IS '操作人ID';
 COMMENT ON COLUMN vascular_access_event.note IS '备注';
 COMMENT ON COLUMN vascular_access_event.created_at IS '创建时间';
 
+-- 16. adverse_event 不良事件登记（规则B2）
+CREATE TABLE IF NOT EXISTS adverse_event (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id bigint,
+    treatment_id bigint,
+    event_type varchar(64) NOT NULL,
+    severity varchar(16) NOT NULL DEFAULT 'mild',
+    occurred_at timestamptz NOT NULL,
+    description text,
+    handling text,
+    outcome text,
+    reporter_id varchar(64),
+    reported_to text,
+    reported_at timestamptz,
+    within_6h boolean,
+    status varchar(16) NOT NULL DEFAULT 'registered',
+    cqi_linked boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ae_tenant_patient ON adverse_event (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_ae_status_severity ON adverse_event (tenant_id, status, severity);
+CREATE INDEX IF NOT EXISTS idx_ae_within6h ON adverse_event (tenant_id, within_6h);
+
+COMMENT ON TABLE adverse_event IS '不良事件登记表（规则B2）';
+COMMENT ON COLUMN adverse_event.id IS '主键ID';
+COMMENT ON COLUMN adverse_event.tenant_id IS '租户ID';
+COMMENT ON COLUMN adverse_event.patient_id IS '患者ID';
+COMMENT ON COLUMN adverse_event.treatment_id IS '关联治疗ID';
+COMMENT ON COLUMN adverse_event.event_type IS '事件分类（COMPLICATION字典项）';
+COMMENT ON COLUMN adverse_event.severity IS '严重程度：mild轻/moderate中/severe重';
+COMMENT ON COLUMN adverse_event.occurred_at IS '发生时间';
+COMMENT ON COLUMN adverse_event.description IS '发生经过描述';
+COMMENT ON COLUMN adverse_event.handling IS '处理措施';
+COMMENT ON COLUMN adverse_event.outcome IS '转归结果';
+COMMENT ON COLUMN adverse_event.reporter_id IS '上报人ID';
+COMMENT ON COLUMN adverse_event.reported_to IS '上报对象JSON数组';
+COMMENT ON COLUMN adverse_event.reported_at IS '上报时间';
+COMMENT ON COLUMN adverse_event.within_6h IS '严重事件是否6小时内上报';
+COMMENT ON COLUMN adverse_event.status IS '状态：registered已登记/reported已上报/acknowledged已受理/processing处理中/closed已结案';
+COMMENT ON COLUMN adverse_event.cqi_linked IS '是否纳入CQI质控';
+COMMENT ON COLUMN adverse_event.created_at IS '创建时间';
+COMMENT ON COLUMN adverse_event.updated_at IS '更新时间';
+
+-- 17. medication_admin 长嘱给药执行（规则B3）
+CREATE TABLE IF NOT EXISTS medication_admin (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id bigint,
+    order_id bigint NOT NULL,
+    treatment_id bigint,
+    drug_name varchar(128) NOT NULL,
+    category varchar(32),
+    dose varchar(64),
+    route varchar(32),
+    timing varchar(32),
+    administered_by varchar(64) NOT NULL,
+    administered_name varchar(64),
+    administered_at timestamptz NOT NULL DEFAULT now(),
+    second_check_by varchar(64),
+    second_check_name varchar(64),
+    second_check_at timestamptz,
+    status varchar(16) NOT NULL DEFAULT 'recorded',
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ma_tenant_patient ON medication_admin (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_ma_treatment ON medication_admin (tenant_id, treatment_id);
+CREATE INDEX IF NOT EXISTS idx_ma_order ON medication_admin (tenant_id, order_id);
+
+COMMENT ON TABLE medication_admin IS '长嘱给药执行记录表（规则B3）';
+COMMENT ON COLUMN medication_admin.id IS '主键ID';
+COMMENT ON COLUMN medication_admin.tenant_id IS '租户ID';
+COMMENT ON COLUMN medication_admin.patient_id IS '患者ID';
+COMMENT ON COLUMN medication_admin.order_id IS '长嘱ID，对应老库 Order_PatientOrder.Id';
+COMMENT ON COLUMN medication_admin.treatment_id IS '关联治疗ID';
+COMMENT ON COLUMN medication_admin.drug_name IS '药品名称';
+COMMENT ON COLUMN medication_admin.category IS '药品种类：EPO/iron/phos_binder/vitamin_d/antihypertensive/other';
+COMMENT ON COLUMN medication_admin.dose IS '给药剂量';
+COMMENT ON COLUMN medication_admin.route IS '给药途径：iv/po/im/sc/ivgtt';
+COMMENT ON COLUMN medication_admin.timing IS '给药时机：pre_dialysis/start/1h/2h/end/post_dialysis';
+COMMENT ON COLUMN medication_admin.administered_by IS '执行护士ID';
+COMMENT ON COLUMN medication_admin.administered_name IS '执行护士姓名';
+COMMENT ON COLUMN medication_admin.administered_at IS '给药执行时间';
+COMMENT ON COLUMN medication_admin.second_check_by IS '核对人ID';
+COMMENT ON COLUMN medication_admin.second_check_name IS '核对人姓名';
+COMMENT ON COLUMN medication_admin.second_check_at IS '核对时间';
+COMMENT ON COLUMN medication_admin.status IS '双核状态：recorded已记录/verified已验证';
+COMMENT ON COLUMN medication_admin.note IS '备注';
+COMMENT ON COLUMN medication_admin.created_at IS '创建时间';
+COMMENT ON COLUMN medication_admin.updated_at IS '更新时间';
+
+-- 18. dry_weight_assessment 干体重评估记录（规则B4）
+CREATE TABLE IF NOT EXISTS dry_weight_assessment (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id bigint,
+    assess_type varchar(16) NOT NULL DEFAULT 'daily',
+    phase varchar(16) NOT NULL DEFAULT 'induction',
+    sbp int,
+    dbp int,
+    heart_rate int,
+    edema boolean NOT NULL DEFAULT false,
+    palpitation boolean NOT NULL DEFAULT false,
+    heart_failure boolean NOT NULL DEFAULT false,
+    cramp boolean NOT NULL DEFAULT false,
+    ctr double precision,
+    actr double precision,
+    bia_oh double precision,
+    bia_tbw double precision,
+    bia_ecw double precision,
+    post_weight double precision,
+    target_weight double precision,
+    decision varchar(16),
+    adjust_kg double precision,
+    rna_setting double precision,
+    main_met boolean NOT NULL DEFAULT false,
+    failed_reasons text,
+    assessor_id varchar(64),
+    assessor_name varchar(64),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_dwa_tenant_patient ON dry_weight_assessment (tenant_id, patient_id);
+
+COMMENT ON TABLE dry_weight_assessment IS '干体重评估记录表（规则B4）';
+COMMENT ON COLUMN dry_weight_assessment.id IS '主键ID';
+COMMENT ON COLUMN dry_weight_assessment.tenant_id IS '租户ID';
+COMMENT ON COLUMN dry_weight_assessment.patient_id IS '患者ID';
+COMMENT ON COLUMN dry_weight_assessment.assess_type IS '评估类型：daily日常/cycle周期';
+COMMENT ON COLUMN dry_weight_assessment.phase IS '阶段：induction诱导期/maintenance维持期';
+COMMENT ON COLUMN dry_weight_assessment.sbp IS '收缩压mmHg';
+COMMENT ON COLUMN dry_weight_assessment.dbp IS '舒张压mmHg';
+COMMENT ON COLUMN dry_weight_assessment.heart_rate IS '心率bpm';
+COMMENT ON COLUMN dry_weight_assessment.edema IS '是否显性水肿';
+COMMENT ON COLUMN dry_weight_assessment.palpitation IS '是否心慌气短';
+COMMENT ON COLUMN dry_weight_assessment.heart_failure IS '是否心衰';
+COMMENT ON COLUMN dry_weight_assessment.cramp IS '是否肌肉痉挛';
+COMMENT ON COLUMN dry_weight_assessment.ctr IS '心胸比CTR';
+COMMENT ON COLUMN dry_weight_assessment.actr IS 'ACTR值（优先医生修正）';
+COMMENT ON COLUMN dry_weight_assessment.bia_oh IS 'BIA OH值';
+COMMENT ON COLUMN dry_weight_assessment.bia_tbw IS 'BIA TBW值';
+COMMENT ON COLUMN dry_weight_assessment.bia_ecw IS 'BIA ECW值';
+COMMENT ON COLUMN dry_weight_assessment.post_weight IS '透后体重kg';
+COMMENT ON COLUMN dry_weight_assessment.target_weight IS '目标干体重kg';
+COMMENT ON COLUMN dry_weight_assessment.decision IS '决策：hold维持/lower下调/raise上调';
+COMMENT ON COLUMN dry_weight_assessment.adjust_kg IS '调整幅度kg';
+COMMENT ON COLUMN dry_weight_assessment.rna_setting IS 'RNa设置值';
+COMMENT ON COLUMN dry_weight_assessment.main_met IS '主判据是否全满足';
+COMMENT ON COLUMN dry_weight_assessment.failed_reasons IS '未达标项JSON数组';
+COMMENT ON COLUMN dry_weight_assessment.assessor_id IS '评估人ID';
+COMMENT ON COLUMN dry_weight_assessment.assessor_name IS '评估人姓名';
+COMMENT ON COLUMN dry_weight_assessment.created_at IS '创建时间';
+
+-- 19. patient_dry_weight 患者确定干体重（规则B4）
+CREATE TABLE IF NOT EXISTS patient_dry_weight (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id bigint NOT NULL,
+    dry_weight double precision NOT NULL,
+    standard_actr double precision,
+    standard_ctr double precision,
+    phase varchar(16) NOT NULL DEFAULT 'maintenance',
+    confirmed_by varchar(64),
+    confirmed_name varchar(64),
+    confirmed_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_pdw_tenant_patient ON patient_dry_weight (tenant_id, patient_id);
+
+COMMENT ON TABLE patient_dry_weight IS '患者确定干体重表（规则B4，一患者一条）';
+COMMENT ON COLUMN patient_dry_weight.id IS '主键ID';
+COMMENT ON COLUMN patient_dry_weight.tenant_id IS '租户ID';
+COMMENT ON COLUMN patient_dry_weight.patient_id IS '患者ID，唯一';
+COMMENT ON COLUMN patient_dry_weight.dry_weight IS '确定干体重kg';
+COMMENT ON COLUMN patient_dry_weight.standard_actr IS '锚定ACTR基线';
+COMMENT ON COLUMN patient_dry_weight.standard_ctr IS '锚定CTR基线';
+COMMENT ON COLUMN patient_dry_weight.phase IS '阶段：induction诱导期/maintenance维持期';
+COMMENT ON COLUMN patient_dry_weight.confirmed_by IS '确定人ID';
+COMMENT ON COLUMN patient_dry_weight.confirmed_name IS '确定人姓名';
+COMMENT ON COLUMN patient_dry_weight.confirmed_at IS '确定时间';
+COMMENT ON COLUMN patient_dry_weight.created_at IS '创建时间';
+COMMENT ON COLUMN patient_dry_weight.updated_at IS '更新时间';
+
+-- 20. nursing_doc — 护理文书：量表评估/护理记录/护理计划（规则C1 / 契约05批次2）
+CREATE TABLE IF NOT EXISTS nursing_doc (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id varchar(64),
+    treatment_id varchar(64),
+    doc_type varchar(12),
+    scale_type varchar(16),
+    score int,
+    risk_level varchar(12),
+    content text,
+    nurse_id varchar(64),
+    nurse_name varchar(64),
+    recorded_at timestamptz,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_nd_tenant_patient ON nursing_doc (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_nd_treatment ON nursing_doc (treatment_id);
+CREATE INDEX IF NOT EXISTS idx_nd_type ON nursing_doc (doc_type);
+
+-- 21. consent_record — 知情同意（规则C2 / 契约05批次2；复用 sign_record 待签线）
+CREATE TABLE IF NOT EXISTS consent_record (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id varchar(64),
+    consent_type varchar(16),
+    template_version varchar(32),
+    signed_by varchar(64),
+    sign_record_id varchar(64),
+    issued_by varchar(64),
+    signed_at timestamptz,
+    expires_at timestamptz,
+    status varchar(12),
+    doc_ref varchar(256),
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_cr_tenant_patient ON consent_record (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_cr_type ON consent_record (consent_type);
+CREATE INDEX IF NOT EXISTS idx_cr_status ON consent_record (status);
+
+COMMIT;
+
+-- ================================================================
+-- 字典种子数据：COMPLICATION
+-- ================================================================
+BEGIN;
+INSERT INTO "CodeDictionary_CodeDictionarys" ("Code", "Type", "Name", "OrganId", "IsDisabled", "Sort", "Builtin")
+VALUES
+    ('HYPOTENSION', 'COMPLICATION', '低血压', 0, false, 10, true),
+    ('ARRHYTHMIA', 'COMPLICATION', '心律失常', 0, false, 20, true),
+    ('ALLERGY', 'COMPLICATION', '过敏反应', 0, false, 30, true),
+    ('AIR_EMBOLISM', 'COMPLICATION', '空气栓塞', 0, false, 40, true),
+    ('COAGULATION', 'COMPLICATION', '凝血/透析器凝血', 0, false, 50, true),
+    ('FEVER', 'COMPLICATION', '发热/致热原反应', 0, false, 60, true),
+    ('CRAMP', 'COMPLICATION', '肌肉痉挛', 0, false, 70, true),
+    ('PUNCTURE_BLEED', 'COMPLICATION', '穿刺点渗血/血肿', 0, false, 80, true),
+    ('HEMOLYSIS', 'COMPLICATION', '溶血', 0, false, 90, true),
+    ('CHEST_PAIN', 'COMPLICATION', '胸痛/背痛', 0, false, 100, true),
+    ('NAUSEA_VOMIT', 'COMPLICATION', '恶心呕吐', 0, false, 110, true),
+    ('HEADACHE', 'COMPLICATION', '头痛', 0, false, 120, true),
+    ('HEART_FAILURE', 'COMPLICATION', '急性心衰/肺水肿', 0, false, 130, true),
+    ('ACCESS_RELATED', 'COMPLICATION', '通路相关并发症', 0, false, 140, true)
+ON CONFLICT ("Code", "Type") DO NOTHING;
 COMMIT;

@@ -10,8 +10,8 @@ export default function InfectiousAlertCards() {
     infectiousApi
       .alerts()
       .then((a) => {
-        setPos(a.positives)
-        setDue(a.due)
+        setPos(a.positives ?? [])
+        setDue(a.due ?? [])
       })
       .catch(() => {})
   }, [])

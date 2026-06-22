@@ -1,0 +1,80 @@
+[
+  {
+    "indicator": "Hb",
+    "label": "血红蛋白",
+    "unit": "g/L",
+    "low": 110,
+    "high": 130,
+    "low_direction": "increase",
+    "high_direction": "decrease",
+    "related_drug": "EPO",
+    "drug_label": "促红素",
+    "advice_low": "Hb偏低，建议上调促红素剂量",
+    "advice_high": "Hb偏高，建议下调或暂停促红素"
+  },
+  {
+    "indicator": "Ferritin",
+    "label": "铁蛋白",
+    "unit": "ng/mL",
+    "low": 100,
+    "high": 500,
+    "low_direction": "increase",
+    "high_direction": "decrease",
+    "related_drug": "iron",
+    "drug_label": "铁剂",
+    "advice_low": "铁蛋白偏低，建议补铁治疗",
+    "advice_high": "铁蛋白偏高，建议减少或暂停铁剂"
+  },
+  {
+    "indicator": "TSAT",
+    "label": "转铁蛋白饱和度",
+    "unit": "%",
+    "low": 20,
+    "high": 50,
+    "low_direction": "increase",
+    "high_direction": "decrease",
+    "related_drug": "iron",
+    "drug_label": "铁剂",
+    "advice_low": "TSAT偏低，建议补铁治疗",
+    "advice_high": "TSAT偏高，建议减少铁剂"
+  },
+  {
+    "indicator": "P",
+    "label": "血磷",
+    "unit": "mmol/L",
+    "low": 0.81,
+    "high": 1.45,
+    "low_direction": "increase",
+    "high_direction": "decrease",
+    "related_drug": "phos_binder",
+    "drug_label": "磷结合剂",
+    "advice_low": "血磷偏低，建议减少磷结合剂",
+    "advice_high": "血磷偏高，建议加强磷结合剂或调整种类"
+  },
+  {
+    "indicator": "Ca",
+    "label": "血钙",
+    "unit": "mmol/L",
+    "low": 2.1,
+    "high": 2.5,
+    "low_direction": "increase",
+    "high_direction": "decrease",
+    "related_drug": "vitamin_d",
+    "drug_label": "活性维D/拟钙剂",
+    "advice_low": "血钙偏低，建议上调活性维D",
+    "advice_high": "血钙偏高，建议下调活性维D或拟钙剂"
+  },
+  {
+    "indicator": "iPTH",
+    "label": "甲状旁腺素",
+    "unit": "pg/mL",
+    "low": 150,
+    "high": 300,
+    "low_direction": "decrease",
+    "high_direction": "increase",
+    "related_drug": "vitamin_d",
+    "drug_label": "活性维D/拟钙剂",
+    "advice_low": "iPTH偏低，建议减少活性维D",
+    "advice_high": "iPTH偏高，建议加用活性维D或拟钙剂"
+  }
+]

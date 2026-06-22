@@ -79,6 +79,12 @@ export { roleManagementApi } from './roleManagementApi'
 export type { AppRoleApi, PermissionNodeApi } from './roleManagementApi'
 export { vascularEventApi } from './vascularEventApi'
 export type { VascTimelineEntry, VascReminder } from './vascularEventApi'
+export { adverseEventApi } from './adverseEventApi'
+export type { AdverseEvent, AeRegisterBody, AeReportTarget, AeReportBody, AeStatusBody, AeAlertsResponse } from './adverseEventApi'
+export { medicationApi } from './medicationApi'
+export type { MedicationAdmin, MaRecordBody, MaSecondCheckBody, MedSuggestion, MedDefaultDose } from './medicationApi'
+export { dryWeightApi } from './dryWeightApi'
+export type { DryWeightAssessment, DwAssessBody, DwConfirmBody, DwConfirmResult, DwCurrentData } from './dryWeightApi'
 
 // ============ 临时 Mock 辅助函数 ============
 
@@ -269,3 +275,40 @@ export type { CnrdsReport, CnrdsContentRow } from './cnrdsApi'
 // ============ 消毒监管 A3 ============
 export { disinfectionApi } from './disinfectionApi'
 export type { MachineDisinfStatus, DisinfAlerts, DisinfRecordBody, DisinfComplianceBody } from './disinfectionApi'
+
+// ============ 护理文书 C1 ============
+export {
+  getNursingScales,
+  recordNursingScale,
+  recordNursingDoc,
+  getNursingDocs,
+  getNursingAlerts,
+} from './nursingApi'
+export type {
+  NursingRiskLevel,
+  NursingScaleOption,
+  NursingScaleItem,
+  NursingScaleBand,
+  NursingScale,
+  NursingDoc,
+  RecordScaleRequest,
+  RecordDocRequest,
+} from './nursingApi'
+
+// ============ 知情同意 C2 ============
+export {
+  getConsentTemplates,
+  issueConsent,
+  getConsents,
+  getConsentAlerts,
+  signConsent,
+  revokeConsent,
+} from './consentApi'
+export type {
+  ConsentStatus,
+  ConsentTemplate,
+  ConsentRecord,
+  ConsentAlerts,
+  IssueConsentRequest,
+  SignConsentRequest,
+} from './consentApi'

@@ -34,7 +34,7 @@ func RegisterHisExamSyncRoutes(r *gin.RouterGroup, oracleCfg config.HisOracleCon
 	handler := NewHisExamSyncHandler(oracleCfg, tenantID)
 	patients := r.Group("/patients")
 	{
-		patients.POST("/:id/exam-reports/sync", handler.SyncPatientExamReports)
+		patients.POST("/:id/exam-reports/sync-his", handler.SyncPatientExamReports)
 	}
 }
 

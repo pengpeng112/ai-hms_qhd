@@ -62,3 +62,13 @@ func LowSlotWarnThreshold(g *gorm.DB, tenant int64) int {
 	}
 	return 2
 }
+
+// NurseMachineRatio 护患比（1 护士 : N 台机），规则C3 默认 6；租户配置 nurse_machine_ratio 可覆盖。
+func NurseMachineRatio(g *gorm.DB, tenant int64) int {
+	if v := getSetting(g, tenant, "nurse_machine_ratio"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 6
+}

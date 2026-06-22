@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/elliotxin/ai-hms-backend/internal/middleware"
+	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/config"
 	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/model"
 	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/repo"
 	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/sched"
@@ -96,6 +97,9 @@ func (s *Server) Register(rg *gin.RouterGroup) {
 	rg.GET("/staff-duty", guard(RoleHeadNurse, RoleDoctor, RoleChargeNurse), s.listStaffDuty)
 	rg.DELETE("/staff-duty/:id", guard(RoleHeadNurse, RoleDoctor), s.deleteStaffDuty)
 	rg.GET("/duty/resolve", s.resolveDuty)
+	rg.GET("/duty/resolve-all", s.resolveDutiesAll)
+	rg.GET("/duty/shifts", s.listShifts)
+	rg.GET("/duty/nurse-ratio", guard(RoleHeadNurse, RoleDoctor, RoleChargeNurse), s.nurseRatio)
 	// 日覆盖 + 接班（④ v2）
 	rg.POST("/staff-duty/override", guard(RoleHeadNurse, RoleChargeNurse, RoleDoctor), s.createOverride)
 	rg.GET("/duty/my-duties", s.myDuties)
@@ -934,6 +938,44 @@ func (s *Server) resolveDuty(c *gin.Context) {
 		return
 	}
 	res, e := service.ResolveDuty(s.DB, tenantOf(c), wardId, day, c.Query("dutyRole"))
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// resolveDutiesAll GET /duty/resolve-all?wardId=&date=&dutyRole= —— 解析当班全部人员（支持多名护士）。
+func (s *Server) resolveDutiesAll(c *gin.Context) {
+	wardId, _ := strconv.ParseInt(c.Query("wardId"), 10, 64)
+	day, err := time.Parse("2006-01-02", c.Query("date"))
+	if wardId <= 0 || err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wardId 必填、date 格式 yyyy-MM-dd"})
+		return
+	}
+	res, e := service.ResolveDuties(s.DB, tenantOf(c), wardId, day, c.Query("dutyRole"))
+	if e != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, res)
+}
+
+// listShifts GET /duty/shifts —— 启用的人员班次（前端下拉）。
+func (s *Server) listShifts(c *gin.Context) {
+	c.JSON(http.StatusOK, config.EnabledShifts())
+}
+
+// nurseRatio GET /duty/nurse-ratio?wardId=&date=&shift= —— 护患比校验（缺岗/超配预警）。
+func (s *Server) nurseRatio(c *gin.Context) {
+	wardId, _ := strconv.ParseInt(c.Query("wardId"), 10, 64)
+	day, err := time.Parse("2006-01-02", c.Query("date"))
+	if wardId <= 0 || err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "wardId 必填、date 格式 yyyy-MM-dd"})
+		return
+	}
+	ratio := config.NurseMachineRatio(s.DB, tenantOf(c))
+	res, e := service.CheckNurseRatio(s.DB, tenantOf(c), wardId, day, c.Query("shift"), ratio)
 	if e != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": e.Error()})
 		return

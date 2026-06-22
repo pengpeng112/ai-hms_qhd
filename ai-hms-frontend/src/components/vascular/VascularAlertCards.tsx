@@ -9,7 +9,7 @@ export default function VascularAlertCards() {
   useEffect(() => {
     vascularEventApi
       .alerts()
-      .then((a) => setAlerts(a))
+      .then((a) => setAlerts(a ?? []))
       .catch(() => {})
   }, [])
 

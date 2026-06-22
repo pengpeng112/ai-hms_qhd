@@ -139,7 +139,15 @@ type PrescriptionContextResponse struct {
 	SodiumClearance SodiumClearanceContext `json:"sodiumClearance"`
 	Vitals          VitalSignsContext      `json:"vitals"`
 	Hints           []PrescriptionHint     `json:"hints"`
+	DryWeight       *DwContextData         `json:"dryWeight,omitempty"`
 	GeneratedAt     string                 `json:"generatedAt"`
+}
+
+// DwContextData 干体重评估上下文（供 RNa 面板阶段驱动）
+type DwContextData struct {
+	DryWeight    *float64 `json:"dryWeight"`
+	Phase        string   `json:"phase"`
+	SuggestedRNa float64  `json:"suggestedRNa"`
 }
 
 // ─── Handler ──────────────────────────────────────────────────────────────
@@ -239,6 +247,7 @@ func (h *PrescriptionContextHandler) GetContext(c *gin.Context) {
 		SodiumClearance: naClearance,
 		Vitals:          vitals,
 		Hints:           hints,
+		DryWeight:       fetchDryWeightContext(c, pid),
 		GeneratedAt:     time.Now().Format("2006-01-02 15:04"),
 	})
 }
@@ -812,4 +821,26 @@ func buildPrescriptionHints(labs []LabIndicator, weight WeightUFContext, lastTx 
 		}
 	}
 	return hints
+}
+
+func fetchDryWeightContext(_ *gin.Context, pid int64) *DwContextData {
+	dws := services.NewDryWeightService()
+	current, err := dws.Current(pid)
+	if err != nil || current == nil {
+		return &DwContextData{
+			Phase:        "induction",
+			SuggestedRNa: 1.05,
+		}
+	}
+	if current.DryWeight == nil {
+		return &DwContextData{
+			Phase:        current.Phase,
+			SuggestedRNa: current.SuggestedRNa,
+		}
+	}
+	return &DwContextData{
+		DryWeight:    current.DryWeight,
+		Phase:        current.Phase,
+		SuggestedRNa: current.SuggestedRNa,
+	}
 }

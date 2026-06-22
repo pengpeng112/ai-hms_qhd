@@ -377,6 +377,36 @@ export function deleteStaffDuty(id: number) {
 export function resolveDuty(wardId: number, date: string, dutyRole: string) {
   return restGet<ResolvedDuty | null>(`/api/v2/duty/resolve?wardId=${wardId}&date=${date}&dutyRole=${encodeURIComponent(dutyRole)}`)
 }
+export function resolveDutiesAll(wardId: number, date: string, dutyRole: string) {
+  return restGet<ResolvedDuty[]>(`/api/v2/duty/resolve-all?wardId=${wardId}&date=${date}&dutyRole=${encodeURIComponent(dutyRole)}`)
+}
+
+// 班次定义（C3，院方可配）
+export interface ShiftDef {
+  code: string
+  name: string
+  start: string
+  end: string
+  enabled: boolean
+}
+export function getStaffShifts() {
+  return restGet<ShiftDef[]>('/api/v2/duty/shifts')
+}
+
+// 护患比校验（C3）：1 护士 : ratio 台机
+export interface NurseRatioResult {
+  wardId: number
+  shift: string
+  ratio: number
+  machineCount: number
+  nurseCount: number
+  requiredNurses: number
+  status: 'ok' | 'understaffed' | 'overstaffed'
+}
+export function getNurseRatio(wardId: number, date: string, shift?: string) {
+  const q = shift ? `&shift=${encodeURIComponent(shift)}` : ''
+  return restGet<NurseRatioResult>(`/api/v2/duty/nurse-ratio?wardId=${wardId}&date=${date}${q}`)
+}
 
 export interface OverrideInput {
   dutyDate: string; wardId: number; dutyRole: string

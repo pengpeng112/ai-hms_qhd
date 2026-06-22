@@ -25,7 +25,7 @@
  *   />
  */
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button, InputNumber, Slider, Collapse, Tag, Tooltip } from 'antd'
 import { ThunderboltFilled, InfoCircleOutlined } from '@ant-design/icons'
 import { apiClient } from '@services/restClient'
@@ -177,6 +177,14 @@ export function RNaPrescriptionPanel({
   const [driver, setDriver] = useState<'rna' | 'cpost'>('rna')
   const [rNaInput, setRNaInput] = useState<number>(defaultRNa)
   const [cPostInput, setCPostInput] = useState<number>(cPre ?? 140)
+  const [rnaDirty, setRnaDirty] = useState(false)
+
+  // 异步 defaultRNa 同步：阶段变化时默认值更新，但用户手动调整后不再覆盖
+  useEffect(() => {
+    if (!rnaDirty) {
+      setRNaInput(defaultRNa)
+    }
+  }, [defaultRNa, rnaDirty])
 
   // 高级参数
   const [adv, setAdv] = useState<AdvancedParams>({
@@ -197,7 +205,7 @@ export function RNaPrescriptionPanel({
 
   const setRNa = (v: number | null) => {
     if (v == null) return
-    setDriver('rna'); setRNaInput(v)
+    setDriver('rna'); setRNaInput(v); setRnaDirty(true)
   }
   const setCPost = (v: number | null) => {
     if (v == null) return

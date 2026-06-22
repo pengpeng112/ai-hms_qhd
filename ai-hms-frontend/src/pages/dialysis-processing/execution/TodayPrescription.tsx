@@ -579,6 +579,22 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
           </div>
 
           {/* RNa 开单决策：左=患者数据汇总(只读参考)，右=RNa 智能钠处方 */}
+          {contextData?.dryWeight && (
+            <div className="flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-[13px]">
+              <Activity size={16} className="text-blue-500 shrink-0" />
+              <span className="font-bold text-blue-700">
+                {contextData.dryWeight.phase === 'maintenance' ? '维持期' : '诱导期'}
+              </span>
+              <span className="text-blue-600">
+                · 建议 RNa 默认 <span className="font-bold">{contextData.dryWeight.suggestedRNa.toFixed(3)}</span>
+              </span>
+              {contextData.dryWeight.dryWeight != null && contextData.dryWeight.dryWeight > 0 && (
+                <span className="text-blue-500 ml-auto">
+                  确定干体重 {contextData.dryWeight.dryWeight.toFixed(1)} kg
+                </span>
+              )}
+            </div>
+          )}
           <div className="grid items-start gap-4 xl:grid-cols-2">
             <PatientContextPanel
               patientId={patient.id}
@@ -589,7 +605,7 @@ export default function TodayPrescription({ patient, treatment, treatmentLoading
               data={rnaData}
               cPreSource={latestSerumNa !== undefined ? 'lab_report' : undefined}
               onAdopt={handleAdoptRNa}
-              defaultRNa={1.0}
+              defaultRNa={contextData?.dryWeight?.suggestedRNa ?? 1.0}
               vuf={parseOptionalNumber(form.extraWeight)}
               onVufChange={(v) => updateField('extraWeight', v.toFixed(1))}
             />

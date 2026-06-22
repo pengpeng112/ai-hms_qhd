@@ -7,7 +7,7 @@ export type TabID = 'overview' | 'basic_info' | 'treatment_plan' | 'medical_reco
 
 // 主 Tab ID（U3 重构后）
 export type MainTabID = 'overview' | 'treatment' | 'records' | 'history'
-export type TreatmentSubTab = 'plan' | 'schemeOrder' | 'vascular'
+export type TreatmentSubTab = 'plan' | 'schemeOrder' | 'vascular' | 'adverse' | 'medication' | 'dryWeight'
 export type RecordsSubTab = 'basicInfo' | 'labs' | 'monthly' | 'medicalRecord'
 
 // 趋势数据项

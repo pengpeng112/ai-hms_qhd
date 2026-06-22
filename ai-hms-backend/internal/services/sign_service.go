@@ -28,6 +28,8 @@ var validSignTargets = map[string]struct{}{
 	models.SignTargetSummary:               {},
 	models.SignTargetInfectiousDisposition: {},
 	models.SignTargetWaterQualityHandling:  {},
+	models.SignTargetMedicationAdmin:       {},
+	models.SignTargetConsent:               {},
 }
 
 func normalizeSignRecordError(err error) error {

@@ -1,0 +1,47 @@
+[
+  {
+    "drug": "EPO",
+    "name": "促红素",
+    "route": "iv",
+    "defaultDose": "3000 IU",
+    "frequency": "每周三次",
+    "note": "根据Hb水平调整",
+    "enabled": true
+  },
+  {
+    "drug": "iron",
+    "name": "蔗糖铁注射液",
+    "route": "ivgtt",
+    "defaultDose": "100 mg",
+    "frequency": "每周一次",
+    "note": "根据铁蛋白/TSAT调整",
+    "enabled": true
+  },
+  {
+    "drug": "phos_binder",
+    "name": "碳酸钙",
+    "route": "po",
+    "defaultDose": "1 片",
+    "frequency": "三餐中嚼服",
+    "note": "根据血磷水平调整",
+    "enabled": true
+  },
+  {
+    "drug": "vitamin_d",
+    "name": "骨化三醇",
+    "route": "po",
+    "defaultDose": "0.25 μg",
+    "frequency": "每日一次",
+    "note": "根据血钙/iPTH调整",
+    "enabled": true
+  },
+  {
+    "drug": "antihypertensive",
+    "name": "降压药",
+    "route": "po",
+    "defaultDose": "",
+    "frequency": "",
+    "note": "待院方核定后启用",
+    "enabled": false
+  }
+]

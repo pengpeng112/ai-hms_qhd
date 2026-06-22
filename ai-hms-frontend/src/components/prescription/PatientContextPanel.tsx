@@ -102,6 +102,11 @@ export interface PrescriptionContextData {
   sodiumClearance: SodiumClearanceContext
   vitals: VitalSignsContext
   hints: PrescriptionHint[]
+  dryWeight?: {
+    dryWeight?: number
+    phase: string
+    suggestedRNa: number
+  }
   generatedAt: string
 }
 

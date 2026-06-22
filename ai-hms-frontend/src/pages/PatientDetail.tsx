@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { message } from 'antd'
-import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar, ShieldAlert } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar, ShieldAlert, HeartPulse, FileSignature } from 'lucide-react'
 import { restApi, convertCoreResponseToPatient } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
@@ -10,7 +10,7 @@ import { LoadingState } from '@/components/ui'
 
 import {
   OverviewTab, BasicInfoTab, TreatmentPlanTab, MedicalRecordTab,
-  SchemeOrderTab, LabsExamsTab, VascularTab, HistoryTab, MonthlySummaryTab,
+  SchemeOrderTab, LabsExamsTab, VascularTab, NursingTab, ConsentTab, HistoryTab, MonthlySummaryTab,
 } from './patient-detail/tabs'
 import InfectiousPanel from '@/components/infectious/InfectiousPanel'
 import PatientHeader from './patient-detail/PatientHeader'
@@ -26,6 +26,8 @@ type SectionID =
   | 'scheme_order'    // 长期方案/医嘱
   | 'labs_exams'      // 检查检验报告
   | 'vascular'        // 血管通路评估
+  | 'nursing'         // 护理文书
+  | 'consent'         // 知情同意
   | 'history'         // 治疗详情历史
   | 'monthly_summary' // 月份评估小结
   | 'infectious'      // 传染病筛查
@@ -39,6 +41,8 @@ const MENU_ITEMS: { key: SectionID; label: string; icon: React.ReactNode }[] = [
   { key: 'labs_exams',      label: '检查检验报告', icon: <FlaskConical size={18} /> },
   { key: 'infectious',      label: '传染病筛查',   icon: <ShieldAlert size={18} /> },
   { key: 'vascular',        label: '血管通路评估', icon: <GitBranch size={18} /> },
+  { key: 'nursing',         label: '护理文书',     icon: <HeartPulse size={18} /> },
+  { key: 'consent',         label: '知情同意',     icon: <FileSignature size={18} /> },
   { key: 'history',         label: '治疗详情历史', icon: <Clock size={18} /> },
   { key: 'monthly_summary', label: '月份评估小结', icon: <Calendar size={18} /> },
 ]
@@ -231,6 +235,10 @@ export default function PatientDetail() {
         return <InfectiousPanel patientId={patient.id} />
       case 'vascular':
         return <VascularTab patient={patient} />
+      case 'nursing':
+        return <NursingTab patient={patient} />
+      case 'consent':
+        return <ConsentTab patient={patient} />
       case 'history':
         return <HistoryTab patient={patient} />
       case 'monthly_summary':

@@ -9,9 +9,11 @@ import type {
   OrderUpdateRequest,
 } from '@/services/orderApi'
 import type { Patient } from '../types'
+import MedicationAdminPanel from './MedicationAdminPanel'
 
 interface Props {
   patient: Patient
+  treatmentId?: number
 }
 
 interface OrderFormState {
@@ -190,7 +192,7 @@ function StatusIcon({ enabled }: { enabled: boolean }) {
   return enabled ? <CheckCircle2 size={16} className="text-emerald-500" /> : <span className="text-slate-300">--</span>
 }
 
-export default function MedicalOrders({ patient }: Props) {
+export default function MedicalOrders({ patient, treatmentId }: Props) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [orders, setOrders] = useState<Order[]>([])
@@ -540,6 +542,10 @@ export default function MedicalOrders({ patient }: Props) {
           </div>
         </div>
       ) : null}
+
+      {treatmentId && (
+        <MedicationAdminPanel treatmentId={treatmentId} patientId={Number(patient.id)} />
+      )}
     </div>
   )
 }

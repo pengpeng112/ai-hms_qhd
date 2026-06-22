@@ -200,6 +200,16 @@ func main() {
 			v1api.RegisterWaterQualityRoutes(protected)
 			// 血管通路全生命周期路由
 			v1api.RegisterVascularAccessEventRoutes(protected)
+			// 不良事件登记路由
+			v1api.RegisterAdverseEventRoutes(protected)
+			// 长嘱给药执行路由
+			v1api.RegisterMedicationRoutes(protected)
+			// 干体重评估路由
+			v1api.RegisterDryWeightRoutes(protected)
+			// 护理文书路由
+			v1api.RegisterNursingDocRoutes(protected)
+			// 知情同意路由
+			v1api.RegisterConsentRoutes(protected)
 		}
 
 		admin := v1.Group("")

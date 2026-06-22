@@ -32,6 +32,12 @@ var RequiredNewTables = []RequiredNewTable{
 	{Table: "water_quality", Feature: "透析用水/透析液质量监测", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "disinfection_compliance", Feature: "透析机消毒监管", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "vascular_access_event", Feature: "血管通路全生命周期", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "adverse_event", Feature: "不良事件登记", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "medication_admin", Feature: "长嘱给药执行", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "dry_weight_assessment", Feature: "干体重评估", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "patient_dry_weight", Feature: "确诊干体重锚定", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "nursing_doc", Feature: "护理文书", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "consent_record", Feature: "知情同意", DDL: "docs/sql/deploy_new_tables.sql"},
 }
 
 // VerifyRequiredTables 只读检查新表是否已存在，返回缺失的表名列表（绝不执行任何 DDL）。

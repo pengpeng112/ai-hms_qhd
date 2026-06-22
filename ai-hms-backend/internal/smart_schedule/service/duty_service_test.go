@@ -29,7 +29,7 @@ func TestUpsertStaffDutyAndResolve(t *testing.T) {
 	const tenant int64 = 1
 	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 
-	in := StaffDutyInput{StaffId: 9001, StaffName: "王医生", DutyRole: model.DutyRoleDoctor, WardId: 10, DutyDate: day, Shift: "早"}
+	in := StaffDutyInput{StaffId: 9001, StaffName: "王医生", DutyRole: model.DutyRoleDoctor, WardId: 10, DutyDate: day, Shift: "early"}
 	if _, err := UpsertStaffDuty(g, tenant, in, 1); err != nil {
 		t.Fatalf("upsert failed: %v", err)
 	}
@@ -57,9 +57,9 @@ func TestUpsertStaffDutyIdempotentOverwrite(t *testing.T) {
 	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 
 	// 首次排
-	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 1, StaffName: "A", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "早"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 1, StaffName: "A", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "early"}, 1)
 	// 覆盖
-	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 2, StaffName: "B", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "早"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 2, StaffName: "B", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "early"}, 1)
 
 	r, _ := ResolveDuty(g, tenant, 1, day, model.DutyRoleDoctor)
 	if r.StaffId != 2 {
@@ -77,7 +77,7 @@ func TestResolveDutyOverrideWins(t *testing.T) {
 	const tenant int64 = 1
 	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
 
-	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 1, StaffName: "A", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "早"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 1, StaffName: "A", DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "early"}, 1)
 	CreateOverride(g, tenant, OverrideInput{DutyDate: day, WardId: 1, DutyRole: model.DutyRoleDoctor, ActualStaffId: 99, ActualStaffName: "顶班"}, 1)
 
 	r, _ := ResolveDuty(g, tenant, 1, day, model.DutyRoleDoctor)
@@ -92,7 +92,7 @@ func TestResolveMyDutiesAndCheckIn(t *testing.T) {
 	day := dutyDateOnly(time.Now())
 
 	// 排 9001 为 A室医生
-	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 9001, StaffName: "张医生", DutyRole: model.DutyRoleDoctor, WardId: 10, DutyDate: day, Shift: "早"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 9001, StaffName: "张医生", DutyRole: model.DutyRoleDoctor, WardId: 10, DutyDate: day, Shift: "early"}, 1)
 	// 9002 不在排班里
 	mine, _ := ResolveMyDuties(g, tenant, 9001, day)
 	if len(mine) != 1 || mine[0].WardId != 10 {
@@ -123,10 +123,70 @@ func TestResolveMyDutiesAndCheckIn(t *testing.T) {
 func TestUpsertStaffDutyValidation(t *testing.T) {
 	g := newDutyTestDB(t)
 	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
-	if _, err := UpsertStaffDuty(g, 1, StaffDutyInput{DutyRole: "未知", StaffId: 1, WardId: 1, DutyDate: day, Shift: "早"}, 1); err == nil {
+	if _, err := UpsertStaffDuty(g, 1, StaffDutyInput{DutyRole: "未知", StaffId: 1, WardId: 1, DutyDate: day, Shift: "early"}, 1); err == nil {
 		t.Fatal("expected validation error for unknown duty role")
 	}
-	if _, err := UpsertStaffDuty(g, 1, StaffDutyInput{DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "早"}, 1); err == nil {
+	if _, err := UpsertStaffDuty(g, 1, StaffDutyInput{DutyRole: model.DutyRoleDoctor, WardId: 1, DutyDate: day, Shift: "early"}, 1); err == nil {
 		t.Fatal("expected validation error for zero staffId")
+	}
+	if _, err := UpsertStaffDuty(g, 1, StaffDutyInput{DutyRole: model.DutyRoleDoctor, StaffId: 1, WardId: 1, DutyDate: day, Shift: "无此班"}, 1); err == nil {
+		t.Fatal("expected validation error for invalid shift code")
+	}
+}
+
+// 护士岗可多名（契约04 更正）：同(室,日,班,角色)多名护士各占一行；医生仍单名替换。
+func TestMultiNursePerShift(t *testing.T) {
+	g := newDutyTestDB(t)
+	const tenant int64 = 1
+	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	for _, n := range []struct {
+		id   int64
+		role string
+	}{{201, model.DutyRoleChargeNurse}, {202, model.DutyRoleChargeNurse}, {301, model.DutyRoleDutyNurse}} {
+		if _, err := UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: n.id, StaffName: "N", DutyRole: n.role, WardId: 5, DutyDate: day, Shift: "early"}, 1); err != nil {
+			t.Fatalf("upsert nurse failed: %v", err)
+		}
+	}
+	charge, _ := ResolveDuties(g, tenant, 5, day, model.DutyRoleChargeNurse)
+	if len(charge) != 2 {
+		t.Fatalf("主班护士应 2 名, got %d", len(charge))
+	}
+
+	// 同一护士重复排=幂等
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 201, StaffName: "N-改名", DutyRole: model.DutyRoleChargeNurse, WardId: 5, DutyDate: day, Shift: "early"}, 1)
+	if charge2, _ := ResolveDuties(g, tenant, 5, day, model.DutyRoleChargeNurse); len(charge2) != 2 {
+		t.Fatalf("重复排同一护士应幂等仍 2 名, got %d", len(charge2))
+	}
+
+	// 医生单名替换
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 1, StaffName: "甲", DutyRole: model.DutyRoleDoctor, WardId: 5, DutyDate: day, Shift: "early"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 2, StaffName: "乙", DutyRole: model.DutyRoleDoctor, WardId: 5, DutyDate: day, Shift: "early"}, 1)
+	docs, _ := ResolveDuties(g, tenant, 5, day, model.DutyRoleDoctor)
+	if len(docs) != 1 || docs[0].StaffId != 2 {
+		t.Fatalf("当班医生应单名且替换为乙(2), got %+v", docs)
+	}
+}
+
+func TestCheckNurseRatio(t *testing.T) {
+	g := newDutyTestDB(t)
+	if err := g.AutoMigrate(&model.Machine{}); err != nil {
+		t.Fatalf("migrate machine: %v", err)
+	}
+	const tenant int64 = 1
+	day := time.Date(2026, 6, 15, 0, 0, 0, 0, time.UTC)
+
+	for i := 0; i < 13; i++ {
+		g.Create(&model.Machine{BaseModel: model.BaseModel{TenantId: tenant}, WardId: 5, Name: "M"})
+	}
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 301, StaffName: "N", DutyRole: model.DutyRoleDutyNurse, WardId: 5, DutyDate: day, Shift: "early"}, 1)
+	UpsertStaffDuty(g, tenant, StaffDutyInput{StaffId: 302, StaffName: "N", DutyRole: model.DutyRoleDutyNurse, WardId: 5, DutyDate: day, Shift: "early"}, 1)
+
+	res, err := CheckNurseRatio(g, tenant, 5, day, "early", 6)
+	if err != nil {
+		t.Fatalf("ratio check failed: %v", err)
+	}
+	if res.MachineCount != 13 || res.RequiredNurses != 3 || res.NurseCount != 2 || res.Status != "understaffed" {
+		t.Fatalf("期望 13机/需3/有2/缺岗, got %+v", res)
 	}
 }

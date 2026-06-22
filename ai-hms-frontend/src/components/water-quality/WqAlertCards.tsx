@@ -6,7 +6,7 @@ import type { WaterQualityRecord } from '@/services/waterQualityApi';
 export default function WqAlertCards() {
   const [exceed, setExceed] = useState<WaterQualityRecord[]>([]);
   const [due, setDue] = useState<WaterQualityRecord[]>([]);
-  useEffect(() => { waterQualityApi.alerts().then(a => { setExceed(a.exceed); setDue(a.due); }).catch(() => {}); }, []);
+  useEffect(() => { waterQualityApi.alerts().then(a => { setExceed(a.exceed ?? []); setDue(a.due ?? []); }).catch(() => {}); }, []);
   if (!exceed.length && !due.length) return null;
   return (
     <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>

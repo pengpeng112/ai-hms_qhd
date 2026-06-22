@@ -7,8 +7,12 @@ import (
 
 	"gorm.io/gorm"
 
+	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/config"
 	"github.com/elliotxin/ai-hms-backend/internal/smart_schedule/model"
 )
+
+// singleStaffRole 单名岗位（当班医生一室一名）；护士岗位（主班/当班）可多名（契约04 更正）。
+func singleStaffRole(role string) bool { return role == model.DutyRoleDoctor }
 
 type StaffDutyInput struct {
 	StaffId   int64
@@ -44,6 +48,9 @@ func UpsertStaffDuty(g *gorm.DB, tenant int64, in StaffDutyInput, createdBy int6
 	if err := validateDutyRole(in.DutyRole); err != nil {
 		return nil, err
 	}
+	if !config.ValidShiftCode(in.Shift) {
+		return nil, errors.New("非法班次（须为已启用班次码，如 early/late/long/short）")
+	}
 	if in.StaffId <= 0 || in.WardId <= 0 {
 		return nil, errors.New("staffId 与 wardId 必填")
 	}
@@ -52,9 +59,14 @@ func UpsertStaffDuty(g *gorm.DB, tenant int64, in StaffDutyInput, createdBy int6
 	}
 	day := dutyDateOnly(in.DutyDate)
 
+	// 唯一键：当班医生按(室,日,班,角色)单名替换；护士岗按(室,日,班,角色,人)幂等——同班可多名护士。
+	q := g.Where(`"TenantId" = ? AND "WardId" = ? AND "DutyDate" = ? AND "DutyRole" = ? AND "Shift" = ?`,
+		tenant, in.WardId, day, in.DutyRole, in.Shift)
+	if !singleStaffRole(in.DutyRole) {
+		q = q.Where(`"StaffId" = ?`, in.StaffId)
+	}
 	var existing model.StaffDuty
-	err := g.Where(`"TenantId" = ? AND "WardId" = ? AND "DutyDate" = ? AND "DutyRole" = ? AND "Shift" = ?`,
-		tenant, in.WardId, day, in.DutyRole, in.Shift).First(&existing).Error
+	err := q.First(&existing).Error
 	switch {
 	case err == nil:
 		existing.StaffId = in.StaffId
@@ -240,4 +252,91 @@ func IsCheckedIn(g *gorm.DB, tenant, userId int64, date time.Time) (bool, error)
 		return false, err
 	}
 	return cnt > 0, nil
+}
+
+// ResolveDuties 解析某(室,日,角色)当班全部人员（支持多名护士）。覆盖优先：当日有覆盖则返回覆盖名单，否则月基线名单。
+func ResolveDuties(g *gorm.DB, tenant, wardId int64, date time.Time, dutyRole string) ([]ResolvedDuty, error) {
+	if err := validateDutyRole(dutyRole); err != nil {
+		return nil, err
+	}
+	day := dutyDateOnly(date)
+	out := []ResolvedDuty{}
+
+	var ovs []model.StaffDutyOverride
+	if err := g.Where(`"TenantId" = ? AND "WardId" = ? AND "DutyDate" = ? AND "DutyRole" = ?`, tenant, wardId, day, dutyRole).
+		Order(`"Id" ASC`).Find(&ovs).Error; err != nil {
+		return nil, err
+	}
+	if len(ovs) > 0 {
+		for _, ov := range ovs {
+			out = append(out, ResolvedDuty{StaffId: ov.ActualStaffId, StaffName: ov.ActualStaffName, DutyRole: ov.DutyRole, WardId: ov.WardId, DutyDate: ov.DutyDate, Source: "override"})
+		}
+		return out, nil
+	}
+
+	var rows []model.StaffDuty
+	if err := g.Where(`"TenantId" = ? AND "WardId" = ? AND "DutyDate" = ? AND "DutyRole" = ?`, tenant, wardId, day, dutyRole).
+		Order(`"Shift" ASC`).Order(`"Id" ASC`).Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, r := range rows {
+		out = append(out, ResolvedDuty{StaffId: r.StaffId, StaffName: r.StaffName, DutyRole: r.DutyRole, WardId: r.WardId, DutyDate: r.DutyDate, Source: "baseline"})
+	}
+	return out, nil
+}
+
+// NurseRatioResult 护患比校验结果（1 护士 : ratio 台机）。
+type NurseRatioResult struct {
+	WardId         int64  `json:"wardId"`
+	Shift          string `json:"shift"`
+	Ratio          int    `json:"ratio"`          // 1:ratio
+	MachineCount   int    `json:"machineCount"`   // 在用机台数
+	NurseCount     int    `json:"nurseCount"`     // 当班护士数（主班+当班）
+	RequiredNurses int    `json:"requiredNurses"` // 按机台数所需护士数 = ceil(M/ratio)
+	Status         string `json:"status"`         // ok / understaffed(缺岗) / overstaffed(超配)
+}
+
+// CheckNurseRatio 护患比校验：当班护士数 vs 机台数（1:ratio）。缺岗=护士不足、超配=护士过剩。
+func CheckNurseRatio(g *gorm.DB, tenant, wardId int64, date time.Time, shift string, ratio int) (*NurseRatioResult, error) {
+	if wardId <= 0 {
+		return nil, errors.New("wardId 必填")
+	}
+	if ratio <= 0 {
+		ratio = 6
+	}
+	day := dutyDateOnly(date)
+
+	var machines int64
+	if err := g.Model(&model.Machine{}).Where(`"TenantId" = ? AND "WardId" = ? AND "IsDisabled" = ?`, tenant, wardId, false).Count(&machines).Error; err != nil {
+		return nil, err
+	}
+
+	// 当班护士 = 主班护士 + 当班护士（按 StaffId 去重；在 Go 内去重以跨方言安全）
+	nq := g.Model(&model.StaffDuty{}).
+		Where(`"TenantId" = ? AND "WardId" = ? AND "DutyDate" = ? AND "DutyRole" IN ?`,
+			tenant, wardId, day, []string{model.DutyRoleChargeNurse, model.DutyRoleDutyNurse})
+	if shift != "" {
+		nq = nq.Where(`"Shift" = ?`, shift)
+	}
+	var nurseRows []model.StaffDuty
+	if err := nq.Find(&nurseRows).Error; err != nil {
+		return nil, err
+	}
+	uniq := map[int64]struct{}{}
+	for _, r := range nurseRows {
+		uniq[r.StaffId] = struct{}{}
+	}
+	nurses := int64(len(uniq))
+
+	required := int((machines + int64(ratio) - 1) / int64(ratio)) // ceil(M/ratio)
+	status := "ok"
+	if int(nurses) < required {
+		status = "understaffed"
+	} else if int(nurses) > required && required > 0 {
+		status = "overstaffed"
+	}
+	return &NurseRatioResult{
+		WardId: wardId, Shift: shift, Ratio: ratio,
+		MachineCount: int(machines), NurseCount: int(nurses), RequiredNurses: required, Status: status,
+	}, nil
 }

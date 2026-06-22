@@ -197,7 +197,7 @@ func (s *CnrdsService) GenerateEvent(patientID int64, eventType string) (*models
 }
 
 func (s *CnrdsService) aggregateRow(patientID int64, name, gender string, start, end time.Time) models.CnrdsContentRow {
-	return models.CnrdsContentRow{
+	row := models.CnrdsContentRow{
 		PatientID: strconv.FormatInt(patientID, 10),
 		Name:      name,
 		Gender:    gender,
@@ -209,6 +209,31 @@ func (s *CnrdsService) aggregateRow(patientID int64, name, gender string, start,
 		Albumin: s.lab.Value(patientID, "ALBUMIN", start, end),
 		KtV:     s.lab.Value(patientID, "KTV", start, end),
 	}
+
+	type ocRow struct {
+		Type   string `gorm:"column:Type"`
+		Reason string `gorm:"column:Reason"`
+	}
+	var oc ocRow
+	if err := s.db.Table(`"Register_OutCome"`).
+		Select(`"Type", "Reason"`).
+		Where(`"PatientId" = ? AND "TenantId" = ?`, patientID, s.tenantID).
+		Order(`"OutComeTime" DESC, "CreateTime" DESC`).
+		First(&oc).Error; err == nil {
+		if oc.Type == "20" {
+			switch oc.Reason {
+			case "死亡":
+				row.OutcomeType = models.CnrdsEventDeath
+				row.DeathReason = oc.Reason
+			case "转肾移植":
+				row.OutcomeType = models.CnrdsEventTransplant
+			default:
+				row.OutcomeType = models.CnrdsEventTransferOut
+			}
+		}
+	}
+
+	return row
 }
 
 type CnrdsListFilter struct {

@@ -360,7 +360,7 @@ export default function DialysisExecution() {
             onSaveDisinfection={handleSaveDisinfection}
           />)
       case ExecutionTab.MEDICAL_ORDERS:
-        return <MedicalOrders patient={selectedPatient} />
+        return <MedicalOrders patient={selectedPatient} treatmentId={currentTreatment?.id} />
       case ExecutionTab.MID_MONITORING:
         return (
           <MidMonitoring

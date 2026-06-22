@@ -10,7 +10,7 @@ import "time"
 type SignRecord struct {
 	ID            string    `gorm:"column:id;type:varchar(36);primaryKey" json:"id"`
 	TenantID      int64     `gorm:"column:tenant_id;index;not null" json:"tenantId"`
-	TargetType    string    `gorm:"column:target_type;type:varchar(16);index;not null" json:"targetType"` // prescription / plan / summary
+	TargetType    string    `gorm:"column:target_type;type:varchar(32);index;not null" json:"targetType"` // prescription / plan / summary
 	TargetID      string    `gorm:"column:target_id;type:varchar(64);index;not null" json:"targetId"`
 	SignerID      string    `gorm:"column:signer_id;type:varchar(64);not null" json:"signerId"`
 	SignerName    string    `gorm:"column:signer_name;type:varchar(64)" json:"signerName"`
@@ -29,4 +29,6 @@ const (
 	SignTargetSummary               = "summary"
 	SignTargetInfectiousDisposition = "infectious_disposition"
 	SignTargetWaterQualityHandling  = "water_quality_handling"
+	SignTargetMedicationAdmin       = "medication_admin"
+	SignTargetConsent               = "consent"
 )

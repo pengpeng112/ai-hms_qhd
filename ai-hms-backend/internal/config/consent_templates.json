@@ -1,0 +1,8 @@
+[
+  { "consentType": "dialysis", "name": "血液透析治疗知情同意书", "version": "v1", "timing": "首次透析前", "validMonths": 0, "enabled": true },
+  { "consentType": "cvc", "name": "深静脉置管(CVC)知情同意书", "version": "v1", "timing": "置管前", "validMonths": 0, "enabled": true },
+  { "consentType": "avf", "name": "动静脉内瘘(AVF/AVG)手术同意书", "version": "v1", "timing": "手术前", "validMonths": 0, "enabled": true },
+  { "consentType": "transfusion", "name": "输血知情同意书", "version": "v1", "timing": "需输血时", "validMonths": 0, "enabled": true },
+  { "consentType": "drug", "name": "特殊/自费用药知情同意书", "version": "v1", "timing": "按需", "validMonths": 0, "enabled": true },
+  { "consentType": "self_pay", "name": "自费项目/耗材知情同意书", "version": "v1", "timing": "按需", "validMonths": 0, "enabled": true }
+]

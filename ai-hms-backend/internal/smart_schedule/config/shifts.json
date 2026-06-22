@@ -1,0 +1,6 @@
+[
+  { "code": "early", "name": "早班", "start": "07:00", "end": "15:00", "enabled": true },
+  { "code": "late",  "name": "晚班", "start": "17:00", "end": "23:00", "enabled": true },
+  { "code": "long",  "name": "长班", "start": "07:00", "end": "17:00", "enabled": true },
+  { "code": "short", "name": "短班", "start": "17:00", "end": "23:00", "enabled": true }
+]
