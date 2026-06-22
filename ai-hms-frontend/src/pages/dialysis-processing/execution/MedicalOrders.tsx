@@ -1,7 +1,8 @@
 import { message } from 'antd'
-import { CheckCircle2, Edit3, FileText, PauseCircle, Plus, Search, X, Zap } from 'lucide-react'
+import { CheckCircle2, Edit3, FileText, PauseCircle, Plus, Search, Syringe, X, Zap } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { orderApi } from '@/services/orderApi'
+import { medicationApi } from '@/services/medicationApi'
 import { getErrorMessage } from '@/services/restClient'
 import type {
   Order,
@@ -201,6 +202,28 @@ export default function MedicalOrders({ patient, treatmentId }: Props) {
   const [form, setForm] = useState<OrderFormState>(EMPTY_FORM)
   const [sourceMode, setSourceMode] = useState<'direct' | 'template'>('direct')
   const [templateId, setTemplateId] = useState('')
+  const [recordVersion, setRecordVersion] = useState(0)
+
+  async function handleMedRecord(order: Order) {
+    if (!treatmentId) { message.error('请先选择治疗'); return }
+    try {
+      await medicationApi.record({
+        patientId: Number(patient.id),
+        treatmentId,
+        orderId: Number(order.id),
+        drugName: order.content || order.category || '--',
+        category: order.category,
+        dose: order.dose,
+        route: order.route,
+        timing: order.timing,
+        note: order.notes,
+      })
+      message.success(`已记录给药：${order.content || order.category}`)
+      setRecordVersion((v) => v + 1)
+    } catch (e: any) {
+      message.error(e?.response?.data?.error?.message || '记录给药失败')
+    }
+  }
 
   useEffect(() => {
     const loadOrders = async () => {
@@ -397,6 +420,11 @@ export default function MedicalOrders({ patient, treatmentId }: Props) {
                       <td className="px-5 py-4 text-xs text-slate-500">{formatDateTime(order.updatedAt)}</td>
                       <td className="px-5 py-4">
                         <div className="flex items-center justify-end gap-2">
+                          {order.type === '长期' && treatmentId && (
+                            <button type="button" onClick={() => handleMedRecord(order)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 hover:bg-blue-100" aria-label="记录给药">
+                              <Syringe size={14} />
+                            </button>
+                          )}
                           <button type="button" onClick={() => openEdit(order)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50" aria-label="编辑医嘱">
                             <Edit3 size={14} />
                           </button>
@@ -544,7 +572,7 @@ export default function MedicalOrders({ patient, treatmentId }: Props) {
       ) : null}
 
       {treatmentId && (
-        <MedicationAdminPanel treatmentId={treatmentId} patientId={Number(patient.id)} />
+        <MedicationAdminPanel key={recordVersion} treatmentId={treatmentId} patientId={Number(patient.id)} />
       )}
     </div>
   )
