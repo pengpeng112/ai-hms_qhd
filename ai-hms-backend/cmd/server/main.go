@@ -210,6 +210,10 @@ func main() {
 			v1api.RegisterNursingDocRoutes(protected)
 			// 知情同意路由
 			v1api.RegisterConsentRoutes(protected)
+			// 收费归集路由（C4）
+			v1api.RegisterBillingRoutes(protected, cfg.LegacyTenantID)
+			// HIS 价表同步路由（C4）
+			v1api.RegisterHisPriceRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
 		}
 
 		admin := v1.Group("")

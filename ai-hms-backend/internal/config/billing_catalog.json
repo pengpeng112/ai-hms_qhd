@@ -1,0 +1,921 @@
+{
+  "version": "1.0",
+  "effectiveDate": "2026-06-23",
+  "treatmentFees": [
+    {
+      "mode": "HD",
+      "name": "血液透析",
+      "price": 399,
+      "unit": "次",
+      "insuranceCode": "013110000010000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "HDF",
+      "name": "血液透析滤过",
+      "price": 599,
+      "unit": "次",
+      "insuranceCode": "013110000030000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "HF",
+      "name": "血液滤过",
+      "price": 399,
+      "unit": "次",
+      "insuranceCode": "013110000020000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "HP",
+      "name": "血液灌流",
+      "price": 550,
+      "unit": "次",
+      "insuranceCode": "013110000040000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "HD+HP",
+      "name": "血液透析+灌流",
+      "price": 850,
+      "unit": "次",
+      "insuranceCode": "013110000050000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "PE",
+      "name": "血浆置换",
+      "price": 1680,
+      "unit": "次",
+      "insuranceCode": "013110000060000",
+      "billType": "perSession"
+    },
+    {
+      "mode": "DFPP",
+      "name": "双重血浆置换",
+      "price": 336,
+      "unit": "次",
+      "insuranceCode": "013110000060001",
+      "billType": "perSession"
+    },
+    {
+      "mode": "CRRT",
+      "name": "连续性肾脏替代治疗",
+      "price": 115,
+      "unit": "小时",
+      "insuranceCode": "013110000080000",
+      "billType": "perHour",
+      "surcharge": {
+        "name": "连续性血浆吸附滤过(加收)",
+        "price": 35,
+        "insuranceCode": "013110000080001"
+      }
+    }
+  ],
+  "nursingFees": {
+    "AVF": [
+      {
+        "name": "造口/造瘘护理",
+        "price": 17,
+        "unit": "次",
+        "insuranceCode": "011303000090000",
+        "qty": 1
+      }
+    ],
+    "AVG": [
+      {
+        "name": "造口/造瘘护理",
+        "price": 17,
+        "unit": "次",
+        "insuranceCode": "011303000090000",
+        "qty": 1
+      }
+    ],
+    "TCC": [
+      {
+        "name": "置管护理",
+        "price": 12,
+        "unit": "次",
+        "insuranceCode": "011303000040000",
+        "qty": 1
+      },
+      {
+        "name": "中换药",
+        "price": 21,
+        "unit": "次",
+        "insuranceCode": "GL120600003",
+        "qty": 2
+      }
+    ],
+    "NCC": [
+      {
+        "name": "置管护理",
+        "price": 12,
+        "unit": "次",
+        "insuranceCode": "011303000040000",
+        "qty": 1
+      },
+      {
+        "name": "中换药",
+        "price": 21,
+        "unit": "次",
+        "insuranceCode": "GL120600003",
+        "qty": 2
+      }
+    ]
+  },
+  "injectionFee": {
+    "name": "静脉注射",
+    "price": 3,
+    "unit": "次",
+    "insuranceCode": ""
+  },
+  "materials": [
+    {
+      "chargeItemId": 2,
+      "name": "氧气吸入",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 3,
+      "name": "吸痰",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 6,
+      "name": "（依普定）人促红素注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 10,
+      "name": "蔗糖铁注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 11,
+      "name": "氯化钠注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 12,
+      "name": "HDF18",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 15,
+      "name": "RA130",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 420,
+      "insuranceCode": "0101050117368"
+    },
+    {
+      "chargeItemId": 16,
+      "name": "FB-A101V11",
+      "unit": "套",
+      "billable": true,
+      "unitPrice": 14.16,
+      "insuranceCode": "0101050117350"
+    },
+    {
+      "chargeItemId": 19,
+      "name": "内瘘包",
+      "unit": "包",
+      "billable": false
+    },
+    {
+      "chargeItemId": 20,
+      "name": "5%葡萄糖注射液",
+      "unit": "袋",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 21,
+      "name": "葡萄糖酸钙注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 22,
+      "name": "SUREFLUX-15G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 46.5,
+      "insuranceCode": "0101050119589"
+    },
+    {
+      "chargeItemId": 23,
+      "name": "FB-15U",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 63.6,
+      "insuranceCode": "0101050119591"
+    },
+    {
+      "chargeItemId": 26,
+      "name": "上机包",
+      "unit": "包",
+      "billable": false
+    },
+    {
+      "chargeItemId": 27,
+      "name": "SUREFLUX-13G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 46.5,
+      "insuranceCode": "0101050119588"
+    },
+    {
+      "chargeItemId": 28,
+      "name": "FB-17U",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 63.6,
+      "insuranceCode": "0101050119592"
+    },
+    {
+      "chargeItemId": 29,
+      "name": "FB-19U",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 79.74,
+      "insuranceCode": "0101050118827"
+    },
+    {
+      "chargeItemId": 30,
+      "name": "ELISIO-15H",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 90.71,
+      "insuranceCode": "0101050118828"
+    },
+    {
+      "chargeItemId": 31,
+      "name": "ELISIO-17H",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 118.5,
+      "insuranceCode": "0101050118829"
+    },
+    {
+      "chargeItemId": 32,
+      "name": "ELISIO-19H",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 118.5,
+      "insuranceCode": "0101050118830"
+    },
+    {
+      "chargeItemId": 36,
+      "name": "JRHLL-025",
+      "unit": "套",
+      "billable": true,
+      "unitPrice": 14.08,
+      "insuranceCode": "0101050120609"
+    },
+    {
+      "chargeItemId": 37,
+      "name": "乌拉地尔注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 38,
+      "name": "注射用人促红素",
+      "unit": "瓶",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 39,
+      "name": "SUREFLUX-17G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 46.5,
+      "insuranceCode": "0101050119590"
+    },
+    {
+      "chargeItemId": 40,
+      "name": "钝针-16G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 2.94,
+      "insuranceCode": "0101050118833"
+    },
+    {
+      "chargeItemId": 41,
+      "name": "锐针-16G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 1.78,
+      "insuranceCode": "0101050118834"
+    },
+    {
+      "chargeItemId": 43,
+      "name": "锐针-17G",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 1.78,
+      "insuranceCode": "0101050118836"
+    },
+    {
+      "chargeItemId": 45,
+      "name": "肝素",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 46,
+      "name": "枸橼酸",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 47,
+      "name": "其他",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 48,
+      "name": "肝素钠注射液",
+      "unit": "IU",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 49,
+      "name": "达肝素钠注射液（法安明）",
+      "unit": "IU",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 50,
+      "name": "达肝素钠注射液（达赛畅）",
+      "unit": "IU",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 51,
+      "name": "低分子量肝素钠注射液（齐征） ",
+      "unit": "IU",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 52,
+      "name": "阿加曲班 ",
+      "unit": "mg",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 53,
+      "name": "相对无肝素",
+      "unit": "U",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 54,
+      "name": "绝对无肝素",
+      "unit": "U",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 55,
+      "name": "那屈肝素钙注射液（百力舒）",
+      "unit": "axaiu",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 56,
+      "name": "萘莫司他",
+      "unit": "mg",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 57,
+      "name": "中长链脂肪乳",
+      "unit": "250ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 58,
+      "name": "氨基酸注射液",
+      "unit": "ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 60,
+      "name": "左卡尼汀注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 61,
+      "name": "地西泮注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 62,
+      "name": "依诺肝素",
+      "unit": "IU",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 63,
+      "name": "注射用多种维生素",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 64,
+      "name": "下机包",
+      "unit": "个",
+      "billable": false
+    },
+    {
+      "chargeItemId": 65,
+      "name": "葡萄糖注射液（50%）",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 66,
+      "name": "帕立骨化醇注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 67,
+      "name": "硝苯地平片",
+      "unit": "片",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 68,
+      "name": "敷贴16.5",
+      "unit": "贴",
+      "billable": false
+    },
+    {
+      "chargeItemId": 69,
+      "name": "10ML注射器",
+      "unit": "支",
+      "billable": false
+    },
+    {
+      "chargeItemId": 70,
+      "name": "20ML注射器",
+      "unit": "支",
+      "billable": false
+    },
+    {
+      "chargeItemId": 71,
+      "name": "50ML注射器",
+      "unit": "支",
+      "billable": false
+    },
+    {
+      "chargeItemId": 72,
+      "name": "5ML注射器",
+      "unit": "支",
+      "billable": false
+    },
+    {
+      "chargeItemId": 73,
+      "name": "敷料2.6",
+      "unit": "贴",
+      "billable": false
+    },
+    {
+      "chargeItemId": 74,
+      "name": "低分子肝素钙注射液",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 75,
+      "name": "低分子肝素钙注射液",
+      "unit": "axaiu",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 78,
+      "name": "HF18",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 73.56,
+      "insuranceCode": "0101050117364"
+    },
+    {
+      "chargeItemId": 79,
+      "name": "低分子肝素钠注射液（齐征）",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 80,
+      "name": "ELISIO-15H",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 90.71,
+      "insuranceCode": "0101050118828"
+    },
+    {
+      "chargeItemId": 81,
+      "name": "HA230",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 82,
+      "name": "HA130",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 84,
+      "name": "4%枸橼酸钠",
+      "unit": "ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 85,
+      "name": "F14SE",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 54.68,
+      "insuranceCode": "0101050120605"
+    },
+    {
+      "chargeItemId": 86,
+      "name": "F16SE",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 54.68,
+      "insuranceCode": "0101050120606"
+    },
+    {
+      "chargeItemId": 87,
+      "name": "F18SE",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 54.68,
+      "insuranceCode": "0101050120607"
+    },
+    {
+      "chargeItemId": 88,
+      "name": "HF16SE",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 73.56,
+      "insuranceCode": "0101050120608"
+    },
+    {
+      "chargeItemId": 89,
+      "name": "中换药",
+      "unit": "",
+      "billable": true,
+      "unitPrice": 21,
+      "insuranceCode": "GL120600003"
+    },
+    {
+      "chargeItemId": 90,
+      "name": "注射用尿激酶",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 91,
+      "name": "肝素钠注射液",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 92,
+      "name": "FX10",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 46.54,
+      "insuranceCode": "0101050120611"
+    },
+    {
+      "chargeItemId": 93,
+      "name": "葡萄糖氯己定抗菌透明敷料",
+      "unit": "贴",
+      "billable": false
+    },
+    {
+      "chargeItemId": 98,
+      "name": "FX600HDF",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 109.74,
+      "insuranceCode": "0101050120612"
+    },
+    {
+      "chargeItemId": 99,
+      "name": "FX8",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 46.54,
+      "insuranceCode": "0101050120610"
+    },
+    {
+      "chargeItemId": 100,
+      "name": "甲钴胺注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 101,
+      "name": "10%浓氯化钠注射液10ml：1g",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 102,
+      "name": "地塞米松磷酸钠注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 103,
+      "name": "卡托普利",
+      "unit": "片",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 104,
+      "name": "FX800HDF",
+      "unit": "0",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 106,
+      "name": "FX80",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 112,
+      "name": "测血糖",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 113,
+      "name": "心电监护",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 114,
+      "name": "脉氧饱和度监测",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 115,
+      "name": "2ML注射器",
+      "unit": "支",
+      "billable": false
+    },
+    {
+      "chargeItemId": 116,
+      "name": "喘定注射液",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 117,
+      "name": "人血白蛋白",
+      "unit": "瓶",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 118,
+      "name": "HA330",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 2242,
+      "insuranceCode": "0101050111789"
+    },
+    {
+      "chargeItemId": 120,
+      "name": "SD-18HF",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 69.73,
+      "insuranceCode": "0101050121674"
+    },
+    {
+      "chargeItemId": 121,
+      "name": "SD-15HF",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 69.73,
+      "insuranceCode": "0101050121673"
+    },
+    {
+      "chargeItemId": 122,
+      "name": "SD-15LF",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 69.73,
+      "insuranceCode": "0101050121673"
+    },
+    {
+      "chargeItemId": 123,
+      "name": "SD-17LF",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": 49.73,
+      "insuranceCode": "0101050121672"
+    },
+    {
+      "chargeItemId": 125,
+      "name": "吸氧管",
+      "unit": "个",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 126,
+      "name": "氧气面罩",
+      "unit": "个",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 127,
+      "name": "维生素C注射液",
+      "unit": "2ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 128,
+      "name": "维生素B6注射液",
+      "unit": "2ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 129,
+      "name": "葡萄糖注射液",
+      "unit": "ml",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 130,
+      "name": "贝米肝素钠注射液",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 131,
+      "name": "16G留置针",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 132,
+      "name": "预冲式冲管注射器",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 133,
+      "name": "HA330-2",
+      "unit": "支",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    },
+    {
+      "chargeItemId": 134,
+      "name": "培莫沙肽注射液",
+      "unit": "",
+      "billable": true,
+      "unitPrice": null,
+      "insuranceCode": ""
+    }
+  ]
+}

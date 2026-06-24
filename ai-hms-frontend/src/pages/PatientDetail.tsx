@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { message } from 'antd'
-import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar, ShieldAlert, HeartPulse, FileSignature, AlertTriangle, Pill, Scale } from 'lucide-react'
+import { ArrowLeft, ChevronLeft, ChevronRight, Activity, User, Stethoscope, ClipboardList, FileText, FlaskConical, GitBranch, Clock, Calendar, ShieldAlert, HeartPulse, FileSignature, AlertTriangle, Pill, Scale, CreditCard } from 'lucide-react'
 import { restApi, convertCoreResponseToPatient } from '@/services/restClient'
 import { getErrorMessage } from '@/services/restClient'
 import type { Patient } from '@/types/original'
@@ -11,7 +11,7 @@ import { LoadingState } from '@/components/ui'
 import {
   OverviewTab, BasicInfoTab, TreatmentPlanTab, MedicalRecordTab,
   SchemeOrderTab, LabsExamsTab, VascularTab, AdverseTab, MedicationTab, DryWeightTab,
-  NursingTab, ConsentTab, HistoryTab, MonthlySummaryTab,
+  NursingTab, ConsentTab, HistoryTab, MonthlySummaryTab, BillingTab,
 } from './patient-detail/tabs'
 import InfectiousPanel from '@/components/infectious/InfectiousPanel'
 import PatientHeader from './patient-detail/PatientHeader'
@@ -32,6 +32,7 @@ type SectionID =
   | 'dry_weight'      // 干体重评估
   | 'nursing'         // 护理文书
   | 'consent'         // 知情同意
+  | 'billing'         // 收费归集
   | 'history'         // 治疗详情历史
   | 'monthly_summary' // 月份评估小结
   | 'infectious'      // 传染病筛查
@@ -50,6 +51,7 @@ const MENU_ITEMS: { key: SectionID; label: string; icon: React.ReactNode }[] = [
   { key: 'dry_weight',      label: '干体重评估',   icon: <Scale size={18} /> },
   { key: 'nursing',         label: '护理文书',     icon: <HeartPulse size={18} /> },
   { key: 'consent',         label: '知情同意',     icon: <FileSignature size={18} /> },
+  { key: 'billing',         label: '收费归集',     icon: <CreditCard size={18} /> },
   { key: 'history',         label: '治疗详情历史', icon: <Clock size={18} /> },
   { key: 'monthly_summary', label: '月份评估小结', icon: <Calendar size={18} /> },
 ]
@@ -252,6 +254,8 @@ export default function PatientDetail() {
         return <NursingTab patient={patient} />
       case 'consent':
         return <ConsentTab patient={patient} />
+      case 'billing':
+        return <BillingTab patient={patient} />
       case 'history':
         return <HistoryTab patient={patient} />
       case 'monthly_summary':

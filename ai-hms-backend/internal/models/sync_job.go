@@ -56,14 +56,17 @@ const (
 	SyncJobStatusPartial = "partial"
 	SyncJobStatusFailed  = "failed"
 
-	SyncJobCodeExamReport = "his_exam_report"
+	SyncJobCodeExamReport   = "his_exam_report"
 	SyncJobCodePatientArchive = "his_patient_archive"
+	SyncJobCodeHisPriceList = "his_price_list"
 
-	SyncTypeExamReport      = "exam_report"
-	SyncTypePatientArchive  = "patient_archive"
+	SyncTypeExamReport     = "exam_report"
+	SyncTypePatientArchive = "patient_archive"
+	SyncTypeHisPriceList   = "his_price_list"
 
 	CursorTypeTime  = "time"
 	CursorTypeMixed = "mixed"
+	CursorTypeFull  = "full"
 
 	OverwritePolicyFillEmpty = "fill_empty"
 	OverwritePolicyAlways    = "always"

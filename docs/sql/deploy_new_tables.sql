@@ -593,7 +593,8 @@ COMMIT;
 -- ================================================================
 BEGIN;
 INSERT INTO "CodeDictionary_CodeDictionarys" ("Code", "Type", "Name", "OrganId", "IsDisabled", "Sort", "Builtin")
-VALUES
+SELECT v.*
+FROM (VALUES
     ('HYPOTENSION', 'COMPLICATION', '低血压', 0, false, 10, true),
     ('ARRHYTHMIA', 'COMPLICATION', '心律失常', 0, false, 20, true),
     ('ALLERGY', 'COMPLICATION', '过敏反应', 0, false, 30, true),
@@ -608,5 +609,156 @@ VALUES
     ('HEADACHE', 'COMPLICATION', '头痛', 0, false, 120, true),
     ('HEART_FAILURE', 'COMPLICATION', '急性心衰/肺水肿', 0, false, 130, true),
     ('ACCESS_RELATED', 'COMPLICATION', '通路相关并发症', 0, false, 140, true)
-ON CONFLICT ("Code", "Type") DO NOTHING;
+) AS v("Code", "Type", "Name", "OrganId", "IsDisabled", "Sort", "Builtin")
+WHERE NOT EXISTS (
+    SELECT 1 FROM "CodeDictionary_CodeDictionarys" d
+    WHERE d."Code" = v."Code" AND d."Type" = v."Type"
+);
 COMMIT;
+
+-- ================================================================
+-- 22 - 24：C4 收费归集 + HIS 价表同步
+-- ================================================================
+
+-- 22. charge_record 收费归集清单头（规则C4）
+CREATE TABLE IF NOT EXISTS charge_record (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    patient_id bigint,
+    treatment_id bigint NOT NULL,
+    prescription_id bigint,
+    charge_date timestamptz,
+    shift varchar(16),
+    dialysis_mode varchar(16),
+    access_type varchar(16),
+    crrt_hours decimal(5,2),
+    total_amount decimal(10,2),
+    status varchar(16) NOT NULL DEFAULT 'draft',
+    recorded_by varchar(64),
+    recorded_name varchar(64),
+    checked_by varchar(64),
+    checked_name varchar(64),
+    checked_at timestamptz,
+    exported_at timestamptz,
+    pushed_at timestamptz,
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cr_tenant_patient ON charge_record (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_cr_treatment ON charge_record (treatment_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cr_tenant_treatment_active
+ON charge_record (tenant_id, treatment_id)
+WHERE status <> 'cancelled';
+CREATE INDEX IF NOT EXISTS idx_cr_date ON charge_record (tenant_id, charge_date);
+CREATE INDEX IF NOT EXISTS idx_cr_status ON charge_record (tenant_id, status);
+
+COMMENT ON TABLE charge_record IS '收费归集清单头（规则C4）';
+
+-- 23. charge_line 收费归集清单明细（规则C4）
+CREATE TABLE IF NOT EXISTS charge_line (
+    id varchar(36) PRIMARY KEY,
+    tenant_id bigint NOT NULL,
+    charge_record_id varchar(36) NOT NULL,
+    category varchar(16) NOT NULL,
+    item_code varchar(64),
+    item_name varchar(128) NOT NULL,
+    spec varchar(64),
+    unit varchar(16),
+    quantity decimal(10,2),
+    unit_price decimal(10,2),
+    amount decimal(10,2),
+    billable boolean NOT NULL DEFAULT true,
+    source varchar(8) NOT NULL DEFAULT 'auto',
+    charge_item_id bigint,
+    his_price_item_id varchar(36),
+    his_item_code varchar(20),
+    his_item_class varchar(1),
+    his_item_name varchar(120),
+    price_source varchar(32),
+    matched_status varchar(16),
+    note varchar(256),
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_cl_record ON charge_line (charge_record_id);
+CREATE INDEX IF NOT EXISTS idx_cl_his_item_code ON charge_line (his_item_code);
+CREATE INDEX IF NOT EXISTS idx_cl_match_status ON charge_line (matched_status);
+CREATE INDEX IF NOT EXISTS idx_cl_category ON charge_line (category);
+
+COMMENT ON TABLE charge_line IS '收费归集清单明细（规则C4）';
+
+-- 24. his_price_item HIS price_list 本地镜像
+CREATE TABLE IF NOT EXISTS his_price_item (
+    id varchar(36) PRIMARY KEY,
+    source_system varchar(32) NOT NULL DEFAULT 'HIS_ORACLE',
+    item_class varchar(1),
+    item_code varchar(20) NOT NULL,
+    item_name varchar(120),
+    item_spec varchar(50),
+    units varchar(30),
+    price decimal(9,3),
+    prefer_price decimal(9,3),
+    foreigner_price decimal(9,3),
+    performed_by varchar(8),
+    fee_type_mask integer,
+    class_on_inp_rcpt varchar(1),
+    class_on_outp_rcpt varchar(1),
+    class_on_reckoning varchar(10),
+    subj_code varchar(10),
+    class_on_mr varchar(4),
+    memo varchar(100),
+    start_date timestamp,
+    stop_date timestamp,
+    operator_code varchar(8),
+    enter_date timestamp,
+    high_price decimal(10,4),
+    material_code varchar(20),
+    score_1 decimal(10,2),
+    score_2 decimal(10,2),
+    price_name_code varchar(20),
+    control_flag varchar(1),
+    input_code varchar(100),
+    input_code_wb varchar(100),
+    std_code_1 varchar(20),
+    changed_memo varchar(40),
+    class_on_insur_mr varchar(24),
+    package_spec varchar(20),
+    firm_id varchar(10),
+    charge_according varchar(23),
+    license_id varchar(20),
+    update_flag decimal,
+    dept_name varchar(100),
+    update_flag_syb decimal,
+    mr_bill_class varchar(4),
+    class_on_mr_add varchar(4),
+    cwtj_code varchar(20),
+    high_value decimal(9,3),
+    drg_code varchar(8),
+    insur_update integer,
+    stop_operator varchar(8),
+    limit_quantity decimal(10,0),
+    is_active boolean NOT NULL DEFAULT true,
+    synced_at timestamp NOT NULL DEFAULT now(),
+    sync_run_id varchar(36),
+    created_at timestamp NOT NULL DEFAULT now(),
+    updated_at timestamp NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_his_price_item_code
+ON his_price_item (source_system, item_code);
+
+CREATE INDEX IF NOT EXISTS idx_his_price_item_name
+ON his_price_item (item_name);
+
+CREATE INDEX IF NOT EXISTS idx_his_price_item_input_code
+ON his_price_item (input_code);
+
+CREATE INDEX IF NOT EXISTS idx_his_price_item_class
+ON his_price_item (item_class);
+
+CREATE INDEX IF NOT EXISTS idx_his_price_item_active
+ON his_price_item (is_active, stop_date);
+
+COMMENT ON TABLE his_price_item IS 'HIS price_list 本地镜像，用于收费归集查价和项目匹配';

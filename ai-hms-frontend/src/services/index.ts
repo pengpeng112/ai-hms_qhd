@@ -312,3 +312,37 @@ export type {
   IssueConsentRequest,
   SignConsentRequest,
 } from './consentApi'
+
+// ============ C4 收费归集 ============
+export {
+  buildCharge,
+  listCharges,
+  getCharge,
+  addChargeLine,
+  updateChargeLine,
+  deleteChargeLine,
+  confirmCharge,
+  checkCharge,
+  markExported,
+  cancelCharge,
+  pushCharge,
+} from './billingApi'
+export type {
+  ChargeLine,
+  ChargeRecord,
+  BuildDraftBody,
+  ListChargesParams,
+  ListChargesResponse,
+} from './billingApi'
+
+// ============ C4 HIS 价表 ============
+export {
+  searchHisPrices,
+  syncHisPrices,
+  getHisPriceByCode,
+} from './hisPriceApi'
+export type {
+  HisPriceItem,
+  HisPriceSearchParams,
+  HisPriceSearchResponse,
+} from './hisPriceApi'
