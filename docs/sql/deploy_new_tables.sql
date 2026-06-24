@@ -646,13 +646,13 @@ CREATE TABLE IF NOT EXISTS charge_record (
     updated_at timestamptz NOT NULL DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_cr_tenant_patient ON charge_record (tenant_id, patient_id);
-CREATE INDEX IF NOT EXISTS idx_cr_treatment ON charge_record (treatment_id);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cr_tenant_treatment_active
+CREATE INDEX IF NOT EXISTS idx_chr_tenant_patient ON charge_record (tenant_id, patient_id);
+CREATE INDEX IF NOT EXISTS idx_chr_treatment ON charge_record (treatment_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_chr_tenant_treatment_active
 ON charge_record (tenant_id, treatment_id)
 WHERE status <> 'cancelled';
-CREATE INDEX IF NOT EXISTS idx_cr_date ON charge_record (tenant_id, charge_date);
-CREATE INDEX IF NOT EXISTS idx_cr_status ON charge_record (tenant_id, status);
+CREATE INDEX IF NOT EXISTS idx_chr_date ON charge_record (tenant_id, charge_date);
+CREATE INDEX IF NOT EXISTS idx_chr_status ON charge_record (tenant_id, status);
 
 COMMENT ON TABLE charge_record IS '收费归集清单头（规则C4）';
 

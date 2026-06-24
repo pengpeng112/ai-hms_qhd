@@ -79,7 +79,7 @@ func setupBillingTestDB(t *testing.T) *gorm.DB {
 			"Id" INTEGER PRIMARY KEY, "TenantId" INTEGER NOT NULL,
 			"Name" TEXT, "Unit" TEXT
 		)`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS idx_cr_tenant_treatment_active
+		`CREATE UNIQUE INDEX IF NOT EXISTS idx_chr_tenant_treatment_active
 		 ON charge_record (tenant_id, treatment_id) WHERE status <> 'cancelled'`,
 	} {
 		if err := db.Exec(ddl).Error; err != nil {
