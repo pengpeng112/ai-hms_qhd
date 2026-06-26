@@ -3,14 +3,49 @@ import type { MonitorDevice } from '@/types/original'
 export type ModalType = 'COMPREHENSIVE' | 'PRESCRIPTION' | 'ORDERS' | 'SUMMARY' | null
 
 export type BedDisplayStatus = 'empty' | 'active' | 'warning' | 'danger' | 'offline'
-export type StatusFilter = 'ALL' | 'empty' | 'active' | 'warning' | 'danger' | 'offline'
+export type StatusFilter = 'ALL' | 'alerts' | 'empty' | 'active' | 'warning' | 'danger' | 'offline'
 
 export function classifyBedStatus(device: MonitorDevice): BedDisplayStatus {
   if (device.status === 'offline') return 'offline'
+  if (!device.patientName && !device.patientId) return 'empty'
+  if (device.alarmLevel === 'danger') return 'danger'
+  if (device.alarmLevel === 'warning') return 'warning'
   if (device.status === 'alarm') return 'danger'
   if (device.status === 'warning') return 'warning'
-  if (!device.patientName && !device.patientId) return 'empty'
   return 'active'
+}
+
+export const NA_CONDUCTIVITY_FACTOR = 9.9
+
+export function computeMAP(device: MonitorDevice): number {
+  const { sbp, dbp } = device.vitals
+  return sbp > 0 && dbp > 0 ? Math.round((sbp + 2 * dbp) / 3) : 0
+}
+
+export function computeNa(device: MonitorDevice): number {
+  const c = device.vitals.conductivity
+  return c > 0 ? Math.round(c * NA_CONDUCTIVITY_FACTOR * 10) / 10 : 0
+}
+
+export function alertLevelFor(device: MonitorDevice, metric: string): 'warning' | 'danger' | undefined {
+  const a = device.alerts?.find((x) => x.metric === metric)
+  return (a?.level as 'warning' | 'danger') || undefined
+}
+
+export const MONITOR_METRIC_LABELS: Record<string, string> = {
+  map: '平均压',
+  heartRate: '心率',
+  vp: '静脉压',
+  dialysateNa: '透析液钠',
+  ufr: '超滤率',
+}
+
+export function formatTimeProgress(device: MonitorDevice): { elapsed: string; planned: string } | null {
+  if (!device.startTime || !device.estimatedDuration) return null
+  const planMin = device.estimatedDuration
+  const elapsedMin = Math.max(0, Math.min(planMin, (Date.now() - new Date(device.startTime).getTime()) / 60000))
+  const fmt = (m: number) => `${Math.floor(m / 60)}:${String(Math.round(m % 60)).padStart(2, '0')}`
+  return { elapsed: fmt(elapsedMin), planned: fmt(planMin) }
 }
 
 export interface MonitorSummary {
@@ -35,6 +70,34 @@ export function computeMonitorSummary(devices: MonitorDevice[]): MonitorSummary 
     }
   }
   return summary
+}
+
+export type TrendChartRow = { time: string; ts: number; kind: string } & Record<string, number | string | null>
+
+const TREND_SERIES_TO_CHART: Record<string, string> = {
+  sbp: 'sbp', dbp: 'dbp', map: 'map', heartRate: 'hr',
+  ap: 'ap', vp: 'vp', tmp: 'tmp', bf: 'bf', ufVolume: 'uf', conductivity: 'na',
+}
+
+export function trendToChartRows(series: Record<string, { t: string; v: number; kind: string }[]>): TrendChartRow[] {
+  const byTs = new Map<number, TrendChartRow>()
+  for (const [seriesKey, chartKey] of Object.entries(TREND_SERIES_TO_CHART)) {
+    for (const p of series[seriesKey] || []) {
+      const ts = new Date(p.t).getTime()
+      if (Number.isNaN(ts)) continue
+      let row = byTs.get(ts)
+      if (!row) {
+        row = {
+          ts, kind: p.kind,
+          time: new Date(ts).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          sbp: null, dbp: null, map: null, hr: null, ap: null, vp: null, tmp: null, bf: null, uf: null, na: null,
+        }
+        byTs.set(ts, row)
+      }
+      row[chartKey] = chartKey === 'na' ? Math.round(p.v * NA_CONDUCTIVITY_FACTOR * 10) / 10 : p.v
+    }
+  }
+  return Array.from(byTs.values()).sort((a, b) => a.ts - b.ts)
 }
 
 export type MiniGraphPoint = { sbp: number; hr: number }

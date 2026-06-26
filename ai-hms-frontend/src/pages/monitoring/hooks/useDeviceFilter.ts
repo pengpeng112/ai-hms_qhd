@@ -12,7 +12,10 @@ export function useDeviceFilter(devices: MonitorDevice[]) {
       const zoneMatch = activeZone === 'ALL' || d.bedNumber.startsWith(activeZone)
       const searchMatch =
         (d.patientName || '').includes(searchTerm) || d.bedNumber.includes(searchTerm)
-      const statusMatch = statusFilter === 'ALL' || classifyBedStatus(d) === statusFilter
+      const s = classifyBedStatus(d)
+      const statusMatch =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'alerts' ? s === 'warning' || s === 'danger' : s === statusFilter)
       return zoneMatch && searchMatch && statusMatch
     })
   }, [devices, activeZone, searchTerm, statusFilter])

@@ -8,8 +8,9 @@ import { useModalManager } from './monitoring/hooks/useModalManager'
 import StatusGrid from './monitoring/StatusGrid'
 import AlertList from './monitoring/AlertList'
 import PatientPanel from './monitoring/PatientPanel'
-import { cachedHistoryData, computeMonitorSummary } from './monitoring/types'
-import type { StatusFilter } from './monitoring/types'
+import { computeMonitorSummary, trendToChartRows } from './monitoring/types'
+import type { StatusFilter, TrendChartRow } from './monitoring/types'
+import { getTreatmentTrend } from '@/services/monitoringApi'
 import {
   Monitor, Search, X, Activity, TrendingUp,
   ClipboardList, Trash2, Plus, ChevronDown, FileEdit, Edit3, BarChart3, Sparkles,
@@ -123,8 +124,16 @@ export const ComprehensiveMonitorModal = ({
   onClose: () => void
 }) => {
   const { t } = useTranslation(['monitoring', 'common'])
-  // 浣跨敤妯″潡绾у埆棰勭敓鎴愮殑缂撳瓨鏁版嵁锛岄伩鍏嶆覆鏌撴湡闂磋皟鐢?Math.random
-  const historyData = cachedHistoryData.get(device.id) || []
+  // 整场趋势：拉 GetTreatmentTrend，按时间戳并行为图表行（双密度 BP 稀疏/设备密集，缺失留 null）。
+  const [historyData, setHistoryData] = useState<TrendChartRow[]>([])
+  useEffect(() => {
+    if (!device.treatmentId) return
+    let cancelled = false
+    getTreatmentTrend(device.treatmentId)
+      .then((tr) => { if (!cancelled) setHistoryData(trendToChartRows(tr.series)) })
+      .catch(() => { /* 趋势拉取失败：保持空，图表显示无数据 */ })
+    return () => { cancelled = true }
+  }, [device.treatmentId])
 
   return (
     <ModalOverlay onClose={onClose}>
@@ -164,6 +173,7 @@ export const ComprehensiveMonitorModal = ({
                 />
                 <Area
                   type="monotone"
+                  connectNulls
                   dataKey="sbp"
                   name={t('monitoring:chart.sbp')}
                   stroke="#ef4444"
@@ -172,13 +182,15 @@ export const ComprehensiveMonitorModal = ({
                 />
                 <Area
                   type="monotone"
+                  connectNulls
                   dataKey="dbp"
                   name={t('monitoring:chart.dbp')}
                   stroke="#3b82f6"
                   fill="#eff6ff"
                   strokeWidth={2}
                 />
-                <Line type="monotone" dataKey="hr" name={t('monitoring:chart.hr')} stroke="#10b981" strokeWidth={2} dot={false} />
+                <Line connectNulls type="monotone" dataKey="map" name="MAP" stroke="#9333ea" strokeWidth={2} strokeDasharray="5 2" dot={false} />
+                <Line connectNulls type="monotone" dataKey="hr" name={t('monitoring:chart.hr')} stroke="#10b981" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -210,9 +222,9 @@ export const ComprehensiveMonitorModal = ({
                     boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                   }}
                 />
-                <Line type="monotone" dataKey="ap" name={t('monitoring:chart.ap')} stroke="#8b5cf6" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="vp" name={t('monitoring:chart.vp')} stroke="#ec4899" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="tmp" name={t('monitoring:chart.tmp')} stroke="#f59e0b" strokeWidth={2} dot={false} />
+                <Line connectNulls type="monotone" dataKey="ap" name={t('monitoring:chart.ap')} stroke="#8b5cf6" strokeWidth={2} dot={false} />
+                <Line connectNulls type="monotone" dataKey="vp" name={t('monitoring:chart.vp')} stroke="#ec4899" strokeWidth={2} dot={false} />
+                <Line connectNulls type="monotone" dataKey="tmp" name={t('monitoring:chart.tmp')} stroke="#f59e0b" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -246,16 +258,39 @@ export const ComprehensiveMonitorModal = ({
                 />
                 <Area
                   type="monotone"
+                  connectNulls
                   dataKey="bf"
                   name={t('monitoring:chart.bf')}
                   stroke="#0ea5e9"
                   fill="#f0f9ff"
                   strokeWidth={2}
                 />
-                <Line type="monotone" dataKey="uf" name={t('monitoring:chart.uf')} stroke="#6366f1" strokeWidth={2} dot={false} />
+                <Line connectNulls type="monotone" dataKey="uf" name={t('monitoring:chart.uf')} stroke="#6366f1" strokeWidth={2} dot={false} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
+        </div>
+        <div className="bg-white rounded-lg border border-gray-200 p-5 shadow-sm">
+          <h4 className="text-sm font-bold text-gray-700 mb-4 flex items-center">
+            <TrendingUp size={16} className="mr-2 text-cyan-500" /> 透析液钠浓度 (Na) · 钠清除比 (RNa)
+          </h4>
+          <div className="h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={historyData}>
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} />
+                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#9ca3af', fontSize: 11 }} domain={[125, 150]} />
+                <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)' }} />
+                <Line connectNulls type="monotone" dataKey="na" name="透析液钠 Na" stroke="#0891b2" strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <p className="text-meta text-gray-500 mt-2">
+            透析液钠由电导率换算（×9.9）。
+            {device.rnaCompletion?.available
+              ? <span> 实时钠清除比 <b className="text-cyan-600">RNa 完成 {device.rnaCompletion.percent}%</b>（目标 RNa {device.rnaCompletion.targetRNa.toFixed(2)}，C_pre {device.rnaCompletion.cPre} mmol/L · {device.rnaCompletion.cPreAt}）。</span>
+              : <span className="text-gray-400"> 钠清除比 RNa 待数据（需化验钠 C_pre + 处方 RNa）。</span>}
+          </p>
         </div>
       </div>
     </ModalOverlay>
@@ -892,7 +927,23 @@ export default function Monitoring() {
 
         {/* 状态筛选条 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-slate-400 mr-1 uppercase tracking-wider">状态筛选</span>
+          {/* 只看告警一键开关（警戒+危险合看 · Q3） */}
+          <button
+            onClick={() => setStatusFilter(statusFilter === 'alerts' ? 'ALL' : 'alerts')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 border shadow-sm ${
+              statusFilter === 'alerts'
+                ? 'bg-red-600 text-white border-red-600'
+                : 'bg-white text-red-600 border-red-200 hover:bg-red-50'
+            }`}
+            title="只看警戒/危险床位"
+          >
+            <AlertTriangle size={12} /> 只看告警
+            <span className={`ml-0.5 inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded ${statusFilter === 'alerts' ? 'bg-white/20' : 'bg-slate-50'}`}>
+              <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />{summary.danger}</span>
+              <span className="inline-flex items-center gap-0.5"><span className="w-1.5 h-1.5 rounded-full bg-amber-400" />{summary.warning}</span>
+            </span>
+          </button>
+          <span className="text-xs font-bold text-slate-400 mx-1 uppercase tracking-wider">状态筛选</span>
           <div className="flex bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
             {statusFilterOptions.map((opt) => (
               <button

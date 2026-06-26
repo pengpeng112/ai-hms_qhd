@@ -233,6 +233,18 @@ export interface DashboardCardConfig {
   roles: UserRole[];
 }
 
+export interface MonitorAlert {
+  metric: string;
+  level: string;
+  value: number;
+}
+
+export interface MonitorIdhRisk {
+  available: boolean;
+  probability: number;
+  level: string;
+}
+
 export interface MonitorDevice {
   id: string;
   bedNumber: string;
@@ -251,8 +263,42 @@ export interface MonitorDevice {
     ufVolume: number;
     conductivity: number;
     temp: number;
+    vp?: number;
   };
   alarms: string[];
+  // 实时监控 §9 扩展（来自 live-data，可选，不影响其它消费者）
+  treatmentId?: number;
+  age?: number;
+  dialysisNo?: string;
+  accessType?: string;
+  wardId?: number;
+  startTime?: string;
+  estimatedDuration?: number;
+  alarmLevel?: 'normal' | 'warning' | 'danger';
+  alerts?: MonitorAlert[];
+  idhRisk?: MonitorIdhRisk;
+  isMine?: boolean;
+  vitalsSeries?: VitalSample[];
+  rnaCompletion?: RNaCompletionView;
+}
+
+export interface RNaCompletionView {
+  available: boolean;
+  percent: number;
+  targetRNa: number;
+  mTarget: number;
+  mRealized: number;
+  cPre: number;
+  cPreAt: string;
+}
+
+export interface VitalSample {
+  t: string;
+  sbp: number;
+  dbp: number;
+  map: number;
+  hr: number;
+  kind: string;
 }
 
 // Added StaffMember interface

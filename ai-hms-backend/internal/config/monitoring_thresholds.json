@@ -1,0 +1,24 @@
+{
+  "fixed": {
+    "map":         {"label":"平均动脉压","enabled":true,"unit":"mmHg","dangerLow":60,"warnLow":70,"warnHigh":110,"dangerHigh":120},
+    "heartRate":   {"label":"心率","enabled":true,"unit":"bpm","dangerLow":50,"warnLow":60,"warnHigh":100,"dangerHigh":110},
+    "ufr":         {"label":"超滤率","enabled":true,"unit":"ml/kg/h","warnHigh":10,"dangerHigh":13},
+    "dialysateNa": {"label":"透析液钠","enabled":true,"unit":"mmol/L","dangerLow":130,"warnLow":135,"warnHigh":145,"dangerHigh":148}
+  },
+  "vpReference": [
+    {"access":"AVF","bfMin":0,"bfMax":150,"normalLow":29,"warnHigh":79,"dangerHigh":99},
+    {"access":"AVF","bfMin":150,"bfMax":200,"normalLow":38,"warnHigh":105,"dangerHigh":126},
+    {"access":"AVF","bfMin":200,"bfMax":250,"normalLow":64,"warnHigh":145,"dangerHigh":157},
+    {"access":"AVF","bfMin":250,"bfMax":99999,"normalLow":87,"warnHigh":160,"dangerHigh":171},
+    {"access":"AVG","bfMin":0,"bfMax":150,"normalLow":81,"warnHigh":98,"dangerHigh":101},
+    {"access":"AVG","bfMin":150,"bfMax":200,"normalLow":81,"warnHigh":119,"dangerHigh":127},
+    {"access":"AVG","bfMin":200,"bfMax":250,"normalLow":108,"warnHigh":149,"dangerHigh":154},
+    {"access":"TCC","bfMin":150,"bfMax":200,"normalLow":31,"warnHigh":78,"dangerHigh":105},
+    {"access":"TCC","bfMin":200,"bfMax":250,"normalLow":46,"warnHigh":115,"dangerHigh":127},
+    {"access":"TCC","bfMin":250,"bfMax":99999,"normalLow":78,"warnHigh":128,"dangerHigh":146},
+    {"access":"NCC","bfMin":0,"bfMax":150,"normalLow":18,"warnHigh":75,"dangerHigh":84},
+    {"access":"NCC","bfMin":150,"bfMax":200,"normalLow":45,"warnHigh":116,"dangerHigh":135},
+    {"access":"NCC","bfMin":200,"bfMax":250,"normalLow":56,"warnHigh":130,"dangerHigh":144},
+    {"access":"NCC","bfMin":250,"bfMax":99999,"normalLow":85,"warnHigh":158,"dangerHigh":161}
+  ]
+}
