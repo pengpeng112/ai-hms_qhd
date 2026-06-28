@@ -762,3 +762,60 @@ CREATE INDEX IF NOT EXISTS idx_his_price_item_active
 ON his_price_item (is_active, stop_date);
 
 COMMENT ON TABLE his_price_item IS 'HIS price_list 本地镜像，用于收费归集查价和项目匹配';
+
+-- ============================================================
+-- 实时监控报警阈值表（规则 v1 §8）。可编辑 DB 表 + 种子默认 + admin UI。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS monitoring_threshold (
+    id            bigserial PRIMARY KEY,
+    tenant_id     bigint NOT NULL,
+    metric_key    varchar(32) NOT NULL,
+    label         varchar(64) NOT NULL DEFAULT '',
+    unit          varchar(32) NOT NULL DEFAULT '',
+    scope         varchar(16) NOT NULL DEFAULT 'global',
+    danger_low    double precision,
+    warn_low      double precision,
+    warn_high     double precision,
+    danger_high   double precision,
+    basis         text NOT NULL DEFAULT '',
+    enabled       boolean NOT NULL DEFAULT true,
+    sort_order    integer NOT NULL DEFAULT 0,
+    created_at    timestamp NOT NULL DEFAULT now(),
+    updated_at    timestamp NOT NULL DEFAULT now(),
+    last_modify_by bigint
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_mt_tenant_metric_scope
+ON monitoring_threshold (tenant_id, metric_key, scope);
+COMMENT ON TABLE monitoring_threshold IS '实时监控固定阈值（五档），院方可编辑';
+
+CREATE TABLE IF NOT EXISTS monitoring_vp_stratum (
+    id            bigserial PRIMARY KEY,
+    tenant_id     bigint NOT NULL,
+    access        varchar(8) NOT NULL,
+    bf_min        double precision NOT NULL,
+    bf_max        double precision NOT NULL,
+    normal_low    double precision NOT NULL,
+    warn_high     double precision NOT NULL,
+    danger_high   double precision NOT NULL,
+    basis         text NOT NULL DEFAULT '',
+    enabled       boolean NOT NULL DEFAULT true,
+    created_at    timestamp NOT NULL DEFAULT now(),
+    updated_at    timestamp NOT NULL DEFAULT now(),
+    last_modify_by bigint
+);
+CREATE INDEX IF NOT EXISTS idx_vp_tenant_access
+ON monitoring_vp_stratum (tenant_id, access);
+COMMENT ON TABLE monitoring_vp_stratum IS '实时监控静脉压VP分层阈值（通路×BF），院方可编辑';
+
+CREATE TABLE IF NOT EXISTS monitoring_setting (
+    id            bigserial PRIMARY KEY,
+    tenant_id     bigint NOT NULL,
+    setting_key   varchar(64) NOT NULL,
+    value_num     double precision,
+    value_text    text,
+    updated_at    timestamp NOT NULL DEFAULT now(),
+    last_modify_by bigint
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_ms_tenant_key
+ON monitoring_setting (tenant_id, setting_key);
+COMMENT ON TABLE monitoring_setting IS '实时监控标量配置（如透析液钠电导率系数）';

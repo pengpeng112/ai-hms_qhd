@@ -7,11 +7,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/config"
 	v1api "github.com/elliotxin/ai-hms-backend/internal/api/v1"
 	"github.com/elliotxin/ai-hms-backend/internal/database"
+	"github.com/elliotxin/ai-hms-backend/internal/integrations/idh"
 	"github.com/elliotxin/ai-hms-backend/internal/middleware"
 	"github.com/elliotxin/ai-hms-backend/internal/services"
 	smartapi "github.com/elliotxin/ai-hms-backend/internal/smart_schedule/api"
@@ -193,6 +195,21 @@ func main() {
 			v1api.RegisterDashboardRoutes(protected)
 			v1api.RegisterClinicalTaskRoutes(protected)
 			v1api.RegisterStatisticsRoutes(protected)
+			// IDH 预警评分器：默认禁用（StubScorer→卡面"待数据"）；
+			// 设 IDH_ENABLED=true + IDH_BASE_URL 后接 Python「IDH 预警」微服务（子项目B部署）。
+			if os.Getenv("IDH_ENABLED") == "true" {
+				timeoutSec := 0
+				if v, err := strconv.Atoi(os.Getenv("IDH_TIMEOUT_SEC")); err == nil {
+					timeoutSec = v
+				}
+				services.SetIDHScorer(idh.NewHTTPScorer(idh.Config{
+					BaseURL:    os.Getenv("IDH_BASE_URL"),
+					TimeoutSec: timeoutSec,
+					Enabled:    true,
+				}))
+				log.Printf("[IDH] HTTPScorer enabled, baseURL=%s", os.Getenv("IDH_BASE_URL"))
+			}
+
 			v1api.RegisterMonitoringRoutes(protected)
 			v1api.RegisterMonthlySummaryRoutes(protected)
 			v1api.RegisterConsumableRoutes(protected)

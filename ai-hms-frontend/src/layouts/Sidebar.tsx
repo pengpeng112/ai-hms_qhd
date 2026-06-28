@@ -24,6 +24,7 @@ import {
   ChevronDown,
   RefreshCw,
   FileSpreadsheet,
+  SlidersHorizontal,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -49,6 +50,7 @@ const menuItems: MenuItem[] = [
   { key: 'wardOverview', path: '/ward-overview', icon: HeartPulse },
   { key: 'patients', path: '/patients', icon: Users },
   { key: 'monitoring', path: '/monitoring', icon: Monitor },
+  { key: 'monitoringThresholds', path: '/monitoring-thresholds', icon: SlidersHorizontal },
   { key: 'dialysisProcessing', path: '/dialysis-processing', icon: ClipboardCheck },
   { key: 'schedule', path: '/schedule', icon: Calendar },
   { key: 'staffSchedule', path: '/staff-schedule', icon: Calendar },
@@ -75,7 +77,7 @@ const menuGroups: MenuGroup[] = [
   { key: 'patientCenter', itemKeys: ['patients', 'educationManagement'] },
   { key: 'schedule', itemKeys: ['schedule', 'staffSchedule'] },
   { key: 'resource', itemKeys: ['inventory', 'deviceBinding', 'wardBedManagement'] },
-  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'userManagement', 'roleManagement', 'settings', 'statistics', 'qcScoring', 'syncCenter', 'cnrdsReport'] },
+  { key: 'systemConfig', itemKeys: ['masterData', 'treatmentConfig', 'dictConfig', 'monitoringThresholds', 'userManagement', 'roleManagement', 'settings', 'statistics', 'qcScoring', 'syncCenter', 'cnrdsReport'] },
 ]
 
 const defaultExpandedGroups = Object.fromEntries(menuGroups.map(group => [group.key, true])) as Record<string, boolean>
@@ -97,7 +99,7 @@ const roleMenuMap: Record<string, string[]> = {
   master_data: ['masterData'],
   treatment_config: ['treatmentConfig'],
   dict_config: ['dictConfig'],
-  settings: ['settings', 'syncCenter'],
+  settings: ['settings', 'syncCenter', 'monitoringThresholds'],
   user_management: ['userManagement'],
   role_management: ['roleManagement'],
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 )
 
@@ -45,8 +46,36 @@ func TestHTTPScorer_Success(t *testing.T) {
 	defer srv.Close()
 
 	h := NewHTTPScorer(Config{BaseURL: srv.URL})
-	r := h.Score(context.Background(), RiskInput{TreatmentID: 1, Window: []Sample{{BF: 220}}})
+	bf := 220.0
+	r := h.Score(context.Background(), RiskInput{TreatmentID: 1, Window: []Sample{{BF: &bf}}})
 	if !r.Available || r.Probability != 0.73 || r.Level != "high" {
 		t.Errorf("unexpected result: %+v", r)
+	}
+}
+
+func TestRiskInputJSONContract(t *testing.T) {
+	bf := 220.0
+	g := 1
+	age := 65.0
+	pw := 62.5
+	in := RiskInput{
+		TreatmentID: 7, AccessType: "AVF",
+		Window: []Sample{{BF: &bf}},
+		Basic:  BasicInfo{Gender: &g, Age: &age, PreWeight: &pw},
+	}
+	b, err := json.Marshal(in)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	for _, k := range []string{`"BF":220`, `"window"`, `"basic"`, `"treatmentId":7`} {
+		if !strings.Contains(s, k) {
+			t.Errorf("缺 %s; got %s", k, s)
+		}
+	}
+	for _, k := range []string{`"Gender":1`, `"Age":65`, `"pre-Weight":62.5`} {
+		if !strings.Contains(s, k) {
+			t.Errorf("缺 %s; got %s", k, s)
+		}
 	}
 }

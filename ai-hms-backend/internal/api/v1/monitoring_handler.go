@@ -13,6 +13,12 @@ func RegisterMonitoringRoutes(r *gin.RouterGroup) {
 	h := &MonitoringHandler{service: services.NewMonitoringService()}
 	r.GET("/monitoring/live-data", h.GetLiveData)
 	r.GET("/monitoring/treatments/:id/trend", h.GetTreatmentTrend)
+
+	// 报警阈值表（读：任意登录；写：管理员）
+	r.GET("/monitoring/thresholds", h.GetThresholds)
+	admin := r.Group("", middleware.RequireRoles(middleware.AdminRoles...))
+	admin.PUT("/monitoring/thresholds", h.SaveThresholds)
+	admin.POST("/monitoring/thresholds/reset", h.ResetThresholds)
 }
 
 type MonitoringHandler struct {
@@ -57,4 +63,54 @@ func (h *MonitoringHandler) GetTreatmentTrend(c *gin.Context) {
 	}
 
 	response.Success(c, data)
+}
+
+// GetThresholds 读取阈值表供 admin 展示（DB 优先、回退内嵌 JSON）。
+func (h *MonitoringHandler) GetThresholds(c *gin.Context) {
+	if middleware.GetTenantID(c) <= 0 {
+		response.Unauthorized(c, "tenant id missing")
+		return
+	}
+	response.Success(c, services.GetThresholdAdmin())
+}
+
+// SaveThresholds 整体保存阈值表（管理员）。
+func (h *MonitoringHandler) SaveThresholds(c *gin.Context) {
+	if middleware.GetTenantID(c) <= 0 {
+		response.Unauthorized(c, "tenant id missing")
+		return
+	}
+	var payload services.ThresholdAdminPayload
+	if err := c.ShouldBindJSON(&payload); err != nil {
+		response.BadRequest(c, "请求体解析失败: "+err.Error())
+		return
+	}
+	operatorID, _ := strconv.ParseInt(middleware.GetUserID(c), 10, 64)
+	if err := services.SaveThresholdAdmin(payload, operatorID); err != nil {
+		if err == services.ErrThresholdTablesMissing {
+			response.Error(c, 503, "TABLE_MISSING", err.Error())
+			return
+		}
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.Success(c, gin.H{"saved": true})
+}
+
+// ResetThresholds 恢复默认（管理员）。
+func (h *MonitoringHandler) ResetThresholds(c *gin.Context) {
+	if middleware.GetTenantID(c) <= 0 {
+		response.Unauthorized(c, "tenant id missing")
+		return
+	}
+	operatorID, _ := strconv.ParseInt(middleware.GetUserID(c), 10, 64)
+	if err := services.ResetThresholdAdmin(operatorID); err != nil {
+		if err == services.ErrThresholdTablesMissing {
+			response.Error(c, 503, "TABLE_MISSING", err.Error())
+			return
+		}
+		response.InternalError(c, "恢复默认失败: "+err.Error())
+		return
+	}
+	response.Success(c, gin.H{"reset": true})
 }

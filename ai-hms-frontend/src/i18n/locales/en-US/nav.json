@@ -20,6 +20,7 @@
   "settings": "Settings",
   "syncCenter": "Sync Center",
   "cnrdsReport": "CNRDS Report",
+  "monitoringThresholds": "Alarm Thresholds",
 
   "brand.full": "AI-HMS Smart Dialysis",
   "brand.short": "AI",

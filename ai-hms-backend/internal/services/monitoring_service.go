@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"errors"
 	"strconv"
 	"strings"
@@ -12,24 +11,10 @@ import (
 	"github.com/elliotxin/ai-hms-backend/internal/integrations/idh"
 )
 
-type MonitoringService struct {
-	idhScorer idh.Scorer
-}
+type MonitoringService struct{}
 
 func NewMonitoringService() *MonitoringService {
-	return &MonitoringService{idhScorer: idh.StubScorer{}}
-}
-
-// SetIDHScorer 注入真 IDH 评分器（如 idh.NewHTTPScorer 接 Python 微服务）。插拔点。
-func (s *MonitoringService) SetIDHScorer(scorer idh.Scorer) {
-	s.idhScorer = scorer
-}
-
-func (s *MonitoringService) idhScorerOrStub() idh.Scorer {
-	if s.idhScorer == nil {
-		return idh.StubScorer{}
-	}
-	return s.idhScorer
+	return &MonitoringService{}
 }
 
 type MonitoringLiveDevice struct {
@@ -352,8 +337,8 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 		}
 	}
 
-	// 报警阈值表
-	thresholds, _ := config.LoadMonitoringThresholds()
+	// 报警阈值表（DB 优先、5s 缓存、空窗期回退内嵌 JSON）
+	thresholds := loadThresholdsCached()
 
 	// 上机前双人核对状态（软门禁，只提醒不阻断）：首核=Treatment_BeforeCheck 有操作人；
 	// 二核=Auxiliary_JsonData(Code=二次核对)。未双核 → 床卡冒"未双核"红 chip。
@@ -481,22 +466,29 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 	// TODO: 待确认 RNa 处方落库位置（新表或 Treatment_NA_Memo 写入逻辑）后接入。
 	targetRNaMap := map[int64]float64{}
 
-	// 透前体重
+	// 透前体重 + 透前血压（IDH 基本信息需要 SBP/DBP）
 	preWeightMap := map[int64]float64{}
+	type idhPreSigns struct{ SBP, DBP *float64 }
+	preSignsMap := map[int64]idhPreSigns{}
 	{
 		type pwRow struct {
-			TreatmentID int64   `gorm:"column:TreatmentId"`
-			Weight      float64 `gorm:"column:Weight"`
+			TreatmentID int64    `gorm:"column:TreatmentId"`
+			Weight      float64  `gorm:"column:Weight"`
+			SBP         *float64 `gorm:"column:SBP"`
+			DBP         *float64 `gorm:"column:DBP"`
 		}
 		var pws []pwRow
 		db.Table(`"Treatment_BeforeSigns"`).
-			Select(`"TreatmentId", COALESCE("Weight", 0) AS "Weight"`).
+			Select(`"TreatmentId", COALESCE("Weight", 0) AS "Weight", "SBP", "DBP"`).
 			Where(`"TreatmentId" IN ? AND "TenantId" = ?`, treatmentIDs, tenantID).
 			Order(`"TreatmentId", "CreateTime" DESC`).
 			Find(&pws)
 		for _, r := range pws {
 			if _, ok := preWeightMap[r.TreatmentID]; !ok && r.Weight > 0 {
 				preWeightMap[r.TreatmentID] = r.Weight
+			}
+			if _, ok := preSignsMap[r.TreatmentID]; !ok {
+				preSignsMap[r.TreatmentID] = idhPreSigns{SBP: r.SBP, DBP: r.DBP}
 			}
 		}
 	}
@@ -568,7 +560,30 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 			d.VitalsSeries = append(append([]VitalSample{}, d.VitalsSeries...), pred...)
 		}
 		s.evalAlarms(&d, thresholds)
-		d.IDHRisk = s.idhScorerOrStub().Score(context.Background(), idh.RiskInput{TreatmentID: r.ID, AccessType: d.AccessType})
+		idhB := idhBasic{DryWeight: optF(r.DryWeight), DialysisMethod: optS(r.DialysisMethod)}
+		if a := d.Age; a > 0 {
+			af := float64(a)
+			idhB.Age = &af
+		}
+		if g := genderToCode(r.Gender); g != nil {
+			idhB.Gender = g
+		}
+		if pw, ok := preWeightMap[r.ID]; ok && pw > 0 {
+			idhB.PreWeight = &pw
+		}
+		if ps, ok := preSignsMap[r.ID]; ok {
+			idhB.PreSBP = ps.SBP
+			idhB.PreDBP = ps.DBP
+		}
+		if d.SBP > 0 {
+			sbp := d.SBP
+			idhB.SBP = &sbp
+		}
+		if d.DBP > 0 {
+			dbp := d.DBP
+			idhB.DBP = &dbp
+		}
+		d.IDHRisk = lookupIDHCached(tenantID, r.ID, d.AccessType, idhB)
 
 		if cp := cPreMap[r.PatientID]; cp.V > 0 {
 			targetRNa := targetRNaMap[r.PatientID]
@@ -760,4 +775,31 @@ func (s *MonitoringService) GetTreatmentTrend(tenantID, treatmentID int64) (*Tre
 	}
 
 	return out, nil
+}
+
+// genderToCode 把老库性别串映射为模型编码（男=1/女=0），无法识别返回 nil。
+func genderToCode(g string) *int {
+	one, zero := 1, 0
+	switch {
+	case g == "男" || strings.EqualFold(g, "M") || strings.EqualFold(g, "Male"):
+		return &one
+	case g == "女" || strings.EqualFold(g, "F") || strings.EqualFold(g, "Female"):
+		return &zero
+	default:
+		return nil
+	}
+}
+
+func optF(v float64) *float64 {
+	if v == 0 {
+		return nil
+	}
+	return &v
+}
+
+func optS(v string) *string {
+	if v == "" {
+		return nil
+	}
+	return &v
 }

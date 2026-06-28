@@ -25,6 +25,7 @@
   "roleManagement": "角色管理",
   "syncCenter": "同步中心",
   "cnrdsReport": "CNRDS 上报",
+  "monitoringThresholds": "报警阈值",
 
   "brand.full": "AI-HMS 智能透析",
   "brand.short": "AI",

@@ -27,6 +27,7 @@ import {
     RoleManagement,
     EducationManagement,
     CnrdsReportPage,
+    MonitoringThresholds,
 } from '@/pages'
 import Login from '@/pages/Login'
 import AuthGuard from '@/components/AuthGuard'
@@ -158,6 +159,10 @@ const router = createBrowserRouter([
             {
                 path: 'education-management',
                 element: <EducationManagement />,
+            },
+            {
+                path: 'monitoring-thresholds',
+                element: <PermissionGuard><MonitoringThresholds /></PermissionGuard>,
             },
         ],
     },

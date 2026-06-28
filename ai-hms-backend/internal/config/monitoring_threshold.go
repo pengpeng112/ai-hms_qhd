@@ -63,8 +63,17 @@ type VPStratum struct {
 
 // MonitoringThresholds 阈值表整体。
 type MonitoringThresholds struct {
-	Fixed       map[string]FixedThreshold `json:"fixed"`
-	VPReference []VPStratum               `json:"vpReference"`
+	Fixed             map[string]FixedThreshold `json:"fixed"`
+	VPReference       []VPStratum               `json:"vpReference"`
+	DialysateNaFactor float64                   `json:"dialysateNaFactor"`
+}
+
+// NaFactor 透析液钠电导率系数（DB 未设时默认为 9.9）。
+func (m *MonitoringThresholds) NaFactor() float64 {
+	if m.DialysateNaFactor <= 0 {
+		return 9.9
+	}
+	return m.DialysateNaFactor
 }
 
 // LoadMonitoringThresholds 解析内嵌阈值表。
