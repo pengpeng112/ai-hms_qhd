@@ -47,6 +47,13 @@ var validVPAccess = map[string]bool{"AVF": true, "AVG": true, "TCC": true, "NCC"
 // ErrThresholdTablesMissing 表缺失（部署未建表）时返回，handler 映射为 503。
 var ErrThresholdTablesMissing = errors.New("阈值表未部署，请先执行 deploy_new_tables.sql 建表")
 
+// thresholdTablesReady 检查三张监控阈值表是否全部存在。
+func thresholdTablesReady(db *gorm.DB) bool {
+	return db.Migrator().HasTable(&models.MonitoringThreshold{}) &&
+		db.Migrator().HasTable(&models.MonitoringVPStratum{}) &&
+		db.Migrator().HasTable(&models.MonitoringSetting{})
+}
+
 // ValidatePayload 校验单调性与区间合法性。返回首个错误。
 func ValidatePayload(p ThresholdAdminPayload) error {
 	if p.NaFactor <= 0 {
@@ -85,7 +92,7 @@ func ValidatePayload(p ThresholdAdminPayload) error {
 // GetThresholdAdmin 读取当前阈值表供 admin 展示与编辑。
 func GetThresholdAdmin() ThresholdAdminPayload {
 	db := database.GetDB()
-	if db != nil && db.Migrator().HasTable(&models.MonitoringThreshold{}) {
+	if db != nil && thresholdTablesReady(db) {
 		var fixedRows []models.MonitoringThreshold
 		if err := db.Where("tenant_id = ? AND scope = ?", LegacyTenantID, models.ScopeGlobal).
 			Order("sort_order asc, metric_key asc").Find(&fixedRows).Error; err == nil && len(fixedRows) > 0 {
@@ -153,7 +160,7 @@ func SaveThresholdAdmin(p ThresholdAdminPayload, operatorID int64) error {
 	if db == nil {
 		return errors.New("database not available")
 	}
-	if !db.Migrator().HasTable(&models.MonitoringThreshold{}) {
+	if !thresholdTablesReady(db) {
 		return ErrThresholdTablesMissing
 	}
 	err := db.Transaction(func(tx *gorm.DB) error { return writeAllThresholds(tx, p, operatorID) })

@@ -19,6 +19,7 @@ type Config struct {
 	Hdis      HdisConfig
 	HisOracle HisOracleConfig
 	Actrs     ActrsConfig
+	IDH       IDHConfig
 	AppSecret string
 
 	OrderCronEnabled bool
@@ -108,6 +109,13 @@ type ActrsConfig struct {
 	TimeoutSec int
 }
 
+// IDHConfig 透中低血压（IDH）风险预警微服务配置
+type IDHConfig struct {
+	Enabled    bool
+	BaseURL    string
+	TimeoutSec int
+}
+
 // Load 加载配置
 func Load() (*Config, error) {
 	// 加载 .env 文件（如果存在）
@@ -174,6 +182,11 @@ func Load() (*Config, error) {
 			Username:   getEnv("ACTRS_USERNAME", ""),
 			Password:   getEnv("ACTRS_PASSWORD", ""),
 			TimeoutSec: getEnvInt("ACTRS_TIMEOUT_SEC", 10),
+		},
+		IDH: IDHConfig{
+			Enabled:    getEnvBool("IDH_ENABLED", false),
+			BaseURL:    getEnv("IDH_BASE_URL", ""),
+			TimeoutSec: getEnvInt("IDH_TIMEOUT_SEC", 5),
 		},
 		AppSecret: mustGetEnv("APP_SECRET"),
 

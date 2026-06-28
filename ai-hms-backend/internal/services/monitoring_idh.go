@@ -46,6 +46,11 @@ const (
 	idhConcurrency  = 4
 )
 
+type idhCacheKey struct {
+	tenantID    int64
+	treatmentID int64
+}
+
 type idhCacheEntry struct {
 	result idh.RiskResult
 	exp    time.Time
@@ -53,23 +58,23 @@ type idhCacheEntry struct {
 
 var idhCache = struct {
 	mu sync.RWMutex
-	m  map[int64]idhCacheEntry
-}{m: map[int64]idhCacheEntry{}}
+	m  map[idhCacheKey]idhCacheEntry
+}{m: map[idhCacheKey]idhCacheEntry{}}
 
 var idhInflight = struct {
 	mu  sync.Mutex
-	set map[int64]struct{}
-}{set: map[int64]struct{}{}}
+	set map[idhCacheKey]struct{}
+}{set: map[idhCacheKey]struct{}{}}
 
 var idhSem = make(chan struct{}, idhConcurrency)
 
 // resetIDHStateForTest 仅测试用：清空缓存/在飞/并发与 scorer。
 func resetIDHStateForTest() {
 	idhCache.mu.Lock()
-	idhCache.m = map[int64]idhCacheEntry{}
+	idhCache.m = map[idhCacheKey]idhCacheEntry{}
 	idhCache.mu.Unlock()
 	idhInflight.mu.Lock()
-	idhInflight.set = map[int64]struct{}{}
+	idhInflight.set = map[idhCacheKey]struct{}{}
 	idhInflight.mu.Unlock()
 	stub := idh.Scorer(idh.StubScorer{})
 	pkgIDHScorer.Store(&stub)
@@ -165,7 +170,7 @@ func refreshIDHNow(tenantID, treatmentID int64, accessType string, basic idhBasi
 	defer cancel()
 	res := getIDHScorer().Score(ctx, in)
 	idhCache.mu.Lock()
-	idhCache.m[treatmentID] = idhCacheEntry{result: res, exp: time.Now().Add(idhCacheTTL)}
+	idhCache.m[idhCacheKey{tenantID: tenantID, treatmentID: treatmentID}] = idhCacheEntry{result: res, exp: time.Now().Add(idhCacheTTL)}
 	idhCache.mu.Unlock()
 }
 
@@ -174,18 +179,19 @@ func triggerIDHRefresh(tenantID, treatmentID int64, accessType string, basic idh
 	if _, isStub := getIDHScorer().(idh.StubScorer); isStub {
 		return
 	}
+	key := idhCacheKey{tenantID: tenantID, treatmentID: treatmentID}
 	idhInflight.mu.Lock()
-	if _, busy := idhInflight.set[treatmentID]; busy {
+	if _, busy := idhInflight.set[key]; busy {
 		idhInflight.mu.Unlock()
 		return
 	}
-	idhInflight.set[treatmentID] = struct{}{}
+	idhInflight.set[key] = struct{}{}
 	idhInflight.mu.Unlock()
 
 	go func() {
 		defer func() {
 			idhInflight.mu.Lock()
-			delete(idhInflight.set, treatmentID)
+			delete(idhInflight.set, key)
 			idhInflight.mu.Unlock()
 		}()
 		idhSem <- struct{}{}
@@ -196,8 +202,9 @@ func triggerIDHRefresh(tenantID, treatmentID int64, accessType string, basic idh
 
 // lookupIDHCached 读缓存（stale-while-revalidate）；缺失/过期触发异步刷新。永不阻塞。
 func lookupIDHCached(tenantID, treatmentID int64, accessType string, basic idhBasic) idh.RiskResult {
+	key := idhCacheKey{tenantID: tenantID, treatmentID: treatmentID}
 	idhCache.mu.RLock()
-	entry, ok := idhCache.m[treatmentID]
+	entry, ok := idhCache.m[key]
 	idhCache.mu.RUnlock()
 
 	if !ok || time.Now().After(entry.exp) {

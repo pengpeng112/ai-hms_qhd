@@ -80,9 +80,6 @@ type MonitoringAlert struct {
 	Value  float64 `json:"value"`
 }
 
-// 透析液钠 ≈ 电导率 × 该系数（mmol/L）。来源经验，后续可移入配置。
-const dialysateNaConductivityFactor = 9.9
-
 // extrapolateVitals 简单外推占位（决②）：用最近窗口的线性斜率（限幅）把 MAP/SBP/DBP/心率
 // 向「计划下机 plannedEnd」投影，生成 kind=predicted 的点（卡面渲染虚线）。
 // 这是**占位**，真预测由 IDH/预测模型替换；故斜率与取值均保守夹紧，避免离谱投影。
@@ -339,6 +336,7 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 
 	// 报警阈值表（DB 优先、5s 缓存、空窗期回退内嵌 JSON）
 	thresholds := loadThresholdsCached()
+	naFactor := thresholds.NaFactor()
 
 	// 上机前双人核对状态（软门禁，只提醒不阻断）：首核=Treatment_BeforeCheck 有操作人；
 	// 二核=Auxiliary_JsonData(Code=二次核对)。未双核 → 床卡冒"未双核"红 chip。
@@ -508,7 +506,7 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 			Find(&mcs)
 		for _, r := range mcs {
 			if r.AvgCond > 0 {
-				meanCdMap[r.TreatmentID] = r.AvgCond * dialysateNaConductivityFactor
+				meanCdMap[r.TreatmentID] = r.AvgCond * naFactor
 			}
 		}
 	}
@@ -641,7 +639,7 @@ func (s *MonitoringService) evalAlarms(d *MonitoringLiveDevice, th *config.Monit
 		add("vp", th.EvalVP(d.AccessType, d.BF, d.VenousPressure), d.VenousPressure)
 	}
 	if d.Conductivity > 0 {
-		na := d.Conductivity * dialysateNaConductivityFactor
+		na := d.Conductivity * th.NaFactor()
 		add("dialysateNa", th.EvalFixed("dialysateNa", na), na)
 	}
 	if d.UFGoal > 0 && d.DryWeight > 0 && d.EstimatedDuration > 0 {

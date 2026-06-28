@@ -64,7 +64,7 @@ func TestTriggerIDHRefresh_StubSkips(t *testing.T) {
 	t.Cleanup(resetIDHStateForTest)
 	triggerIDHRefresh(3, 7, "AVF", idhBasic{})
 	idhCache.mu.RLock()
-	_, ok := idhCache.m[7]
+	_, ok := idhCache.m[idhCacheKey{tenantID: 3, treatmentID: 7}]
 	idhCache.mu.RUnlock()
 	if ok {
 		t.Fatal("Stub 不应触发刷新写缓存")

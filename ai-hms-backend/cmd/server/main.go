@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/elliotxin/ai-hms-backend/config"
@@ -197,17 +196,15 @@ func main() {
 			v1api.RegisterStatisticsRoutes(protected)
 			// IDH 预警评分器：默认禁用（StubScorer→卡面"待数据"）；
 			// 设 IDH_ENABLED=true + IDH_BASE_URL 后接 Python「IDH 预警」微服务（子项目B部署）。
-			if os.Getenv("IDH_ENABLED") == "true" {
-				timeoutSec := 0
-				if v, err := strconv.Atoi(os.Getenv("IDH_TIMEOUT_SEC")); err == nil {
-					timeoutSec = v
-				}
+			if cfg.IDH.Enabled && cfg.IDH.BaseURL != "" {
 				services.SetIDHScorer(idh.NewHTTPScorer(idh.Config{
-					BaseURL:    os.Getenv("IDH_BASE_URL"),
-					TimeoutSec: timeoutSec,
+					BaseURL:    cfg.IDH.BaseURL,
+					TimeoutSec: cfg.IDH.TimeoutSec,
 					Enabled:    true,
 				}))
-				log.Printf("[IDH] HTTPScorer enabled, baseURL=%s", os.Getenv("IDH_BASE_URL"))
+				log.Printf("[IDH] HTTPScorer enabled, baseURL=%s", cfg.IDH.BaseURL)
+			} else if cfg.IDH.Enabled && cfg.IDH.BaseURL == "" {
+				log.Println("[IDH] IDH_ENABLED=true but IDH_BASE_URL is empty — using StubScorer")
 			}
 
 			v1api.RegisterMonitoringRoutes(protected)
