@@ -350,7 +350,7 @@ export default function DialysisExecution() {
       }
     }
 
-    if (!treatment.secondCheck) {
+    if (!treatment.secondCheck?.operatorId) {
       Modal.confirm({
         title: '尚未完成双人核对',
         content: '该患者尚未双核，确认仍要上机吗？建议先完成双人核对再上机。',

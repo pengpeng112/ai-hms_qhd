@@ -167,6 +167,18 @@ func newTestTreatmentService(t *testing.T) *TreatmentService {
 		`CREATE TABLE Plan_PatientPlan ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "PatientId" INTEGER, "DialysisMethod" TEXT, "Dialysate" TEXT, "DialysateGroupId" INTEGER, "IsDisabled" BOOLEAN, "CreateTime" DATETIME, "LastModifyTime" DATETIME)`,
 		`CREATE TABLE ["Organ_Employee"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "UserId" INTEGER, "Name" TEXT)`,
 		`CREATE TABLE "Identity_Users" ("Id" INTEGER PRIMARY KEY, "UserName" TEXT)`,
+		`CREATE TABLE ["Schedule_PatientShift"] (
+			"Id" INTEGER PRIMARY KEY,
+			"TenantId" INTEGER,
+			"PatientId" INTEGER,
+			"TreatmentTime" DATETIME,
+			"ShiftId" INTEGER,
+			"WardId" INTEGER,
+			"BedId" INTEGER,
+			"MachineId" INTEGER,
+			"SourceType" INTEGER,
+			"Status" INTEGER
+		)`,
 	}
 
 	for _, statement := range statements {
@@ -539,5 +551,108 @@ func TestTreatmentServiceSecondCheckIndependence(t *testing.T) {
 	// 二次核对换人 B → 通过。
 	if _, err := svc.SaveSecondCheck(id, TreatmentSecondCheckRequest{OperatorID: &opB}, opB); err != nil {
 		t.Fatalf("different-operator second check should succeed, got: %v", err)
+	}
+}
+
+func TestSyncScheduleStatus_ByScheduleId(t *testing.T) {
+	svc := newTestTreatmentService(t)
+	now := time.Date(2026, 6, 28, 8, 0, 0, 0, time.UTC)
+	shiftID := int64(5001)
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Create(map[string]any{
+		"Id": shiftID, "TenantId": LegacyTenantID, "PatientId": int64(1001),
+		"TreatmentTime": now, "ShiftId": int64(1), "WardId": int64(1), "Status": int64(20),
+	}).Error; err != nil {
+		t.Fatalf("seed shift failed: %v", err)
+	}
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id": int64(41), "PatientId": int64(1001), "ScheduleId": shiftID, "StartTime": now,
+	})
+	if err := svc.UpdateStatus(id, models.TreatmentStatusInProgress); err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+	var status int64
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Select("Status").Where("Id = ?", shiftID).Scan(&status).Error; err != nil {
+		t.Fatalf("fetch shift failed: %v", err)
+	}
+	if status != 50 {
+		t.Fatalf("expected shift status 50, got %d", status)
+	}
+}
+
+func TestSyncScheduleStatus_UniqueByPatientDate(t *testing.T) {
+	svc := newTestTreatmentService(t)
+	now := time.Date(2026, 6, 29, 8, 0, 0, 0, time.UTC)
+	shiftID := int64(5002)
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Create(map[string]any{
+		"Id": shiftID, "TenantId": LegacyTenantID, "PatientId": int64(1001),
+		"TreatmentTime": now, "ShiftId": int64(1), "WardId": int64(1), "Status": int64(20),
+	}).Error; err != nil {
+		t.Fatalf("seed shift failed: %v", err)
+	}
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id": int64(42), "PatientId": int64(1001), "ScheduleId": int64(0), "StartTime": now,
+	})
+	if err := svc.UpdateStatus(id, models.TreatmentStatusInProgress); err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+	var status int64
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Select("Status").Where("Id = ?", shiftID).Scan(&status).Error; err != nil {
+		t.Fatalf("fetch shift failed: %v", err)
+	}
+	if status != 50 {
+		t.Fatalf("expected shift status 50, got %d", status)
+	}
+}
+
+func TestSyncScheduleStatus_SkipMultipleCandidates(t *testing.T) {
+	svc := newTestTreatmentService(t)
+	now := time.Date(2026, 6, 30, 8, 0, 0, 0, time.UTC)
+	for _, sid := range []int64{5003, 5004, 5005} {
+		if err := svc.db.Table(`"Schedule_PatientShift"`).Create(map[string]any{
+			"Id": sid, "TenantId": LegacyTenantID, "PatientId": int64(1001),
+			"TreatmentTime": now, "ShiftId": int64(1), "WardId": int64(1), "Status": int64(20),
+		}).Error; err != nil {
+			t.Fatalf("seed shift %d failed: %v", sid, err)
+		}
+	}
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id": int64(43), "PatientId": int64(1001), "ScheduleId": int64(0), "StartTime": now,
+	})
+	if err := svc.UpdateStatus(id, models.TreatmentStatusInProgress); err != nil {
+		t.Fatalf("UpdateStatus failed: %v", err)
+	}
+	var count int64
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Where("PatientId = ? AND Status = ?", int64(1001), 20).Count(&count).Error; err != nil {
+		t.Fatalf("count failed: %v", err)
+	}
+	if count != 3 {
+		t.Fatalf("expected all 3 shifts unchanged (status 20), got %d still 20", count)
+	}
+}
+
+func TestSubmitPostAssessment_SyncsOnce(t *testing.T) {
+	svc := newTestTreatmentService(t)
+	start := time.Date(2026, 7, 1, 8, 0, 0, 0, time.UTC)
+	end := start.Add(4 * time.Hour)
+	shiftID := int64(5006)
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Create(map[string]any{
+		"Id": shiftID, "TenantId": LegacyTenantID, "PatientId": int64(1001),
+		"TreatmentTime": start, "ShiftId": int64(1), "WardId": int64(1), "Status": int64(50),
+	}).Error; err != nil {
+		t.Fatalf("seed shift failed: %v", err)
+	}
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{
+		"Id": int64(44), "PatientId": int64(1001), "ScheduleId": int64(0), "StartTime": start,
+		"Status": legacyStatusFromApp(models.TreatmentStatusInProgress),
+	})
+	if _, err := svc.SubmitPostAssessment(id, TreatmentAfterSignsRequest{StartTime: &start, EndTime: &end}, 99); err != nil {
+		t.Fatalf("SubmitPostAssessment failed: %v", err)
+	}
+	var status int64
+	if err := svc.db.Table(`"Schedule_PatientShift"`).Select("Status").Where("Id = ?", shiftID).Scan(&status).Error; err != nil {
+		t.Fatalf("fetch shift failed: %v", err)
+	}
+	if status != 60 {
+		t.Fatalf("expected shift status 60 after completion, got %d", status)
 	}
 }

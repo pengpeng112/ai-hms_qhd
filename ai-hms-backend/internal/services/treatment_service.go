@@ -2722,7 +2722,6 @@ func (s *TreatmentService) SubmitPostAssessment(treatmentID int64, req Treatment
 		return nil, err
 	}
 
-	s.syncScheduleStatus(treatmentID, 60)
 	return s.Get(treatmentID)
 }
 
@@ -2877,15 +2876,28 @@ func (s *TreatmentService) SaveSummary(treatmentID int64, req TreatmentSummaryRe
 
 func (s *TreatmentService) syncScheduleStatus(treatmentID int64, targetStatus int16) {
 	var ref struct {
-		ScheduleID int64      `gorm:"column:schedule_id"`
-		PatientID  int64      `gorm:"column:patient_id"`
-		RefTime    *time.Time `gorm:"column:ref_time"`
+		ScheduleID    int64      `gorm:"column:schedule_id"`
+		PatientID     int64      `gorm:"column:patient_id"`
+		StartTime     *time.Time `gorm:"column:StartTime"`
+		SignInTime    *time.Time `gorm:"column:SignInTime"`
+		ReceptionTime *time.Time `gorm:"column:ReceptionTime"`
+		CreateTime    *time.Time `gorm:"column:CreateTime"`
 	}
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Select(`COALESCE("ScheduleId", 0) AS schedule_id, "PatientId" AS patient_id, COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime") AS ref_time`).
+		Select(`COALESCE("ScheduleId", 0) AS schedule_id, "PatientId" AS patient_id, "StartTime", "SignInTime", "ReceptionTime", "CreateTime"`).
 		Where(`"Id" = ?`, treatmentID).
 		Scan(&ref).Error; err != nil {
 		return
+	}
+	refTime := ref.StartTime
+	if refTime == nil {
+		refTime = ref.SignInTime
+	}
+	if refTime == nil {
+		refTime = ref.ReceptionTime
+	}
+	if refTime == nil {
+		refTime = ref.CreateTime
 	}
 
 	// 路径一：治疗直接挂了 ScheduleId（如从排班格上机创建），按主键精确流转。
@@ -2900,16 +2912,31 @@ func (s *TreatmentService) syncScheduleStatus(treatmentID int64, targetStatus in
 	}
 
 	// 路径二：工作流上机创建的治疗不带 ScheduleId，按 患者+当日 回退关联到计划排班。
-	// 只流转"已确认(20)/透析中(50)"的排班，避免误把取消(70)/缺席(80)的排班翻回透析中。
-	if ref.PatientID == 0 || ref.RefTime == nil {
+	// 生产库存在同患者同日多条 Status IN (20,50) 的历史脏排班且无法靠 ShiftId/WardId/MachineId 区分，
+	// 故只更新唯一候选；不止一条则跳过并记日志，由人工或后续修正，绝不批量误改。
+	if ref.PatientID == 0 || refTime == nil {
 		return
 	}
-	res := s.db.Table(`"Schedule_PatientShift"`).
+	type candidateRow struct {
+		ID int64 `gorm:"column:Id"`
+	}
+	var candidates []candidateRow
+	_ = s.db.Table(`"Schedule_PatientShift"`).
+		Select(`"Id"`).
 		Where(`"TenantId" = ? AND "PatientId" = ? AND DATE("TreatmentTime") = DATE(?) AND "Status" IN ?`,
-			LegacyTenantID, ref.PatientID, *ref.RefTime, []int16{20, 50}).
+			LegacyTenantID, ref.PatientID, *refTime, []int16{20, 50}).
+		Scan(&candidates)
+	if len(candidates) != 1 {
+		log.Printf("[treatment] syncScheduleStatus skipped: patientId=%d date=%v candidates=%d (need exactly 1)",
+			ref.PatientID, *refTime, len(candidates))
+		return
+	}
+	shiftID := candidates[0].ID
+	res := s.db.Table(`"Schedule_PatientShift"`).
+		Where(`"Id" = ? AND "TenantId" = ?`, shiftID, LegacyTenantID).
 		Update("Status", targetStatus)
 	if res.Error != nil {
-		log.Printf("[treatment] syncScheduleStatus(by patient/date) failed: patientId=%d target=%d err=%v", ref.PatientID, targetStatus, res.Error)
+		log.Printf("[treatment] syncScheduleStatus failed: shiftId=%d target=%d err=%v", shiftID, targetStatus, res.Error)
 	}
 }
 

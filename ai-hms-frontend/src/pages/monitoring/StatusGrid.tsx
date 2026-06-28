@@ -229,7 +229,7 @@ const ActiveBedCard = memo(({ device, onOpenModal }: { device: MonitorDevice; on
       </div>
 
       <div className="flex items-center flex-wrap gap-1.5 mt-auto pt-2 border-t border-slate-100 min-h-[26px]">
-        {status === 'active' && device.doubleChecked === false && (
+        {device.doubleChecked === false && (
           <span
             className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-meta font-bold bg-orange-100 text-orange-600"
             title={`上机前双人核对：首次核对${device.firstChecked ? '已完成' : '未完成'} · 二次核对${device.secondChecked ? '已完成' : '未完成'}`}
@@ -247,7 +247,7 @@ const ActiveBedCard = memo(({ device, onOpenModal }: { device: MonitorDevice; on
             <Bell size={10} /> {MONITOR_METRIC_LABELS[a.metric] || a.metric}
           </span>
         ))}
-        {status === 'active' && !(device.idhRisk?.available && device.idhRisk.level !== 'low') && (device.alerts || []).length === 0 && (
+        {status === 'active' && device.doubleChecked !== false && !(device.idhRisk?.available && device.idhRisk.level !== 'low') && (device.alerts || []).length === 0 && (
           <span className="text-meta text-slate-300">指标正常</span>
         )}
       </div>
