@@ -49,6 +49,10 @@ export interface RestMonitoringLiveData {
   vitalsSeries: RestVitalSample[] | null
   // 实时钠清除比完成率（RNa 联动）。available=false 时显示"待数据"。
   rnaCompletion: RestRNaCompletion
+  // 上机前双人核对状态（软门禁提醒）。
+  firstChecked: boolean
+  secondChecked: boolean
+  doubleChecked: boolean
 }
 
 export interface RestRNaCompletion {

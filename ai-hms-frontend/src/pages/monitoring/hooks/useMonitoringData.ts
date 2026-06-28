@@ -33,6 +33,9 @@ function applyLiveData(devices: MonitorDevice[], liveData: RestMonitoringLiveDat
       idhRisk: ld.idhRisk,
       vitalsSeries: ld.vitalsSeries ?? [],
       rnaCompletion: ld.rnaCompletion,
+      firstChecked: ld.firstChecked,
+      secondChecked: ld.secondChecked,
+      doubleChecked: ld.doubleChecked,
       vitals: {
         sbp: ld.sbp || 0,
         dbp: ld.dbp || 0,

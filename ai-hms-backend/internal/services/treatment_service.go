@@ -1516,6 +1516,10 @@ func (s *TreatmentService) UpdateStatus(id int64, status int) error {
 	if status == models.TreatmentStatusInProgress {
 		s.syncScheduleStatus(id, 50)
 	}
+	// 下机(完成)时把计划排班一并流转到"已完成(60)"，保持计划视图与执行一致。
+	if status == models.TreatmentStatusCompleted {
+		s.syncScheduleStatus(id, 60)
+	}
 	return nil
 }
 
@@ -2189,6 +2193,22 @@ func (s *TreatmentService) SaveSecondCheck(treatmentID int64, req TreatmentSecon
 		operateTime = *req.OperateTime
 	}
 
+	// 双人核对独立性（防错核心）：二次核对操作人不得与首次核对同一人。
+	// 服务端强制，不仅依赖前端下拉过滤（否则直调接口可绕过）。首核未做则不在此拦。
+	var firstCheck struct {
+		OperatorID int64 `gorm:"column:OperatorId"`
+	}
+	ferr := s.db.Table(`"Treatment_BeforeCheck"`).
+		Select(`"OperatorId"`).
+		Where(`"TreatmentId" = ? AND "TenantId" = ?`, treatmentID, LegacyTenantID).
+		Take(&firstCheck).Error
+	if ferr != nil && !errors.Is(ferr, gorm.ErrRecordNotFound) {
+		return nil, ferr
+	}
+	if ferr == nil && firstCheck.OperatorID > 0 && firstCheck.OperatorID == operatorID {
+		return nil, errors.New("二次核对需独立复核，不可与首次核对为同一人")
+	}
+
 	actionID, actionCreateTime, actionErr := s.upsertLegacyAction(treatmentID, "二次核对", legacyActionCodeAgainCheck, operatorID, operateTime, creatorID)
 	if actionErr != nil {
 		return nil, actionErr
@@ -2856,18 +2876,40 @@ func (s *TreatmentService) SaveSummary(treatmentID int64, req TreatmentSummaryRe
 }
 
 func (s *TreatmentService) syncScheduleStatus(treatmentID int64, targetStatus int16) {
-	var scheduleId int64
+	var ref struct {
+		ScheduleID int64      `gorm:"column:schedule_id"`
+		PatientID  int64      `gorm:"column:patient_id"`
+		RefTime    *time.Time `gorm:"column:ref_time"`
+	}
 	if err := s.db.Table(`"Treatment_Treatment"`).
-		Select(`COALESCE("ScheduleId", 0)`).
+		Select(`COALESCE("ScheduleId", 0) AS schedule_id, "PatientId" AS patient_id, COALESCE("StartTime", "SignInTime", "ReceptionTime", "CreateTime") AS ref_time`).
 		Where(`"Id" = ?`, treatmentID).
-		Scan(&scheduleId).Error; err != nil || scheduleId == 0 {
+		Scan(&ref).Error; err != nil {
+		return
+	}
+
+	// 路径一：治疗直接挂了 ScheduleId（如从排班格上机创建），按主键精确流转。
+	if ref.ScheduleID != 0 {
+		res := s.db.Table(`"Schedule_PatientShift"`).
+			Where(`"Id" = ? AND "TenantId" = ?`, ref.ScheduleID, LegacyTenantID).
+			Update("Status", targetStatus)
+		if res.Error != nil {
+			log.Printf("[treatment] syncScheduleStatus failed: scheduleId=%d target=%d err=%v", ref.ScheduleID, targetStatus, res.Error)
+		}
+		return
+	}
+
+	// 路径二：工作流上机创建的治疗不带 ScheduleId，按 患者+当日 回退关联到计划排班。
+	// 只流转"已确认(20)/透析中(50)"的排班，避免误把取消(70)/缺席(80)的排班翻回透析中。
+	if ref.PatientID == 0 || ref.RefTime == nil {
 		return
 	}
 	res := s.db.Table(`"Schedule_PatientShift"`).
-		Where(`"Id" = ? AND "TenantId" = ?`, scheduleId, LegacyTenantID).
+		Where(`"TenantId" = ? AND "PatientId" = ? AND DATE("TreatmentTime") = DATE(?) AND "Status" IN ?`,
+			LegacyTenantID, ref.PatientID, *ref.RefTime, []int16{20, 50}).
 		Update("Status", targetStatus)
 	if res.Error != nil {
-		log.Printf("[treatment] syncScheduleStatus failed: scheduleId=%d target=%d err=%v", scheduleId, targetStatus, res.Error)
+		log.Printf("[treatment] syncScheduleStatus(by patient/date) failed: patientId=%d target=%d err=%v", ref.PatientID, targetStatus, res.Error)
 	}
 }
 

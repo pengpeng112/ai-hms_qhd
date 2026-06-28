@@ -280,6 +280,10 @@ export interface MonitorDevice {
   isMine?: boolean;
   vitalsSeries?: VitalSample[];
   rnaCompletion?: RNaCompletionView;
+  // 上机前双人核对状态（软门禁提醒）。
+  firstChecked?: boolean;
+  secondChecked?: boolean;
+  doubleChecked?: boolean;
 }
 
 export interface RNaCompletionView {

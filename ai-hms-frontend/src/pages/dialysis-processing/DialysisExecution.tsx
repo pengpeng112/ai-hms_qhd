@@ -1,4 +1,4 @@
-import { message } from 'antd'
+import { Modal, message } from 'antd'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -322,6 +322,56 @@ export default function DialysisExecution() {
     await reloadTodayTreatment()
   }
 
+  // 上机：把今日治疗推进到"透析中"。后端 updateTreatmentStatus(InProgress) 会写 StartTime、
+  // 校验方案完整性、并同步对应排班到"透析中"。未完成双核时软门禁二次确认（延续软确认结论）。
+  const handleStartTreatment = async () => {
+    if (!selectedPatient) return
+    let treatment = currentTreatment
+    if (!treatment) {
+      treatment = await ensureTodayTreatment(0)
+      if (!treatment) return
+    }
+    if (treatment.status === 1) {
+      message.info('该患者今日已上机')
+      setActiveTab(ExecutionTab.MID_MONITORING)
+      return
+    }
+
+    const targetId = treatment.id
+    const runStart = async () => {
+      try {
+        await restApi.updateTreatmentStatus(targetId, 1)
+        await reloadTodayTreatment()
+        message.success('已上机，进入透中监测')
+        setActiveTab(ExecutionTab.MID_MONITORING)
+      } catch (error) {
+        console.error('[DialysisExecution] start treatment failed', error)
+        message.error(getErrorMessage(error))
+      }
+    }
+
+    if (!treatment.secondCheck) {
+      Modal.confirm({
+        title: '尚未完成双人核对',
+        content: '该患者尚未双核，确认仍要上机吗？建议先完成双人核对再上机。',
+        okText: '确认上机',
+        cancelText: '取消',
+        okButtonProps: { danger: true },
+        onOk: runStart,
+      })
+      return
+    }
+    await runStart()
+  }
+
+  const startedAtLabel = currentTreatment?.startTime
+    ? new Date(currentTreatment.startTime).toLocaleTimeString('zh-CN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+      })
+    : ''
+
   const tabs = useMemo(() => Object.values(ExecutionTab), [])
 
   const content = (() => {
@@ -445,21 +495,52 @@ export default function DialysisExecution() {
 
       <div className="flex min-w-0 flex-1 flex-col bg-white">
         <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-2.5">
-          <div className="mb-3 flex items-center gap-[10px] overflow-x-auto no-scrollbar whitespace-nowrap">
-            {tabs.map((tab) => (
-              <button
-                key={tab}
-                type="button"
-                onClick={() => setActiveTab(tab)}
-                className={`flex h-9 shrink-0 items-center rounded-[11px] px-4 text-[15px] font-black transition-colors ${
-                  activeTab === tab
-                    ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgba(29,99,255,0.22)]'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
+          <div className="mb-3 flex items-center gap-3">
+            <div className="flex flex-1 items-center gap-[10px] overflow-x-auto no-scrollbar whitespace-nowrap">
+              {tabs.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={`flex h-9 shrink-0 items-center rounded-[11px] px-4 text-[15px] font-black transition-colors ${
+                    activeTab === tab
+                      ? 'bg-blue-600 text-white shadow-[0_8px_20px_rgba(29,99,255,0.22)]'
+                      : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            {selectedPatient ? (
+              currentTreatment?.status === 1 ? (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(ExecutionTab.MID_MONITORING)}
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-[11px] bg-emerald-50 px-4 text-[14px] font-black text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
+                >
+                  <span className="inline-block h-2 w-2 rounded-full bg-emerald-500" />
+                  透析中{startedAtLabel ? ` · ${startedAtLabel}` : ''}
+                </button>
+              ) : currentTreatment?.status === 2 ? (
+                <span className="flex h-9 shrink-0 items-center rounded-[11px] bg-slate-100 px-4 text-[14px] font-black text-slate-500">
+                  已下机
+                </span>
+              ) : currentTreatment?.status === 3 ? (
+                <span className="flex h-9 shrink-0 items-center rounded-[11px] bg-slate-100 px-4 text-[14px] font-black text-slate-400">
+                  已取消
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleStartTreatment}
+                  disabled={loadingTreatment}
+                  className="flex h-9 shrink-0 items-center gap-1.5 rounded-[11px] bg-emerald-600 px-5 text-[14px] font-black text-white shadow-[0_8px_20px_rgba(5,150,105,0.25)] transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  上机
+                </button>
+              )
+            ) : null}
           </div>
           {selectedPatient ? <PatientSummaryHeader patient={selectedPatient} /> : null}
         </div>

@@ -229,6 +229,14 @@ const ActiveBedCard = memo(({ device, onOpenModal }: { device: MonitorDevice; on
       </div>
 
       <div className="flex items-center flex-wrap gap-1.5 mt-auto pt-2 border-t border-slate-100 min-h-[26px]">
+        {status === 'active' && device.doubleChecked === false && (
+          <span
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-meta font-bold bg-orange-100 text-orange-600"
+            title={`上机前双人核对：首次核对${device.firstChecked ? '已完成' : '未完成'} · 二次核对${device.secondChecked ? '已完成' : '未完成'}`}
+          >
+            <AlertTriangle size={11} /> 未双核
+          </span>
+        )}
         {device.idhRisk?.available && device.idhRisk.level !== 'low' && (
           <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-meta font-bold ${device.idhRisk.level === 'high' ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-600'}`}>
             <AlertTriangle size={11} /> IDH{device.idhRisk.level === 'high' ? '高' : '中'}

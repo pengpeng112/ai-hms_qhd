@@ -9,7 +9,6 @@ import {
   upsertPatient, upsertProfile, rebuildTemplate,
   dischargePatient, placePatient, setInfectionStatus,
   seedDemo,
-  startTreatment, completeTreatment,
   type WeekBoard, type CellDTO, type MachineDTO,
   type ConflictItem, type QualityResult, type DiffItem, type CrrtItem,
 } from '@/services/smartScheduleApi'
@@ -117,8 +116,6 @@ export default function SmartSchedulePage() {
     submitHoliday: async () => { setHolidayLoading(true); try { const r = await setHoliday({ date: confirmDate, mode: 10 }) as Record<string, number>; notify(`假日:取消${r.cancelled}/建议${r.suggested}`) } catch { notify('操作失败', true) }; setHolidayLoading(false); fetchData() },
     submitPlan: async () => { try { const r = await planChange(planForm.patientId, { changeType: planForm.changeType, newValue: planForm.newValue, effectiveDate: planForm.effectiveDate || dateStr }) as Record<string, number>; notify(`方案变更:${r.replanned}重排`); setPlanModal(false) } catch { notify('变更失败', true) }; fetchData() },
     doMakeup: async (pid: number) => { try { const r = await makeup(pid, { weekStart: board?.weekStart, weeks: 2 }) as Record<string, number>; notify(`#${pid} 补排${r.placed}次`) } catch { notify('补排失败', true) }; fetchData() },
-    start: async (id: number) => { try { await startTreatment(id); notify('已上机') } catch { notify('上机失败', true) }; setMenuCell(null); fetchData() },
-    complete: async (id: number) => { try { await completeTreatment(id); notify('已下机') } catch { notify('下机失败', true) }; setMenuCell(null); fetchData() },
   }
 
   const loadAdmin = async () => {
@@ -390,8 +387,8 @@ export default function SmartSchedulePage() {
         {menuCell && (
           <div className="flex flex-col gap-2">
             <div className="text-sm text-gray-500 mb-2">{menuCell.date} · {STATUS_LABEL[menuCell.cell.status]} · {menuCell.cell.dialysisMode}</div>
-            {menuCell.cell.status === 20 && <Button block type="primary" onClick={() => api.start(menuCell.cell.id)} style={{ background: '#059669', borderColor: '#059669' }}>上机(开始治疗)</Button>}
-            {menuCell.cell.status === 50 && <Button block type="primary" onClick={() => api.complete(menuCell.cell.id)}>下机(完成治疗)</Button>}
+            {menuCell.cell.status === 20 && <div className="rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-700">已确认。上机请到护士工作台进入该患者治疗工作流操作（排班只负责计划）。</div>}
+            {menuCell.cell.status === 50 && <div className="rounded-md bg-sky-50 px-3 py-2 text-xs text-sky-700">透析中。下机请在护士工作台该患者治疗工作流「透后评估」结项（排班只负责计划）。</div>}
             <Button block onClick={() => { setMoveSrc({ id: menuCell.cell.id, patientId: menuCell.cell.patientId, name: menuCell.cell.patientName }); setMenuCell(null); notify('点击空格移动', false) }}>移动到空格…</Button>
             <Button block danger onClick={() => api.cancel(menuCell.cell.id)}>取消(提前请假)</Button>
             <Button block onClick={() => api.absent(menuCell.cell.id)} style={{ background: '#fef3c7', borderColor: '#f59e0b', color: '#92400e' }}>标记缺席</Button>

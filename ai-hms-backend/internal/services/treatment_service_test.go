@@ -160,7 +160,7 @@ func newTestTreatmentService(t *testing.T) *TreatmentService {
 			"CreateTime" DATETIME,
 			"LastModifyTime" DATETIME
 		)`,
-		`CREATE TABLE ["Treatment_Action"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "TreatmentId" INTEGER, "Name" TEXT, "OperatorId" INTEGER, "OperateTime" DATETIME, "Code" TEXT)`,
+		`CREATE TABLE ["Treatment_Action"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "TreatmentId" INTEGER, "Name" TEXT, "OperatorId" INTEGER, "OperateTime" DATETIME, "CreatorId" INTEGER, "CreateTime" DATETIME, "LastModifyTime" DATETIME, "Code" TEXT)`,
 		`CREATE TABLE ["Auxiliary_JsonData"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "PatientId" INTEGER, "TreatmentId" INTEGER, "Code" TEXT, "CreatorId" INTEGER, "CreateTime" DATETIME, "LastModifyTime" DATETIME, "Value" TEXT)`,
 		`CREATE TABLE ["CodeDictionary_CodeDictionarys"] ("Id" INTEGER PRIMARY KEY, "Type" TEXT, "Code" TEXT, "Name" TEXT, "IsDisabled" BOOLEAN)`,
 		`CREATE TABLE ["Plan_PatientPrescription"] ("Id" INTEGER PRIMARY KEY, "TenantId" INTEGER, "TreatmentId" INTEGER, "DialysisMethod" TEXT, "LastModifyTime" DATETIME)`,
@@ -516,5 +516,28 @@ func TestAppStatusFromLegacyHardCodeBeforeDict(t *testing.T) {
 	// raw "0" + start 非空 + end 空 → InProgress
 	if got := appStatusFromLegacy("0", &startTime, nil, dict); got != models.TreatmentStatusInProgress {
 		t.Fatalf(`"0" + start!=nil + end==nil: expected InProgress, got %d`, got)
+	}
+}
+
+func TestTreatmentServiceSecondCheckIndependence(t *testing.T) {
+	svc := newTestTreatmentService(t)
+	id := mustCreateLegacyTreatment(t, svc.db, map[string]any{"Id": int64(31)})
+
+	opA := int64(100)
+	opB := int64(200)
+
+	// 首次核对：操作人 A（落 Treatment_BeforeCheck.OperatorId=100）。
+	if _, err := svc.SaveFirstCheck(id, TreatmentFirstCheckRequest{OperatorID: &opA}, opA); err != nil {
+		t.Fatalf("SaveFirstCheck failed: %v", err)
+	}
+
+	// 二次核对同一人 A → 必须被服务端拒绝（双人核对独立性，不依赖前端过滤）。
+	if _, err := svc.SaveSecondCheck(id, TreatmentSecondCheckRequest{OperatorID: &opA}, opA); err == nil {
+		t.Fatalf("expected same-operator second check to be rejected")
+	}
+
+	// 二次核对换人 B → 通过。
+	if _, err := svc.SaveSecondCheck(id, TreatmentSecondCheckRequest{OperatorID: &opB}, opB); err != nil {
+		t.Fatalf("different-operator second check should succeed, got: %v", err)
 	}
 }

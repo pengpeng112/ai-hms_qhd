@@ -71,6 +71,11 @@ type MonitoringLiveDevice struct {
 	RNaCompletion RNaCompletion `json:"rnaCompletion"`
 
 	VitalsSeries []VitalSample `json:"vitalsSeries"`
+
+	// 上机前双人核对状态（软门禁提醒）。
+	FirstChecked  bool `json:"firstChecked"`
+	SecondChecked bool `json:"secondChecked"`
+	DoubleChecked bool `json:"doubleChecked"`
 }
 
 // VitalSample 整场体征序列的单点。
@@ -350,6 +355,29 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 	// 报警阈值表
 	thresholds, _ := config.LoadMonitoringThresholds()
 
+	// 上机前双人核对状态（软门禁，只提醒不阻断）：首核=Treatment_BeforeCheck 有操作人；
+	// 二核=Auxiliary_JsonData(Code=二次核对)。未双核 → 床卡冒"未双核"红 chip。
+	firstCheckSet := map[int64]bool{}
+	{
+		var ids []int64
+		db.Table(`"Treatment_BeforeCheck"`).
+			Where(`"TreatmentId" IN ? AND "TenantId" = ? AND COALESCE("OperatorId", 0) > 0`, treatmentIDs, tenantID).
+			Pluck(`"TreatmentId"`, &ids)
+		for _, id := range ids {
+			firstCheckSet[id] = true
+		}
+	}
+	secondCheckSet := map[int64]bool{}
+	{
+		var ids []int64
+		db.Table(`"Auxiliary_JsonData"`).
+			Where(`"TreatmentId" IN ? AND "TenantId" = ? AND "Code" = ?`, treatmentIDs, tenantID, legacyJSONCodeAgainCheck).
+			Pluck(`"TreatmentId"`, &ids)
+		for _, id := range ids {
+			secondCheckSet[id] = true
+		}
+	}
+
 	// 卡面整场曲线：取各治疗的 DuringSigns 全部行（升序）
 	type signSeriesRow struct {
 		TreatmentID int64     `gorm:"column:TreatmentId"`
@@ -532,6 +560,9 @@ func (s *MonitoringService) GetLiveData(tenantID int64) ([]MonitoringLiveDevice,
 		}
 
 		d.AccessType = accessMap[r.PatientID]
+		d.FirstChecked = firstCheckSet[r.ID]
+		d.SecondChecked = secondCheckSet[r.ID]
+		d.DoubleChecked = d.FirstChecked && d.SecondChecked
 		d.VitalsSeries = vitalsSeriesMap[r.ID]
 		if pred := extrapolateVitals(d.VitalsSeries, r.StartTime.Add(time.Duration(dialysisDurationMinutes(r.DialysisDuration))*time.Minute)); len(pred) > 0 {
 			d.VitalsSeries = append(append([]VitalSample{}, d.VitalsSeries...), pred...)
