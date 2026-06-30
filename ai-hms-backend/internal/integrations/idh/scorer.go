@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -24,16 +25,21 @@ func (StubScorer) Score(_ context.Context, _ RiskInput) RiskResult {
 
 // 概率 → high/medium/low 的默认切点（经验值，可调，后续可移入配置）。
 const (
-	idhHighCut   = 0.5
-	idhMediumCut = 0.2
+	defaultHighCut   = 0.5
+	defaultMediumCut = 0.2
 )
 
-// LevelFromProbability 把模型概率映射为分级。
+// LevelFromProbability 把模型概率映射为分级（使用默认切点）。
 func LevelFromProbability(p float64) string {
+	return LevelFromProbabilityWithCuts(p, defaultHighCut, defaultMediumCut)
+}
+
+// LevelFromProbabilityWithCuts 使用可配置切点映射分级。
+func LevelFromProbabilityWithCuts(p, highCut, mediumCut float64) string {
 	switch {
-	case p >= idhHighCut:
+	case p >= highCut:
 		return "high"
-	case p >= idhMediumCut:
+	case p >= mediumCut:
 		return "medium"
 	default:
 		return "low"
@@ -45,8 +51,10 @@ const defaultTimeout = 5 * time.Second
 // HTTPScorer 调用 Python「IDH 预警」FastAPI 微服务（POST /idh/score）。
 // 已搭骨架、默认不启用；接入时填 BaseURL 并在调用方装载 30 时点特征窗口。
 type HTTPScorer struct {
-	baseURL string
-	http    *http.Client
+	baseURL     string
+	http        *http.Client
+	levelHigh   float64
+	levelMedium float64
 }
 
 func NewHTTPScorer(cfg Config) *HTTPScorer {
@@ -54,13 +62,32 @@ func NewHTTPScorer(cfg Config) *HTTPScorer {
 	if to <= 0 {
 		to = defaultTimeout
 	}
+	high := validateLevel(cfg.LevelHigh, defaultHighCut, "IDH_LEVEL_HIGH")
+	medium := validateLevel(cfg.LevelMedium, defaultMediumCut, "IDH_LEVEL_MEDIUM")
+	if medium > high {
+		log.Printf("[IDH] IDH_LEVEL_MEDIUM(%.2f) > IDH_LEVEL_HIGH(%.2f) — 回退默认切点 high=%.2f medium=%.2f",
+			cfg.LevelMedium, cfg.LevelHigh, defaultHighCut, defaultMediumCut)
+		high = defaultHighCut
+		medium = defaultMediumCut
+	}
 	return &HTTPScorer{
-		baseURL: strings.TrimRight(cfg.BaseURL, "/"),
-		http:    &http.Client{Timeout: to},
+		baseURL:     strings.TrimRight(cfg.BaseURL, "/"),
+		http:        &http.Client{Timeout: to},
+		levelHigh:   high,
+		levelMedium: medium,
 	}
 }
 
+func validateLevel(v, defaultVal float64, envName string) float64 {
+	if v <= 0 || v > 1 {
+		log.Printf("[IDH] %s=%.2f 越界 (需在 (0,1]) — 回退默认值 %.2f", envName, v, defaultVal)
+		return defaultVal
+	}
+	return v
+}
+
 type scoreResponse struct {
+	Available   bool    `json:"available"`
 	Probability float64 `json:"probability"`
 }
 
@@ -90,5 +117,8 @@ func (h *HTTPScorer) Score(ctx context.Context, in RiskInput) RiskResult {
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return RiskResult{Available: false}
 	}
-	return RiskResult{Available: true, Probability: out.Probability, Level: LevelFromProbability(out.Probability)}
+	if !out.Available {
+		return RiskResult{Available: false}
+	}
+	return RiskResult{Available: true, Probability: out.Probability, Level: LevelFromProbabilityWithCuts(out.Probability, h.levelHigh, h.levelMedium)}
 }

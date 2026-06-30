@@ -819,3 +819,32 @@ CREATE TABLE IF NOT EXISTS monitoring_setting (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_ms_tenant_key
 ON monitoring_setting (tenant_id, setting_key);
 COMMENT ON TABLE monitoring_setting IS '实时监控标量配置（如透析液钠电导率系数）';
+
+-- ============================================================
+-- 自助站(kiosk)透前体征测量明细表。追加保存每次设备上报，不覆盖历史。
+-- 同步最新值到老表 Treatment_BeforeSigns（该表 TreatmentId 唯一，不能追加多行）。
+-- ============================================================
+CREATE TABLE IF NOT EXISTS kiosk_pre_sign_measurement (
+    id              varchar(36)   PRIMARY KEY,
+    tenant_id       bigint        NOT NULL,
+    treatment_id    bigint        NOT NULL,
+    patient_id      bigint        NOT NULL,
+    measured_at     timestamptz   NOT NULL,
+    weight          numeric,
+    sbp             numeric,
+    dbp             numeric,
+    body_temp       numeric,
+    heart_rate      numeric,
+    respiration     numeric,
+    device_id       varchar(64),
+    source          varchar(32)   NOT NULL DEFAULT 'newsystem',
+    client_event_id varchar(128),
+    raw_payload     text,
+    created_at      timestamptz   NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_kiosk_treatment_time
+ON kiosk_pre_sign_measurement (tenant_id, treatment_id, measured_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_kiosk_client_event
+ON kiosk_pre_sign_measurement (tenant_id, client_event_id)
+WHERE client_event_id IS NOT NULL;
+COMMENT ON TABLE kiosk_pre_sign_measurement IS '自助站透前体征测量明细（追加保存每次设备上报）';

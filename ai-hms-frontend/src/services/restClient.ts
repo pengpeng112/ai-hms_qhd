@@ -204,6 +204,7 @@ export interface RestTreatment {
   legacyStatus?: string  // 老库原始状态码(10/20/30/40/50/60)
   startTime?: string
   endTime?: string
+  signInTime?: string
   notes?: string
   doctorSummary?: string
   treatmentSummary?: string

@@ -20,6 +20,7 @@ type Config struct {
 	HisOracle HisOracleConfig
 	Actrs     ActrsConfig
 	IDH       IDHConfig
+	Kiosk     KioskConfig
 	AppSecret string
 
 	OrderCronEnabled bool
@@ -111,9 +112,17 @@ type ActrsConfig struct {
 
 // IDHConfig 透中低血压（IDH）风险预警微服务配置
 type IDHConfig struct {
-	Enabled    bool
-	BaseURL    string
-	TimeoutSec int
+	Enabled     bool
+	BaseURL     string
+	TimeoutSec  int
+	LevelHigh   float64
+	LevelMedium float64
+}
+
+// KioskConfig 自助站接口配置
+type KioskConfig struct {
+	Enabled bool
+	Token   string
 }
 
 // Load 加载配置
@@ -184,9 +193,15 @@ func Load() (*Config, error) {
 			TimeoutSec: getEnvInt("ACTRS_TIMEOUT_SEC", 10),
 		},
 		IDH: IDHConfig{
-			Enabled:    getEnvBool("IDH_ENABLED", false),
-			BaseURL:    getEnv("IDH_BASE_URL", ""),
-			TimeoutSec: getEnvInt("IDH_TIMEOUT_SEC", 5),
+			Enabled:     getEnvBool("IDH_ENABLED", false),
+			BaseURL:     getEnv("IDH_BASE_URL", ""),
+			TimeoutSec:  getEnvInt("IDH_TIMEOUT_SEC", 5),
+			LevelHigh:   getEnvFloat("IDH_LEVEL_HIGH", 0.5),
+			LevelMedium: getEnvFloat("IDH_LEVEL_MEDIUM", 0.2),
+		},
+		Kiosk: KioskConfig{
+			Enabled: getEnvBool("KIOSK_API_ENABLED", false),
+			Token:   getEnv("KIOSK_API_TOKEN", ""),
 		},
 		AppSecret: mustGetEnv("APP_SECRET"),
 
@@ -257,6 +272,16 @@ func getEnvBool(key string, defaultVal bool) bool {
 	if val := os.Getenv(key); val != "" {
 		if boolVal, err := strconv.ParseBool(val); err == nil {
 			return boolVal
+		}
+	}
+	return defaultVal
+}
+
+// getEnvFloat 获取浮点类型环境变量
+func getEnvFloat(key string, defaultVal float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
 		}
 	}
 	return defaultVal

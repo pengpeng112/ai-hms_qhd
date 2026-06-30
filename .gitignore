@@ -68,6 +68,24 @@ old_system/
 # Binary artifacts
 *.test
 *.out
+docs/**/实时监控_IDH微服务/models/*.pkl
+docs/**/实时监控_IDH微服务/.venv*/
+docs/**/实时监控_IDH微服务/__pycache__/
+docs/**/实时监控_IDH微服务/tests/__pycache__/
+docs/**/实时监控_IDH微服务/.pytest_cache/
+
+# IDH 微服务 study 缓存
+docs/**/实时监控_IDH微服务/study/__pycache__/
+# IDH 训练数据样本（11万行 CSV，不纳入 git）
+docs/**/实时监控_IDH微服务/study/dixueya/
+
+# 自助站 app_self 交付目录：不合入构建/日志/二进制/模型产物
+docs/**/app_self/build/
+docs/**/app_self/__pycache__/
+docs/**/app_self/log/
+docs/**/app_self/face_ana/*.xlsx
+docs/**/app_self/face_ana/*.ipynb
+docs/**/app_self/assets.sample/*.onnx
 
 # Coverage reports
 coverage/

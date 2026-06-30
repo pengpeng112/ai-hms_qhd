@@ -198,11 +198,13 @@ func main() {
 			// 设 IDH_ENABLED=true + IDH_BASE_URL 后接 Python「IDH 预警」微服务（子项目B部署）。
 			if cfg.IDH.Enabled && cfg.IDH.BaseURL != "" {
 				services.SetIDHScorer(idh.NewHTTPScorer(idh.Config{
-					BaseURL:    cfg.IDH.BaseURL,
-					TimeoutSec: cfg.IDH.TimeoutSec,
-					Enabled:    true,
+					BaseURL:     cfg.IDH.BaseURL,
+					TimeoutSec:  cfg.IDH.TimeoutSec,
+					Enabled:     true,
+					LevelHigh:   cfg.IDH.LevelHigh,
+					LevelMedium: cfg.IDH.LevelMedium,
 				}))
-				log.Printf("[IDH] HTTPScorer enabled, baseURL=%s", cfg.IDH.BaseURL)
+				log.Printf("[IDH] HTTPScorer enabled, baseURL=%s high=%.2f medium=%.2f", cfg.IDH.BaseURL, cfg.IDH.LevelHigh, cfg.IDH.LevelMedium)
 			} else if cfg.IDH.Enabled && cfg.IDH.BaseURL == "" {
 				log.Println("[IDH] IDH_ENABLED=true but IDH_BASE_URL is empty — using StubScorer")
 			}
@@ -228,6 +230,14 @@ func main() {
 			v1api.RegisterBillingRoutes(protected, cfg.LegacyTenantID)
 			// HIS 价表同步路由（C4）
 			v1api.RegisterHisPriceRoutes(protected, cfg.HisOracle, cfg.LegacyTenantID)
+		}
+
+		// 自助站(kiosk)接口：独立 token 认证，默认禁用。
+		if cfg.Kiosk.Enabled && cfg.Kiosk.Token != "" {
+			v1api.RegisterKioskRoutes(v1, cfg.Kiosk.Token)
+			log.Println("[KIOSK] kiosk API enabled")
+		} else if cfg.Kiosk.Enabled && cfg.Kiosk.Token == "" {
+			log.Println("[KIOSK] KIOSK_API_ENABLED=true but KIOSK_API_TOKEN is empty — kiosk API disabled")
 		}
 
 		admin := v1.Group("")

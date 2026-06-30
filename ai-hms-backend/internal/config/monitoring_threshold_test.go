@@ -70,6 +70,68 @@ func TestEvalFixed_DialysateNa(t *testing.T) {
 	}
 }
 
+func TestEvalFixed_SpO2_LowOnly(t *testing.T) {
+	m := mustLoadThresholds(t)
+	// SpO2 只有低侧：<90 危险、90–94 警戒、>=95 正常；高侧无界(100 仍正常)。
+	for _, c := range []struct {
+		v    float64
+		want AlarmLevel
+	}{{89, AlarmDanger}, {92, AlarmWarning}, {97, AlarmNormal}, {100, AlarmNormal}} {
+		if got := m.EvalFixed("spo2", c.v); got != c.want {
+			t.Errorf("SpO2 %.0f: got %s want %s", c.v, got, c.want)
+		}
+	}
+}
+
+func TestEvalFixed_Respiration(t *testing.T) {
+	m := mustLoadThresholds(t)
+	for _, c := range []struct {
+		v    float64
+		want AlarmLevel
+	}{{6, AlarmDanger}, {10, AlarmWarning}, {16, AlarmNormal}, {23, AlarmWarning}, {28, AlarmDanger}} {
+		if got := m.EvalFixed("respiration", c.v); got != c.want {
+			t.Errorf("RR %.0f: got %s want %s", c.v, got, c.want)
+		}
+	}
+}
+
+func TestEvalFixed_TMP_HighOnly(t *testing.T) {
+	m := mustLoadThresholds(t)
+	for _, c := range []struct {
+		v    float64
+		want AlarmLevel
+	}{{0, AlarmNormal}, {200, AlarmNormal}, {300, AlarmWarning}, {400, AlarmDanger}} {
+		if got := m.EvalFixed("tmp", c.v); got != c.want {
+			t.Errorf("TMP %.0f: got %s want %s", c.v, got, c.want)
+		}
+	}
+}
+
+func TestEvalFixed_AP_HighOnly(t *testing.T) {
+	m := mustLoadThresholds(t)
+	// AP 阈值表存绝对值高侧两档(引擎喂 |AP|);此处直接喂正数即绝对值。
+	for _, c := range []struct {
+		v    float64
+		want AlarmLevel
+	}{{150, AlarmNormal}, {220, AlarmWarning}, {260, AlarmDanger}} {
+		if got := m.EvalFixed("ap", c.v); got != c.want {
+			t.Errorf("AP %.0f: got %s want %s", c.v, got, c.want)
+		}
+	}
+}
+
+func TestEvalFixed_Conductivity(t *testing.T) {
+	m := mustLoadThresholds(t)
+	for _, c := range []struct {
+		v    float64
+		want AlarmLevel
+	}{{12.8, AlarmDanger}, {13.2, AlarmWarning}, {14.0, AlarmNormal}, {14.8, AlarmWarning}, {15.3, AlarmDanger}} {
+		if got := m.EvalFixed("conductivity", c.v); got != c.want {
+			t.Errorf("Cond %.1f: got %s want %s", c.v, got, c.want)
+		}
+	}
+}
+
 func TestEvalFixed_UnknownKey(t *testing.T) {
 	m := mustLoadThresholds(t)
 	if got := m.EvalFixed("nope", 999); got != AlarmNormal {

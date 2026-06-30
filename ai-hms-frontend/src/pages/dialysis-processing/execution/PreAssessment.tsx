@@ -349,11 +349,19 @@ export default function PreAssessment({
     ? new Date(treatment.startTime).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })
     : '未开始'
 
+  // kiosk 自助站已写透前体征(体重秤/血压计)→ 提示护士：值已带入、请核对。
+  const selfMeasured = !!treatment?.beforeSigns &&
+    ((treatment.beforeSigns.weight ?? 0) > 0 || (treatment.beforeSigns.sbp ?? 0) > 0)
+
   return (
     <div className="space-y-4 pb-4">
       {treatmentLoading ? (
         <section className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
           正在切换患者并加载今日治疗，透前评估已清空旧患者数据。
+        </section>
+      ) : selfMeasured ? (
+        <section className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+          本次透前体征已带入（体重秤/血压计自测），请核对后保存。
         </section>
       ) : null}
 

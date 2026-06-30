@@ -1,0 +1,4 @@
+# IDH 重标定 · 生产库提取脚本专属依赖
+# 仅 recal_extract_score.py 需要；微服务运行（app.py）不需要。
+# 安装: .venv312\Scripts\python -m pip install -r requirements-recal.txt
+psycopg2-binary>=2.9

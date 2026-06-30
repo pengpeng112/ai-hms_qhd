@@ -44,6 +44,7 @@ var RequiredNewTables = []RequiredNewTable{
 	{Table: "monitoring_threshold", Feature: "实时监控固定阈值表", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "monitoring_vp_stratum", Feature: "实时监控VP分层阈值表", DDL: "docs/sql/deploy_new_tables.sql"},
 	{Table: "monitoring_setting", Feature: "实时监控标量配置", DDL: "docs/sql/deploy_new_tables.sql"},
+	{Table: "kiosk_pre_sign_measurement", Feature: "自助站透前体征明细", DDL: "docs/sql/deploy_new_tables.sql"},
 }
 
 // VerifyRequiredTables 只读检查新表是否已存在，返回缺失的表名列表（绝不执行任何 DDL）。

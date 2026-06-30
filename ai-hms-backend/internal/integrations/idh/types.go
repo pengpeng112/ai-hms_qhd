@@ -7,9 +7,11 @@ package idh
 
 // Config IDH 预警微服务配置。
 type Config struct {
-	BaseURL    string
-	TimeoutSec int
-	Enabled    bool
+	BaseURL     string
+	TimeoutSec  int
+	Enabled     bool
+	LevelHigh   float64
+	LevelMedium float64
 }
 
 // Sample 单个 Device_DMLog 设备时点（模型输入窗口一行）。

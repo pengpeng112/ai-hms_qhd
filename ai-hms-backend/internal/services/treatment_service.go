@@ -54,6 +54,7 @@ type TreatmentRealtimeResponse struct {
 	LegacyStatus       string                        `json:"legacyStatus,omitempty"` // 老库原始状态码(10签到/20透前/30透中/40透后/50中断/60结束),供驾驶舱细分卡态;附加只读、不影响 Status
 	StartTime          *time.Time                    `json:"startTime,omitempty"`
 	EndTime            *time.Time                    `json:"endTime,omitempty"`
+	SignInTime         *time.Time                    `json:"signInTime,omitempty"`
 	Notes              string                        `json:"notes,omitempty"`
 	CreatorID          int64                         `json:"creatorId"`
 	CreateTime         time.Time                     `json:"createTime"`
@@ -1098,6 +1099,7 @@ func buildTreatmentRealtimeResponse(row legacyTreatmentHistoryRow, treatmentMode
 		LegacyStatus:       strings.TrimSpace(row.Status),
 		StartTime:          row.StartTime,
 		EndTime:            row.EndTime,
+		SignInTime:         row.SignInTime,
 		Notes:              notes,
 		CreatorID:          row.CreatorID,
 		CreateTime:         row.CreateTime,

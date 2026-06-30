@@ -3,7 +3,12 @@
     "map":         {"label":"平均动脉压","enabled":true,"unit":"mmHg","dangerLow":60,"warnLow":70,"warnHigh":110,"dangerHigh":120},
     "heartRate":   {"label":"心率","enabled":true,"unit":"bpm","dangerLow":50,"warnLow":60,"warnHigh":100,"dangerHigh":110},
     "ufr":         {"label":"超滤率","enabled":true,"unit":"ml/kg/h","warnHigh":10,"dangerHigh":13},
-    "dialysateNa": {"label":"透析液钠","enabled":true,"unit":"mmol/L","dangerLow":130,"warnLow":135,"warnHigh":145,"dangerHigh":148}
+    "dialysateNa": {"label":"透析液钠","enabled":true,"unit":"mmol/L","dangerLow":130,"warnLow":135,"warnHigh":145,"dangerHigh":148},
+    "spo2":        {"label":"血氧饱和度","enabled":true,"unit":"%","dangerLow":90,"warnLow":95},
+    "respiration": {"label":"呼吸","enabled":true,"unit":"次/分","dangerLow":8,"warnLow":12,"warnHigh":20,"dangerHigh":25},
+    "tmp":         {"label":"跨膜压TMP","enabled":true,"unit":"mmHg","warnHigh":250,"dangerHigh":350},
+    "ap":          {"label":"动脉压AP","enabled":true,"unit":"mmHg","warnHigh":200,"dangerHigh":250},
+    "conductivity":{"label":"电导率","enabled":true,"unit":"mS/cm","dangerLow":13.0,"warnLow":13.5,"warnHigh":14.5,"dangerHigh":15.0}
   },
   "vpReference": [
     {"access":"AVF","bfMin":0,"bfMax":150,"normalLow":29,"warnHigh":79,"dangerHigh":99},

@@ -27,15 +27,16 @@ const STATE_META: Record<BedState, { label: string; dot: string; chip: string; c
   interrupted:  { label: '中断',   dot: 'bg-rose-500',    chip: 'bg-rose-50 text-rose-600 border-rose-200',          card: 'border-l-rose-400',    sort: 5 },
 }
 
-// ===== 医生镜头：分诊决策卡态（报警 > 异常值 > 待开方 > 待签 > 已签）=====
-type DoctorState = 'alarm' | 'abnormal' | 'needRx' | 'needSign' | 'signed'
+// ===== 医生镜头：分诊决策卡态（报警 > 异常值 > 待体征 > 待开方 > 待签 > 已签）=====
+type DoctorState = 'alarm' | 'abnormal' | 'needVitals' | 'needRx' | 'needSign' | 'signed'
 
 const DOCTOR_META: Record<DoctorState, { label: string; dot: string; chip: string; card: string; sort: number }> = {
-  alarm:    { label: '报警',   dot: 'bg-rose-600',    chip: 'bg-rose-100 text-rose-700 border-rose-300',         card: 'border-l-rose-500',    sort: 0 },
-  abnormal: { label: '异常值', dot: 'bg-orange-500',  chip: 'bg-orange-50 text-orange-600 border-orange-200',     card: 'border-l-orange-400',  sort: 1 },
-  needRx:   { label: '待开方', dot: 'bg-sky-500',     chip: 'bg-sky-50 text-sky-600 border-sky-200',             card: 'border-l-sky-400',     sort: 2 },
-  needSign: { label: '待签',   dot: 'bg-violet-500',  chip: 'bg-violet-50 text-violet-600 border-violet-200',     card: 'border-l-violet-400',  sort: 3 },
-  signed:   { label: '已签',   dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-600 border-emerald-200', card: 'border-l-emerald-400', sort: 4 },
+  alarm:      { label: '报警',   dot: 'bg-rose-600',    chip: 'bg-rose-100 text-rose-700 border-rose-300',         card: 'border-l-rose-500',    sort: 0 },
+  abnormal:   { label: '异常值', dot: 'bg-orange-500',  chip: 'bg-orange-50 text-orange-600 border-orange-200',     card: 'border-l-orange-400',  sort: 1 },
+  needVitals: { label: '待体征', dot: 'bg-slate-400',   chip: 'bg-slate-50 text-slate-500 border-slate-200',        card: 'border-l-slate-300',   sort: 2 },
+  needRx:     { label: '待开方', dot: 'bg-sky-500',     chip: 'bg-sky-50 text-sky-600 border-sky-200',             card: 'border-l-sky-400',     sort: 3 },
+  needSign:   { label: '待签',   dot: 'bg-violet-500',  chip: 'bg-violet-50 text-violet-600 border-violet-200',     card: 'border-l-violet-400',  sort: 4 },
+  signed:     { label: '已签',   dot: 'bg-emerald-500', chip: 'bg-emerald-50 text-emerald-600 border-emerald-200', card: 'border-l-emerald-400', sort: 5 },
 }
 
 interface BedCard {
@@ -48,6 +49,8 @@ interface BedCard {
   queueNo: string
   startTime?: string
   state: BedState
+  kioskCheckedIn: boolean
+  kioskSelfMeasured: boolean
   wardId?: number | null
 }
 
@@ -68,6 +71,18 @@ function isTimeDone(startTime: string | undefined, durationMinutes: number | und
   if (!startTime || !durationMinutes || durationMinutes <= 0) return false
   const elapsed = (Date.now() - new Date(startTime).getTime()) / 60000
   return elapsed >= durationMinutes
+}
+
+// 已签到：优先看 signInTime（与生产库现有数据一致）；兼容 legacyStatus >= 10。
+function parseLegacyCheckedIn(signInTime?: string, legacy?: string): boolean {
+  if (signInTime) return true
+  const n = parseInt((legacy || '').trim(), 10)
+  return Number.isFinite(n) && n >= 10
+}
+
+// 已自测：kiosk 写入的透前体征有实测值（体重或收缩压任一 >0）。
+function hasSelfSigns(before?: { weight?: number; sbp?: number }): boolean {
+  return !!before && ((before.weight ?? 0) > 0 || (before.sbp ?? 0) > 0)
 }
 
 function deriveBedState(status: number, legacy: string, startTime?: string, durationMinutes?: number): BedState {
@@ -194,6 +209,8 @@ export default function Cockpit() {
           queueNo: t.queueNo || '',
           startTime: t.startTime,
           state: deriveBedState(t.status, t.legacyStatus || '', t.startTime, t.durationMinutes),
+          kioskCheckedIn: parseLegacyCheckedIn(t.signInTime, t.legacyStatus || ''),
+          kioskSelfMeasured: hasSelfSigns(t.beforeSigns),
           wardId: t.wardId,
         }
       })
@@ -204,12 +221,16 @@ export default function Cockpit() {
         const pinfo = patientMap.get(String(t.patientId))
         const clin = assessClinical(t.beforeSigns, t.status, t.legacyStatus || '')
         const rx = rxMap.get(String(t.patientId))
+        // 透前体重(自测/手录)是当日处方确认的前置；血压可后补，不纳入门禁。
+        const vitalsReady = (t.beforeSigns?.weight ?? 0) > 0
         let state: DoctorState
         let note = ''
         if (clin.level === 'alarm') {
           state = 'alarm'; note = clin.note
         } else if (clin.level === 'abnormal') {
           state = 'abnormal'; note = clin.note
+        } else if (!vitalsReady && !(rx && rx.signed)) {
+          state = 'needVitals'; note = '待透前体重(自测/手录)'
         } else if (!rx) {
           state = 'needRx'; note = '今日尚无处方'
         } else if (!rx.signed) {
@@ -261,7 +282,7 @@ export default function Cockpit() {
   }, [visibleBeds])
 
   const docCounts = useMemo(() => {
-    const c: Record<DoctorState, number> = { alarm: 0, abnormal: 0, needRx: 0, needSign: 0, signed: 0 }
+    const c: Record<DoctorState, number> = { alarm: 0, abnormal: 0, needVitals: 0, needRx: 0, needSign: 0, signed: 0 }
     for (const card of visibleDocs) c[card.state]++
     return c
   }, [visibleDocs])
@@ -375,7 +396,7 @@ export default function Cockpit() {
         </div>
       ) : (
         <div className="grid grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
-          {(['alarm', 'abnormal', 'needRx', 'needSign', 'signed'] as DoctorState[]).map((s) => (
+          {(['alarm', 'abnormal', 'needVitals', 'needRx', 'needSign', 'signed'] as DoctorState[]).map((s) => (
             <div key={s} className="bg-white rounded-2xl border border-slate-100 px-5 py-3.5 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className={`w-2.5 h-2.5 rounded-full ${DOCTOR_META[s].dot}`} />
@@ -419,7 +440,14 @@ export default function Cockpit() {
                       <p className="text-[11px] text-slate-400 truncate">{[card.mode, card.shiftName].filter(Boolean).join(' · ') || '—'}</p>
                     </div>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-md text-[11px] font-black border ${meta.chip}`}>{meta.label}</span>
+                  <div className="flex shrink-0 items-center gap-1">
+                    {card.kioskSelfMeasured ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black border bg-emerald-50 text-emerald-600 border-emerald-200">已自测</span>
+                    ) : card.kioskCheckedIn ? (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black border bg-sky-50 text-sky-600 border-sky-200">已签到</span>
+                    ) : null}
+                    <span className={`px-2 py-0.5 rounded-md text-[11px] font-black border ${meta.chip}`}>{meta.label}</span>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between text-[12px] text-slate-400">
                   <span className="flex items-center gap-1"><Clock size={12} />{card.state === 'pending' ? (card.queueNo ? `队列 ${card.queueNo}` : '待上机') : fmtTime(card.startTime)}</span>

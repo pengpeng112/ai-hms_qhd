@@ -2,6 +2,7 @@ package services
 
 import (
 	"errors"
+	"math"
 	"strconv"
 	"strings"
 	"time"
@@ -80,10 +81,10 @@ type MonitoringAlert struct {
 	Value  float64 `json:"value"`
 }
 
-// extrapolateVitals 简单外推占位（决②）：用最近窗口的线性斜率（限幅）把 MAP/SBP/DBP/心率
-// 向「计划下机 plannedEnd」投影，生成 kind=predicted 的点（卡面渲染虚线）。
-// 这是**占位**，真预测由 IDH/预测模型替换；故斜率与取值均保守夹紧，避免离谱投影。
-// 首个 predicted 点 = 末个 actual 点（桥接，使虚线接上实线）。
+// extrapolateVitals 趋势②（决②）：用近窗最小二乘（forecastSeries）把 SBP/DBP/HR 各自
+// 向「计划下机 plannedEnd」投影，生成 kind=predicted 的点（卡面渲染虚线），MAP 由 SBP/DBP 派生。
+// 数据驱动钳位 + 临床范围(SBP[50,220]/DBP[30,130]/HR[30,180])；首个 predicted 点 = 末 actual(桥接)。
+// 诚实边界：线性短时外推；事件预判（如即将 IDH）归 AI③。
 func extrapolateVitals(actual []VitalSample, plannedEnd time.Time) []VitalSample {
 	n := len(actual)
 	if n < 2 {
@@ -93,52 +94,43 @@ func extrapolateVitals(actual []VitalSample, plannedEnd time.Time) []VitalSample
 	if !plannedEnd.After(last.T) {
 		return nil
 	}
-	win := 3
-	if n < win {
-		win = n
-	}
-	first := actual[n-win]
-	dtMin := last.T.Sub(first.T).Minutes()
-	if dtMin <= 0 {
-		return nil
-	}
-	slope := func(a, b float64) float64 {
-		s := (b - a) / dtMin
-		if s > 0.5 {
-			s = 0.5
+
+	collect := func(get func(VitalSample) float64) []forecastPoint {
+		pts := make([]forecastPoint, 0, n)
+		for _, s := range actual {
+			if v := get(s); v > 0 {
+				pts = append(pts, forecastPoint{T: s.T, V: v})
+			}
 		}
-		if s < -0.5 {
-			s = -0.5
-		}
-		return s
+		return pts
 	}
-	clamp := func(v, lo, hi float64) float64 {
-		if v < lo {
-			return lo
-		}
-		if v > hi {
-			return hi
-		}
-		return v
-	}
-	sSBP, sDBP, sHR := slope(first.SBP, last.SBP), slope(first.DBP, last.DBP), slope(first.HR, last.HR)
+
+	sbpLo, sbpHi := 50.0, 220.0
+	dbpLo, dbpHi := 30.0, 130.0
+	hrLo, hrHi := 30.0, 180.0
+	sbpOpts := forecastOpts{ClampLo: &sbpLo, ClampHi: &sbpHi}
+	dbpOpts := forecastOpts{ClampLo: &dbpLo, ClampHi: &dbpHi}
+	hrOpts := forecastOpts{ClampLo: &hrLo, ClampHi: &hrHi}
+
+	fitSBP, okSBP := fitRecentLinear(collect(func(s VitalSample) float64 { return s.SBP }), sbpOpts)
+	fitDBP, okDBP := fitRecentLinear(collect(func(s VitalSample) float64 { return s.DBP }), dbpOpts)
+	fitHR, okHR := fitRecentLinear(collect(func(s VitalSample) float64 { return s.HR }), hrOpts)
 
 	out := []VitalSample{{T: last.T, SBP: last.SBP, DBP: last.DBP, MAP: last.MAP, HR: last.HR, Kind: "predicted"}}
 	step := 30 * time.Minute
 	for tcur := last.T.Add(step); !tcur.After(plannedEnd); tcur = tcur.Add(step) {
-		m := tcur.Sub(last.T).Minutes()
 		vs := VitalSample{T: tcur, Kind: "predicted"}
-		if last.SBP > 0 {
-			vs.SBP = clamp(last.SBP+sSBP*m, 50, 220)
+		if okSBP {
+			vs.SBP = fitSBP.eval(tcur, sbpOpts)
 		}
-		if last.DBP > 0 {
-			vs.DBP = clamp(last.DBP+sDBP*m, 30, 130)
+		if okDBP {
+			vs.DBP = fitDBP.eval(tcur, dbpOpts)
 		}
 		if vs.SBP > 0 && vs.DBP > 0 {
 			vs.MAP = (vs.SBP + 2*vs.DBP) / 3
 		}
-		if last.HR > 0 {
-			vs.HR = clamp(last.HR+sHR*m, 30, 180)
+		if okHR {
+			vs.HR = fitHR.eval(tcur, hrOpts)
 		}
 		out = append(out, vs)
 	}
@@ -635,12 +627,26 @@ func (s *MonitoringService) evalAlarms(d *MonitoringLiveDevice, th *config.Monit
 	if d.HeartRate > 0 {
 		add("heartRate", th.EvalFixed("heartRate", d.HeartRate), d.HeartRate)
 	}
+	if d.SpO2 > 0 {
+		add("spo2", th.EvalFixed("spo2", d.SpO2), d.SpO2)
+	}
+	if d.Respiration > 0 {
+		add("respiration", th.EvalFixed("respiration", d.Respiration), d.Respiration)
+	}
+	if d.TMP > 0 {
+		add("tmp", th.EvalFixed("tmp", d.TMP), d.TMP)
+	}
+	if d.ArterialPressure != 0 {
+		ap := math.Abs(d.ArterialPressure)
+		add("ap", th.EvalFixed("ap", ap), ap)
+	}
 	if d.VenousPressure > 0 {
 		add("vp", th.EvalVP(d.AccessType, d.BF, d.VenousPressure), d.VenousPressure)
 	}
 	if d.Conductivity > 0 {
 		na := d.Conductivity * th.NaFactor()
 		add("dialysateNa", th.EvalFixed("dialysateNa", na), na)
+		add("conductivity", th.EvalFixed("conductivity", d.Conductivity), d.Conductivity)
 	}
 	if d.UFGoal > 0 && d.DryWeight > 0 && d.EstimatedDuration > 0 {
 		ufr := d.UFGoal * 1000 / d.DryWeight / (d.EstimatedDuration / 60)
@@ -769,6 +775,32 @@ func (s *MonitoringService) GetTreatmentTrend(tenantID, treatmentID int64) (*Tre
 		}
 		if r.UFVolume != nil {
 			out.Series["ufVolume"] = append(out.Series["ufVolume"], TrendPoint{T: r.LogTime, V: *r.UFVolume, Kind: "actual"})
+		}
+	}
+
+	// 趋势② predicted：遍历 out.Series 全部 key，近窗最小二乘投影到 plannedEnd（虚线段）。
+	// vitals 叠加临床钳位；设备参数仅数据驱动钳位。跳过桥接点，避免重复最后 actual。
+	vitalClamp := map[string][2]float64{
+		"sbp": {50, 220}, "dbp": {30, 130}, "map": {50, 180}, "heartRate": {30, 180},
+	}
+	for key, pts := range out.Series {
+		if len(pts) < 2 {
+			continue
+		}
+		fp := make([]forecastPoint, len(pts))
+		for i, p := range pts {
+			fp[i] = forecastPoint{T: p.T, V: p.V}
+		}
+		opts := forecastOpts{}
+		if c, ok := vitalClamp[key]; ok {
+			lo, hi := c[0], c[1]
+			opts.ClampLo, opts.ClampHi = &lo, &hi
+		}
+		pred := forecastSeries(fp, out.PlannedEnd, opts)
+		if len(pred) > 1 {
+			for _, pp := range pred[1:] {
+				out.Series[key] = append(out.Series[key], TrendPoint{T: pp.T, V: pp.V, Kind: "predicted"})
+			}
 		}
 	}
 

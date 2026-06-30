@@ -139,6 +139,46 @@ func TestEvalAlarms(t *testing.T) {
 		}
 	})
 
+	t.Run("SpO2 danger", func(t *testing.T) {
+		d := &MonitoringLiveDevice{SpO2: 88} // <90 危险
+		s.evalAlarms(d, th)
+		if d.AlarmLevel != string(config.AlarmDanger) {
+			t.Errorf("SpO2=88: want danger, got %s", d.AlarmLevel)
+		}
+	})
+
+	t.Run("Respiration danger low", func(t *testing.T) {
+		d := &MonitoringLiveDevice{Respiration: 6} // <8 危险
+		s.evalAlarms(d, th)
+		if d.AlarmLevel != string(config.AlarmDanger) {
+			t.Errorf("Respiration=6: want danger, got %s", d.AlarmLevel)
+		}
+	})
+
+	t.Run("TMP danger high", func(t *testing.T) {
+		d := &MonitoringLiveDevice{TMP: 360} // >350 危险
+		s.evalAlarms(d, th)
+		if d.AlarmLevel != string(config.AlarmDanger) {
+			t.Errorf("TMP=360: want danger, got %s", d.AlarmLevel)
+		}
+	})
+
+	t.Run("AP danger by absolute value", func(t *testing.T) {
+		d := &MonitoringLiveDevice{ArterialPressure: -260} // |AP|=260 >250 危险
+		s.evalAlarms(d, th)
+		if d.AlarmLevel != string(config.AlarmDanger) {
+			t.Errorf("AP=-260: want danger, got %s", d.AlarmLevel)
+		}
+	})
+
+	t.Run("Conductivity danger low", func(t *testing.T) {
+		d := &MonitoringLiveDevice{Conductivity: 12.8} // <13.0 危险
+		s.evalAlarms(d, th)
+		if d.AlarmLevel != string(config.AlarmDanger) {
+			t.Errorf("Conductivity=12.8: want danger, got %s", d.AlarmLevel)
+		}
+	})
+
 	t.Run("nil thresholds no panic", func(t *testing.T) {
 		d := &MonitoringLiveDevice{SBP: 80, DBP: 40}
 		s.evalAlarms(d, nil)
