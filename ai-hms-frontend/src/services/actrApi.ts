@@ -3,6 +3,7 @@ import { apiClient } from './restClient'
 export interface ActrStatus {
   enabled: boolean
   configured: boolean
+  reachable: boolean
 }
 
 export interface PatientACTR {

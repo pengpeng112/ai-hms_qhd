@@ -32,24 +32,47 @@ func newActrTestDB(t *testing.T) *gorm.DB {
 func fakeActrsServer(t *testing.T) *httptest.Server {
 	t.Helper()
 	mux := http.NewServeMux()
-	mux.HandleFunc("/auth/login", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(map[string]string{"access_token": "tok"})
 	})
-	mux.HandleFunc("/patients", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/patients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			q := r.URL.Query().Get("q")
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": 77, "dialysis_id": q, "name": "张三"},
+				{"id": 78, "dialysis_id": q + "0", "name": "other"},
+			})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(201)
 		json.NewEncoder(w).Encode(map[string]any{"id": 77, "dialysis_id": "D-001", "name": "张三"})
 	})
-	mux.HandleFunc("/patients/77/xrays", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/api/patients/77/xrays", func(w http.ResponseWriter, r *http.Request) {
 		ctr := 0.48
+		actr1 := 0.45
+		actr2 := 0.50
+		hw := 120
+		lw := 250
+		ta := 1.5
 		if r.Method == http.MethodGet {
-			json.NewEncoder(w).Encode([]map[string]any{{"id": 1, "ctr": ctr, "qc_pass": true}})
+			json.NewEncoder(w).Encode([]map[string]any{{"id": 1, "ctr": ctr, "qc_pass": 1}})
 			return
 		}
 		w.WriteHeader(201)
-		json.NewEncoder(w).Encode(map[string]any{"id": 9, "ctr": ctr, "qc_pass": true, "model_version": "v8.5"})
+		json.NewEncoder(w).Encode(map[string]any{
+			"id": 9, "ctr": ctr, "qc_pass": 1, "model_version": "v8.5",
+			"actr1": actr1, "actr2": actr2, "heart_width": hw, "lung_width": lw, "tilt_angle": ta,
+			"mask_path": "/m/m.png",
+		})
 	})
-	mux.HandleFunc("/xrays/9/correction", func(w http.ResponseWriter, _ *http.Request) {
-		val := 0.50
-		json.NewEncoder(w).Encode(map[string]any{"id": 9, "ctr": &val, "doctor_correction": &val})
+	mux.HandleFunc("/api/xrays/9/correction", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("correction") == "" {
+			w.WriteHeader(422)
+			return
+		}
+		val := 0.55
+		json.NewEncoder(w).Encode(map[string]any{"id": 9, "doctor_correction": &val})
 	})
 	return httptest.NewServer(mux)
 }
@@ -98,6 +121,69 @@ func TestActr_EnsurePatientMapping_NoDialysisNo(t *testing.T) {
 	}
 }
 
+func TestActr_EnsurePatientMapping_409Fallback(t *testing.T) {
+	db := newActrTestDB(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"access_token": "tok"})
+	})
+	mux.HandleFunc("/api/patients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			q := r.URL.Query().Get("q")
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": 77, "dialysis_id": q, "name": "张三"},
+				{"id": 78, "dialysis_id": q + "X", "name": "other"},
+			})
+			return
+		}
+		w.WriteHeader(409)
+		json.NewEncoder(w).Encode(map[string]string{"detail": "透析号 D-001 已存在"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	s := newActrSvc(t, db, srv.URL)
+
+	actrsID, dialysisNo, err := s.ensurePatientMapping(context.Background(), 1001)
+	if err != nil {
+		t.Fatalf("409 fallback should succeed: %v", err)
+	}
+	if actrsID != 77 || dialysisNo != "D-001" {
+		t.Fatalf("want 77/D-001 via fallback, got %d/%s", actrsID, dialysisNo)
+	}
+	var m models.ExternalPatientMapping
+	db.Where("legacy_patient_id = ? AND external_system = ?", 1001, ExternalSystemACTRS).First(&m)
+	if m.ExternalPatientID != "77" {
+		t.Fatalf("mapping should record actrsID 77, got %s", m.ExternalPatientID)
+	}
+}
+
+func TestActr_EnsurePatientMapping_409Fallback_ExactMatch(t *testing.T) {
+	db := newActrTestDB(t)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/auth/login", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(map[string]string{"access_token": "tok"})
+	})
+	mux.HandleFunc("/api/patients", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			json.NewEncoder(w).Encode([]map[string]any{
+				{"id": 78, "dialysis_id": "D-0010", "name": "other"},
+				{"id": 79, "dialysis_id": "D-0011", "name": "another"},
+			})
+			return
+		}
+		w.WriteHeader(409)
+		_ = json.NewEncoder(w).Encode(map[string]string{"detail": "conflict"})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+	s := newActrSvc(t, db, srv.URL)
+
+	_, _, err := s.ensurePatientMapping(context.Background(), 1001)
+	if err == nil {
+		t.Fatalf("should fail when no exact dialysis_id match in search results")
+	}
+}
+
 func TestActr_Analyze_PersistsAndIdempotent(t *testing.T) {
 	db := newActrTestDB(t)
 	srv := fakeActrsServer(t)
@@ -118,6 +204,47 @@ func TestActr_Analyze_PersistsAndIdempotent(t *testing.T) {
 	db.Model(&models.PatientACTR{}).Where("tenant_id = ? AND patient_id = ? AND actrs_xray_id = ?", 3, "1001", 9).Count(&cnt)
 	if cnt != 1 {
 		t.Fatalf("should be idempotent, got %d rows", cnt)
+	}
+}
+
+func TestActr_Analyze_UpsertUpdatesV85Fields(t *testing.T) {
+	db := newActrTestDB(t)
+	srv := fakeActrsServer(t)
+	defer srv.Close()
+	s := newActrSvc(t, db, srv.URL)
+
+	rec, err := s.Analyze(context.Background(), 1001, "chest.jpg", strings.NewReader("bytes"))
+	if err != nil {
+		t.Fatalf("Analyze: %v", err)
+	}
+	if rec.ACTR1 == nil || *rec.ACTR1 != 0.45 {
+		t.Fatalf("actr1 not stored on first analyze: %+v", rec.ACTR1)
+	}
+
+	updated, err := s.Analyze(context.Background(), 1001, "chest.jpg", strings.NewReader("bytes2"))
+	if err != nil {
+		t.Fatalf("Analyze#2: %v", err)
+	}
+	if updated.ACTR1 == nil || *updated.ACTR1 != 0.45 {
+		t.Fatalf("actr1 not returned on re-analyze: %+v", updated.ACTR1)
+	}
+
+	var row models.PatientACTR
+	db.Where("tenant_id = ? AND patient_id = ? AND actrs_xray_id = ?", 3, "1001", 9).First(&row)
+	if row.ACTR1 == nil || *row.ACTR1 != 0.45 {
+		t.Fatalf("actr1 not updated on re-analyze: %+v", row.ACTR1)
+	}
+	if row.ACTR2 == nil || *row.ACTR2 != 0.50 {
+		t.Fatalf("actr2 not updated on re-analyze: %+v", row.ACTR2)
+	}
+	if row.HeartWidth == nil || *row.HeartWidth != 120 {
+		t.Fatalf("heart_width not updated: %+v", row.HeartWidth)
+	}
+	if row.LungWidth == nil || *row.LungWidth != 250 {
+		t.Fatalf("lung_width not updated: %+v", row.LungWidth)
+	}
+	if row.TiltAngle == nil || *row.TiltAngle != 1.5 {
+		t.Fatalf("tilt_angle not updated: %+v", row.TiltAngle)
 	}
 }
 
@@ -196,8 +323,8 @@ func TestActr_DegradeReadOnly(t *testing.T) {
 	if len(rows) != 0 {
 		t.Fatalf("expected empty history, got %d", len(rows))
 	}
-	st := s.Status()
-	if st["enabled"] != false {
+	st := s.Status(context.Background())
+	if st.Enabled != false {
 		t.Fatalf("status should show disabled")
 	}
 }
@@ -235,5 +362,30 @@ func TestActr_Correct(t *testing.T) {
 	}
 	if updated.CorrectedBy != "医生B" || updated.DoctorCorrection == nil || *updated.DoctorCorrection != 0.55 {
 		t.Fatalf("correction not saved: %+v", updated)
+	}
+}
+
+func TestActr_Status_Reachable(t *testing.T) {
+	db := newActrTestDB(t)
+	srv := fakeActrsServer(t)
+	defer srv.Close()
+	s := newActrSvc(t, db, srv.URL)
+
+	st := s.Status(context.Background())
+	if !st.Enabled || !st.Configured {
+		t.Fatalf("should be enabled and configured: %+v", st)
+	}
+	if !st.Reachable {
+		t.Fatalf("should be reachable when server is up: %+v", st)
+	}
+}
+
+func TestActr_Status_NotReachable(t *testing.T) {
+	db := newActrTestDB(t)
+	s := NewActrServiceWith(db, actrs.NewClient(actrs.Config{BaseURL: "http://127.0.0.1:1", TimeoutSec: 1}), true, 3)
+
+	st := s.Status(context.Background())
+	if st.Reachable {
+		t.Fatalf("should not be reachable on dead port: %+v", st)
 	}
 }

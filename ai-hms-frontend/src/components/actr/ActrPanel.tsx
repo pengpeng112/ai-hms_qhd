@@ -17,14 +17,14 @@ export default function ActrPanel({ open, onClose, patientId, prescriptionId }: 
   const [latest, setLatest] = useState<PatientACTR | null>(null)
   const [dryWeight, setDryWeight] = useState<number | null>(null)
   const [uf, setUf] = useState<number | null>(null)
-  const [status, setStatus] = useState<ActrStatus & { loaded: boolean }>({ enabled: false, configured: false, loaded: false })
+  const [status, setStatus] = useState<ActrStatus & { loaded: boolean }>({ enabled: false, configured: false, reachable: false, loaded: false })
 
   const loadStatus = useCallback(async () => {
     try {
       const s = await actrApi.status()
       setStatus({ ...s, loaded: true })
     } catch {
-      setStatus({ enabled: false, configured: false, loaded: true })
+      setStatus({ enabled: false, configured: false, reachable: false, loaded: true })
     }
   }, [])
 
@@ -102,9 +102,15 @@ export default function ActrPanel({ open, onClose, patientId, prescriptionId }: 
             </div>
           )}
 
-          {status.loaded && status.enabled && (
+          {status.loaded && status.enabled && !status.reachable && (
+            <div className="bg-rose-50 border border-rose-200 rounded-lg px-4 py-3 text-sm text-rose-700">
+              影像服务不可达，请联系管理员检查 ACTRS 服务状态
+            </div>
+          )}
+
+          {status.loaded && status.enabled && status.reachable && (
             <>
-              <Upload beforeUpload={(f) => { onUpload(f as File); return Upload.LIST_IGNORE }} showUploadList={false} accept="image/*,.dcm">
+              <Upload beforeUpload={(f) => { onUpload(f as File); return Upload.LIST_IGNORE }} showUploadList={false} accept="image/*,.dcm,.dicom,.ima">
                 <Button icon={<UploadOutlined />} loading={loading}>上传胸片即时分析</Button>
               </Upload>
 

@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -14,10 +15,14 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-const maxUploadSize = 20 << 20
+const (
+	maxImageUploadSize = 20 << 20
+	maxDicomUploadSize = 100 << 20
+)
 
 var allowedExtensions = map[string]bool{
-	".jpg": true, ".jpeg": true, ".png": true, ".dcm": true,
+	".jpg": true, ".jpeg": true, ".png": true,
+	".dcm": true, ".dicom": true, ".ima": true,
 }
 
 type ActrHandler struct {
@@ -39,7 +44,7 @@ func RegisterActrRoutes(rg *gin.RouterGroup, cfg config.ActrsConfig, tenantID in
 }
 
 func (h *ActrHandler) Status(c *gin.Context) {
-	response.Success(c, h.svc.Status())
+	response.Success(c, h.svc.Status(c.Request.Context()))
 }
 
 func (h *ActrHandler) History(c *gin.Context) {
@@ -62,23 +67,27 @@ func (h *ActrHandler) Analyze(c *gin.Context) {
 		response.BadRequest(c, "无效患者ID")
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxUploadSize)
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, int64(maxDicomUploadSize))
 	fh, err := c.FormFile("file")
 	if err != nil {
 		if strings.Contains(err.Error(), "http: request body too large") {
-			response.Error(c, 413, "FILE_TOO_LARGE", "文件过大，最大允许 20MB")
+			response.Error(c, 413, "FILE_TOO_LARGE", fmt.Sprintf("文件过大，最大允许 %dMB", maxDicomUploadSize>>20))
 			return
 		}
 		response.BadRequest(c, "缺少胸片文件")
 		return
 	}
-	if fh.Size > maxUploadSize {
-		response.Error(c, 413, "FILE_TOO_LARGE", "文件过大，最大允许 20MB")
-		return
-	}
 	ext := strings.ToLower(filepath.Ext(fh.Filename))
 	if !allowedExtensions[ext] {
-		response.BadRequest(c, "不支持的文件类型，仅支持 jpg/jpeg/png/dcm")
+		response.BadRequest(c, "不支持的文件类型，仅支持 jpg/jpeg/png/dcm/dicom/ima")
+		return
+	}
+	maxUploadSize := maxImageUploadSize
+	if ext == ".dcm" || ext == ".dicom" || ext == ".ima" {
+		maxUploadSize = maxDicomUploadSize
+	}
+	if fh.Size > int64(maxUploadSize) {
+		response.Error(c, 413, "FILE_TOO_LARGE", fmt.Sprintf("文件过大，最大允许 %dMB", maxUploadSize>>20))
 		return
 	}
 	f, err := fh.Open()

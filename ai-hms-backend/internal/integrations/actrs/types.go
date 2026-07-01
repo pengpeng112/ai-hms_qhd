@@ -1,5 +1,7 @@
 package actrs
 
+import "encoding/json"
+
 type Config struct {
 	BaseURL    string
 	Username   string
@@ -38,7 +40,7 @@ type XrayOut struct {
 	LungWidth        *int     `json:"lung_width"`
 	TiltAngle        *float64 `json:"tilt_angle"`
 	QCPaAp           string   `json:"qc_pa_ap"`
-	QCPass           bool     `json:"qc_pass"`
+	QCPass           *int     `json:"qc_pass"`
 	QCWarnings       string   `json:"qc_warnings"`
 	ModelVersion     string   `json:"model_version"`
 	ImagePath        string   `json:"image_path"`
@@ -47,6 +49,16 @@ type XrayOut struct {
 	DoctorCorrection *float64 `json:"doctor_correction"`
 	Notes            string   `json:"notes"`
 	AnalysisDate     string   `json:"analysis_date"`
+
+	// V8.5 新增字段（解析用，当前不入库）
+	QCRotation      *float64        `json:"qc_rotation"`
+	QCInspiration   *float64        `json:"qc_inspiration"`
+	HeartArea       *float64        `json:"heart_area"`
+	LungArea        *float64        `json:"lung_area"`
+	T1Dist          *float64        `json:"t1_dist"`
+	T2Dist          *float64        `json:"t2_dist"`
+	InferenceTimeMs *int            `json:"inference_time_ms"`
+	DicomMeta       json.RawMessage `json:"dicom_meta"`
 }
 
 type CorrectionRequest struct {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -30,15 +31,23 @@ func NewClient(cfg Config) *Client {
 		to = defaultTimeout
 	}
 	return &Client{
-		baseURL: strings.TrimRight(cfg.BaseURL, "/"),
+		baseURL: normalizeBaseURL(cfg.BaseURL),
 		cfg:     cfg,
 		http:    &http.Client{Timeout: to},
 	}
 }
 
+func normalizeBaseURL(raw string) string {
+	s := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if strings.HasSuffix(strings.ToLower(s), "/api") {
+		s = s[:len(s)-len("/api")]
+	}
+	return s
+}
+
 func (c *Client) login(ctx context.Context) (string, error) {
 	body, _ := json.Marshal(loginRequest{Username: c.cfg.Username, Password: c.cfg.Password})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/auth/login", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/auth/login", bytes.NewReader(body))
 	if err != nil {
 		return "", err
 	}
@@ -122,7 +131,7 @@ func (c *Client) do(ctx context.Context, method, path string, contentType string
 
 func (c *Client) UpsertPatient(ctx context.Context, in PatientCreate) (*PatientOut, error) {
 	body, _ := json.Marshal(in)
-	data, err := c.do(ctx, http.MethodPost, "/patients", "application/json", body, nil)
+	data, err := c.do(ctx, http.MethodPost, "/api/patients", "application/json", body, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -133,8 +142,20 @@ func (c *Client) UpsertPatient(ctx context.Context, in PatientCreate) (*PatientO
 	return &out, nil
 }
 
+func (c *Client) SearchPatients(ctx context.Context, q string) ([]PatientOut, error) {
+	data, err := c.do(ctx, http.MethodGet, "/api/patients?q="+url.QueryEscape(q), "", nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	var out []PatientOut
+	if err := json.Unmarshal(data, &out); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *Client) ListXrays(ctx context.Context, actrsPatientID int64) ([]XrayOut, error) {
-	data, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/patients/%d/xrays", actrsPatientID), "", nil, nil)
+	data, err := c.do(ctx, http.MethodGet, fmt.Sprintf("/api/patients/%d/xrays", actrsPatientID), "", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +184,7 @@ func (c *Client) AnalyzeXray(ctx context.Context, actrsPatientID int64, filename
 		w.Close()
 		return &buf, w.FormDataContentType(), nil
 	}
-	data, err := c.do(ctx, http.MethodPost, fmt.Sprintf("/patients/%d/xrays", actrsPatientID), "", nil, bodyFn)
+	data, err := c.do(ctx, http.MethodPost, fmt.Sprintf("/api/patients/%d/xrays", actrsPatientID), "", nil, bodyFn)
 	if err != nil {
 		return nil, err
 	}
@@ -175,8 +196,8 @@ func (c *Client) AnalyzeXray(ctx context.Context, actrsPatientID int64, filename
 }
 
 func (c *Client) ApplyCorrection(ctx context.Context, xrayID int64, in CorrectionRequest) (*XrayOut, error) {
-	body, _ := json.Marshal(in)
-	data, err := c.do(ctx, http.MethodPatch, fmt.Sprintf("/xrays/%d/correction", xrayID), "application/json", body, nil)
+	path := fmt.Sprintf("/api/xrays/%d/correction?correction=%g", xrayID, in.DoctorCorrection)
+	data, err := c.do(ctx, http.MethodPatch, path, "", nil, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -185,4 +206,9 @@ func (c *Client) ApplyCorrection(ctx context.Context, xrayID int64, in Correctio
 		return nil, err
 	}
 	return &out, nil
+}
+
+func (c *Client) Reachable(ctx context.Context) bool {
+	_, err := c.login(ctx)
+	return err == nil
 }
